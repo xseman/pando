@@ -1,0 +1,78 @@
+name: release
+
+on:
+    push:
+        branches: [main, master]
+    workflow_dispatch:
+        inputs:
+            tag:
+                description: "Rebuild and upload the artifacts of this tag (e.g. v0.1.0)"
+                type: string
+                required: true
+
+permissions:
+    contents: write
+    pull-requests: write
+
+jobs:
+    release-please:
+        name: Release Please
+        if: github.event_name == 'push'
+        runs-on: ubuntu-latest
+        outputs:
+            release_created: ${{ steps.release.outputs.release_created }}
+            tag_name: ${{ steps.release.outputs.tag_name }}
+        steps:
+            - uses: googleapis/release-please-action@v4
+              id: release
+              with:
+                  manifest-file: .github/.release-manifest.json
+                  config-file: .github/.release-config.json
+                  token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+
+    artifacts:
+        name: Build and Upload Artifacts
+        needs: release-please
+        # Either release-please just cut a release, or a tag was given by hand.
+        if: ${{ always() && (needs.release-please.outputs.release_created == 'true' || github.event_name == 'workflow_dispatch') }}
+        runs-on: ubuntu-latest
+        env:
+            TAG: ${{ needs.release-please.outputs.tag_name || inputs.tag }}
+        steps:
+            - uses: actions/checkout@v5
+              with:
+                  ref: ${{ needs.release-please.outputs.tag_name || inputs.tag }}
+
+            - uses: actions/setup-go@v6
+              with:
+                  go-version-file: go.mod
+                  cache: true
+
+            # Pure Go, no cgo: one runner cross-compiles every target. The
+            # version is linked in, so `pando version` and the update check in
+            # a release binary know what they are.
+            - name: Build
+              run: |
+                  mkdir -p artifacts
+                  for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+                      goos="${target%/*}"
+                      goarch="${target#*/}"
+                      CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build \
+                          -trimpath \
+                          -ldflags "-s -w -X github.com/xseman/pando/internal/update.Version=${TAG#v}" \
+                          -o "artifacts/pando-${goos}-${goarch}" .
+                  done
+                  cp install.sh artifacts/install.sh
+                  ls -lah artifacts
+
+            # install.sh and `pando update` both refuse a binary this file
+            # does not cover, so it ships with every release.
+            - name: Checksums
+              working-directory: artifacts
+              run: sha256sum pando-* > CHECKSUMS.txt
+
+            - name: Upload
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GH_REPO: ${{ github.repository }}
+              run: gh release upload "$TAG" artifacts/* --clobber
