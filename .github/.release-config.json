@@ -1,0 +1,60 @@
+{
+	"$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+	"packages": {
+		".": {
+			"release-type": "go",
+			"initial-version": "0.1.0",
+			"bump-minor-pre-major": true,
+			"changelog-path": "CHANGELOG.md",
+			"pull-request-title-pattern": "release v${version}",
+			"pull-request-header": "🌳 pando release",
+			"pull-request-footer": ""
+		}
+	},
+	"changelog-sections": [
+		{
+			"type": "feat",
+			"section": "Features"
+		},
+		{
+			"type": "fix",
+			"section": "Bug Fixes"
+		},
+		{
+			"type": "perf",
+			"section": "Performance Improvements"
+		},
+		{
+			"type": "deps",
+			"section": "Dependency Updates"
+		},
+		{
+			"type": "docs",
+			"section": "Documentation"
+		},
+		{
+			"type": "build",
+			"section": "Build System"
+		},
+		{
+			"type": "ci",
+			"section": "Maintenance"
+		},
+		{
+			"type": "chore",
+			"section": "Maintenance"
+		},
+		{
+			"type": "refactor",
+			"section": "Maintenance"
+		},
+		{
+			"type": "security",
+			"section": "Security"
+		},
+		{
+			"type": "test",
+			"section": "Testing"
+		}
+	]
+}
