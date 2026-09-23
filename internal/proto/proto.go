@@ -73,6 +73,9 @@ type Settings struct {
 	Updates   bool                `json:"update_check" toml:"update_check"`           // ask GitHub once a day whether a newer pando was released
 	SoundDone string              `json:"sound_done" toml:"sound_done"`               // the files played, "" for the terminal bell
 	SoundReq  string              `json:"sound_request" toml:"sound_request"`
+	SpSort    string              `json:"spaces_sort" toml:"spaces_sort"`   // Spaces sessions by "created" or "updated"
+	SpGroup   string              `json:"spaces_group" toml:"spaces_group"` // Spaces rows: "workspace" (the project tree) or "time" (Today, Yesterday, …)
+	SpHide    []string            `json:"spaces_hide" toml:"spaces_hide"`   // session states Spaces leaves out: blocked, running, done, idle, exited
 }
 
 // Column is one sidebar column: views shown as tabs, and its width in cells
@@ -195,6 +198,7 @@ type SessionSpec struct {
 	Parent       string        `json:"parent,omitempty"` // the agent session whose Terminal panel this shell belongs to; killed with it
 	FG           string        `json:"fg,omitempty"`     // host terminal colors, #rrggbb
 	BG           string        `json:"bg,omitempty"`
+	Created      time.Time     `json:"created,omitzero"` // when session.new made it; zero for sessions older than the field
 }
 
 // Conversation is an agent's conversation by the agent's own id.
@@ -224,6 +228,9 @@ type Session struct {
 	Attention bool   `json:"attention"`
 	Title     string `json:"title"`
 	Program   string `json:"program,omitempty"` // what runs in its foreground: the shell, or claude started in it
+	// Updated is its last output, Created before it printed anything; it
+	// starts over when a restarted daemon respawns the session.
+	Updated time.Time `json:"updated,omitzero"`
 }
 
 // Update is what the daemon knows about a newer pando: the reply to

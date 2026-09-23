@@ -425,6 +425,117 @@ func TestAgentsTreeGaps(t *testing.T) {
 	}
 }
 
+// TestSpacesViewOptions drives VS Code's view menu: Group by Time files
+// sessions under day headings, the Sort orders them, the Filter leaves states
+// out and stays open, and Collapse All Groups folds every heading.
+func TestSpacesViewOptions(t *testing.T) {
+	m := testModel(t)
+	now := time.Now()
+	m.sessions[0].Created, m.sessions[0].Updated = now.Add(-time.Minute), now.Add(-time.Minute)
+	m.sessions = append(m.sessions, proto.Session{
+		SessionSpec: proto.SessionSpec{ID: "s2", Workspace: m.ws, Agent: "shell", Created: now.AddDate(0, 0, -3)},
+		Status:      "exited", Updated: now,
+	})
+	press(m, "3")
+
+	choose := func(label string) {
+		t.Helper()
+
+		i := slices.IndexFunc(m.modal.disp, func(it item) bool { return strings.TrimSpace(strings.TrimPrefix(it.label, "✓")) == label })
+		if i < 0 {
+			t.Fatalf("no %q in %+v", label, m.modal.disp)
+		}
+
+		m.modal.choose(m, i)
+	}
+	ids := func() (out []string) {
+		for _, r := range m.ag.rows(m) {
+			switch r.kind {
+			case agTime:
+				out = append(out, r.when)
+			case agSession:
+				out = append(out, r.s.ID)
+			}
+		}
+
+		return out
+	}
+
+	press(m, "o")
+
+	if m.modal == nil || !slices.ContainsFunc(m.modal.disp, func(it item) bool { return it.label == "✓ Sort by Created" }) {
+		t.Fatalf("the view menu checks the default sort: %+v", m.modal)
+	}
+
+	choose("Group by Time")
+
+	if got := ids(); !slices.Equal(got, []string{"Today", "s1", "Last 7 Days", "s2"}) {
+		t.Fatalf("by time, created: %v", got)
+	}
+
+	press(m, "o")
+	choose("Sort by Updated")
+
+	if got := ids(); !slices.Equal(got, []string{"Today", "s2", "s1"}) {
+		t.Fatalf("by time, updated: %v", got)
+	}
+
+	checkWidths(t, m)
+
+	press(m, "o")
+	choose("Group by Workspace")
+
+	if got := ids(); !slices.Equal(got, []string{"s2", "s1"}) {
+		t.Fatalf("the tree sorted by updated: %v", got)
+	}
+
+	press(m, "o")
+	choose("Filter")
+
+	md := m.modal
+
+	choose("Exited")
+
+	if m.modal != md || !slices.Equal(m.st.Settings.SpHide, []string{"exited"}) {
+		t.Fatalf("the filter stays open and hides exited: %v", m.st.Settings.SpHide)
+	}
+
+	if got := ids(); !slices.Equal(got, []string{"s1"}) {
+		t.Fatalf("exited left out: %v", got)
+	}
+
+	choose("Show All")
+
+	m.modal = nil
+	m.st.Settings.SpGroup = "time"
+
+	press(m, "o")
+	choose("Collapse All Groups")
+
+	if got := ids(); !slices.Equal(got, []string{"Today"}) {
+		t.Fatalf("collapsed: %v", got)
+	}
+}
+
+func TestTimeBucket(t *testing.T) {
+	now := time.Date(2026, 9, 23, 10, 0, 0, 0, time.Local)
+	for _, c := range []struct {
+		t    time.Time
+		want string
+	}{
+		{now.Add(-9 * time.Hour), "Today"},
+		{now.Add(-11 * time.Hour), "Yesterday"},
+		{now.AddDate(0, 0, -6), "Last 7 Days"},
+		{now.AddDate(0, 0, -7), "Last 30 Days"},
+		{now.AddDate(0, 0, -30), "Older"},
+		{time.Time{}, "Older"},
+	} {
+		if got := timeBucket(c.t, now); got != c.want {
+			t.Errorf("%v: %s, want %s", c.t, got, c.want)
+		}
+	}
+}
+
 // TestSpacesDragReorder drags a project down the Spaces list: the tree
 // reorders under the pointer, the release saves the order, and a press that
 // never moves is still the click that folds the project.

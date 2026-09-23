@@ -23,7 +23,8 @@ const (
 	agProject = iota
 	agWorkspace
 	agSession
-	agGap // the blank row between two projects; nothing selects it
+	agGap  // the blank row between two projects; nothing selects it
+	agTime // a heading of Group by Time: Today, Yesterday, …
 )
 
 type agRow struct {
@@ -31,6 +32,7 @@ type agRow struct {
 	project string
 	ws      proto.Workspace
 	s       proto.Session
+	when    string // agTime: the heading
 }
 
 // agents is the Project → Workspace → Session tree.
@@ -42,48 +44,13 @@ type agents struct {
 type newSessionMsg proto.Session
 
 func (a *agents) rows(m *Model) []agRow {
-	q := m.query(viewAgents)
+	q, sessions := m.query(viewAgents), m.listedSessions()
 
 	var out []agRow
-
-	known := map[string]bool{}
-
-	for _, p := range m.st.Projects {
-		out = append(out, agRow{kind: agProject, project: p})
-		for _, w := range m.wss {
-			if w.Project != p {
-				continue
-			}
-
-			known[w.Path] = true
-
-			if a.collapsed[p] && q == "" {
-				continue
-			}
-
-			out = append(out, agRow{kind: agWorkspace, project: p, ws: w})
-			for _, s := range m.agentSessions() {
-				if s.Workspace == w.Path {
-					out = append(out, agRow{kind: agSession, project: p, ws: w, s: s})
-				}
-			}
-		}
-	}
-
-	header := false
-
-	for _, s := range m.agentSessions() { // sessions outside every known worktree, under "other"
-		if known[s.Workspace] {
-			continue
-		}
-
-		if !header {
-			out, header = append(out, agRow{kind: agProject}), true
-		}
-
-		if !a.collapsed[""] || q != "" {
-			out = append(out, agRow{kind: agSession, ws: proto.Workspace{Path: s.Workspace}, s: s})
-		}
+	if m.st.Settings.SpGroup == "time" {
+		out = a.timeRows(m, sessions, q)
+	} else {
+		out = a.treeRows(m, sessions, q)
 	}
 
 	if q == "" {
@@ -95,7 +62,7 @@ func (a *agents) rows(m *Model) []agRow {
 
 	for i, r := range out {
 		switch r.kind {
-		case agProject:
+		case agProject, agTime:
 			project, ws = i, -1
 		case agWorkspace:
 			ws = i
@@ -126,13 +93,60 @@ func (a *agents) rows(m *Model) []agRow {
 	return withGaps(shown)
 }
 
+// treeRows are Group by Workspace's rows: project, worktree, session.
+func (a *agents) treeRows(m *Model, sessions []proto.Session, q string) []agRow {
+	var out []agRow
+
+	known := map[string]bool{}
+
+	for _, p := range m.st.Projects {
+		out = append(out, agRow{kind: agProject, project: p})
+		for _, w := range m.wss {
+			if w.Project != p {
+				continue
+			}
+
+			known[w.Path] = true
+
+			if a.collapsed[p] && q == "" {
+				continue
+			}
+
+			out = append(out, agRow{kind: agWorkspace, project: p, ws: w})
+			for _, s := range sessions {
+				if s.Workspace == w.Path {
+					out = append(out, agRow{kind: agSession, project: p, ws: w, s: s})
+				}
+			}
+		}
+	}
+
+	header := false
+
+	for _, s := range sessions { // sessions outside every known worktree, under "other"
+		if known[s.Workspace] {
+			continue
+		}
+
+		if !header {
+			out, header = append(out, agRow{kind: agProject}), true
+		}
+
+		if !a.collapsed[""] || q != "" {
+			out = append(out, agRow{kind: agSession, ws: proto.Workspace{Path: s.Workspace}, s: s})
+		}
+	}
+
+	return out
+}
+
 // withGaps puts a blank row before a project, herdr's gap between two spaces,
 // but only where the project above it unfolded: the gap separates rows that
 // belong to something, so a run of folded projects stays a tight list.
 func withGaps(rows []agRow) []agRow {
 	out := make([]agRow, 0, len(rows)+4)
 	for i, r := range rows {
-		if r.kind == agProject && i > 0 && rows[i-1].kind != agProject {
+		if (r.kind == agProject || r.kind == agTime) && i > 0 && rows[i-1].kind != r.kind {
 			out = append(out, agRow{kind: agGap})
 		}
 
@@ -140,6 +154,141 @@ func withGaps(rows []agRow) []agRow {
 	}
 
 	return out
+}
+
+// listedSessions are the sessions Spaces shows: the Filter's states left out,
+// in the Sort's order. Created keeps the order they were made in; Updated,
+// and any time grouping, puts the newest first.
+func (m *Model) listedSessions() []proto.Session {
+	st := m.st.Settings
+
+	var out []proto.Session
+
+	for _, s := range m.agentSessions() {
+		if !slices.Contains(st.SpHide, sessionState(m.rollup(s))) {
+			out = append(out, s)
+		}
+	}
+
+	if st.SpSort == "updated" || st.SpGroup == "time" {
+		slices.SortStableFunc(out, func(a, b proto.Session) int { return m.sessionTime(b).Compare(m.sessionTime(a)) })
+	}
+
+	return out
+}
+
+// rollup is session s as its row shows it: its most demanding tab's state,
+// and the latest output of any of them.
+func (m *Model) rollup(s proto.Session) proto.Session {
+	tabs := m.tabsOf(s.ID)
+	if len(tabs) == 0 {
+		return s
+	}
+
+	r := slices.MinFunc(tabs, func(a, b proto.Session) int { return sessionRank(a) - sessionRank(b) })
+	for _, t := range tabs {
+		if t.Updated.After(r.Updated) {
+			r.Updated = t.Updated
+		}
+	}
+
+	return r
+}
+
+// sessionTime is what the Sort orders s by, and Group by Time files it under.
+func (m *Model) sessionTime(s proto.Session) time.Time {
+	if m.st.Settings.SpSort == "updated" {
+		return m.rollup(s).Updated
+	}
+
+	return s.Created
+}
+
+// timeBuckets are Group by Time's headings, newest first, as VS Code's.
+var timeBuckets = []string{"Today", "Yesterday", "Last 7 Days", "Last 30 Days", "Older"}
+
+// timeBucket files t under one of timeBuckets by calendar day; a session
+// older than the created field is Older.
+func timeBucket(t, now time.Time) string {
+	if t.IsZero() {
+		return "Older"
+	}
+
+	y, mo, d := now.Date()
+	day := time.Date(y, mo, d, 0, 0, 0, 0, now.Location())
+
+	switch {
+	case !t.Before(day):
+		return "Today"
+	case !t.Before(day.AddDate(0, 0, -1)):
+		return "Yesterday"
+	case !t.Before(day.AddDate(0, 0, -6)):
+		return "Last 7 Days"
+	case !t.Before(day.AddDate(0, 0, -29)):
+		return "Last 30 Days"
+	}
+
+	return "Older"
+}
+
+// timeRows are Group by Time's rows: a heading per bucket that has sessions,
+// folded like a project, and the sessions under it newest first.
+func (a *agents) timeRows(m *Model, sessions []proto.Session, q string) []agRow {
+	var out []agRow
+
+	now := time.Now()
+
+	for _, b := range timeBuckets {
+		head := false
+
+		for _, s := range sessions {
+			if timeBucket(m.sessionTime(s), now) != b {
+				continue
+			}
+
+			if !head {
+				out, head = append(out, agRow{kind: agTime, when: b}), true
+			}
+
+			if a.collapsed[timeKey(b)] && q == "" {
+				continue
+			}
+
+			ws := proto.Workspace{Path: s.Workspace}
+			if w := m.workspace(s.Workspace); w != nil {
+				ws = *w
+			}
+
+			out = append(out, agRow{kind: agSession, ws: ws, s: s})
+		}
+	}
+
+	return out
+}
+
+// timeKey is a time heading's key in collapsed, apart from every project path.
+func timeKey(bucket string) string { return "\x00" + bucket }
+
+// foldKey is the collapsed key of a heading row.
+func foldKey(r agRow) string {
+	if r.kind == agTime {
+		return timeKey(r.when)
+	}
+
+	return r.project
+}
+
+// collapseAll folds every heading the grouping shows: projects, or times.
+func (a *agents) collapseAll(m *Model) {
+	if a.collapsed == nil {
+		a.collapsed = map[string]bool{}
+	}
+
+	for _, r := range a.rows(m) {
+		if r.kind == agProject || r.kind == agTime {
+			a.collapsed[foldKey(r)] = true
+		}
+	}
 }
 
 func agLabel(r agRow) string {
@@ -153,6 +302,8 @@ func agLabel(r agRow) string {
 
 	case agWorkspace:
 		return r.ws.Branch + " " + filepath.Base(r.ws.Path)
+	case agTime:
+		return r.when
 	case agGap:
 		return ""
 	}
@@ -311,6 +462,21 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		bg, base := m.rowColors(viewAgents, i == a.l.sel, i-a.l.top == hover)
 
 		switch r.kind {
+		case agTime:
+			open := !a.collapsed[timeKey(r.when)]
+
+			var ss []proto.Session
+
+			for _, s := range m.listedSessions() {
+				if timeBucket(m.sessionTime(s), time.Now()) == r.when {
+					ss = append(ss, m.tabsOf(s.ID)...)
+				}
+			}
+
+			glyph, c := groupGlyph(ss)
+
+			return row(rw, bg, []seg{sg(" "+chevron(open), dim), sg(glyph, fg(c)), sg(r.when, base.Bold(true))})
+
 		case agProject:
 			open := !a.collapsed[r.project]
 
@@ -393,6 +559,15 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		status := r.s.Status
 		if r.s.Status == "exited" {
 			status = fmt.Sprintf("exit %d", r.s.ExitCode)
+		}
+
+		if m.st.Settings.SpGroup == "time" { // no project tree to say where it runs
+			where := r.ws.Branch
+			if where == "" {
+				where = filepath.Base(r.ws.Path)
+			}
+
+			status = where + " · " + status
 		}
 
 		return row(rw, bg, []seg{sg(conn, dim), sg(glyph, fg(c)), sg(label, nameSt)}, sg(" "+status+" ", dim))
@@ -481,6 +656,8 @@ func (a *agents) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		return tea.Batch(loadState(), loadWorkspaces(), loadSessions())
 	case "m":
 		return a.menu(m, 0, h/2)
+	case "o":
+		return a.viewMenu(m, 0, h/2)
 	}
 
 	return nil
@@ -496,8 +673,8 @@ func (a *agents) activate(m *Model, r *agRow) tea.Cmd {
 	}
 
 	switch r.kind {
-	case agProject:
-		a.collapsed[r.project] = !a.collapsed[r.project]
+	case agProject, agTime:
+		a.collapsed[foldKey(*r)] = !a.collapsed[foldKey(*r)]
 	case agWorkspace:
 		return tea.Batch(m.switchWorkspace(r.ws.Path), m.refreshGit(), m.fetchScreen())
 	case agSession:
@@ -513,7 +690,7 @@ func (a *agents) activate(m *Model, r *agRow) tea.Cmd {
 
 // workspaceFor picks the workspace a new session goes into.
 func (m *Model) workspaceFor(r *agRow) string {
-	if r == nil || r.kind == agGap || (r.kind == agProject && r.project == "") {
+	if r == nil || r.kind == agGap || r.kind == agTime || (r.kind == agProject && r.project == "") {
 		return m.ws
 	}
 
@@ -726,8 +903,9 @@ func (a *agents) items(m *Model) []item {
 		{label: "New Worktree…", hint: "w", run: func(m *Model) tea.Cmd { return a.newWorktree(m, r) }},
 		{label: "Add Project…", hint: "a", run: func(m *Model) tea.Cmd { return a.key(m, tea.KeyPressMsg{Code: 'a', Text: "a"}) }},
 		{label: "Open Project…", run: func(m *Model) tea.Cmd { return m.projectPicker() }},
+		{label: "View Options…", hint: "o", run: func(m *Model) tea.Cmd { return a.viewMenu(m, m.mouseX, m.mouseY) }},
 	}
-	if r != nil && r.project != "" && len(m.st.Projects) > 1 {
+	if r != nil && r.project != "" && r.kind != agSession && len(m.st.Projects) > 1 {
 		// What a drag does, for the keyboard: the project keeps its place in
 		// config, so the order survives a restart either way.
 		items = append(items,
@@ -749,6 +927,76 @@ func (a *agents) items(m *Model) []item {
 }
 
 func (a *agents) menu(m *Model, x, y int) tea.Cmd { return m.menuOf(a.items(m), x, y) }
+
+// sessionStates are the states the Filter can leave out, in sessionRank's order.
+var sessionStates = []struct{ state, label string }{
+	{"blocked", "Blocked"}, {"running", "Working"}, {"done", "Done"}, {"idle", "Idle"}, {"exited", "Exited"},
+}
+
+// checked is a menu label with VS Code's check column: ✓ when on.
+func checked(on bool, label string) string {
+	if on {
+		return "✓ " + label
+	}
+
+	return "  " + label
+}
+
+// viewMenu is VS Code's agent sessions view menu: Filter, Sort, Group, Collapse
+// All Groups. Sort and Group are settings, so every window lists the same way.
+func (a *agents) viewMenu(m *Model, x, y int) tea.Cmd {
+	st := m.st.Settings
+	set := func(key, v string) func(*Model) tea.Cmd {
+		return func(m *Model) tea.Cmd { return m.setSettings(map[string]any{key: v}) }
+	}
+
+	filter := "  Filter"
+	if len(st.SpHide) > 0 {
+		filter += fmt.Sprintf(" (%d hidden)", len(st.SpHide))
+	}
+
+	return m.menuOf([]item{
+		{label: filter, hint: "›", run: func(m *Model) tea.Cmd { return a.filterMenu(m, x, y) }},
+		{},
+		{label: checked(st.SpSort != "updated", "Sort by Created"), run: set("spaces_sort", "created")},
+		{label: checked(st.SpSort == "updated", "Sort by Updated"), run: set("spaces_sort", "updated")},
+		{},
+		{label: checked(st.SpGroup != "time", "Group by Workspace"), run: set("spaces_group", "workspace")},
+		{label: checked(st.SpGroup == "time", "Group by Time"), run: set("spaces_group", "time")},
+		{},
+		{label: "  Collapse All Groups", run: func(m *Model) tea.Cmd { a.collapseAll(m); return nil }},
+	}, x, y)
+}
+
+// filterMenu toggles which session states Spaces shows; it stays open, as
+// VS Code's submenu does, until esc.
+func (a *agents) filterMenu(m *Model, x, y int) tea.Cmd {
+	build := func(m *Model) []item {
+		var items []item
+
+		for _, s := range sessionStates {
+			hidden := slices.Contains(m.st.Settings.SpHide, s.state)
+			items = append(items, item{label: checked(!hidden, s.label), run: func(m *Model) tea.Cmd {
+				hide := slices.DeleteFunc(slices.Clone(m.st.Settings.SpHide), func(h string) bool { return h == s.state })
+				if !hidden {
+					hide = append(hide, s.state)
+				}
+
+				return m.setSettings(map[string]any{"spaces_hide": hide})
+			}})
+		}
+
+		return append(items, item{}, item{label: "  Show All", run: func(m *Model) tea.Cmd {
+			return m.setSettings(map[string]any{"spaces_hide": []string{}})
+		}})
+	}
+
+	md := newMenu("Filter", x, y, build(m)...)
+	md.build, md.keep = build, true
+	m.modal = md
+
+	return nil
+}
 
 func (a *agents) mouse(m *Model, msg tea.MouseMsg, y int) tea.Cmd {
 	mo := msg.Mouse()

@@ -409,7 +409,12 @@ func (s *session) info() proto.Session {
 		status = "exited" // the process is gone; tick would say so within half a second
 	}
 
-	return proto.Session{SessionSpec: s.spec, Status: status, ExitCode: s.exitCode, Attention: s.attention, Title: s.title, Program: s.program}
+	updated := s.lastOutput
+	if updated.IsZero() {
+		updated = s.spec.Created
+	}
+
+	return proto.Session{SessionSpec: s.spec, Status: status, ExitCode: s.exitCode, Attention: s.attention, Title: s.title, Program: s.program, Updated: updated}
 }
 
 // setProgram records what runs in the foreground; it reports a change clients

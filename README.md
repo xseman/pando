@@ -99,6 +99,9 @@ else inside it.
   you click it (`session_highlight = "tint"`, `"steady"` or `"off"`).
 - Drag over a session to select text; letting go copies it.
 - Switching a session re-roots Files and Source Control to its worktree.
+- The header's view options (`o`) are VS Code's: _Filter_ by state, _Sort
+  by Created / Updated_, _Group by Workspace / Time_ (Today, Yesterday, Last
+  7 Days, …), _Collapse All Groups_.
 - The project name in the status bar switches projects and adds them.
 
 ![two claude sessions at once, the tree marking one working, then done and pulsing until clicked, and a shell tab of its own](docs/demo/sessions.gif)

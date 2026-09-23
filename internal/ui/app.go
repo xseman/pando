@@ -1735,6 +1735,7 @@ func (m *Model) headerActions(s int, v view, w int) []titleAction {
 		add(icAdd, func(m *Model) tea.Cmd { return m.ag.newSession(m, m.ag.selected(m)) })
 		add(icWorktree, func(m *Model) tea.Cmd { return m.ag.newWorktree(m, m.ag.selected(m)) })
 		add(icRefresh, func(*Model) tea.Cmd { return tea.Batch(loadState(), loadWorkspaces(), loadSessions()) })
+		add(icOptions, func(m *Model) tea.Cmd { return m.ag.viewMenu(m, m.mouseX, m.mouseY+1) })
 	}
 
 	if m.barH(s) == 0 && bw == 0 { // no activity bar to hold the gear
@@ -3753,7 +3754,7 @@ var hotkeys = map[view][][2]string{
 	viewFiles:  {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"n N", "new"}, {"R", "rename"}, {"D", "delete"}, {"s", "stage"}, {"e", "edit"}, {".", "dotfiles"}, {"^f", "filter"}},
 	viewGit:    {{"↑↓", "move"}, {"⏎", "stage"}, {"o", "diff"}, {"t", "tree"}, {"c", "message"}, {"C", "commit"}, {"A", "suggest"}, {"S", "sync/publish"}, {"a u", "stage/unstage all"}, {"U", "stage untracked"}, {"O", "open file"}, {"B", "branch"}, {"d", "discard"}, {"^f", "filter"}},
 	viewSearch: {{"^f /", "query"}, {"^h", "replace"}, {"r R", "replace file/all"}, {"⏎", "open"}, {"↑↓", "move"}, {"←→", "fold"}, {"M-c", "case"}, {"M-w", "word"}, {"M-r", "regex"}, {"^r", "rerun"}, {"x", "clear"}, {"C", "collapse"}},
-	viewAgents: {{"↑↓", "move"}, {"M-↑↓", "reorder"}, {"⏎", "switch"}, {"n", "session"}, {"w", "worktree"}, {"a", "project"}, {"x", "kill"}, {"^f", "filter"}},
+	viewAgents: {{"↑↓", "move"}, {"M-↑↓", "reorder"}, {"⏎", "switch"}, {"n", "session"}, {"w", "worktree"}, {"a", "project"}, {"x", "kill"}, {"o", "view options"}, {"^f", "filter"}},
 }
 
 var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"M-t", "agents"}, {"^tab", "editors"}, {"^f", "find"}, {"^← ^→", "back/forward"}, {"[ ]", "sessions"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"esc q", "quit"}}

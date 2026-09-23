@@ -1157,6 +1157,7 @@ func (d *Daemon) newSession(spec proto.SessionSpec, cols, rows int) (proto.Sessi
 	b := make([]byte, 3)
 	rand.Read(b)
 	spec.ID = hex.EncodeToString(b)
+	spec.Created = time.Now()
 
 	start := d.start
 	if shells != nil {

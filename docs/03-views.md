@@ -130,6 +130,25 @@ phrases it prints while it waits (`Do you want to proceed?`, `Allow command?`)
 or works (`esc to interrupt`), the way herdr's detection manifests do
 (`internal/daemon/detect.go`); output timing decides for anything else.
 
+View options (`o`, the header's sliders, or _View Options…_) are VS Code's
+agent sessions menu (`agents.viewMenu`). Filter, Sort and Group are settings
+(`spaces_hide`, `spaces_sort`, `spaces_group`), so every window lists alike;
+the TUI reads them in `listedSessions`, which every Spaces row comes from.
+
+| Option              | Effect                                                                                                        |
+| ------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Filter ›            | a second menu that stays open: ✓ the states shown (blocked, working, done, idle, exited), by the row's rollup |
+| Sort by Created     | the order sessions were made in (`SessionSpec.Created`, stamped by `session.new`); newest first when by time  |
+| Sort by Updated     | newest output first (`Session.Updated`, the pty's last output, across the session's tabs)                     |
+| Group by Workspace  | the project → worktree → session tree above                                                                   |
+| Group by Time       | `agTime` headings Today, Yesterday, Last 7 Days, Last 30 Days, Older by calendar day; rows add the branch     |
+| Collapse All Groups | folds every project, or every time heading                                                                    |
+
+A session from before `created` existed files under Older. `Updated` is not
+saved: a respawned session starts over at its first output. VS Code's _Show
+Recent / All Sessions_ has no counterpart: every listed session is a live
+terminal, not a history entry.
+
 `alt+t` opens the same data as a fuzzy picker (agent navigator) with
 `@blocked`, `@running`, `@done`, `@idle`, `@exited`, `@worktree` and `!agent`
 filters.

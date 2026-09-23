@@ -39,6 +39,7 @@ error, uses the last good values and refuses to save until it is fixed.
 | `hidden`, `git_deco`, `git_tree`, `quick_open_tree`, `panel_borders` | booleans                                                                                                    |
 | `sounds`, `sound_done`, `sound_request`                              | play a sound for sessions out of view; the files, `""` for the terminal bell                                |
 | `update_check`                                                       | ask GitHub once a day whether a newer pando was released                                                    |
+| `spaces_sort`, `spaces_group`, `spaces_hide`                         | Spaces: `created`/`updated`, `workspace`/`time`, states left out                                            |
 | `width`, `width_right`                                               | default column widths                                                                                       |
 | `left`, `right`                                                      | sidebar columns                                                                                             |
 | `[git_panes.TITLE]`                                                  | drawer `open` and `h`                                                                                       |

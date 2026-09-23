@@ -336,6 +336,7 @@ var (
 	icRegex      = glyph{"regex", "\ueb38", ".*", ""}
 	icEllipsis   = glyph{"ellipsis", "\uea7c", "⋯", ""}
 	icClearAll   = glyph{"clear-all", "\ueabf", "✕", ""}
+	icOptions    = glyph{"settings", "\ueb52", "☰", ""} // VS Code's view options: sliders, not the gear
 	icPreview    = glyph{"open-preview", "\ueb28", "md", ""}
 	icSource     = glyph{"go-to-file", "\uea94", "src", ""}
 	icPrevRev    = glyph{"arrow-left", "\uea9b", "←", ""}
@@ -353,7 +354,7 @@ var (
 	allGlyphs    = []glyph{
 		icFiles, icGit, icSpaces, icAgents, icGear, icNewFile, icNewDir, icRefresh, icCollapse, icTree, icList,
 		icAdd, icRemove, icDiscard, icWorktree, icSparkle, icCheck, icChevron, icClose, icBranch, icPublish, icSync, icSplit, icInline,
-		icOpenLeft, icOpenRight, icSearch, icCase, icWord, icRegex, icEllipsis, icClearAll, icPreview, icSource,
+		icOpenLeft, icOpenRight, icSearch, icCase, icWord, icRegex, icEllipsis, icClearAll, icOptions, icPreview, icSource,
 		icPrevRev, icNextRev, icUp, icDown, icHistory, icTag, icDetach, icReplace, icPreserve, icReplaceAll, icTerminal, icDot,
 		icMainWt, icLinkedWt,
 	}
