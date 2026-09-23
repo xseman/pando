@@ -1098,8 +1098,15 @@ func (s *scmView) renderRow(m *Model, i, w int, hovered bool) string {
 	return row(w, bg, []seg{sg("   "+r.text, st)})
 }
 
-func commitPlaceholder(branch string, width int) string {
-	for _, t := range []string{`Message (⏎ to commit on "` + branch + `")`, "Message (⏎ to commit)", "Message"} {
+// commitPlaceholder is the message box's hint: during a merge or
+// cherry-pick the message git prepared, which Continue commits when the box
+// is left empty, as VS Code fills it in; otherwise how to commit.
+func commitPlaceholder(st git.Status, width int) string {
+	if first, _, _ := strings.Cut(st.MergeMsg, "\n"); first != "" {
+		return ansi.Truncate(first, width, "…")
+	}
+
+	for _, t := range []string{`Message (⏎ to commit on "` + st.Branch + `")`, "Message (⏎ to commit)", "Message"} {
 		if ansi.StringWidth(t) <= width {
 			return t
 		}
@@ -1135,21 +1142,21 @@ func (s *scmView) messageRow(m *Model, root string, w int) string {
 		return blank(w)
 	}
 
-	branch := s.status[root].Branch
+	st := s.status[root]
 
 	var text string
 
 	switch {
 	case active:
 		s.styleInput(m.dark)
-		s.input.Placeholder = commitPlaceholder(branch, field)
+		s.input.Placeholder = commitPlaceholder(st, field)
 		s.input.SetWidth(field)
 		text = s.input.View()
 
 	case m.st.Drafts[root] != "":
 		text = box.Render(ansi.Truncate(m.st.Drafts[root], field, "…"))
 	default:
-		text = dim.Italic(true).Background(pal.inputBg).Render(commitPlaceholder(branch, field))
+		text = dim.Italic(true).Background(pal.inputBg).Render(commitPlaceholder(st, field))
 	}
 
 	if pad := field - ansi.StringWidth(text); pad > 0 {
@@ -1302,7 +1309,7 @@ func (s *scmView) commitWith(amend, sync bool) tea.Cmd {
 	case amend && st.Op != "":
 		return flash("cannot amend during a "+st.Op, true)
 	case amend:
-	case msg == "" && st.Op != "rebase":
+	case msg == "" && st.Op != "rebase" && st.MergeMsg == "": // Continue commits git's own message
 		s.input.Focus()
 		return flash("commit message is empty", true)
 

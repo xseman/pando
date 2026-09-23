@@ -139,6 +139,9 @@ type Status struct {
 	Changes   []Entry
 	Conflicts []Entry // VS Code's Merge Changes group
 	Op        string  // "merge", "rebase" or "cherry-pick" while one is in progress
+	// MergeMsg is the message git prepared for the merge or cherry-pick in
+	// progress, comments dropped: VS Code's message box value then.
+	MergeMsg string
 }
 
 // Stat runs `git status --porcelain --branch` over root and adds the
@@ -150,22 +153,47 @@ func Stat(root string) (Status, error) {
 	}
 
 	s := parseStatus(out)
-	s.Op = operation(root)
+	s.Op, s.MergeMsg = operation(root)
 
 	return s, nil
 }
 
 // operation names the merge, rebase or cherry-pick in progress, as VS Code
-// reads MERGE_HEAD, rebase-merge / rebase-apply and CHERRY_PICK_HEAD. The
-// files live in the worktree's own git dir, so linked worktrees work.
-func operation(root string) string {
+// reads MERGE_HEAD, rebase-merge / rebase-apply and CHERRY_PICK_HEAD, with
+// the MERGE_MSG git wrote for it. The files live in the worktree's own git
+// dir, so linked worktrees work.
+func operation(root string) (op, msg string) {
 	out, err := Run(root, "rev-parse", "--path-format=absolute", "--git-dir")
 	if err != nil {
-		return ""
+		return "", ""
 	}
 
 	dir := strings.TrimSpace(out)
 
+	op = operationIn(dir)
+	if op == "merge" || op == "cherry-pick" {
+		b, _ := os.ReadFile(filepath.Join(dir, "MERGE_MSG")) // none: no message to offer
+		msg = mergeMessage(string(b))
+	}
+
+	return op, msg
+}
+
+// mergeMessage is a MERGE_MSG as `git commit` would clean it up: comment
+// lines ("# Conflicts:") dropped, surrounding blank lines trimmed.
+func mergeMessage(s string) string {
+	var lines []string
+
+	for l := range strings.SplitSeq(s, "\n") {
+		if !strings.HasPrefix(l, "#") {
+			lines = append(lines, strings.TrimRight(l, " \t\r"))
+		}
+	}
+
+	return strings.TrimSpace(strings.Join(lines, "\n"))
+}
+
+func operationIn(dir string) string {
 	exists := func(name string) bool {
 		_, err := os.Stat(filepath.Join(dir, name))
 		return err == nil
@@ -724,11 +752,16 @@ func hasHead(root string) bool {
 func Commit(root, msg string) error { _, err := Run(root, "commit", "-q", "-m", msg); return err }
 
 // Continue finishes the operation op (see operation) once its conflicts are
-// staged: a merge or cherry-pick is a commit, a rebase goes on with the
-// message it already has.
+// staged: a merge or cherry-pick is a commit, with the message git prepared
+// when msg is empty; a rebase goes on with the message it already has.
 func Continue(root, op, msg string) error {
-	if op == "rebase" {
+	switch {
+	case op == "rebase":
 		_, err := Run(root, "-c", "core.editor=true", "rebase", "--continue")
+		return err
+
+	case msg == "": // --no-edit alone would keep the "# Conflicts:" comments
+		_, err := Run(root, "commit", "-q", "--no-edit", "--cleanup=strip")
 		return err
 	}
 

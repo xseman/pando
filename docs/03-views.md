@@ -39,7 +39,10 @@ file asks _Keep Our/Their Version_ or _Delete File_ (`git rm`). Stage All and
 the Changes `+` leave the merge group alone, as VS Code's `git.stageAll`
 does. While `Status.Op` is set the Commit button reads _Continue_, refuses
 until Merge Changes is empty, and then commits (merge, cherry-pick) or runs
-`rebase --continue`. The button is VS Code's SCM action button
+`rebase --continue`. During a merge or cherry-pick the message box shows the
+first line of git's `MERGE_MSG` (`Merge branch 'develop' of … into feat`) as
+its placeholder, and Continue with the box left empty commits that message,
+as VS Code's prefilled box does. The button is VS Code's SCM action button
 (`scmView.action`): Commit while anything is staged, changed or conflicted or
 an operation waits; else _Publish Branch_ (`push -u`) on a branch without an
 upstream; else _Sync Changes_ when ahead or behind; else a muted Commit that

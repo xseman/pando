@@ -254,6 +254,11 @@ func TestMergeConflict(t *testing.T) {
 		t.Fatalf("conflicted status: %+v", st)
 	}
 
+	// The message git prepared, "# Conflicts:" and the rest of its comments gone.
+	if st.MergeMsg != "Merge branch 'feat'" {
+		t.Fatalf("merge message = %q", st.MergeMsg)
+	}
+
 	if st.Conflicts[0] != (Entry{Path: "a.txt", Letter: '!', XY: "UU"}) || st.Conflicts[1] != (Entry{Path: "gone.txt", Letter: '!', XY: "UD"}) {
 		t.Fatalf("conflicts: %+v", st.Conflicts)
 	}
@@ -283,15 +288,55 @@ func TestMergeConflict(t *testing.T) {
 		t.Fatalf("after resolving: %+v", st)
 	}
 
-	must(t, "continue merge", Continue(root, st.Op, "merge feat"))
+	// An empty message box commits git's own message, as VS Code's does.
+	must(t, "continue merge", Continue(root, st.Op, ""))
 
-	if st, _ = Stat(root); st.Op != "" || len(st.Staged)+len(st.Changes) != 0 {
+	if st, _ = Stat(root); st.Op != "" || st.MergeMsg != "" || len(st.Staged)+len(st.Changes) != 0 {
 		t.Fatalf("after continue: %+v", st)
 	}
 
-	if out, _ := Run(root, "log", "-1", "--format=%s"); strings.TrimSpace(out) != "merge feat" {
+	if out, _ := Run(root, "log", "-1", "--format=%B"); strings.TrimSpace(out) != "Merge branch 'feat'" {
 		t.Fatalf("merge commit: %q", out)
 	}
+}
+
+// FuzzMergeMessage checks the cleanup is git's: every line that does not
+// start with "#" is kept, in order, and nothing else; no blank edges. " #" is
+// text to git, not a comment.
+func FuzzMergeMessage(f *testing.F) {
+	for _, s := range []string{
+		"Merge branch 'develop' of gitlab.nike.sk:web/nike-web into feature/DEV-43231\n\n# Conflicts:\n#\tsrc/a.ts\n",
+		"fix: x\n\nbody\r\n", "", "#", "\n\n", "# only\n# comments", "a\n#b\nc",
+	} {
+		f.Add(s)
+	}
+
+	lines := func(s string, comments bool) []string {
+		var out []string
+
+		for l := range strings.SplitSeq(s, "\n") {
+			if !comments && strings.HasPrefix(l, "#") {
+				continue
+			}
+
+			if l = strings.TrimSpace(l); l != "" {
+				out = append(out, l)
+			}
+		}
+
+		return out
+	}
+
+	f.Fuzz(func(t *testing.T, s string) {
+		got := mergeMessage(s)
+		if strings.TrimSpace(got) != got {
+			t.Fatalf("mergeMessage(%q) = %q: blank edges", s, got)
+		}
+
+		if kept, want := lines(got, true), lines(s, false); !slices.Equal(kept, want) {
+			t.Fatalf("mergeMessage(%q) = %q: lines %q, want %q", s, got, kept, want)
+		}
+	})
 }
 
 func TestApplyLines(t *testing.T) {

@@ -29,7 +29,10 @@ the parent directories.
 regexp over the working tree file. `Diff` of a conflict is `diff --ours`
 (working tree against stage 2), a two-way diff where plain `diff` would print
 a combined one. `Continue` finishes: `commit -m` for a merge or cherry-pick,
-`-c core.editor=true rebase --continue` for a rebase.
+or `commit --no-edit --cleanup=strip` with no message, which takes the
+`MERGE_MSG` git wrote without its `# Conflicts:` comments; `-c
+core.editor=true rebase --continue` for a rebase. `Status.MergeMsg` is that
+file cleaned up the same way, for the message box to show.
 
 ## Worktrees and projects
 

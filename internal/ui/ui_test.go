@@ -1714,6 +1714,25 @@ func TestMergeChanges(t *testing.T) {
 		t.Fatal("Continue stays while the merge is open")
 	}
 
+	// An empty message box has nothing to commit without git's message …
+	m.scm.input.SetValue("")
+	_, cmd = m.Update(keyMsg("C"))
+	run(cmd)
+
+	if m.scm.busy != "" || m.msg != "commit message is empty" {
+		t.Fatalf("continue without a message: busy=%q msg=%q", m.scm.busy, m.msg)
+	}
+
+	m.scm.input.Blur()
+
+	// … and with it shows that message and commits it, as VS Code does.
+	st.MergeMsg = "Merge branch 'develop' of example.com:web/app into main\n\nbody"
+	m.scm.onGit(m, gitMsg{ws: root, repos: []string{root}, status: map[string]git.Status{root: st}})
+
+	if out := checkWidths(t, m); !strings.Contains(out, "Merge branch 'develop") || strings.Contains(out, "body") {
+		t.Fatalf("the message box shows git's first line:\n%s", out)
+	}
+
 	press(m, "C")
 
 	if m.scm.busy != "committing" {
