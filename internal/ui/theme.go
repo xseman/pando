@@ -35,6 +35,7 @@ type palette struct {
 	mergeCurrentHeadBg, mergeCurrentBg, mergeIncomingHeadBg, mergeIncomingBg, mergeCommonHeadBg, mergeCommonBg color.Color
 	ok, warn, errc, attention                                                                                  color.Color
 	blockedBg, doneBg                                                                                          color.Color // session_highlight: error and attention over the sidebar
+	blockedSoftBg, doneSoftBg                                                                                  color.Color // the other shade of their pulse
 	sliderBg, sliderActiveBg, rulerBorder                                                                      color.Color // VS Code's scrollbarSlider over the editor, and editorOverviewRuler.border
 	tabBg, tabBorder                                                                                           color.Color // tab.inactiveBackground and tab.border, a shade stronger for a terminal
 }
@@ -63,6 +64,7 @@ var (
 		mergeCommonHeadBg: hex("#383838"), mergeCommonBg: hex("#282828"),
 		ok: hex("#72c892"), warn: hex("#cca700"), errc: hex("#f48771"), attention: hex("#ad80d7"),
 		blockedBg: hex("#4f342e"), doneBg: hex("#3d3248"),
+		blockedSoftBg: hex("#35272a"), doneSoftBg: hex("#2b2733"),
 		sliderBg: hex("#606162"), sliderActiveBg: hex("#6e6f70"), rulerBorder: hex("#2a2b2c"),
 		tabBg: hex("#26272a"), tabBorder: hex("#3c3d40"),
 	}
@@ -85,6 +87,7 @@ var (
 		mergeCommonHeadBg: hex("#c0c0c0"), mergeCommonBg: hex("#e6e6e6"),
 		ok: hex("#388a34"), warn: hex("#b69500"), errc: hex("#ad0707"), attention: hex("#652d90"),
 		blockedBg: hex("#edd4d4"), doneBg: hex("#e2d9e8"),
+		blockedSoftBg: hex("#f6e8e8"), doneSoftBg: hex("#efeaf3"),
 		sliderBg: hex("#8a8a8a"), sliderActiveBg: hex("#777777"), rulerBorder: hex("#f0f1f2"),
 		tabBg: hex("#e8e8ec"), tabBorder: hex("#d0d0d6"),
 	}
@@ -109,6 +112,7 @@ var (
 		mergeCommonHeadBg: vscodeDark.mergeCommonHeadBg, mergeCommonBg: vscodeDark.mergeCommonBg,
 		ok: ansi16(2), warn: ansi16(3), errc: ansi16(1), attention: ansi16(5),
 		blockedBg: vscodeDark.blockedBg, doneBg: vscodeDark.doneBg,
+		blockedSoftBg: vscodeDark.blockedSoftBg, doneSoftBg: vscodeDark.doneSoftBg,
 		sliderBg: ansi16(8), sliderActiveBg: ansi16(7), rulerBorder: ansi16(8),
 		tabBg: ansi16(0), tabBorder: ansi16(8),
 	}
@@ -151,7 +155,7 @@ func (p *palette) colorKeys() map[string]*color.Color {
 		"merge_incoming_head_bg": &p.mergeIncomingHeadBg, "merge_incoming_bg": &p.mergeIncomingBg,
 		"merge_common_head_bg": &p.mergeCommonHeadBg, "merge_common_bg": &p.mergeCommonBg,
 		"ok": &p.ok, "warn": &p.warn, "error": &p.errc, "attention": &p.attention,
-		"blocked_bg": &p.blockedBg, "done_bg": &p.doneBg,
+		"blocked_bg": &p.blockedBg, "done_bg": &p.doneBg, "blocked_soft_bg": &p.blockedSoftBg, "done_soft_bg": &p.doneSoftBg,
 		"scrollbar_slider": &p.sliderBg, "scrollbar_slider_active": &p.sliderActiveBg, "overview_ruler_border": &p.rulerBorder,
 		"tab_bg": &p.tabBg, "tab_border": &p.tabBorder,
 	}

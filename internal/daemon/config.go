@@ -201,7 +201,9 @@ func (c *config) encode() []byte {
 	kv("", "terminal_height", s.TermH)
 	kv("", "terminal_open", s.TermOpen)
 	kv("Where a session opens: \"right\" or \"left\" (a column of its own beside the editor)\nor \"editor\" (over the editor area).", "session_position", s.SessPos)
-	kv("A session that waits for an answer or finished unseen: \"tint\" its row and tab in\nits symbol's color (colors blocked_bg, done_bg), \"blink\" that tint, or \"off\".", "session_highlight", s.SessHi)
+	kv("A session that waits for an answer, finished unseen or ended with an error: \"tint\"\n"+
+		"its row and tab in its symbol's color and pulse until it is clicked (colors blocked_bg,\n"+
+		"done_bg and their _soft_bg), \"steady\" to tint without the pulse, or \"off\".", "session_highlight", s.SessHi)
 	b.WriteString("\n# Sidebar columns per side, from the screen edge toward main, each with its tabs\n" +
 		"# and optional width. Views: \"files\", \"git\", \"agents\", \"search\", \"session\"; unlisted\n" +
 		"# views join the left column next to main.\n")

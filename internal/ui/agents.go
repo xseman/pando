@@ -178,30 +178,70 @@ func sessionGlyph(s proto.Session) (string, color.Color) {
 	return "○ ", pal.ok
 }
 
-// sessionTint is the background session_highlight gives s: its symbol's color
-// while it waits for an answer (×) or finished unseen (✓), else nil.
-func sessionTint(s proto.Session) color.Color {
+// sessionState names what a session's symbol says: blocked, running,
+// exited, done (finished unseen) or idle.
+func sessionState(s proto.Session) string {
 	switch {
-	case s.Status == "blocked":
-		return pal.blockedBg
-	case s.Status != "running" && s.Status != "exited" && s.Attention:
-		return pal.doneBg
+	case s.Status == "blocked", s.Status == "running", s.Status == "exited":
+		return s.Status
+	case s.Attention:
+		return "done"
 	}
 
-	return nil
+	return "idle"
 }
 
-// highlight is the background session s's row and tab get: its tint, unless
-// session_highlight is off, blinking between flashes, or s is on screen.
-func (m *Model) highlight(s proto.Session) color.Color {
-	switch {
-	case m.st.Settings.SessHi == "off", m.st.Settings.SessHi == "blink" && !m.blinkOn:
-		return nil
-	case m.inView(s.ID):
-		return nil
+// sessionTint is the background session_highlight gives s in its symbol's
+// color: waiting for an answer (×) or ended with an error (✕) in the error's,
+// finished unseen (✓) in the attention's; nil for any other state. soft is
+// the pulse's other shade.
+func sessionTint(s proto.Session) (tint, soft color.Color) {
+	switch sessionState(s) {
+	case "blocked", "exited":
+		return pal.blockedBg, pal.blockedSoftBg
+	case "done":
+		return pal.doneBg, pal.doneSoftBg
 	}
 
-	return sessionTint(s)
+	return nil, nil
+}
+
+// highlight is the background session s's row and tab get: its tint, which
+// pulses while the state it came to is one nobody clicked it for yet; nil
+// when session_highlight is off or s is on screen.
+func (m *Model) highlight(s proto.Session) color.Color {
+	tint, soft := sessionTint(s)
+
+	switch {
+	case tint == nil, m.st.Settings.SessHi == "off", m.inView(s.ID):
+		return nil
+	case m.pulses(s) && !m.blinkOn:
+		return soft
+	}
+
+	return tint
+}
+
+// pulses reports a tinted session whose state is news: session_highlight
+// pulses ("tint", or the older "blink"), and nobody clicked it since.
+func (m *Model) pulses(s proto.Session) bool {
+	tint, _ := sessionTint(s)
+
+	return tint != nil && m.st.Settings.SessHi != "steady" && m.st.Settings.SessHi != "off" && m.seen[s.ID] != sessionState(s)
+}
+
+// acknowledge marks the states of sessions ids as seen: a click on one, or
+// having it on screen, stops its pulse; the tint stays while the state lasts.
+func (m *Model) acknowledge(ids ...string) {
+	if m.seen == nil {
+		m.seen = map[string]string{}
+	}
+
+	for _, id := range ids {
+		if s := m.session(id); s != nil {
+			m.seen[id] = sessionState(*s)
+		}
+	}
 }
 
 // inView reports session id shown right now, over the editor or docked.
@@ -209,11 +249,9 @@ func (m *Model) inView(id string) bool {
 	return id == m.sess && (m.showsSession() || m.shown(viewSession))
 }
 
-// wantsBlink reports a blinking tint with a session to show it on.
+// wantsBlink reports a session out of view whose tint pulses.
 func (m *Model) wantsBlink() bool {
-	return m.st.Settings.SessHi == "blink" && slices.ContainsFunc(m.agentSessions(), func(s proto.Session) bool {
-		return sessionTint(s) != nil && !m.inView(s.ID)
-	})
+	return slices.ContainsFunc(m.mainSessions(), func(s proto.Session) bool { return m.pulses(s) && !m.inView(s.ID) })
 }
 
 // blink starts the blink ticker when a tint wants one and none runs; the
@@ -229,7 +267,7 @@ func (m *Model) blink() tea.Cmd {
 }
 
 func blinkTick() tea.Cmd {
-	return tea.Tick(600*time.Millisecond, func(time.Time) tea.Msg { return blinkMsg{} })
+	return tea.Tick(700*time.Millisecond, func(time.Time) tea.Msg { return blinkMsg{} })
 }
 
 // sessionRank orders states by how much they want the user: blocked first.

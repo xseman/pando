@@ -94,9 +94,9 @@ else inside it.
   sessions, each showing its busiest tab's state. A session opens in a column of its own beside the
   editor — drag it to the other side or over the editor area.
 - Symbols follow herdr's: `×` waits for you, `◐` works, `✓` finished unseen,
-  `○` idles. A session out of view can play a sound, and one that waits or
-  finished unseen is tinted in its symbol's color (`session_highlight =
-  "tint"`, `"blink"` or `"off"`).
+  `○` idles. A session out of view can play a sound, and one that waits,
+  finished unseen or failed is tinted in its symbol's color and pulses until
+  you click it (`session_highlight = "tint"`, `"steady"` or `"off"`).
 - Drag over a session to select text; letting go copies it.
 - Switching a session re-roots Files and Source Control to its worktree.
 - The project name in the status bar switches projects and adds them.

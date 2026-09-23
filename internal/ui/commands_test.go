@@ -186,6 +186,7 @@ func TestAgentsTreeAndSounds(t *testing.T) {
 	var played []string
 
 	playSound = func(path string) { played = append(played, path) }
+	m.st.Settings.SessHi = "off" // no pulse ticker beside the sound in the batch
 	m.st.Settings.Sounds, m.st.Settings.SoundReq, m.st.Settings.SoundDone = true, "req", "done"
 	m.sess = ""
 	m.sessions[1].Status, m.sessions[1].Attention = "running", false
@@ -207,10 +208,12 @@ func TestAgentsTreeAndSounds(t *testing.T) {
 	}
 }
 
-// TestSessionHighlight tints a session that waits (×) or finished unseen (✓)
-// in its symbol's color on its Spaces row and tab, unless it is on screen;
-// "blink" flashes the tint and stops when nothing is left to blink, "off"
-// drops it.
+// TestSessionHighlight tints a session that waits (×), finished unseen (✓)
+// or failed (✕) in its symbol's color, on its Spaces row, its tab and a
+// folded project holding it. The tint pulses between two shades until the
+// session is clicked, and stays steady while the state lasts; a new state
+// pulses again. "steady" never pulses, "off" drops it, and the session on
+// screen needs none.
 func TestSessionHighlight(t *testing.T) {
 	m := testModel(t)
 	m.st.Settings.SessHi = "tint"
@@ -220,18 +223,31 @@ func TestSessionHighlight(t *testing.T) {
 		proto.Session{SessionSpec: proto.SessionSpec{ID: "r", Workspace: m.ws, Agent: "gemini"}, Status: "running", Attention: true})
 	press(m, "3")
 
-	tinted := func() (blocked, done bool) {
+	shades := func() (full, soft bool) {
 		checkWidths(t, m)
 		out := m.View().Content // with its colors
 
-		return strings.Contains(out, bgParams(pal.blockedBg)), strings.Contains(out, bgParams(pal.doneBg))
+		return strings.Contains(out, bgParams(pal.blockedBg)), strings.Contains(out, bgParams(pal.blockedSoftBg))
 	}
 
-	if b, d := tinted(); !b || !d {
-		t.Fatalf("tint: blocked %v, done %v", b, d)
+	// A new state pulses: the ticker runs and flips the shade.
+	if m.blink() == nil || !m.blinking || m.blink() != nil {
+		t.Fatal("a pulse starts one ticker")
 	}
 
-	if hl := m.highlight(m.sessions[3]); hl != nil {
+	for i, full := range []bool{true, false, true} {
+		m.Update(blinkMsg{}) // not send: the next tick would sleep and flip it back
+
+		if f, s := shades(); f != full || s == full {
+			t.Fatalf("pulse %d: full %v soft %v, want full %v", i, f, s, full)
+		}
+	}
+
+	if !strings.Contains(m.View().Content, bgParams(pal.doneBg)) && !strings.Contains(m.View().Content, bgParams(pal.doneSoftBg)) {
+		t.Fatal("a done session is tinted in the attention color")
+	}
+
+	if tint, _ := sessionTint(m.sessions[3]); tint != nil {
 		t.Fatal("a running session is not waiting for anyone")
 	}
 
@@ -240,9 +256,37 @@ func TestSessionHighlight(t *testing.T) {
 		tabBgs = append(tabBgs, tab.bg)
 	}
 
-	if !slices.Equal(tabBgs, []color.Color{nil, pal.blockedBg, pal.doneBg, nil, nil}) { // the last is +
+	if tabBgs[1] == nil || tabBgs[2] == nil || tabBgs[0] != nil || tabBgs[3] != nil {
 		t.Fatalf("tab tints = %v", tabBgs)
 	}
+
+	// A click stops b's pulse; its tint stays while it waits.
+	m.Update(focusSessionMsg("b"))
+	m.Update(focusSessionMsg("s1"))
+
+	if m.pulses(m.sessions[1]) || m.highlight(m.sessions[1]) != pal.blockedBg {
+		t.Fatalf("clicked b: pulses %v, tint %v", m.pulses(m.sessions[1]), m.highlight(m.sessions[1]))
+	}
+
+	if !m.pulses(m.sessions[2]) {
+		t.Fatal("d, never clicked, still pulses")
+	}
+
+	// A state it comes to afterwards is news again.
+	m.sessions[1].Status = "exited"
+	if !m.pulses(m.sessions[1]) {
+		t.Fatal("b failing after the click pulses again")
+	}
+
+	// The session on screen needs no tint, and is seen as it changes.
+	m.Update(focusSessionMsg("d"))
+	send(m, sessionsMsg(slices.Clone(m.sessions)))
+
+	if m.highlight(m.sessions[2]) != nil || m.pulses(m.sessions[2]) {
+		t.Fatal("the session on screen is neither tinted nor news")
+	}
+
+	m.Update(focusSessionMsg("s1"))
 
 	// A folded project carries the tint of what it hides, unless selected.
 	other := t.TempDir()
@@ -251,42 +295,29 @@ func TestSessionHighlight(t *testing.T) {
 	m.ag.collapsed = map[string]bool{m.ws: true}
 	m.ag.l.sel = len(m.ag.rows(m)) - 1
 
-	if b, _ := tinted(); !b {
-		t.Fatal("a folded project hides its waiting session's tint")
+	if f, s := shades(); !f && !s {
+		t.Fatal("a folded project hides its failed session's tint")
 	}
 
 	m.ag.collapsed = nil
 
-	m.sess = "b"
-	if m.highlight(m.sessions[1]) != nil || m.highlight(m.sessions[2]) == nil {
-		t.Fatal("the session on screen needs no tint, the others keep theirs")
+	// steady tints without the pulse, off drops the tint.
+	m.st.Settings.SessHi = "steady"
+	if m.pulses(m.sessions[1]) || m.highlight(m.sessions[1]) != pal.blockedBg {
+		t.Fatal("steady tints without a pulse")
 	}
 
-	m.sess = ""
 	m.st.Settings.SessHi = "off"
 
-	if b, d := tinted(); b || d {
-		t.Fatalf("off: blocked %v, done %v", b, d)
+	if f, s := shades(); f || s {
+		t.Fatalf("off: full %v soft %v", f, s)
 	}
 
-	m.st.Settings.SessHi = "blink"
-	if m.blink() == nil || !m.blinking || m.blink() != nil {
-		t.Fatal("blink starts one ticker")
-	}
-
-	for i, want := range []bool{true, false, true} {
-		m.Update(blinkMsg{}) // not send: the next tick would sleep and toggle it back
-
-		if b, d := tinted(); b != want || d != want {
-			t.Fatalf("blink %d: blocked %v, done %v, want %v", i, b, d, want)
-		}
-	}
-
-	m.sessions = m.sessions[:1] // nothing waits any more
+	m.sessions = m.sessions[:1] // nothing left to pulse
 	m.Update(blinkMsg{})
 
 	if m.blinking || m.blinkOn {
-		t.Fatal("the ticker stops with nothing to blink")
+		t.Fatal("the ticker stops with nothing to pulse")
 	}
 }
 

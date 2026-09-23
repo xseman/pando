@@ -134,7 +134,8 @@ type Model struct {
 	msgAt       time.Time
 	soundAt     time.Time         // when the last sound cue played
 	lastTab     map[string]string // session to its tab shown last
-	blinkOn     bool              // session_highlight "blink": the tint is showing
+	seen        map[string]string // session to the state it was last clicked or shown in
+	blinkOn     bool              // a pulsing tint is at its full shade
 	blinking    bool              // its ticker runs
 	events      <-chan proto.Event
 	inputs      chan proto.InputParams
@@ -1842,6 +1843,11 @@ func (m *Model) switchSession(id string) tea.Cmd {
 	}
 
 	m.lastTab[m.rootOf(id)] = id
+
+	for _, t := range m.tabsOf(m.rootOf(id)) { // clicked: its state and its tabs' are seen
+		m.acknowledge(t.ID)
+	}
+
 	switched := m.switchWorkspace(s.Workspace)
 
 	return tea.Batch(switched, m.ensureTerm(), m.fetchScreen(), m.refreshGit())
@@ -1986,6 +1992,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := m.sound(m.soundFor(msg))
 
 		m.sessions = msg
+
+		for _, s := range m.mainSessions() { // what is on screen is seen as it changes
+			if m.inView(s.ID) {
+				m.acknowledge(s.ID)
+			}
+		}
 
 		cmd = tea.Batch(cmd, m.blink())
 		if next != "" { // a tab closed with others left: the neighbour takes over
