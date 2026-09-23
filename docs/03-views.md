@@ -16,7 +16,7 @@ render into a windowed list → handle keys and mouse.
 ```
  SOURCE CONTROL                repo · main
                                             ← blank row
- ▏Message (⏎ to commit on "main")      ✧ ▕   widget rows: keyboard skips them,
+ ▏Message (⏎ to commit on "main")      ∨ ▕   widget rows: keyboard skips them,
                                             clicks act on them
             ✓ Commit                │ ∨      ✓ Continue during a merge, rebase, cherry-pick;
                                             ☁ Publish Branch / ⇅ Sync Changes 1↓ 2↑ with nothing to commit
@@ -42,7 +42,24 @@ until Merge Changes is empty, and then commits (merge, cherry-pick) or runs
 `rebase --continue`. During a merge or cherry-pick the message box shows the
 first line of git's `MERGE_MSG` (`Merge branch 'develop' of … into feat`) as
 its placeholder, and Continue with the box left empty commits that message,
-as VS Code's prefilled box does. The button is VS Code's SCM action button
+as VS Code's prefilled box does. The box is a `textarea` that grows a row
+per visual line up to `maxMsgLines` (10, VS Code's `scm.inputMaxLineCount`)
+and scrolls past it: `build` adds one `rowMsg` per line (`scmRow.line`), and
+`fit` rebuilds when a key, a paste or a rewrap changes the count. Only the
+active repository's box grows; another shows its draft's first line. Its
+selection is the textarea's: `ctrl+a` is remapped from line start to select
+all, copy and cut go through `setClipboard`, and a press on the box starts a
+`dragMsgSel` that `BeginSelection`/`ExtendSelection` follow. The ∨ at its
+top right opens `suggestMenu`: Generate Commit Message (`A`), Generate with
+Description, Match Repository Style, Rewrite Current Message (text in the
+box) and Regenerate (after a suggestion, until a commit or a repository
+switch), each a `git.SuggestOpts`; under the mouse
+it is raised (`keycapHot`) up to the border, whose ▕ cell takes the same
+background so no gap shows. While a suggestion waits on `claude`, the box
+draws `scramble` instead of the input: a 60 ms `suggestTickMsg` loop settles
+ASCII noise into "Generating commit message" (shorter when narrow), holds it,
+dissolves it, and stops when `busy` clears; typing into the box is dropped
+until the suggestion replaces it. The button is VS Code's SCM action button
 (`scmView.action`): Commit while anything is staged, changed or conflicted or
 an operation waits; else _Publish Branch_ (`push -u`) on a branch without an
 upstream; else _Sync Changes_ when ahead or behind; else a muted Commit that

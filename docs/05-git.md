@@ -73,7 +73,11 @@ content ─ git hash-object -w --no-filters --stdin ─▶ sha
 `Commit`, `Amend`, `Sync` (`pull --rebase --autostash`, then `push`), `Publish`
 (`push -u REMOTE HEAD`, after `remote add` when given a URL), `Remotes`
 (`remote -v`, push URLs) and `Suggest`, which pipes the staged diff into
-`claude -p --model haiku` for a commit message. `PublishGitHub` stands in for
+`claude -p --model haiku` for a commit message. `SuggestOpts` adds a body,
+the last 20 subjects (`log -20 --no-merges --format=%s`) as a style to
+follow, a message to rewrite, or a previous suggestion to avoid; stdin
+carries them as labelled blocks before the diff, and `parseSuggestion` (fuzzed)
+strips fences and quotes. `PublishGitHub` stands in for
 VS Code's GitHub extension with `gh repo create NAME --private|--public
 --source ROOT --remote origin --push`; `HasGH` and `GHLogin` tell whether gh
 is there and who it is signed in as. Commit & Sync publishes instead of

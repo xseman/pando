@@ -19,6 +19,11 @@ say (`keyContext`, `keybindings` in `internal/ui/keys.go`):
 | a text box (commit message, find, …)    | the box keeps its keys; `[keys]` and pando's panel chords wait                                    |
 | a sidebar list, a diff, a rendering     | the single letters and every chord below                                                          |
 
+In the commit message `⏎` commits and `shift+⏎` starts a new line; `alt+⏎`
+does too, for the terminals that send `shift+⏎` as a plain `⏎`. Selecting is
+the editor's: `ctrl+a` all, `shift+←→↑↓` or a mouse drag, then `ctrl+c` copy,
+`ctrl+x` cut, or type over it. `home` is the line start.
+
 A terminal gives up `ctrl+]`, `ctrl+shift+p`, `ctrl+shift+f` `ctrl+shift+e`
 `ctrl+shift+g` `ctrl+shift+h`, `ctrl+j` ``ctrl+` `` `ctrl+space`,
 ``ctrl+shift+` ``, `ctrl+shift+↑↓`, `ctrl+b`, `ctrl+,`, `ctrl+0` `ctrl+1`,

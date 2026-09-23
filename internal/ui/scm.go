@@ -9,8 +9,10 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
+	"unicode/utf8"
 
-	"charm.land/bubbles/v2/textinput"
+	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -37,6 +39,7 @@ type scmRow struct {
 	entry git.Entry
 	text  string // section: file count; dir: label; line: text
 	path  string // dir: repo-relative path
+	line  int    // message box: the box's visual line this row draws
 	depth int
 }
 
@@ -51,7 +54,7 @@ type scmView struct {
 	repos    []string
 	status   map[string]git.Status
 	repo     int // active repository: the message box input and drawers belong to it
-	input    textinput.Model
+	input    textarea.Model
 	draft    string          // last draft sent to the daemon for the active repo
 	closed   map[string]bool // collapsed repos, sections ("root|Changes") and tree dirs
 	drawers  map[string][]string
@@ -62,6 +65,16 @@ type scmView struct {
 	tops     map[string]int // scroll offset per pane, "" = changes
 	busy     string
 	busyRoot string
+	frame    int              // scramble frame of the message box while ✦ writes a message
+	last     *git.SuggestOpts // the last suggestion's request, for Regenerate
+	lastMsg  string           // and what it came back with
+}
+
+// suggestTickMsg advances the message box's scramble while a suggestion runs.
+type suggestTickMsg struct{}
+
+func suggestTick() tea.Cmd {
+	return tea.Tick(60*time.Millisecond, func(time.Time) tea.Msg { return suggestTickMsg{} })
 }
 
 type scmMsg struct {
@@ -107,19 +120,47 @@ type drawerMsg struct {
 const defaultPaneH = 8
 
 func (s *scmView) init() {
-	s.input = textinput.New()
-	s.input.Prompt = ""
+	s.input = newMessageArea()
 	s.styleInput(true)
 	s.reset()
 }
 
+// maxMsgLines is how tall the message box grows, VS Code's scm.inputMaxLineCount.
+const maxMsgLines = 10
+
 // styleInput paints the message box text on the input background.
-func (s *scmView) styleInput(dark bool) { s.input.SetStyles(inputStyles(dark)) }
+func (s *scmView) styleInput(dark bool) { s.input.SetStyles(areaStyles(dark)) }
+
+// msgLines is how many rows root's message box takes: the active one grows
+// with its text, the others show their draft's first line.
+func (s *scmView) msgLines(root string) int {
+	if root == s.root() {
+		return max(s.input.Height(), 1)
+	}
+
+	return 1
+}
+
+// fit rebuilds the rows when the message box grew or shrank.
+func (s *scmView) fit(m *Model) {
+	n := 0
+
+	for _, r := range s.rows {
+		if r.kind == rowMsg && r.root == s.root() {
+			n++
+		}
+	}
+
+	if n != s.msgLines(s.root()) {
+		s.build(m)
+	}
+}
 
 func (s *scmView) reset() {
 	s.repos, s.status, s.repo = nil, map[string]git.Status{}, 0
 	s.closed, s.drawers, s.tops = map[string]bool{}, map[string][]string{}, map[string]int{}
 	s.rows, s.heads, s.sel, s.draft, s.history = nil, nil, -1, "", ""
+	s.last, s.lastMsg = nil, ""
 	s.input.Reset()
 	s.input.Blur()
 }
@@ -238,6 +279,8 @@ func (s *scmView) setRepo(m *Model, root string) tea.Cmd {
 		}
 	}
 
+	s.last, s.lastMsg = nil, "" // Regenerate belongs to the repository it wrote for
+
 	s.drawers, s.history = map[string][]string{}, ""
 	for k := range s.tops {
 		if k != "" {
@@ -281,8 +324,12 @@ func (s *scmView) build(m *Model) {
 			}
 		}
 		// Blank rows around the message box and the button, like VS Code's padding.
-		s.rows = append(s.rows, scmRow{kind: rowGap, root: root}, scmRow{kind: rowMsg, root: root},
-			scmRow{kind: rowGap, root: root}, scmRow{kind: rowCommit, root: root}, scmRow{kind: rowGap, root: root})
+		s.rows = append(s.rows, scmRow{kind: rowGap, root: root})
+		for i := range s.msgLines(root) {
+			s.rows = append(s.rows, scmRow{kind: rowMsg, root: root, line: i})
+		}
+
+		s.rows = append(s.rows, scmRow{kind: rowGap, root: root}, scmRow{kind: rowCommit, root: root}, scmRow{kind: rowGap, root: root})
 		// Changes always shows, like VS Code; a filter hides sections without matches.
 		section := func(title string, entries []git.Entry, always bool) {
 			if q != "" {
@@ -451,9 +498,22 @@ func (s *scmView) actions(r scmRow, w int) []rowAction {
 	return acts
 }
 
+// mouseCol is the mouse's column in the view's rows, as clicks count it: a
+// vertical activity bar on the left comes off.
+func (s *scmView) mouseCol(m *Model) int {
+	i := m.colOf(viewGit)
+
+	mx := m.mouseX - m.colRect(i).x
+	if m.side(i) == 0 {
+		mx -= m.barW(i)
+	}
+
+	return mx
+}
+
 // actionSegs draws row r's hover buttons, the one under the mouse raised.
 func (s *scmView) actionSegs(m *Model, r scmRow, w int) []seg {
-	mx := m.mouseX - m.colRect(m.colOf(viewGit)).x
+	mx := s.mouseCol(m)
 
 	var out []seg
 
@@ -893,6 +953,15 @@ func (s *scmView) onMsg(m *Model, msg tea.Msg) tea.Cmd {
 		m.modal = msg.menu
 	case stageMsg:
 		return msg.run(m)
+	case suggestTickMsg:
+		if s.busy != "suggesting" {
+			return nil
+		}
+
+		s.frame++
+
+		return suggestTick()
+
 	case scmMsg:
 		s.busy, s.busyRoot = "", ""
 
@@ -903,13 +972,17 @@ func (s *scmView) onMsg(m *Model, msg tea.Msg) tea.Cmd {
 		}
 
 		if msg.message != "" && msg.root == s.root() {
+			s.lastMsg = msg.message
 			s.input.SetValue(msg.message)
 			s.input.CursorEnd()
 		}
 
 		if msg.clear && msg.root == s.root() {
 			s.input.Reset()
+			s.last, s.lastMsg = nil, ""
 		}
+
+		s.fit(m)
 
 		switch {
 		case msg.err != nil:
@@ -990,7 +1063,7 @@ func (s *scmView) renderRow(m *Model, i, w int, hovered bool) string {
 	r := s.rows[i]
 	switch r.kind {
 	case rowMsg:
-		return s.messageRow(m, r.root, w)
+		return s.messageRow(m, r.root, r.line, w, hovered)
 	case rowGap:
 		return blank(w)
 	case rowCommit:
@@ -1124,17 +1197,24 @@ func (s *scmView) edge(root string) lipgloss.Style {
 	return fg(pal.inputBorder)
 }
 
-// messageRow is a repository's one-row message box like VS Code's input:
-// a tinted field between thin edges, inset one column, with the ✧ suggest
-// button at its right end.
-func (s *scmView) messageRow(m *Model, root string, w int) string {
+// messageRow is line of a repository's message box like VS Code's input:
+// a tinted field between thin edges, inset one column, with the ∨ of
+// suggestMenu at the right end of its first line, raised under the mouse
+// like the rows' hover buttons.
+func (s *scmView) messageRow(m *Model, root string, line, w int, hovered bool) string {
 	active := root == s.root()
 	box := lipgloss.NewStyle().Background(pal.inputBg)
 	edge := s.edge(root).Background(pal.inputBg)
 
-	sparkle := icSparkle.s()
-	if s.busy == "suggesting" && s.busyRoot == root {
-		sparkle = "…"
+	suggesting := s.busy == "suggesting" && s.busyRoot == root
+
+	sparkle := icChevron.s() // the ∨ opens suggestMenu
+	if suggesting {
+		sparkle = []string{"✦", "✧", "·", "✧"}[s.frame/3%4] // the star twinkles
+	}
+
+	if line > 0 {
+		sparkle = blank(ansi.StringWidth(sparkle))
 	}
 
 	field := w - 7 - ansi.StringWidth(sparkle) // the text gets a space on each side
@@ -1147,14 +1227,26 @@ func (s *scmView) messageRow(m *Model, root string, w int) string {
 	var text string
 
 	switch {
+	case suggesting && line == 0:
+		text = scramble(suggestPhrase(field), s.frame, box)
+	case suggesting:
 	case active:
 		s.styleInput(m.dark)
 		s.input.Placeholder = commitPlaceholder(st, field)
 		s.input.SetWidth(field)
-		text = s.input.View()
+
+		if lines := strings.Split(s.input.View(), "\n"); line < len(lines) {
+			text = lines[line]
+		}
 
 	case m.st.Drafts[root] != "":
-		text = box.Render(ansi.Truncate(m.st.Drafts[root], field, "…"))
+		first, _, more := strings.Cut(m.st.Drafts[root], "\n")
+		if more {
+			first += " …"
+		}
+
+		text = box.Render(ansi.Truncate(first, field, "…"))
+
 	default:
 		text = dim.Italic(true).Background(pal.inputBg).Render(commitPlaceholder(st, field))
 	}
@@ -1165,7 +1257,79 @@ func (s *scmView) messageRow(m *Model, root string, w int) string {
 		text = ansi.Truncate(text, field, "")
 	}
 
-	return " " + edge.Render("▏") + box.Render(" ") + text + box.Render(" "+sparkle+" ") + edge.Render("▕") + " "
+	btn, end := box, edge
+	if mx := s.mouseCol(m); hovered && line == 0 && !suggesting && mx >= w-5 && mx < w-1 { // click's hit box
+		// The raised button runs into the edge: ▕ only draws the cell's right
+		// sliver, so its own background would leave a gap before the border.
+		btn, end = keycapHot(), end.Background(pal.keycapBg)
+	}
+
+	return " " + edge.Render("▏") + box.Render(" ") + text + btn.Render(" "+sparkle+" ") + end.Render("▕") + " "
+}
+
+// suggestPhrase is what the scramble settles on, the longest that fits.
+func suggestPhrase(width int) string {
+	for _, t := range []string{"Generating commit message", "Generating message", "Generating", "…"} {
+		if ansi.StringWidth(t) <= width {
+			return t
+		}
+	}
+
+	return ""
+}
+
+// scrambleGlyphs is the noise a scrambled character cycles through.
+const scrambleGlyphs = `!#$%&*+-/<=>?@[\]^_{|}~01`
+
+// scramble renders phrase at frame of a loop that mixes it out of ASCII
+// noise: characters settle one by one (each a few frames off its neighbour),
+// the phrase holds with dots counting up, then it dissolves back into noise.
+// Settled characters take the accent, noise stays faint.
+func scramble(phrase string, frame int, box lipgloss.Style) string {
+	rs := []rune(phrase)
+	n := len(rs)
+
+	const jitter, hold, rest = 6, 24, 6
+
+	period := 2*(n+jitter) + hold + rest
+	p := frame % period
+	dissolve := n + jitter + hold
+
+	// hash is a stable pseudo-random number per character and frame, so a
+	// frame renders the same twice and tests can pin it.
+	hash := func(i, f int) int {
+		h := uint32(i)*2654435761 ^ uint32(f)*40503 //nolint:gosec // wraparound is the point
+		h ^= h >> 13
+		h *= 0x5bd1e995
+		h ^= h >> 15
+
+		return int(h >> 1)
+	}
+
+	on := fg(pal.accent).Background(pal.inputBg).Bold(true)
+	off := dim.Background(pal.inputBg)
+
+	var b strings.Builder
+
+	for i, r := range rs {
+		at := i + hash(i, 0)%jitter
+		settled := p >= at && p < dissolve+at
+
+		switch {
+		case settled:
+			b.WriteString(on.Render(string(r)))
+		case r == ' ' && hash(i, p)%3 == 0: // gaps keep the noise from reading as one word
+			b.WriteString(box.Render(" "))
+		default:
+			b.WriteString(off.Render(string(scrambleGlyphs[hash(i, p)%len(scrambleGlyphs)])))
+		}
+	}
+
+	if p >= n+jitter && p < dissolve {
+		b.WriteString(on.Render(strings.Repeat(".", (p-n-jitter)/6%4)))
+	}
+
+	return b.String()
 }
 
 // Actions of the button under the message box, VS Code's SCM action button.
@@ -1367,6 +1531,32 @@ func (s *scmView) commitWith(amend, sync bool) tea.Cmd {
 	})
 }
 
+// suggestMenu is the message box's ∨: ways to have claude write the message.
+// Rewrite needs text in the box, Regenerate a suggestion to redo.
+func (s *scmView) suggestMenu(m *Model, x, y int) {
+	with := func(o git.SuggestOpts) func(*Model) tea.Cmd {
+		return func(*Model) tea.Cmd { return s.suggestWith(o) }
+	}
+
+	items := []item{
+		{label: "Generate Commit Message", hint: "A", run: s.suggest},
+		{label: "Generate with Description", run: with(git.SuggestOpts{Body: true})},
+		{label: "Match Repository Style", run: with(git.SuggestOpts{Style: true})},
+	}
+
+	if cur := strings.TrimSpace(s.input.Value()); cur != "" {
+		items = append(items, item{label: "Rewrite Current Message", run: with(git.SuggestOpts{Current: cur, Body: strings.Contains(cur, "\n")})})
+	}
+
+	if s.last != nil && s.lastMsg != "" {
+		o := *s.last
+		o.Avoid = s.lastMsg
+		items = append(items, item{label: "Regenerate", run: with(o)})
+	}
+
+	m.modal = newMenu("", x, y, items...)
+}
+
 // commitMenu opens the Commit button's ∨ menu at x, y.
 func (s *scmView) commitMenu(m *Model, x, y int) {
 	m.modal = newMenu("", x, y,
@@ -1375,11 +1565,24 @@ func (s *scmView) commitMenu(m *Model, x, y int) {
 		item{label: "Commit (Amend)", run: func(*Model) tea.Cmd { return s.commitWith(true, false) }})
 }
 
-func (s *scmView) suggest(_ *Model) tea.Cmd {
-	return s.run(s.root(), "suggesting", func(root string) scmMsg {
-		msg, err := git.Suggest(root)
+// suggest asks claude for a subject line.
+func (s *scmView) suggest(_ *Model) tea.Cmd { return s.suggestWith(git.SuggestOpts{}) }
+
+// suggestWith asks claude for a message shaped by o; the box scrambles until
+// it lands.
+func (s *scmView) suggestWith(o git.SuggestOpts) tea.Cmd {
+	cmd := s.run(s.root(), "suggesting", func(root string) scmMsg {
+		msg, err := git.Suggest(root, o)
 		return scmMsg{message: msg, err: err}
 	})
+	if cmd == nil {
+		return nil
+	}
+
+	o.Avoid = "" // Regenerate sets its own
+	s.frame, s.last, s.lastMsg = 0, &o, ""
+
+	return tea.Batch(cmd, suggestTick())
 }
 
 // sync pulls and pushes; a branch without an upstream is published instead,
@@ -1523,11 +1726,31 @@ func (s *scmView) inputKey(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	case "esc", "tab":
 		s.input.Blur()
 		return s.saveDraft(m)
+
+	case "ctrl+c", "ctrl+shift+c", "ctrl+x": // the editor's copy and cut, on the selection only
+		text := s.input.SelectedText()
+		if text == "" {
+			return nil
+		}
+
+		if k.String() == "ctrl+x" {
+			s.input.DeleteSelection()
+			s.fit(m)
+
+			return setClipboard(text, "")
+		}
+
+		return setClipboard(text, fmt.Sprintf("copied %d characters", utf8.RuneCountInString(text)))
+	}
+
+	if s.busy == "suggesting" && s.busyRoot == s.root() {
+		return nil // the suggestion replaces the box: typing now would be lost unseen
 	}
 
 	var cmd tea.Cmd
 
 	s.input, cmd = s.input.Update(k)
+	s.fit(m)
 
 	return cmd
 }
@@ -1972,7 +2195,7 @@ func (s *scmView) items(m *Model) []item {
 		item{label: "Commit", hint: "C", run: s.commit},
 		item{label: "Commit & Sync", run: func(*Model) tea.Cmd { return s.commitWith(false, true) }},
 		item{label: "Commit (Amend)", run: func(*Model) tea.Cmd { return s.commitWith(true, false) }},
-		item{label: "✧ Suggest Message", hint: "A", run: s.suggest},
+		item{label: icSparkle.text + " Suggest Message", hint: "A", run: s.suggest},
 		item{label: "Stage All", hint: "a", run: func(m *Model) tea.Cmd { return s.key(m, tea.KeyPressMsg{Code: 'a', Text: "a"}) }},
 		item{label: "Unstage All", hint: "u", run: func(m *Model) tea.Cmd { return s.key(m, tea.KeyPressMsg{Code: 'u', Text: "u"}) }},
 		item{label: "Stage Untracked", hint: "U", run: func(m *Model) tea.Cmd { return s.stageUntracked(s.root())(m) }},
@@ -2097,8 +2320,15 @@ func (s *scmView) click(m *Model, i, x, w int, mo tea.Mouse) tea.Cmd {
 
 	case rowMsg:
 		cmd := s.setRepo(m, r.root)
-		if x >= w-5 && x < w-2 {
-			return tea.Batch(cmd, s.suggest(m))
+		if r.line == 0 && x >= w-5 && x < w-1 {
+			s.suggestMenu(m, mo.X, mo.Y)
+			return cmd
+		}
+		// A press places the cursor and starts a selection a drag extends;
+		// the text starts after " ▏ ".
+		if mo.Button == tea.MouseLeft && s.busy != "suggesting" {
+			s.input.BeginSelection(x-3, r.line)
+			m.drag = &drag{kind: dragMsgSel, x0: mo.X - x + 3, y0: mo.Y - r.line}
 		}
 
 		return tea.Batch(cmd, s.input.Focus())

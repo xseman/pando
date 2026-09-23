@@ -319,7 +319,7 @@ var (
 	icRemove     = glyph{"remove", "", "−", ""}
 	icDiscard    = glyph{"discard", "", "↶", ""}
 	icWorktree   = glyph{"repo-forked", "", "+⎇", ""}
-	icSparkle    = glyph{"creation (mdi)", "\U000f0674", "✧", "✧"}
+	icSparkle    = glyph{"star-full", "\ueb59", "✦", ""} // a codicon: one cell, where mdi's creation often draws two
 	icCheck      = glyph{"check", "", "✓", ""}
 	icChevron    = glyph{"chevron-down", "", "∨", ""}
 	icClose      = glyph{"close", "", "✕", ""}

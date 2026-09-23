@@ -113,7 +113,7 @@ func must(t *testing.T, op string, err error) {
 
 func TestWorkflow(t *testing.T) {
 	root := repo(t)
-	if _, err := Suggest(root); err == nil {
+	if _, err := Suggest(root, SuggestOpts{}); err == nil {
 		t.Error("Suggest on a clean tree")
 	}
 
@@ -924,6 +924,65 @@ func FuzzPickLines(f *testing.F) {
 			y, erry := pickLines(diff, side.c, side.d, !side.fromOld)
 			if x != y || (errx == nil) != (erry == nil) {
 				t.Fatalf("%s side: %q (%v) != %q (%v) for %q", side.what, x, errx, y, erry, diff)
+			}
+		}
+	})
+}
+
+func TestSuggestPrompt(t *testing.T) {
+	if p := suggestPrompt(SuggestOpts{}); !strings.Contains(p, "ONLY the subject line") || strings.Contains(p, "body") {
+		t.Errorf("subject prompt: %q", p)
+	}
+
+	p := suggestPrompt(SuggestOpts{Body: true, Style: true, Current: "wip", Avoid: "fix: x"})
+	for _, want := range []string{"Rewrite", "blank line and a body", "Recent commits", "Previous suggestion", "ONLY the message."} {
+		if !strings.Contains(p, want) {
+			t.Errorf("prompt lacks %q: %q", want, p)
+		}
+	}
+
+	in := suggestInput(SuggestOpts{Current: "wip\n"}, " \n", "+x\n")
+	if in != "Current message:\nwip\n\nDiff:\n+x\n" {
+		t.Errorf("input = %q", in)
+	}
+}
+
+func TestParseSuggestion(t *testing.T) {
+	for _, c := range []struct {
+		out  string
+		body bool
+		want string
+	}{
+		{"\"fix: x\"\n", false, "fix: x"},
+		{"fix: x\n\nwhy  \nit is\n", false, "fix: x"},
+		{"fix: x\n\nwhy  \nit is\n", true, "fix: x\n\nwhy\nit is"},
+		{"```\nfeat: y\n\nbody\n```", true, "feat: y\n\nbody"},
+		{"```text\n`feat: y`\n```", false, "feat: y"},
+	} {
+		if got := parseSuggestion(c.out, c.body); got != c.want {
+			t.Errorf("parseSuggestion(%q, %v) = %q, want %q", c.out, c.body, got, c.want)
+		}
+	}
+}
+
+// FuzzParseSuggestion checks the message lands clean in the box: trimmed,
+// no trailing blanks on any line, one line unless a body was asked for.
+func FuzzParseSuggestion(f *testing.F) {
+	f.Add("fix: x\n\nbody  \n", true)
+	f.Add("```\n\"a\"\n```", false)
+	f.Fuzz(func(t *testing.T, out string, body bool) {
+		got := parseSuggestion(out, body)
+		if got != strings.TrimSpace(got) {
+			t.Fatalf("untrimmed %q", got)
+		}
+
+		if !body && strings.Contains(got, "\n") {
+			t.Fatalf("a subject with a newline: %q", got)
+		}
+
+		for _, l := range strings.Split(got, "\n") {
+			if l != strings.TrimRight(l, " \t") {
+				t.Fatalf("trailing blanks in %q", got)
 			}
 		}
 	})

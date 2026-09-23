@@ -689,6 +689,190 @@ func TestGitLayoutTreeAndPanes(t *testing.T) {
 	}
 }
 
+// TestCommitMessageLines is the message box growing like VS Code's: shift+enter
+// (alt+enter where the terminal cannot send it) starts a line and adds a row,
+// deleting it takes the row away, enter still commits.
+func TestCommitMessageLines(t *testing.T) {
+	m := gitModel(t)
+	msgRows := func() int {
+		return len(slices.DeleteFunc(slices.Clone(m.scm.rows), func(r scmRow) bool { return r.kind != rowMsg }))
+	}
+
+	press(m, "c", "f", "i", "x", "shift+enter", "b", "o", "d", "y", "alt+enter", "e", "n", "d")
+
+	if v := m.scm.input.Value(); v != "fix\nbody\nend" || msgRows() != 3 {
+		t.Fatalf("value %q in %d rows", v, msgRows())
+	}
+
+	out := ansi.Strip(checkWidths(t, m))
+	if !strings.Contains(out, "▏ fix") || !strings.Contains(out, "▏ body") || !strings.Contains(out, "▏ end") {
+		t.Fatalf("three lines drawn:\n%s", out)
+	}
+	// The ∨ stays in the top-right corner, against the edge; the lines under it run on.
+	top, w := m.bodyTop(viewGit)+rowIndex(&m.scm, rowMsg, m.ws), m.colRect(m.colOf(viewGit)).w
+	for i, want := range []string{" " + icChevron.s() + " ▕ ", "   ▕ ", "   ▕ "} {
+		if got := ansi.Strip(ansi.Cut(strings.Split(m.View().Content, "\n")[top+i], w-5, w)); got != want {
+			t.Fatalf("line %d ends %q, want %q", i, got, want)
+		}
+	}
+
+	press(m, "backspace", "backspace", "backspace", "backspace")
+
+	if msgRows() != 2 {
+		t.Fatalf("a deleted line keeps its row: %d rows", msgRows())
+	}
+
+	for range 20 {
+		press(m, "shift+enter")
+	}
+
+	if msgRows() != maxMsgLines {
+		t.Fatalf("the box stops growing at %d rows, has %d", maxMsgLines, msgRows())
+	}
+
+	checkWidths(t, m)
+}
+
+// TestCommitMessageSelect is the message box's selection, as in the editor:
+// ctrl+a selects everything and typing replaces it, ctrl+x cuts it, ctrl+c
+// copies only a selection, and a mouse drag selects across lines.
+func TestCommitMessageSelect(t *testing.T) {
+	m := gitModel(t)
+	press(m, "c", "o", "l", "d", "shift+enter", "t", "w", "o", "ctrl+a")
+
+	if got := m.scm.input.SelectedText(); got != "old\ntwo" {
+		t.Fatalf("ctrl+a selected %q", got)
+	}
+
+	if !strings.Contains(m.View().Content, bgParams(pal.textSelBg)) {
+		t.Fatal("the selection is not drawn")
+	}
+
+	press(m, "n", "e", "w")
+
+	if v := m.scm.input.Value(); v != "new" || len(slices.DeleteFunc(slices.Clone(m.scm.rows), func(r scmRow) bool { return r.kind != rowMsg })) != 1 {
+		t.Fatalf("typing over the selection: %q", v)
+	}
+
+	if _, cmd := m.Update(keyMsg("ctrl+c")); cmd != nil {
+		t.Fatal("ctrl+c without a selection copies nothing")
+	}
+
+	press(m, "ctrl+a")
+
+	if _, cmd := m.Update(keyMsg("ctrl+x")); cmd == nil || m.scm.input.Value() != "" {
+		t.Fatalf("ctrl+x: value %q, copies %v", m.scm.input.Value(), cmd != nil)
+	}
+	// A drag from "b" on the first line to "e" on the second selects between.
+	m.scm.input.SetValue("abc\ndef")
+	m.scm.fit(m)
+
+	top := m.bodyTop(viewGit) + rowIndex(&m.scm, rowMsg, m.ws)
+	x := m.colRect(m.colOf(viewGit)).x + 3
+
+	m.Update(tea.MouseClickMsg{X: x + 1, Y: top, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: x + 1, Y: top + 1, Button: tea.MouseLeft})
+	m.Update(tea.MouseReleaseMsg{X: x + 1, Y: top + 1, Button: tea.MouseLeft})
+
+	if got := m.scm.input.SelectedText(); got != "bc\nd" || !m.scm.input.Focused() || m.drag != nil {
+		t.Fatalf("drag selected %q, focused %v", got, m.scm.input.Focused())
+	}
+
+	checkWidths(t, m)
+}
+
+// TestSuggestHover raises the ∨ button under the mouse, and only there, up to
+// the box's edge; a click opens its menu, whose item generates the message.
+func TestSuggestHover(t *testing.T) {
+	m := gitModel(t)
+	top := m.bodyTop(viewGit) + rowIndex(&m.scm, rowMsg, m.ws)
+	rc := m.colRect(m.colOf(viewGit))
+	hot := bgParams(pal.keycapBg)
+	line := func() string { return strings.Split(m.View().Content, "\n")[top] }
+
+	m.Update(tea.MouseMotionMsg{X: rc.x + 5, Y: top})
+
+	if strings.Contains(line(), hot) {
+		t.Fatal("the button is raised with the mouse over the text")
+	}
+
+	m.Update(tea.MouseMotionMsg{X: rc.x + rc.w - 4, Y: top})
+
+	if !strings.Contains(line(), hot) {
+		t.Fatalf("the button is not raised under the mouse: %q", line())
+	}
+
+	if edge := ansi.Cut(line(), rc.w-2, rc.w-1); !strings.Contains(edge, hot) {
+		t.Fatalf("the raised button stops short of the edge: %q", edge)
+	}
+
+	checkWidths(t, m)
+	click(m, rc.x+rc.w-4, top, tea.MouseLeft)
+
+	labels := func() []string {
+		var out []string
+		for _, it := range m.modal.items {
+			out = append(out, it.label)
+		}
+
+		return out
+	}
+
+	if m.modal == nil || !slices.Equal(labels(), []string{"Generate Commit Message", "Generate with Description", "Match Repository Style"}) {
+		t.Fatalf("the ∨ opens its menu: %v", labels())
+	}
+	// Rewrite shows with text in the box, Regenerate once a suggestion landed.
+	m.modal = nil
+	m.scm.input.SetValue("wip")
+	m.scm.last = &git.SuggestOpts{Body: true}
+	m.Update(scmMsg{root: m.ws, message: "feat: add x"})
+	click(m, rc.x+rc.w-4, top, tea.MouseLeft)
+
+	if got := labels(); len(got) != 5 || got[3] != "Rewrite Current Message" || got[4] != "Regenerate" {
+		t.Fatalf("with a message and a suggestion: %v", got)
+	}
+}
+
+// TestSuggestScramble is the message box while ✦ writes a message: ASCII
+// noise that settles into "Generating…", typing held off, and
+// the ticker stopping once the suggestion lands in the box.
+func TestSuggestScramble(t *testing.T) {
+	m := gitModel(t)
+	root := m.ws
+	press(m, "c")
+
+	m.scm.busy, m.scm.busyRoot, m.scm.frame = "suggesting", root, 0
+
+	out := ansi.Strip(checkWidths(t, m))
+	if strings.Contains(out, "Message (") || strings.Contains(out, "Generating") {
+		t.Fatalf("frame 0 is noise, not the placeholder or the phrase:\n%s", out)
+	}
+
+	for m.scm.frame < 31 { // every phrase holds settled at frame 31
+		m.Update(suggestTickMsg{})
+	}
+
+	if out := ansi.Strip(checkWidths(t, m)); !strings.Contains(out, "Generating") {
+		t.Fatalf("frame %d settles on the phrase:\n%s", m.scm.frame, out)
+	}
+
+	press(m, "z")
+
+	if m.scm.input.Value() != "" {
+		t.Fatalf("typing while suggesting: %q", m.scm.input.Value())
+	}
+
+	m.Update(scmMsg{root: root, message: "feat: add z"})
+
+	if _, cmd := m.Update(suggestTickMsg{}); cmd != nil || m.scm.input.Value() != "feat: add z" {
+		t.Fatalf("after the suggestion: value %q, ticking %v", m.scm.input.Value(), cmd != nil)
+	}
+
+	if out := ansi.Strip(checkWidths(t, m)); !strings.Contains(out, "feat: add z") {
+		t.Fatalf("the suggestion shows:\n%s", out)
+	}
+}
+
 // TestGitActionButton is VS Code's SCM action button: Commit while there is
 // something to commit, else Publish Branch without an upstream, else Sync
 // Changes when ahead or behind, else a muted Commit. Publish and Sync have no

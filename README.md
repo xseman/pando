@@ -131,7 +131,13 @@ stashes, tags).
   and _Continue_ while a merge, rebase or cherry-pick is unfinished.
 - Publish pushes to the only remote, asks which one when there are several,
   and with none creates a GitHub repository through `gh`.
-- ✧ writes a commit message with the local `claude` CLI.
+- The message box grows to 10 lines: `shift+⏎` (or `alt+⏎`) starts a new
+  line, `⏎` commits. `ctrl+a`, shift+arrows and mouse drags select, as in
+  the editor.
+- The message box's ∨ has `claude` write the message: a subject (also `A`),
+  one with a description, one in the repository's style, a rewrite of what
+  is in the box, or another take on the last one. The box scrambles ASCII
+  noise into "Generating commit message" until it lands.
 - Diffs show old and new line numbers, row tints and word-level highlights,
   inline or side by side. Selected lines can be staged, unstaged or reverted
   from either view.

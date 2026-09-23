@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -477,6 +479,40 @@ func inputStyles(dark bool) textinput.Styles {
 	st := textinput.DefaultStyles(dark)
 	for _, ss := range []*textinput.StyleState{&st.Focused, &st.Blurred} {
 		ss.Text, ss.Placeholder, ss.Prompt = ss.Text.Background(pal.inputBg), ss.Placeholder.Background(pal.inputBg), ss.Prompt.Background(pal.inputBg)
+	}
+
+	return st
+}
+
+// newMessageArea is the commit message box: VS Code's grows with its text up
+// to scm.inputMaxLineCount (maxMsgLines) and scrolls beyond. Enter commits,
+// so a new line is shift+enter, or alt+enter where the terminal cannot tell
+// shift+enter from enter.
+func newMessageArea() textarea.Model {
+	ta := textarea.New()
+	ta.Prompt = ""
+	ta.ShowLineNumbers = false
+	ta.DynamicHeight, ta.MinHeight, ta.MaxHeight = true, 1, maxMsgLines
+	ta.MaxContentHeight = 1 << 16 // MaxHeight alone would cap the text at maxMsgLines lines
+	ta.KeyMap.InsertNewline = key.NewBinding(key.WithKeys("shift+enter", "alt+enter"))
+	// ctrl+a selects all as in the editor, not readline's line start.
+	ta.KeyMap.LineStart = key.NewBinding(key.WithKeys("home"))
+	ta.KeyMap.SelectAll = key.NewBinding(key.WithKeys("ctrl+a"))
+
+	return ta
+}
+
+// areaStyles is inputStyles for a textarea: no cursor-line tint, the rows
+// past the text painted on the input background too, the editor's selection.
+func areaStyles(dark bool) textarea.Styles {
+	in, st := inputStyles(dark), textarea.DefaultStyles(dark)
+	for _, p := range []struct {
+		a *textarea.StyleState
+		i textinput.StyleState
+	}{{&st.Focused, in.Focused}, {&st.Blurred, in.Blurred}} {
+		p.a.Text, p.a.CursorLine, p.a.Placeholder, p.a.Prompt = p.i.Text, p.i.Text, p.i.Placeholder, p.i.Prompt
+		p.a.EndOfBuffer = lipgloss.NewStyle().Background(pal.inputBg)
+		p.a.Selection = lipgloss.NewStyle().Background(pal.textSelBg) // the editor's
 	}
 
 	return st

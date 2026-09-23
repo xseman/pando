@@ -55,6 +55,7 @@ const (
 	dragTerm
 	dragRow
 	dragScroll
+	dragMsgSel
 )
 
 // actH is the height of a sidebar's activity bar: the icons, then the row
@@ -76,7 +77,7 @@ type drag struct {
 	v      view   // dragTab: the tab being dragged
 	proj   string // dragRow: the project being moved in the Spaces list
 	from   int    // dragRow: the index it was picked up from
-	x0     int    // dragTab: where it was picked up
+	x0     int    // dragTab: where it was picked up; dragMsgSel: the message text's screen origin, with y0
 	drop   *dropTarget
 	y0, h0 int
 	moved  bool
@@ -1920,6 +1921,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tickMsg:
 		m.ex.rebuild(m)
+		m.scm.fit(m) // the box learns its width when drawn: a resize rewraps it
 		cmds := []tea.Cmd{tick(), m.blink(), m.refreshGit(), m.pv.reloadIfLive(m), m.scm.saveDraft(m), m.scm.loadDrawers(m), m.saveWorkspace(), m.saveEditors(), m.saveDrafts()}
 		// ponytail: other projects' branches come back every 30 s, one git call
 		// per project; watch their HEADs if that lags.
@@ -2063,7 +2065,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.onActions(msg)
 	case appliedMsg:
 		return m, m.onApplied(msg)
-	case scmMsg, drawerMsg, modalMsg, stageMsg:
+	case scmMsg, drawerMsg, modalMsg, stageMsg, suggestTickMsg:
 		return m, m.scm.onMsg(m, msg)
 	case previewMsg:
 		m.pv.onLoad(m, msg)
@@ -2168,6 +2170,8 @@ func (m *Model) paste(msg tea.PasteMsg) tea.Cmd {
 
 	case m.scm.input.Focused():
 		m.scm.input, cmd = m.scm.input.Update(msg)
+		m.scm.fit(m)
+
 	case m.sr.editing():
 		in := &m.sr.query
 		if m.sr.include.Focused() {
@@ -2908,6 +2912,15 @@ func (m *Model) dragMouse(msg tea.MouseMsg) tea.Cmd {
 		return m.ag.dragRowTo(m, d, mo.Y, release)
 	case dragScroll:
 		return m.barDragTo(d.bar, mo.Y, release)
+	case dragMsgSel:
+		m.scm.input.ExtendSelection(mo.X-d.x0, mo.Y-d.y0)
+
+		if release {
+			m.scm.input.EndSelection()
+			m.drag = nil
+		}
+
+		return nil
 	}
 
 	if !release {

@@ -1033,12 +1033,95 @@ func ListFiles(dir string, limit int) []string {
 	return files
 }
 
-const suggestPrompt = "Write a git commit message for the diff on stdin: one imperative " +
-	"subject line under 72 characters, no quotes, no trailing period. Reply with ONLY the message line."
+// SuggestOpts shapes what Suggest asks for; the zero value is a subject line.
+type SuggestOpts struct {
+	Body    bool   // a subject, a blank line, then a wrapped body on why
+	Style   bool   // follow the repository's recent subjects
+	Current string // rewrite this message instead of writing one
+	Avoid   string // a previous suggestion to come up with something else than
+}
 
-// Suggest asks the local `claude` CLI for a subject line for the staged diff
-// (or the unstaged one when nothing is staged).
-func Suggest(root string) (string, error) {
+// suggestPrompt is the instruction for o; the material goes on stdin.
+func suggestPrompt(o SuggestOpts) string {
+	var b strings.Builder
+
+	switch {
+	case o.Current != "":
+		b.WriteString("Rewrite the git commit message under \"Current message\" on stdin so it describes the diff there: clearer and shorter, keeping its meaning. ")
+	default:
+		b.WriteString("Write a git commit message for the diff on stdin. ")
+	}
+
+	b.WriteString("The subject line is imperative, under 72 characters, no quotes, no trailing period. ")
+
+	if o.Body {
+		b.WriteString("After it, one blank line and a body wrapped at 72 characters saying what changed and why, in a few sentences or short \"- \" bullets. ")
+	}
+
+	if o.Style {
+		b.WriteString("Follow the convention of the subjects under \"Recent commits\" (prefixes, scopes, casing, tense). ")
+	}
+
+	if o.Avoid != "" {
+		b.WriteString("Do not repeat the message under \"Previous suggestion\": word it differently. ")
+	}
+
+	if o.Body {
+		b.WriteString("Reply with ONLY the message.")
+	} else {
+		b.WriteString("Reply with ONLY the subject line.")
+	}
+
+	return b.String()
+}
+
+// suggestInput is Suggest's stdin: the context o asks for, then the diff.
+func suggestInput(o SuggestOpts, recent, diff string) string {
+	var b strings.Builder
+
+	for _, part := range [][2]string{{"Recent commits", recent}, {"Current message", o.Current}, {"Previous suggestion", o.Avoid}} {
+		if strings.TrimSpace(part[1]) != "" {
+			b.WriteString(part[0] + ":\n" + strings.TrimSpace(part[1]) + "\n\n")
+		}
+	}
+
+	b.WriteString("Diff:\n" + diff)
+
+	return b.String()
+}
+
+// parseSuggestion is the message in claude's reply: fences and quotes off,
+// only the subject unless body is wanted, trailing blanks trimmed per line.
+func parseSuggestion(out string, body bool) string {
+	out = strings.TrimSpace(out)
+	if strings.HasPrefix(out, "```") { // a fenced reply: drop the fence lines
+		lines := strings.Split(out, "\n")
+		lines = lines[1:]
+
+		if n := len(lines); n > 0 && strings.HasPrefix(strings.TrimSpace(lines[n-1]), "```") {
+			lines = lines[:n-1]
+		}
+
+		out = strings.TrimSpace(strings.Join(lines, "\n"))
+	}
+
+	if !body {
+		out, _, _ = strings.Cut(out, "\n")
+	}
+
+	lines := strings.Split(out, "\n")
+	lines[0] = strings.Trim(strings.TrimSpace(lines[0]), "\"`") // a quoted subject
+
+	for i, l := range lines {
+		lines[i] = strings.TrimRight(l, " \t")
+	}
+
+	return strings.TrimSpace(strings.Join(lines, "\n"))
+}
+
+// Suggest asks the local `claude` CLI for a commit message for the staged
+// diff (or the unstaged one when nothing is staged), shaped by o.
+func Suggest(root string, o SuggestOpts) (string, error) {
 	diff, _ := Run(root, "diff", "--cached", "--stat", "--patch")
 	if strings.TrimSpace(diff) == "" {
 		diff, _ = Run(root, "diff", "--stat", "--patch")
@@ -1052,22 +1135,27 @@ func Suggest(root string) (string, error) {
 		diff = diff[:16*1024] + "\n[diff truncated]"
 	}
 
+	var recent string
+	if o.Style {
+		recent, _ = Run(root, "log", "-20", "--no-merges", "--format=%s") // none yet: no examples
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "claude", "-p", "--model", "haiku", "--strict-mcp-config", suggestPrompt)
+	cmd := exec.CommandContext(ctx, "claude", "-p", "--model", "haiku", "--strict-mcp-config", suggestPrompt(o))
 	cmd.Dir = root
-	cmd.Stdin = strings.NewReader(diff)
+	cmd.Stdin = strings.NewReader(suggestInput(o, recent, diff))
 
 	out, err := cmd.Output()
 	if err != nil {
 		return "", err
 	}
 
-	msg := strings.TrimSpace(strings.SplitN(strings.TrimSpace(string(out)), "\n", 2)[0])
+	msg := parseSuggestion(string(out), o.Body)
 	if msg == "" {
 		return "", errors.New("empty suggestion")
 	}
 
-	return strings.Trim(msg, "\"`"), nil
+	return msg, nil
 }
