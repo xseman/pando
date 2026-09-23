@@ -129,3 +129,34 @@ func TestSessionScrollbar(t *testing.T) {
 		t.Fatal("the release ends the drag")
 	}
 }
+
+// TestSessionAltScreen hides the bar over an app on the alternate screen,
+// which scrolls itself, and gives it the wheel: as mouse events when it asked
+// for them, as arrows (xterm's alternate scroll) when it did not.
+func TestSessionAltScreen(t *testing.T) {
+	m := testModel(t)
+	m.switchSession("s1")
+	m.focus = onMain
+
+	h := m.sessH()
+	m.term.id = "s1"
+	m.term.scr = proto.Screen{Lines: make([]string, h), AltScreen: true}
+
+	if strings.Contains(m.View().Content, bgParams(pal.sliderBg)) {
+		t.Fatal("the alternate screen has no scrollback to show a slider for")
+	}
+
+	x, y := m.mainX()+5, 1+m.stripH()+2
+	m.Update(tea.MouseWheelMsg{X: x, Y: y, Button: tea.MouseWheelUp})
+
+	if in := sent(t, m); len(in.Keys) != 3 || in.Keys[0].Code != tea.KeyUp || m.term.scroll != 0 {
+		t.Fatalf("the wheel on an app without the mouse: %+v, scroll %d", in, m.term.scroll)
+	}
+
+	m.term.scr.Mouse = true
+	m.Update(tea.MouseWheelMsg{X: x, Y: y, Button: tea.MouseWheelDown})
+
+	if in := sent(t, m); in.Mouse == nil || in.Mouse.Kind != "wheel" {
+		t.Fatalf("the wheel on an app with the mouse: %+v", in)
+	}
+}

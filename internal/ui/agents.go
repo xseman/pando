@@ -1494,16 +1494,36 @@ func (t *term) mouse(m *Model, id string, msg tea.MouseMsg, x, y int) tea.Cmd {
 	}
 
 	if w, ok := msg.(tea.MouseWheelMsg); ok {
-		prev := t.scroll
-		if w.Button == tea.MouseWheelUp {
-			t.scroll = min(t.scroll+3, t.scr.Scrollback)
-		} else {
-			t.scroll = max(t.scroll-3, 0)
+		return t.wheel(m, id, w.Button == tea.MouseWheelUp)
+	}
+
+	return nil
+}
+
+// wheel is a wheel turn over a terminal the app did not take as a mouse
+// event: three lines through the scrollback, or on the alternate screen,
+// which has none, three arrows, as xterm's and VS Code's alternate scroll.
+func (t *term) wheel(m *Model, id string, up bool) tea.Cmd {
+	if t.scr.AltScreen {
+		key := proto.Key{Code: tea.KeyDown}
+		if up {
+			key.Code = tea.KeyUp
 		}
 
-		if t.scroll != prev {
-			return m.fetchScreen()
-		}
+		m.inputs <- proto.InputParams{ID: id, Keys: []proto.Key{key, key, key}}
+
+		return nil
+	}
+
+	prev := t.scroll
+	if up {
+		t.scroll = min(t.scroll+3, t.scr.Scrollback)
+	} else {
+		t.scroll = max(t.scroll-3, 0)
+	}
+
+	if t.scroll != prev {
+		return m.fetchScreen()
 	}
 
 	return nil

@@ -1171,6 +1171,50 @@ func TestResumeBackgroundJob(t *testing.T) {
 	}
 }
 
+// TestAltScreenHasNoScrollback: an app on the alternate screen (vim, less,
+// a fullscreen claude) has no scrollback to page through; what the emulator
+// keeps is the shell's from before it, which the screen does not show, so a
+// scrollbar over it would move while the text stayed put.
+func TestAltScreenHasNoScrollback(t *testing.T) {
+	boot := start(t)
+
+	d := boot()
+	defer d.Close()
+
+	ws := t.TempDir()
+	script := filepath.Join(ws, "app")
+	mustWrite(t, script, "#!/bin/sh\nseq 1 100\nread go\nprintf '\\033[?1049h'\necho ON THE ALT SCREEN\nsleep 300\n")
+
+	if err := os.Chmod(script, 0o755); err != nil { // the test runs it
+		t.Fatalf("chmod %s: %v", script, err)
+	}
+
+	var s proto.Session
+	call(t, "session.new", map[string]any{"workspace": ws, "cmd": []string{script}}, &s)
+
+	screen := func(scroll int) proto.Screen {
+		t.Helper()
+
+		var scr proto.Screen
+		call(t, "session.screen", proto.ScreenParams{ID: s.ID, Cols: 40, Rows: 8, Scroll: scroll}, &scr)
+
+		return scr
+	}
+
+	waitFor(t, "the lines to scroll off", func() bool { return screen(0).Scrollback > 50 })
+
+	if scr := screen(10); scr.AltScreen || strings.Contains(strings.Join(scr.Lines, "\n"), "100") {
+		t.Fatalf("the main screen pages back: %+v", scr)
+	}
+
+	call(t, "session.input", proto.InputParams{ID: s.ID, Text: "\r"}, nil)
+	waitFor(t, "the alternate screen", func() bool { return screen(0).AltScreen })
+
+	if scr := screen(10); scr.Scrollback != 0 || !strings.Contains(strings.Join(scr.Lines, "\n"), "ON THE ALT SCREEN") {
+		t.Fatalf("the alternate screen: scrollback %d, lines %q", scr.Scrollback, scr.Lines)
+	}
+}
+
 // TestXtermKey checks every special key with every modifier set a terminal
 // can send: what xtermKey writes decodes back to the same key, the way the
 // app in the session reads it, and what it leaves is what vt encodes itself.

@@ -423,9 +423,17 @@ func (s *session) screen(p proto.ScreenParams) proto.Screen {
 
 	lines := strings.Split(s.emu.Render(), "\n")
 	sb := s.emu.Scrollback()
+	// The alternate screen has no scrollback of its own: what the emulator
+	// holds is the shell's from before the app, which it does not show.
+	alt := s.emu.IsAltScreen()
 
-	scroll := min(max(p.Scroll, 0), sb.Len())
-	if scroll > 0 && !s.emu.IsAltScreen() {
+	back := sb.Len()
+	if alt {
+		back = 0
+	}
+
+	scroll := min(max(p.Scroll, 0), back)
+	if scroll > 0 {
 		all := make([]string, 0, sb.Len()+len(lines))
 		for _, l := range sb.Lines() {
 			all = append(all, l.Render())
@@ -441,7 +449,7 @@ func (s *session) screen(p proto.ScreenParams) proto.Screen {
 	return proto.Screen{
 		Lines: lines, CursorX: pos.X, CursorY: pos.Y,
 		CursorVisible: s.cursorVisible && scroll == 0 && !s.exited,
-		Mouse:         slices.Contains(slices.Collect(maps.Values(s.mouse)), true), Scrollback: sb.Len(),
+		Mouse:         slices.Contains(slices.Collect(maps.Values(s.mouse)), true), Scrollback: back, AltScreen: alt,
 	}
 }
 

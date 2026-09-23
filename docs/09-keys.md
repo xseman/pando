@@ -93,6 +93,8 @@ in a file and the Terminal's _Paste_ read it back with the matching tool; the
 terminal's own paste (`ctrl+shift+v`) arrives as a bracketed paste anywhere.
 
 A tilt wheel or `shift`+wheel scrolls sideways; the plain wheel scrolls a
-session's scrollback when the app does not use the mouse. A left drag over a
+session's scrollback when the app does not use the mouse, and on the alternate
+screen (a fullscreen claude, less, vim) it is the app's: mouse events, or
+arrows for one without the mouse. A left drag over a
 session or the Terminal selects text and the release copies it (`term.sel`);
 it is drawn in reverse video until a key or the next click.

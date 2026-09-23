@@ -107,7 +107,11 @@ scrolls: the text width stays put (`pvW`, a session's `Cols` one short of its
 view). The slider (`scrollbar_slider`, `scrollbar_slider_active` while held)
 shows once rows are out of view, over a track drawn as the overview ruler's
 border (`overview_ruler_border`); a terminal counts its scrollback as the rows
-above. A click on the slider grabs it, one on the track jumps it there first,
+above. An app on the alternate screen (vim, less, a claude with
+`"tui": "fullscreen"`) has no scrollback and scrolls itself: the daemon
+reports none (`Screen.AltScreen`), the bar stays empty, and the wheel goes to
+the app, as mouse events when it asked for them, else as three arrows (xterm's
+alternate scroll). A click on the slider grabs it, one on the track jumps it there first,
 and the drag (`dragScroll`) follows the mouse. Sidebar lists keep their thin
 `┃`.
 

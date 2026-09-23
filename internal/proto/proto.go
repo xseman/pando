@@ -256,7 +256,10 @@ type Screen struct {
 	CursorY       int      `json:"cursor_y"`
 	CursorVisible bool     `json:"cursor_visible"`
 	Mouse         bool     `json:"mouse"` // app enabled mouse reporting
-	Scrollback    int      `json:"scrollback"`
+	// Scrollback is the lines Scroll can page back into; 0 while the app
+	// draws on the alternate screen, which has none and scrolls itself.
+	Scrollback int  `json:"scrollback"`
+	AltScreen  bool `json:"alt_screen,omitempty"` // the app is on the alternate screen, as vim, less and a fullscreen claude are
 }
 
 // Key mirrors uv.Key so the daemon's emulator can encode it for the PTY
