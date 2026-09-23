@@ -555,7 +555,7 @@ func (m *Model) editorTabs(w int) []edTab {
 			names[i] += " ●"
 		}
 
-		width[i] = ansi.StringWidth(names[i]) + 2 + 2*b2i(i == m.edIdx) // the active tab shows ✕
+		width[i] = ansi.StringWidth(" " + names[i] + " " + tabClose(false))
 		total += width[i] + tabGap
 	}
 
@@ -569,10 +569,7 @@ func (m *Model) editorTabs(w int) []edTab {
 
 	x := 0
 	for i := start; i < len(names) && x+width[i]+tabGap <= w; i++ {
-		label := " " + names[i] + " "
-		if i == m.edIdx {
-			label += icClose.s() + " "
-		}
+		label := " " + names[i] + " " + tabClose(i == m.edIdx)
 
 		out = append(out, edTab{i: i, x: x, w: width[i], label: label, active: i == m.edIdx})
 		x += width[i] + tabGap

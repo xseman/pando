@@ -120,6 +120,8 @@ chip (`tabChip`): the active one in the selection's colors, the others on
 `tab_bg`, VS Code's tab.inactiveBackground, and every tab followed by
 `tab_border`'s `▏` in a column of its own (`tabGap`). The layout counts that
 column, so hit tests stay on the tabs and a click on the hairline does nothing.
+Every tab keeps room for the active one's `✕` (`tabClose`), so activating a
+tab changes neither its width nor where the ones after it sit.
 
 Hover works because pando requests all-motion mouse mode: the row under the
 pointer paints `hoverBg`, header actions appear for 3 s after any motion over

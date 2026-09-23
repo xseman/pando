@@ -1262,9 +1262,9 @@ func (m *Model) tabsFor(w int, sessions []proto.Session, active string) []sessTa
 	for i, s := range sessions {
 		glyph, _ := sessionGlyph(s)
 
-		name, end := sessionName(s), " "
+		name, end := sessionName(s), " "+tabClose(s.ID == active)
 		if s.ID == active {
-			end, at = " "+icClose.s()+" ", i
+			at = i
 		}
 		// A name too long for the strip on its own is cut, so every tab,
 		// the active one above all, can show.

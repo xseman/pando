@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // palette holds every color the UI draws with. Nothing else defines a color,
@@ -230,6 +231,17 @@ func keycapHot() lipgloss.Style {
 // tabGap is the column after every tab of a strip, where tab.border's
 // hairline sets it apart from the next.
 const tabGap = 1
+
+// tabClose is the end of a tab's label: the ✕ on the active tab, as much
+// blank on the others, so a tab keeps its width whichever one is active and
+// the strip never shifts under the pointer, as VS Code's does.
+func tabClose(active bool) string {
+	if active {
+		return icClose.s() + " "
+	}
+
+	return strings.Repeat(" ", ansi.StringWidth(icClose.s())) + " "
+}
 
 // tabChip draws one tab of a strip as VS Code does: the active one in the
 // selection's colors, any other on its own background (bg, else

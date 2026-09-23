@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -245,12 +246,46 @@ func TestTabChips(t *testing.T) {
 	}
 
 	// Session tabs, and the Terminal's, are framed the same way.
-	ss := m.tabsFor(100, []proto.Session{
+	ss2 := []proto.Session{
 		{SessionSpec: proto.SessionSpec{ID: "a", Agent: "shell"}},
 		{SessionSpec: proto.SessionSpec{ID: "b", Agent: "shell"}},
-	}, "a")
+	}
+
+	ss := m.tabsFor(100, ss2, "a")
 	if ss[1].x != ss[0].w+tabGap || !strings.Contains(row(100, nil, tabSegs(ss)), bgParams(pal.tabBg)) {
 		t.Fatalf("session tabs: %+v", ss)
+	}
+
+	// Activating a tab moves nothing: every tab keeps room for its ✕.
+	geometry := func(xs, ws []int) string { return fmt.Sprint(xs, ws) }
+	edGeo := func() string {
+		var xs, ws []int
+		for _, t := range m.editorTabs(m.mainW()) {
+			xs, ws = append(xs, t.x), append(ws, t.w)
+		}
+
+		return geometry(xs, ws)
+	}
+
+	before := edGeo()
+
+	click(m, m.mainX()+tabs[1].x+1, 0, tea.MouseLeft)
+
+	if m.edIdx != 1 || edGeo() != before {
+		t.Fatalf("editor tabs moved when the second became active: %s, then %s", before, edGeo())
+	}
+
+	sessGeo := func(active string) string {
+		var xs, ws []int
+		for _, t := range m.tabsFor(100, ss2, active) {
+			xs, ws = append(xs, t.x), append(ws, t.w)
+		}
+
+		return geometry(xs, ws)
+	}
+
+	if sessGeo("a") != sessGeo("b") {
+		t.Fatalf("session tabs moved with the active one: %s, then %s", sessGeo("a"), sessGeo("b"))
 	}
 
 	// A strip too narrow for them all keeps the active tab: the ones before
