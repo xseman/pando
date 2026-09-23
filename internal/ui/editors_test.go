@@ -2,6 +2,7 @@ package ui
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -250,6 +251,29 @@ func TestTabChips(t *testing.T) {
 	}, "a")
 	if ss[1].x != ss[0].w+tabGap || !strings.Contains(row(100, nil, tabSegs(ss)), bgParams(pal.tabBg)) {
 		t.Fatalf("session tabs: %+v", ss)
+	}
+
+	// A strip too narrow for them all keeps the active tab: the ones before
+	// it give way, and a name too long on its own is cut.
+	long := []proto.Session{
+		{SessionSpec: proto.SessionSpec{ID: "a", Agent: "shell", Name: "Store Count method"}},
+		{SessionSpec: proto.SessionSpec{ID: "b", Agent: "shell", Name: "bash"}},
+		{SessionSpec: proto.SessionSpec{ID: "c", Agent: "shell", Name: "an agent with a very long task name"}},
+	}
+
+	for _, active := range []string{"a", "b", "c"} {
+		tabs := m.tabsFor(25, long, active)
+
+		shown := slices.ContainsFunc(tabs, func(t sessTab) bool { return t.active && t.id == active })
+		last := tabs[len(tabs)-1]
+
+		if !shown || !last.plus || last.x+last.w > 25 {
+			t.Fatalf("active %s in 25 columns: %+v", active, tabs)
+		}
+	}
+
+	if got := m.tabsFor(25, long, "c"); !strings.Contains(got[0].label, "…") {
+		t.Fatalf("the long name is cut: %q", got[0].label)
 	}
 }
 

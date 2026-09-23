@@ -1255,28 +1255,45 @@ func (m *Model) ensureTerm() tea.Cmd {
 }
 
 func (m *Model) tabsFor(w int, sessions []proto.Session, active string) []sessTab {
+	room := w - 3 // the + keeps its place after the tabs
+
+	labels, widths, total, at := make([]string, len(sessions)), make([]int, len(sessions)), 0, -1
+
+	for i, s := range sessions {
+		glyph, _ := sessionGlyph(s)
+
+		name, end := sessionName(s), " "
+		if s.ID == active {
+			end, at = " "+icClose.s()+" ", i
+		}
+		// A name too long for the strip on its own is cut, so every tab,
+		// the active one above all, can show.
+		frame := ansi.StringWidth(" "+glyph+" "+end) + tabGap
+		if ansi.StringWidth(name) > room-frame {
+			name = ansi.Truncate(name, max(room-frame, 1), "…")
+		}
+
+		labels[i] = " " + glyph + " " + name + end
+		widths[i] = ansi.StringWidth(labels[i])
+		total += widths[i] + tabGap
+	}
+
+	// As the editor strip does: the tabs before the active one give way
+	// until it fits.
+	start := 0
+	for total > room && start < at {
+		total -= widths[start] + tabGap
+		start++
+	}
+
 	var out []sessTab
 
 	x := 0
 
-	for _, s := range sessions {
-		glyph, _ := sessionGlyph(s)
-
-		label := " " + glyph + " " + sessionName(s)
-
-		if s.ID == active {
-			label += " " + icClose.s()
-		}
-
-		label += " "
-
-		tw := ansi.StringWidth(label)
-		if x+tw+tabGap > w-3 {
-			break
-		}
-
-		out = append(out, sessTab{id: s.ID, x: x, w: tw, label: label, active: s.ID == active, bg: m.highlight(s)})
-		x += tw + tabGap
+	for i := start; i < len(sessions) && x+widths[i]+tabGap <= room; i++ {
+		s := sessions[i]
+		out = append(out, sessTab{id: s.ID, x: x, w: widths[i], label: labels[i], active: s.ID == active, bg: m.highlight(s)})
+		x += widths[i] + tabGap
 	}
 
 	return append(out, sessTab{x: x, w: 3, label: " + ", plus: true})
