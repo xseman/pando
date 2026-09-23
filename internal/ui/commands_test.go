@@ -321,6 +321,38 @@ func TestSessionHighlight(t *testing.T) {
 	}
 }
 
+// TestModalOwnsThePointer: with a context menu open, moving over it hovers
+// its items only; the list under it keeps the row the right click was on,
+// rather than lighting up whatever row the pointer crosses behind the menu.
+func TestModalOwnsThePointer(t *testing.T) {
+	m := testModelSized(t, 100, 30)
+	other := t.TempDir()
+	m.st.Projects = append(m.st.Projects, other)
+	m.wss = append(m.wss, proto.Workspace{Path: other, Project: other, Branch: "main", Main: true})
+	press(m, "3")
+
+	top := m.bodyTop(viewAgents)
+	m.Update(tea.MouseClickMsg{X: 5, Y: top + 1, Button: tea.MouseRight})
+
+	if m.modal == nil {
+		t.Fatal("a right click on a row opens its menu")
+	}
+
+	before := m.hoverRow(viewAgents)
+	m.Update(tea.MouseMotionMsg{X: 8, Y: top + 4}) // over the menu, level with another row
+
+	if got := m.hoverRow(viewAgents); got != before || got != 1 {
+		t.Fatalf("the list under the menu hovers row %d, want the right-clicked %d", got, before)
+	}
+
+	m.modal = nil
+	m.Update(tea.MouseMotionMsg{X: 5, Y: top + 4})
+
+	if got := m.hoverRow(viewAgents); got != 4 {
+		t.Fatalf("with the menu gone the pointer hovers again: row %d", got)
+	}
+}
+
 // TestAgentsTreeGaps keeps a blank row between two projects, herdr's gap
 // between spaces: it renders empty, ↑↓ steps over it and a click on it is
 // ignored, so the tree still walks one project row at a time. Folded

@@ -2525,10 +2525,13 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 	msg = shiftMouse(msg, -m.bord())
 	mo := msg.Mouse()
 
-	m.mouseX, m.mouseY, m.mouseAt = mo.X, mo.Y, time.Now()
+	// A modal owns the pointer: what lies under it keeps the hover it had,
+	// the row a right click opened a menu on, as VS Code's context menu does.
 	if m.modal != nil {
 		return m.modal.mouse(m, msg)
 	}
+
+	m.mouseX, m.mouseY, m.mouseAt = mo.X, mo.Y, time.Now()
 
 	_, click := msg.(tea.MouseClickMsg)
 	if m.drag != nil {
