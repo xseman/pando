@@ -1948,3 +1948,37 @@ func TestSessionDragSelects(t *testing.T) {
 		t.Fatal("the session over the editor draws the selection")
 	}
 }
+
+func TestSessionTabsStayInTheirSpace(t *testing.T) {
+	m := testModel(t)
+	drainInputs(m)
+
+	other := t.TempDir()
+	m.wss = append(m.wss, proto.Workspace{Path: other, Project: m.ws, Branch: "feat"})
+	m.sessions = append(m.sessions,
+		proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: m.ws, Agent: "shell"}, Status: "idle"},
+		proto.Session{SessionSpec: proto.SessionSpec{ID: "o1", Workspace: other, Agent: "shell"}, Status: "idle"})
+	m.Update(focusSessionMsg("s1"))
+
+	var ids []string
+	for _, s := range m.spaceSessions() {
+		ids = append(ids, s.ID)
+	}
+
+	if !slices.Equal(ids, []string{"s1", "s2"}) || len(m.sessionTabs(100)) != 3 { // two tabs and +
+		t.Fatalf("the strip holds this space's sessions: %v, %d tabs", ids, len(m.sessionTabs(100)))
+	}
+
+	m.cycleSession(1)
+	m.cycleSession(1)
+
+	if m.sess != "s1" {
+		t.Fatalf("] wraps inside the space, got %q", m.sess)
+	}
+
+	m.Update(focusSessionMsg("o1"))
+
+	if m.ws != other || len(m.sessionTabs(100)) != 2 {
+		t.Fatalf("the other space shows its own session only: ws=%q tabs=%d", m.ws, len(m.sessionTabs(100)))
+	}
+}

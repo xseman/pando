@@ -85,7 +85,8 @@ Spaces is a tree of projects → worktrees → sessions. `n`, or `+` on the tab
 strip, opens a shell in the workspace; start `claude`, `codex` or anything
 else inside it.
 
-- Sessions are tabs over the terminal: click to switch, middle click to kill,
+- A worktree's sessions are tabs over the terminal, other spaces stay in the
+  Spaces tree: click to switch, middle click to kill,
   right click to rename. A session opens in a column of its own beside the
   editor — drag it to the other side or over the editor area.
 - Symbols follow herdr's: `×` waits for you, `◐` works, `✓` finished unseen,

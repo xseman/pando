@@ -109,8 +109,9 @@ second at most.
 
 A new session is a shell in the workspace, started without asking: agents run
 inside it the way they do in any terminal (*New Agent Session…* still starts an
-`[agents]` preset directly). Every session is a tab on the strip over the
-terminal — click to switch, `+` opens one more, middle click or the active
+`[agents]` preset directly). Every session of the workspace in view is a tab
+on the strip over the terminal (`spaceSessions`; another space's are reached
+through the tree) — click to switch, `+` opens one more, middle click or the active
 tab's `✕` kills it after a confirmation, `[` and `]` cycle them.
 
 The daemon remembers which program holds each session's terminal: once a tick

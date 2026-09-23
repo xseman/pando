@@ -1943,7 +1943,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if prev := m.session(m.sess); prev != nil && !slices.ContainsFunc(msg, func(s proto.Session) bool { return s.ID == prev.ID }) {
 			m.flash(sessionName(*prev)+" session closed", false)
-			next = nextTab(m.agentSessions(), m.sess, msg) // before the list is replaced
+			next = nextTab(m.spaceSessions(), m.sess, msg) // before the list is replaced
 			m.sess, m.term = "", term{}
 		}
 
@@ -2521,7 +2521,7 @@ func (m *Model) stopEditing() {
 }
 
 func (m *Model) cycleSession(d int) tea.Cmd {
-	ss := m.agentSessions()
+	ss := m.spaceSessions()
 	if len(ss) == 0 {
 		return nil
 	}

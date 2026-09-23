@@ -946,7 +946,13 @@ type sessTab struct {
 // sessionTabs are the agent sessions, in the order [ and ] cycle them, with a
 // + to start one more.
 func (m *Model) sessionTabs(w int) []sessTab {
-	return m.tabsFor(w, m.agentSessions(), m.sess)
+	return m.tabsFor(w, m.spaceSessions(), m.sess)
+}
+
+// spaceSessions are the agent sessions of the workspace in view: the tab
+// strip and [ ] stay inside one space, the Spaces tree reaches the others.
+func (m *Model) spaceSessions() []proto.Session {
+	return slices.DeleteFunc(m.agentSessions(), func(s proto.Session) bool { return s.Workspace != m.ws })
 }
 
 // agentSessions are the sessions the Agents view and the main area show; the
@@ -1007,9 +1013,6 @@ func (m *Model) tabsFor(w int, sessions []proto.Session, active string) []sessTa
 		glyph, _ := sessionGlyph(s)
 
 		label := " " + glyph + " " + sessionName(s)
-		if s.Workspace != m.ws {
-			label += " · " + m.branchOf(s.Workspace)
-		}
 
 		if s.ID == active {
 			label += " " + icClose.s()
@@ -1027,15 +1030,6 @@ func (m *Model) tabsFor(w int, sessions []proto.Session, active string) []sessTa
 	}
 
 	return append(out, sessTab{x: x, w: 3, label: " + ", plus: true})
-}
-
-// branchOf names a workspace the way its tab shows it.
-func (m *Model) branchOf(path string) string {
-	if w := m.workspace(path); w != nil && w.Branch != "" {
-		return w.Branch
-	}
-
-	return filepath.Base(path)
 }
 
 // shells are the programs a session waits in; anything else running in one
