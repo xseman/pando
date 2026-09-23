@@ -71,16 +71,25 @@ re-roots Explorer and Source Control to its worktree (the Zed threads model).
 
 ```
 ▾ ◐ repo               project, with its most demanding session's symbol (· for none)
-   main            2   worktree (branch, dim), session count
+   ⌂ main          2   the project's own checkout (accent), session count
    ├─ ◐ claude · fix   working
+   └─ ○ shell          idle
+   ⑂ feat/x        1   a linked worktree (dimmed)
    └─ ○ shell          idle
                        blank row: herdr's gap between two spaces
 ▾ ○ other
-   feat/x          1
+   ⌂ main          1
    └─ ○ shell          idle
 ▸ · folded             a folded project has nothing to separate: no gap
 ▸ · folded too
 ```
+
+`x` on a row does what the row can take, as herdr's workspace menu does: a
+session is killed; a linked worktree is deleted (`workspace.remove`, the
+checkout folder goes, the branch stays); a project or its own checkout is
+only closed (`project.remove`), leaving Spaces with nothing on disk touched.
+Sessions in the way are killed first (`killThen`), after a confirmation that
+counts them; a Terminal panel's shells go with their session.
 
 _New Worktree…_ (`w`) asks for a branch prefilled with a random name,
 `worktree/rapid-meadow-a12e` as herdr makes them; ⏎ takes it, and an emptied

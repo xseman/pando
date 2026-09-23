@@ -85,6 +85,9 @@ Spaces is a tree of projects → worktrees → sessions. `n`, or `+` on the tab
 strip, opens a shell in the workspace; start `claude`, `codex` or anything
 else inside it.
 
+- `⌂` marks a project's own checkout, `⑂` its linked worktrees. `x` deletes a
+  worktree (folder only, the branch stays) but only closes a project: its
+  checkout is never removed.
 - A worktree's sessions are tabs over the terminal, other spaces stay in the
   Spaces tree: click to switch, middle click to kill,
   right click to rename. A session opens in a column of its own beside the

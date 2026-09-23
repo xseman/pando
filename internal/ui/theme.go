@@ -297,11 +297,14 @@ var (
 	icReplaceAll = glyph{"replace-all", "\ueb3c", "⇄", ""}
 	icTag        = glyph{"tag", "\uea66", "#", ""}
 	icDetach     = glyph{"debug-disconnect", "\uead0", "◇", ""}
+	icMainWt     = glyph{"home", "\ueb06", "⌂", ""}           // a project's own checkout
+	icLinkedWt   = glyph{"source-control", "\uea68", "⑂", ""} // a linked worktree of it
 	allGlyphs    = []glyph{
 		icFiles, icGit, icSpaces, icAgents, icGear, icNewFile, icNewDir, icRefresh, icCollapse, icTree, icList,
 		icAdd, icRemove, icDiscard, icWorktree, icSparkle, icCheck, icChevron, icClose, icBranch, icPublish, icSync, icSplit, icInline,
 		icOpenLeft, icOpenRight, icSearch, icCase, icWord, icRegex, icEllipsis, icClearAll, icPreview, icSource,
 		icPrevRev, icNextRev, icUp, icDown, icHistory, icTag, icDetach, icReplace, icPreserve, icReplaceAll, icTerminal, icDot,
+		icMainWt, icLinkedWt,
 	}
 )
 

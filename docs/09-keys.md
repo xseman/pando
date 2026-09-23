@@ -36,7 +36,7 @@ needs `set -s extended-keys on` and `set -as terminal-features ",*:extkeys"`.
 | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Files  | `⏎` open, `h`/`l` fold, `n`/`N` new file/folder, `R` rename, `D` delete, `s` stage, `e` edit, `y`/`Y` copy path, `.` hidden files, `C` collapse all                                                                                 |
 | Git    | `⏎` stage/unstage, `o` diff, `t` tree or list, `a`/`u` stage/unstage all, `U` stage untracked, `d` discard, `c` message, `C` commit, `A` suggest, `S` sync or publish, `O` open file, `B` switch branch or tag, `{` `}` switch repo |
-| Spaces | `⏎` switch, `M-↑↓` move a project, `n` new shell session, `w` new worktree, `a` add project, `x` kill/remove                                                                                                                        |
+| Spaces | `⏎` switch, `M-↑↓` move a project, `n` new shell session, `w` new worktree, `a` add project, `x` kill a session, delete a worktree, close a project                                                                                 |
 
 | In a file                         | Action                                                                    |
 | --------------------------------- | ------------------------------------------------------------------------- |

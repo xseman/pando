@@ -152,7 +152,7 @@ func TestAgentNavigator(t *testing.T) {
 	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: m.ws, Agent: "claude"}, Status: "running", Title: "fix"})
 	press(m, "alt+t") // ⌃t stays free for VS Code's Go to Symbol in Workspace
 
-	if got := labels(m); !slices.Equal(got, []string{"◐ claude · fix", "○ shell", "⎇ main"}) {
+	if got := labels(m); !slices.Equal(got, []string{"◐ claude · fix", "○ shell", "⌂ main"}) {
 		t.Fatalf("navigator %q", got)
 	}
 
@@ -175,7 +175,7 @@ func TestAgentsTreeAndSounds(t *testing.T) {
 	press(m, "3")
 
 	out := checkWidths(t, m)
-	for _, want := range []string{"▾ × ", "├─ ○ shell", "└─ × claude", "   main"} { // the project carries its most demanding session
+	for _, want := range []string{"▾ × ", "├─ ○ shell", "└─ × claude", "   ⌂ main"} { // the project carries its most demanding session
 		if !strings.Contains(out, want) {
 			t.Fatalf("agents tree lacks %q:\n%s", want, out)
 		}
@@ -1946,6 +1946,67 @@ func TestSessionDragSelects(t *testing.T) {
 
 	if !strings.Contains(checkWidths(t, m), "agent says hi") || !strings.Contains(m.View().Content, "\x1b[7msays\x1b[0m") {
 		t.Fatal("the session over the editor draws the selection")
+	}
+}
+
+// TestSpacesCloseOrDelete tells a project's own checkout from its linked
+// worktrees: the checkout only closes the project, a worktree is deleted,
+// its sessions killed first.
+func TestSpacesCloseOrDelete(t *testing.T) {
+	m := testModel(t)
+	wt := t.TempDir()
+	m.wss = append(m.wss, proto.Workspace{Path: wt, Project: m.ws, Branch: "feat"})
+	m.sessions = append(m.sessions,
+		proto.Session{SessionSpec: proto.SessionSpec{ID: "w1", Workspace: wt, Agent: "shell"}, Status: "idle"},
+		proto.Session{SessionSpec: proto.SessionSpec{ID: "t1", Workspace: wt, Agent: termAgent, Parent: "w1"}, Status: "idle"})
+	press(m, "3")
+
+	out := checkWidths(t, m)
+	for _, want := range []string{"   ⌂ main", "   ⑂ feat"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("Spaces lacks %q:\n%s", want, out)
+		}
+	}
+
+	var project, main, linked agRow
+
+	for _, r := range m.ag.rows(m) {
+		switch {
+		case r.kind == agProject:
+			project = r
+		case r.kind == agWorkspace && r.ws.Main:
+			main = r
+		case r.kind == agWorkspace:
+			linked = r
+		}
+	}
+
+	for _, c := range []struct {
+		r            agRow
+		label, title string
+	}{
+		{project, "Close Project…", "Close project " + filepath.Base(m.ws) + "? It leaves Spaces, nothing on disk changes. Its 2 sessions are killed."},
+		{main, "Close Project…", "Close project " + filepath.Base(m.ws) + "? It leaves Spaces, nothing on disk changes. Its 2 sessions are killed."},
+		{linked, "Delete Worktree…", "Delete worktree feat? The checkout " + wt + " is removed, the branch stays. Its session is killed."},
+	} {
+		if got := removeLabel(&c.r); got != c.label {
+			t.Errorf("x on %s is %q, want %q", agLabel(c.r), got, c.label)
+		}
+
+		m.modal = nil
+		m.ag.remove(m, &c.r)
+
+		if m.modal == nil || m.modal.title != c.title || m.modal.items[0].label != strings.TrimSuffix(c.label, "…") {
+			t.Errorf("x on %s asks %+v, want %q", agLabel(c.r), m.modal, c.title)
+		}
+	}
+
+	// The Terminal panel's shell goes with its session, not on its own; one
+	// opened there beside a session of another workspace is killed itself.
+	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "t2", Workspace: wt, Agent: termAgent, Parent: "s1"}, Status: "idle"})
+
+	if got := m.sessionsIn(wt); !slices.Equal(got, []string{"w1", "t2"}) {
+		t.Fatalf("sessions to kill in the worktree = %v", got)
 	}
 }
 

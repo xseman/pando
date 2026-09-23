@@ -236,7 +236,13 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			return row(rw, bg, []seg{sg(" "+chevron(open), dim), sg(glyph, fg(c)), sg(agLabel(r), base.Bold(true))})
 
 		case agWorkspace:
-			nameSt := dim
+			// The project's own checkout, which only closes, in the accent and
+			// plain text; a linked worktree, which can be deleted, dimmed.
+			glyphSt, nameSt := dim, dim
+			if r.ws.Main {
+				glyphSt, nameSt = fg(pal.accent), base
+			}
+
 			if r.ws.Path == m.ws {
 				nameSt = base.Foreground(pal.headerAccent).Bold(true)
 			}
@@ -259,7 +265,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 				right = append(right, sg(fmt.Sprintf("%d ", n), dim))
 			}
 
-			return row(rw, bg, []seg{sg("   "+name, nameSt)}, right...)
+			return row(rw, bg, []seg{sg("   ", plain), sg(wtGlyph(r.ws).s()+" ", glyphSt), sg(name, nameSt)}, right...)
 		}
 		// herdr's tree: sessions hang off their branch, the last one on └─.
 		conn := "   ├─ "
@@ -484,33 +490,113 @@ func (a *agents) remove(m *Model, r *agRow) tea.Cmd {
 	}
 
 	var (
-		title, method string
-		params        any
+		title, label, method string
+		params               any
+		kill                 []string
 	)
 
-	switch r.kind {
-	case agSession:
-		title, method, params = "Kill "+sessionName(r.s)+" session?", "session.kill", map[string]string{"id": r.s.ID}
-	case agWorkspace:
-		if r.ws.Main {
-			return flash("the main worktree cannot be removed", true)
+	switch {
+	case r.kind == agSession:
+		title, label = "Kill "+sessionName(r.s)+" session?", "Kill Session"
+		method, params = "session.kill", map[string]string{"id": r.s.ID}
+
+	case r.kind == agWorkspace && !r.ws.Main:
+		kill = m.sessionsIn(r.ws.Path)
+		title = fmt.Sprintf("Delete worktree %s? The checkout %s is removed, the branch stays.%s",
+			cmp.Or(r.ws.Branch, filepath.Base(r.ws.Path)), r.ws.Path, killedText(len(kill)))
+		label, method, params = "Delete Worktree", "workspace.remove", map[string]string{"path": r.ws.Path}
+
+	case r.project != "": // the project row, or its own checkout: never deleted, only closed
+		var paths []string
+
+		for _, w := range m.wss {
+			if w.Project == r.project {
+				paths = append(paths, w.Path)
+			}
 		}
 
-		title, method, params = "Remove worktree "+r.ws.Branch+"?", "workspace.remove", map[string]string{"path": r.ws.Path}
+		kill = m.sessionsIn(paths...)
+		title = fmt.Sprintf("Close project %s? It leaves Spaces, nothing on disk changes.%s",
+			filepath.Base(r.project), killedText(len(kill)))
+		label, method, params = "Close Project", "project.remove", map[string]string{"path": r.project}
 
-	case agProject:
-		if r.project == "" {
-			return nil
-		}
-
-		title, method, params = "Remove project "+filepath.Base(r.project)+" from pando?", "project.remove", map[string]string{"path": r.project}
+	default:
+		return nil
 	}
 
 	m.modal = newMenu(title, -1, 0,
-		item{label: "Yes", run: func(*Model) tea.Cmd { return do(method, params) }},
+		item{label: label, run: func(*Model) tea.Cmd { return killThen(kill, method, params) }},
 		cancelItem())
 
 	return nil
+}
+
+// wtGlyph marks a project's own checkout apart from its linked worktrees.
+func wtGlyph(w proto.Workspace) glyph {
+	if w.Main {
+		return icMainWt
+	}
+
+	return icLinkedWt
+}
+
+// removeLabel names what x does to row r: a session is killed, a linked
+// worktree deleted, a project and its own checkout only closed.
+func removeLabel(r *agRow) string {
+	switch {
+	case r == nil:
+		return ""
+	case r.kind == agSession:
+		return "Kill Session…"
+	case r.kind == agWorkspace && !r.ws.Main:
+		return "Delete Worktree…"
+	case r.project != "":
+		return "Close Project…"
+	}
+
+	return ""
+}
+
+// sessionsIn are the sessions to kill to empty workspaces paths. A Terminal
+// panel's shell whose session is killed too is left out, it goes with it; one
+// whose session lives in another workspace is killed on its own.
+func (m *Model) sessionsIn(paths ...string) []string {
+	in := func(s proto.Session) bool { return slices.Contains(paths, s.Workspace) }
+
+	var ids []string
+
+	for _, s := range m.sessions {
+		if p := m.session(s.Parent); in(s) && (p == nil || !in(*p)) {
+			ids = append(ids, s.ID)
+		}
+	}
+
+	return ids
+}
+
+func killedText(n int) string {
+	switch n {
+	case 0:
+		return ""
+	case 1:
+		return " Its session is killed."
+	}
+
+	return fmt.Sprintf(" Its %d sessions are killed.", n)
+}
+
+// killThen kills sessions ids, then calls method: the daemon removes no
+// workspace or project that still has a session in it.
+func killThen(ids []string, method string, params any) tea.Cmd {
+	return func() tea.Msg {
+		for _, id := range ids {
+			if err := proto.Call("session.kill", map[string]string{"id": id}, nil); err != nil {
+				return flashMsg{"session.kill: " + err.Error(), true}
+			}
+		}
+
+		return do(method, params)()
+	}
 }
 
 // confirmKill asks before killing a session, as the Agents view does.
@@ -549,8 +635,8 @@ func (a *agents) items(m *Model) []item {
 		items = append(items, item{label: "Rename Session…", hint: "R", run: func(m *Model) tea.Cmd { return m.renameSession(id) }})
 	}
 
-	if r != nil {
-		items = append(items, item{label: "Remove / Kill…", hint: "x", run: func(m *Model) tea.Cmd { return a.remove(m, r) }})
+	if label := removeLabel(r); label != "" {
+		items = append(items, item{label: label, hint: "x", run: func(m *Model) tea.Cmd { return a.remove(m, r) }})
 	}
 
 	return items
@@ -715,7 +801,7 @@ func (m *Model) agentNavigator() tea.Cmd {
 
 		path := w.Path
 		items = append(items, item{
-			label: icBranch.s() + " " + name, hint: filepath.Base(w.Project) + " · " + plural(n, "session"),
+			label: wtGlyph(w).s() + " " + name, hint: filepath.Base(w.Project) + " · " + plural(n, "session"),
 			search: name + " " + filepath.Base(w.Project) + " @worktree",
 			run: func(m *Model) tea.Cmd {
 				switched := m.switchWorkspace(path)
