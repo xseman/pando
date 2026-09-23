@@ -185,6 +185,7 @@ type SessionSpec struct {
 	Cmd       []string `json:"cmd"`
 	Resume    []string `json:"resume,omitempty"` // what a restarted daemon types to bring the agent back
 	Name      string   `json:"name,omitempty"`   // the tab's own name, from a rename
+	Parent    string   `json:"parent,omitempty"` // the agent session whose Terminal panel this shell belongs to; killed with it
 	FG        string   `json:"fg,omitempty"`     // host terminal colors, #rrggbb
 	BG        string   `json:"bg,omitempty"`
 }

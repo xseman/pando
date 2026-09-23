@@ -405,15 +405,15 @@ func (d *Daemon) dispatch(method string, raw json.RawMessage) (any, error) {
 
 	case "session.new":
 		p, err := parse[struct {
-			Workspace, Agent, Name, FG, BG string
-			Cmd                            []string
-			Cols, Rows                     int
+			Workspace, Agent, Name, Parent, FG, BG string
+			Cmd                                    []string
+			Cols, Rows                             int
 		}](raw)
 		if err != nil {
 			return nil, err
 		}
 
-		spec := proto.SessionSpec{Workspace: p.Workspace, Agent: p.Agent, Name: strings.TrimSpace(p.Name), Cmd: p.Cmd, FG: p.FG, BG: p.BG}
+		spec := proto.SessionSpec{Workspace: p.Workspace, Agent: p.Agent, Name: strings.TrimSpace(p.Name), Parent: p.Parent, Cmd: p.Cmd, FG: p.FG, BG: p.BG}
 
 		return d.newSession(spec, p.Cols, p.Rows)
 
@@ -1011,6 +1011,15 @@ func (d *Daemon) newSession(spec proto.SessionSpec, cols, rows int) (proto.Sessi
 		return proto.Session{}, fmt.Errorf("another session is named %q", spec.Name)
 	}
 
+	if spec.Parent != "" { // a name or a prefix resolves to the id it is kept by
+		parent, err := d.session(spec.Parent)
+		if err != nil {
+			return proto.Session{}, fmt.Errorf("parent: %w", err)
+		}
+
+		spec.Parent = parent.info().ID
+	}
+
 	b := make([]byte, 3)
 	rand.Read(b)
 	spec.ID = hex.EncodeToString(b)
@@ -1096,10 +1105,23 @@ func (d *Daemon) killSession(id string) error {
 	if present {
 		err = d.save()
 	}
+	// Its Terminal panel's shells go with it: a shell with no session to show
+	// it in has no way to be reached, and a restart would respawn it anyway.
+	var children []string
+
+	for _, cid := range d.order {
+		if d.sessions[cid].info().Parent == id {
+			children = append(children, cid)
+		}
+	}
 	d.mu.Unlock()
 
 	if present {
 		d.broadcast(proto.Event{Kind: "sessions"})
+	}
+
+	for _, cid := range children {
+		_ = d.killSession(cid) // only fails if it is already gone
 	}
 
 	return err

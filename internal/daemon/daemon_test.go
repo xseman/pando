@@ -721,3 +721,32 @@ func TestSessionReadLines(t *testing.T) {
 		t.Fatalf("read --lines 3 gave %d lines: %q", n, text)
 	}
 }
+
+func TestKillSessionKillsItsTerminals(t *testing.T) {
+	d := start(t)()
+	defer d.Close()
+
+	ws := t.TempDir()
+	stay := []string{"sleep", "30"}
+
+	var parent, shell, other proto.Session
+	call(t, "session.new", map[string]any{"workspace": ws, "name": "agent", "cmd": stay}, &parent)
+	call(t, "session.new", map[string]any{"workspace": ws, "agent": "terminal", "parent": "agent", "cmd": stay}, &shell)
+	call(t, "session.new", map[string]any{"workspace": ws, "agent": "terminal", "cmd": stay}, &other)
+
+	if shell.Parent != parent.ID {
+		t.Fatalf("parent by name resolves to its id: %q, want %q", shell.Parent, parent.ID)
+	}
+
+	if err := proto.Call("session.new", map[string]any{"workspace": ws, "agent": "terminal", "parent": "nobody", "cmd": stay}, nil); err == nil {
+		t.Fatal("an unknown parent is refused")
+	}
+
+	call(t, "session.kill", map[string]string{"id": parent.ID}, nil)
+	waitFor(t, "the session's shell to go with it", func() bool {
+		var ss []proto.Session
+		call(t, "session.list", nil, &ss)
+
+		return len(ss) == 1 && ss[0].ID == other.ID
+	})
+}

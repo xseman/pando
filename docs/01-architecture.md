@@ -44,7 +44,9 @@ turn to finish. Every other method answers at once.
 
 Sessions resolve by id, by the name `session.new` or `session.rename` gave
 them, or by an unambiguous prefix of either; a name is unique among live
-sessions. `skills/pando/SKILL.md`, which `pando skill` prints, is the guide an
+sessions. A `parent` on `session.new` (resolved the same way, stored as the id)
+makes a shell of that session's Terminal panel; `session.kill` on the parent
+kills them with it. `skills/pando/SKILL.md`, which `pando skill` prints, is the guide an
 agent reads before driving any of this.
 
 `draft.list`/`draft.set` are the editors' unsaved text. They are the one pair

@@ -40,7 +40,7 @@ const usage = `pando — terminal sidebar with agent sessions
 
   pando project add|rm [DIR] | move DIR INDEX | ls
   pando ws ls | new BRANCH [--project DIR] | rm PATH | switch PATH
-  pando session new [--agent NAME] [--ws PATH] [--name NAME] [--wait] [-- CMD...]
+  pando session new [--agent NAME] [--ws PATH] [--name NAME] [--parent ID] [--wait] [-- CMD...]
   pando session ls | get ID | kill ID | switch ID | rename ID [NAME...]
   pando session send ID TEXT... [--enter] [--wait]
   pando session keys ID KEY...  named keys, e.g. esc ctrl+c shift+tab
@@ -376,6 +376,7 @@ func session(rest []string) error {
 	agent := fs.String("agent", "", "agent preset (claude, codex, gemini, opencode, shell)")
 	ws := fs.String("ws", ".", "workspace directory")
 	name := fs.String("name", "", "name the session answers to")
+	parent := fs.String("parent", "", "the session whose Terminal panel a --agent terminal shell joins")
 	enter := fs.Bool("enter", false, "press enter after the text")
 	wait := fs.Bool("wait", false, "block until the session settles; send implies --enter")
 	until := fs.String("until", "", "statuses to wait for, comma separated (default idle,blocked,exited)")
@@ -401,7 +402,7 @@ func session(rest []string) error {
 
 		var s proto.Session
 
-		p := map[string]any{"workspace": abs(*ws), "agent": *agent, "name": *name, "cmd": pos}
+		p := map[string]any{"workspace": abs(*ws), "agent": *agent, "name": *name, "parent": *parent, "cmd": pos}
 		if err := proto.Call("session.new", p, &s); err != nil {
 			return err
 		}

@@ -1826,3 +1826,59 @@ func TestTerminalPanelAttachesAtStart(t *testing.T) {
 		t.Fatal("a shut panel starts nothing")
 	}
 }
+
+func TestTerminalTabsBelongToTheSession(t *testing.T) {
+	m := testModel(t)
+	drainInputs(m)
+
+	owned := func(id, parent string) proto.Session {
+		s := termSession(m.ws, id)
+		s.Parent = parent
+
+		return s
+	}
+
+	m.sessions = append(m.sessions,
+		proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: m.ws, Agent: "shell"}, Status: "idle"},
+		owned("t0", ""), owned("t1", "s1"), owned("t2", "s2"))
+	m.st.Settings.TermOpen = true
+
+	ids := func() []string {
+		var out []string
+		for _, s := range m.termSessions() {
+			out = append(out, s.ID)
+		}
+
+		return out
+	}
+
+	m.Update(focusSessionMsg("s1"))
+
+	if got := ids(); !slices.Equal(got, []string{"t1"}) || m.tv.id != "t1" {
+		t.Fatalf("s1 in view: tabs %v, panel on %q", got, m.tv.id)
+	}
+
+	m.Update(focusSessionMsg("s2"))
+
+	if got := ids(); !slices.Equal(got, []string{"t2"}) || m.tv.id != "t2" {
+		t.Fatalf("s2 in view: tabs %v, panel on %q", got, m.tv.id)
+	}
+	// Another session's shell, opened by a script, does not take the panel.
+	m.Update(newSessionMsg(owned("t3", "s1")))
+
+	if m.tv.id != "t2" {
+		t.Fatalf("a shell of s1 took the panel while s2 is in view: %q", m.tv.id)
+	}
+
+	m.sess = ""
+	m.attachTerm()
+
+	if !slices.Equal(ids(), []string{"t0"}) || m.tv.id != "t0" {
+		t.Fatalf("no session in view: tabs %v, panel on %q", ids(), m.tv.id)
+	}
+	// A shell opened now belongs to the session in view.
+	m.sess = "s2"
+	if cmd := m.newTerm(); cmd == nil {
+		t.Fatal("newTerm returns the spawn")
+	}
+}

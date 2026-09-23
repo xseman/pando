@@ -541,8 +541,14 @@ func (m *Model) sessionColors() (fg, bg string) {
 
 // newSession starts a session sized to the main area with the host's colors.
 func (m *Model) newSession(ws, agent string, cmd []string) tea.Cmd {
+	return m.spawn(ws, agent, "", cmd)
+}
+
+// spawn starts a session; parent is the agent session whose Terminal panel
+// a shell belongs to, "" for one of the workspace's own.
+func (m *Model) spawn(ws, agent, parent string, cmd []string) tea.Cmd {
 	fg, bg := m.sessionColors()
-	p := map[string]any{"workspace": ws, "agent": agent, "cmd": cmd, "cols": m.mainW(), "rows": m.sessH(), "fg": fg, "bg": bg}
+	p := map[string]any{"workspace": ws, "agent": agent, "parent": parent, "cmd": cmd, "cols": m.mainW(), "rows": m.sessH(), "fg": fg, "bg": bg}
 
 	return func() tea.Msg {
 		var s proto.Session

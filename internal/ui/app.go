@@ -1820,14 +1820,15 @@ func (m *Model) switchSession(id string) tea.Cmd {
 		return nil
 	}
 
-	switched := m.switchWorkspace(s.Workspace)
 	if m.sess != id {
 		m.term = term{}
 	}
-
+	// Before the workspace switch, which keeps a session of its workspace
+	// rather than picking one — and the Terminal panel follows the session.
 	m.sess, m.preview = id, false
+	switched := m.switchWorkspace(s.Workspace)
 
-	return tea.Batch(switched, m.fetchScreen(), m.refreshGit())
+	return tea.Batch(switched, m.ensureTerm(), m.fetchScreen(), m.refreshGit())
 }
 
 func (m *Model) session(id string) *proto.Session {

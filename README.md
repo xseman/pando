@@ -182,8 +182,11 @@ diagnostics — formatting goes through `[format]`.
 ### Terminal, layout and settings
 
 ``ctrl+` ``, `ctrl+j` or `5` opens a shell panel under the editor;
-`ctrl+shift+↑` gives it the whole editor area. Its shells are sessions with
-their own tabs, kept out of the Spaces tree, and it can move to a sidebar.
+`ctrl+shift+↑` gives it the whole editor area. Every agent session has shell
+tabs of its own in it, killed with the session; with no session in view the
+panel holds the workspace's shells. They stay out of the Spaces tree, and the
+panel can move to a sidebar. `pando session new --agent terminal --parent ID`
+opens one from a script.
 
 Drag a view's tab along its activity bar to reorder it, onto another sidebar
 to move it, or below the bar to give it a column of its own; drag a `│`

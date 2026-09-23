@@ -903,16 +903,25 @@ func (m *Model) agentSessions() []proto.Session {
 	return slices.DeleteFunc(slices.Clone(m.sessions), func(s proto.Session) bool { return s.Agent == termAgent })
 }
 
-// termSessions are the shells of the Terminal panel.
+// termSessions are the shells of the Terminal panel: the shown session's own,
+// or the workspace's when no session is shown.
 func (m *Model) termSessions() []proto.Session {
 	return slices.DeleteFunc(slices.Clone(m.sessions), func(s proto.Session) bool { return !m.termOwned(s) })
 }
 
-// termOwned reports a shell of the Terminal panel.
-func (m *Model) termOwned(s proto.Session) bool { return s.Agent == termAgent }
+// termOwned reports a shell belonging to the Terminal panel as it stands:
+// every session has tabs of its own, and a shell opened with no session in
+// view stays with its workspace.
+func (m *Model) termOwned(s proto.Session) bool {
+	if s.Agent != termAgent || s.Parent != m.sess {
+		return false
+	}
 
-// attachTerm points the panel at a shell — the one it had when it still runs,
-// else the first — and reports whether it found one.
+	return m.sess != "" || s.Workspace == m.ws
+}
+
+// attachTerm points the panel at a shell of the session in view — the one it
+// had when that still fits, else the first — and reports whether it found one.
 func (m *Model) attachTerm() bool {
 	if s := m.session(m.tv.id); s != nil && m.termOwned(*s) {
 		return true
@@ -1196,7 +1205,11 @@ func (m *Model) onNewSession(s proto.Session) tea.Cmd {
 		m.sessions = append(m.sessions, s)
 	}
 
-	if s.Agent == termAgent { // it belongs to the Terminal panel
+	if s.Agent == termAgent { // it belongs to a Terminal panel
+		if !m.termOwned(s) { // another session's, opened from a script
+			return loadSessions()
+		}
+
 		m.tv.id, m.tv.scroll = s.ID, 0
 		if m.termRows() > 0 {
 			m.focus = onPanel
@@ -1575,7 +1588,13 @@ func (m *Model) cycleTerm(d int) tea.Cmd {
 	return tea.Batch(m.openTerminalPanel(), m.fetchScreen())
 }
 
-func (m *Model) newTerm() tea.Cmd { return m.newShell(m.ws, termAgent) }
+func (m *Model) newTerm() tea.Cmd {
+	if cmd := m.st.Agents[termAgent]; len(cmd) > 0 {
+		return m.spawn(m.ws, termAgent, m.sess, nil)
+	}
+
+	return m.spawn(m.ws, termAgent, m.sess, []string{cmp.Or(os.Getenv("SHELL"), "/bin/sh")})
+}
 
 // toggleTerminal is ⌃`: it opens the terminal where it is docked and focuses
 // it, and closes it when it is already open, wherever the focus is.
