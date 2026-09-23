@@ -708,9 +708,10 @@ func TestCommitMessageLines(t *testing.T) {
 	if !strings.Contains(out, "▏ fix") || !strings.Contains(out, "▏ body") || !strings.Contains(out, "▏ end") {
 		t.Fatalf("three lines drawn:\n%s", out)
 	}
-	// The ∨ stays in the top-right corner, against the edge; the lines under it run on.
+	// The ∨ stays in the top-right corner behind its ▏, against the edge;
+	// the lines under it run on.
 	top, w := m.bodyTop(viewGit)+rowIndex(&m.scm, rowMsg, m.ws), m.colRect(m.colOf(viewGit)).w
-	for i, want := range []string{" " + icChevron.s() + " ▕ ", "   ▕ ", "   ▕ "} {
+	for i, want := range []string{" ▏" + icChevron.s() + "▕ ", "   ▕ ", "   ▕ "} {
 		if got := ansi.Strip(ansi.Cut(strings.Split(m.View().Content, "\n")[top+i], w-5, w)); got != want {
 			t.Fatalf("line %d ends %q, want %q", i, got, want)
 		}
@@ -776,6 +777,46 @@ func TestCommitMessageSelect(t *testing.T) {
 
 	if got := m.scm.input.SelectedText(); got != "bc\nd" || !m.scm.input.Focused() || m.drag != nil {
 		t.Fatalf("drag selected %q, focused %v", got, m.scm.input.Focused())
+	}
+
+	checkWidths(t, m)
+}
+
+// TestCommitSplitHover darkens only the half of the split Commit button
+// under the mouse: the label or the ∨ with the ▏ before it, also from the
+// button's edges in the blank rows around it.
+func TestCommitSplitHover(t *testing.T) {
+	m := gitModel(t)
+	top := m.bodyTop(viewGit) + rowIndex(&m.scm, rowCommit, m.ws)
+	rc := m.colRect(m.colOf(viewGit))
+	hot := bgParams(pal.buttonHoverBg)
+	line := func() string { return strings.Split(m.View().Content, "\n")[top] }
+	// The hover color is the one the label's or the ∨'s text is drawn on.
+	label := func() bool { return strings.Contains(line(), hot+"m        "+icCheck.s()) }
+	menu := func() bool { return strings.Contains(line(), hot+"m▏") }
+
+	m.Update(tea.MouseMotionMsg{X: rc.x + 5, Y: top})
+
+	if !label() || menu() {
+		t.Fatalf("the label alone darkens under the mouse: %q", line())
+	}
+
+	m.Update(tea.MouseMotionMsg{X: rc.x + rc.w - 3, Y: top})
+
+	if label() || !menu() {
+		t.Fatalf("the ∨ alone darkens under the mouse: %q", line())
+	}
+	// The blank rows around it are its taller edges: slivers in its colors
+	// that hover with it.
+	rows := strings.Split(m.View().Content, "\n")
+	if !strings.Contains(rows[top-1], "▁") || !strings.Contains(rows[top+1], "▔") {
+		t.Fatalf("no edges around the button:\n%s\n%s\n%s", rows[top-1], line(), rows[top+1])
+	}
+
+	m.Update(tea.MouseMotionMsg{X: rc.x + 5, Y: top - 1})
+
+	if !label() {
+		t.Fatalf("the label does not darken with the mouse on its edge: %q", line())
 	}
 
 	checkWidths(t, m)
@@ -908,7 +949,10 @@ func TestGitActionButton(t *testing.T) {
 			t.Fatalf("%+v: want %q:\n%s", c.st, c.want, out)
 		}
 
-		if strings.Contains(out, "│ ∨") != c.menu {
+		_, button, _ := strings.Cut(out, c.want)
+		button, _, _ = strings.Cut(button, "\n")
+
+		if strings.Contains(button, "▏∨") != c.menu {
 			t.Fatalf("%+v: menu shown = %v", c.st, !c.menu)
 		}
 
@@ -1913,7 +1957,7 @@ func TestMergeChanges(t *testing.T) {
 	st.MergeMsg = "Merge branch 'develop' of example.com:web/app into main\n\nbody"
 	m.scm.onGit(m, gitMsg{ws: root, repos: []string{root}, status: map[string]git.Status{root: st}})
 
-	if out := checkWidths(t, m); !strings.Contains(out, "Merge branch 'develop") || strings.Contains(out, "body") {
+	if out := checkWidths(t, m); !strings.Contains(out, "Merge branch 'dev") || strings.Contains(out, "body") {
 		t.Fatalf("the message box shows git's first line:\n%s", out)
 	}
 

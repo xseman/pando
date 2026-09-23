@@ -68,6 +68,7 @@ type scmView struct {
 	frame    int              // scramble frame of the message box while ✦ writes a message
 	last     *git.SuggestOpts // the last suggestion's request, for Regenerate
 	lastMsg  string           // and what it came back with
+	hovRow   int              // row under the mouse in the frame being drawn, -1 = none
 }
 
 // suggestTickMsg advances the message box's scramble while a suggestion runs.
@@ -875,6 +876,19 @@ func (s *scmView) ancestors(c int) []int {
 
 // spans reports the rows drawn edge to edge: the message box, the buttons and
 // the gaps between them, which the scrollbar never runs beside.
+// buttonOf is the action button row i belongs to: i itself, or a blank row
+// right above or below it, where the button draws its taller edges. -1 when
+// i is not part of a button.
+func (s *scmView) buttonOf(i int) int {
+	for _, j := range []int{i, i + 1, i - 1} {
+		if j >= 0 && j < len(s.rows) && s.rows[j].kind == rowCommit && (j == i || s.rows[i].kind == rowGap) {
+			return j
+		}
+	}
+
+	return -1
+}
+
 func (s *scmView) spans(i int) bool { return s.rows[i].widget() || s.rows[i].kind == rowGap }
 
 // under reports row i hidden beneath the sticky rows of a pane scrolled down.
@@ -1045,6 +1059,14 @@ func (s *scmView) renderPane(m *Model, w, h int, key string, start, end, hover i
 
 	bar := n > h && w > 1
 
+	s.hovRow = -1
+	if hover >= 0 && hover < h && l.top+hover < n {
+		s.hovRow = start + l.top + hover
+		if hover < len(pin) {
+			s.hovRow = pin[hover]
+		}
+	}
+
 	return l.renderBar(w, h, n, skip, func(i, rw int) string {
 		r := start + i
 		if y := i - l.top; y < len(pin) {
@@ -1064,10 +1086,15 @@ func (s *scmView) renderRow(m *Model, i, w int, hovered bool) string {
 	switch r.kind {
 	case rowMsg:
 		return s.messageRow(m, r.root, r.line, w, hovered)
-	case rowGap:
-		return blank(w)
-	case rowCommit:
-		return s.commitRow(r.root, w, hovered)
+	case rowGap, rowCommit:
+		b := s.buttonOf(i)
+		if b < 0 {
+			return blank(w)
+		}
+
+		edge := map[int]string{b - 1: "▁", b: "", b + 1: "▔"}[i]
+
+		return s.commitRow(r.root, w, s.hovRow >= 0 && s.buttonOf(s.hovRow) == b, s.mouseCol(m), edge)
 	}
 
 	bg, base := m.rowColors(viewGit, i == s.sel && !s.input.Focused(), hovered)
@@ -1199,8 +1226,10 @@ func (s *scmView) edge(root string) lipgloss.Style {
 
 // messageRow is line of a repository's message box like VS Code's input:
 // a tinted field between thin edges, inset one column, with the ∨ of
-// suggestMenu at the right end of its first line, raised under the mouse
-// like the rows' hover buttons.
+// suggestMenu at the right end of its first line behind a ▏, split off like
+// the Commit button's, and raised under the mouse like the rows' hover
+// buttons. The ▏ draws on its cell's left edge, so the raised button starts
+// at the line, not half a cell past it as it would behind a │.
 func (s *scmView) messageRow(m *Model, root string, line, w int, hovered bool) string {
 	active := root == s.root()
 	box := lipgloss.NewStyle().Background(pal.inputBg)
@@ -1217,7 +1246,7 @@ func (s *scmView) messageRow(m *Model, root string, line, w int, hovered bool) s
 		sparkle = blank(ansi.StringWidth(sparkle))
 	}
 
-	field := w - 7 - ansi.StringWidth(sparkle) // the text gets a space on each side
+	field := w - 7 - ansi.StringWidth(sparkle) // the text gets a space before it
 	if field < 1 {
 		return blank(w)
 	}
@@ -1257,14 +1286,19 @@ func (s *scmView) messageRow(m *Model, root string, line, w int, hovered bool) s
 		text = ansi.Truncate(text, field, "")
 	}
 
-	btn, end := box, edge
-	if mx := s.mouseCol(m); hovered && line == 0 && !suggesting && mx >= w-5 && mx < w-1 { // click's hit box
+	btn, sep, end := box, edge, edge
+	if mx := s.mouseCol(m); hovered && line == 0 && !suggesting && mx >= w-4 && mx < w-1 { // click's hit box
 		// The raised button runs into the edge: ▕ only draws the cell's right
 		// sliver, so its own background would leave a gap before the border.
-		btn, end = keycapHot(), end.Background(pal.keycapBg)
+		btn, sep, end = keycapHot(), sep.Background(pal.keycapBg), end.Background(pal.keycapBg)
 	}
 
-	return " " + edge.Render("▏") + box.Render(" ") + text + btn.Render(" "+sparkle+" ") + end.Render("▕") + " "
+	bar := sep.Render("▏") // splits the ∨ off as the Commit button does
+	if line > 0 {
+		bar = box.Render(" ")
+	}
+
+	return " " + edge.Render("▏") + box.Render(" ") + text + box.Render(" ") + bar + btn.Render(sparkle) + end.Render("▕") + " "
 }
 
 // suggestPhrase is what the scramble settles on, the longest that fits.
@@ -1363,60 +1397,87 @@ func (s *scmView) action(root string) string {
 
 // commitRow is VS Code's action button, inset like the message box: the
 // split ✓ Commit with a separator and the ∨ menu, or Publish Branch / Sync
-// Changes once nothing is left to commit. The hovered button darkens; an
-// inactive repository's button, or a Commit with nothing to commit, is muted.
-func (s *scmView) commitRow(root string, w int, hovered bool) string {
+// Changes once nothing is left to commit. The hovered half of the button
+// darkens, the label or the ∨ at mouse column mx; an inactive repository's
+// button, or a Commit with nothing to commit, is muted. A non-empty edge
+// draws the blank row above (▁) or below (▔) the button as a sliver of its
+// colors, so it stands a few pixels taller than one cell.
+func (s *scmView) commitRow(root string, w int, hovered bool, mx int, edge string) string {
 	st, act, busy := s.status[root], s.action(root), s.busyRoot == root && s.busy != ""
 
-	var label string
+	var text string
 
 	switch {
 	case act == actPublish && busy:
-		label = icPublish.s() + " Publishing…"
+		text = icPublish.s() + " Publishing…"
 	case act == actPublish:
-		label = icPublish.s() + " Publish Branch"
+		text = icPublish.s() + " Publish Branch"
 	case act == actSync && busy:
-		label = icSync.s() + " Syncing…"
+		text = icSync.s() + " Syncing…"
 	case act == actSync:
-		label = icSync.s() + " Sync Changes"
+		text = icSync.s() + " Sync Changes"
 		if st.Behind > 0 {
-			label += fmt.Sprintf(" %d↓", st.Behind)
+			text += fmt.Sprintf(" %d↓", st.Behind)
 		}
 
 		if st.Ahead > 0 {
-			label += fmt.Sprintf(" %d↑", st.Ahead)
+			text += fmt.Sprintf(" %d↑", st.Ahead)
 		}
 
 	case st.Op != "" && busy:
-		label = "Continuing…"
+		text = "Continuing…"
 	case st.Op != "":
-		label = icCheck.s() + " Continue" // VS Code's button while a merge or rebase waits
+		text = icCheck.s() + " Continue" // VS Code's button while a merge or rebase waits
 	case busy && s.busy == "committing":
-		label = "Committing…"
+		text = "Committing…"
 	default:
-		label = icCheck.s() + " Commit"
+		text = icCheck.s() + " Commit"
 	}
 
 	idle := act == actCommit && st.Op == "" && len(st.Staged)+len(st.Changes)+len(st.Conflicts) == 0
 	bgc, fgc, sep := pal.buttonBg, pal.buttonFg, pal.buttonSep
+	muted := root != s.root() || idle
 
-	switch {
-	case root != s.root() || idle:
+	if muted {
 		bgc, fgc, sep = pal.mutedButtonBg, pal.mutedButtonFg, pal.mutedButtonFg
-	case hovered:
-		bgc = pal.buttonHoverBg
 	}
 
 	style := lipgloss.NewStyle().Background(bgc).Foreground(fgc)
+	onMenu := act == actCommit && w >= 12 && mx >= w-4 && mx < w-1 // click's hit box
+	label, menu := style, style
+
+	switch {
+	case !hovered || muted:
+	case onMenu:
+		menu = menu.Background(pal.buttonHoverBg)
+	default:
+		label = label.Background(pal.buttonHoverBg)
+	}
+
+	// part is n cells of the button in style st: its text, or on an edge row
+	// the sliver in the button's color.
+	part := func(st lipgloss.Style, n int, str string) string {
+		if edge != "" {
+			return lipgloss.NewStyle().Foreground(st.GetBackground()).Render(strings.Repeat(edge, n))
+		}
+
+		return st.Render(str)
+	}
+
 	if w < 12 {
-		return style.Render(center(label, w))
+		return part(label, w, center(text, w))
 	}
 
 	if act != actCommit { // Publish and Sync have no menu, as in VS Code
-		return " " + style.Render(center(label, w-2)) + " "
+		return " " + part(label, w-2, center(text, w-2)) + " "
 	}
 
-	return " " + style.Render(center(label, w-6)) + style.Foreground(sep).Render("│") + style.Render(" "+icChevron.s()+" ") + " "
+	bar := menu.Foreground(sep).Render("▏") // on the ∨'s left edge, where its hover starts
+	if edge != "" {
+		bar = part(menu, 1, "")
+	}
+
+	return " " + part(label, w-5, center(text, w-5)) + bar + part(menu, 2, icChevron.s()+" ") + " "
 }
 
 // press runs the action button of the active repository.
@@ -2293,6 +2354,10 @@ func (s *scmView) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 
 // click handles a left click on row i at column x of a row w cells wide.
 func (s *scmView) click(m *Model, i, x, w int, mo tea.Mouse) tea.Cmd {
+	if b := s.buttonOf(i); b >= 0 {
+		i = b // the button's taller edges are the button
+	}
+
 	r := s.rows[i]
 	if a, ok := hit(s.actions(r, w), x); ok {
 		s.sel = i
@@ -2320,7 +2385,7 @@ func (s *scmView) click(m *Model, i, x, w int, mo tea.Mouse) tea.Cmd {
 
 	case rowMsg:
 		cmd := s.setRepo(m, r.root)
-		if r.line == 0 && x >= w-5 && x < w-1 {
+		if r.line == 0 && x >= w-4 && x < w-1 {
 			s.suggestMenu(m, mo.X, mo.Y)
 			return cmd
 		}

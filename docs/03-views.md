@@ -16,9 +16,9 @@ render into a windowed list → handle keys and mouse.
 ```
  SOURCE CONTROL                repo · main
                                             ← blank row
- ▏Message (⏎ to commit on "main")      ∨ ▕   widget rows: keyboard skips them,
+ ▏Message (⏎ to commit on "main")       ▏∨▕   widget rows: keyboard skips them,
                                             clicks act on them
-            ✓ Commit                │ ∨      ✓ Continue during a merge, rebase, cherry-pick;
+               ✓ Commit                 ▏∨  ✓ Continue during a merge, rebase, cherry-pick;
                                             ☁ Publish Branch / ⇅ Sync Changes 1↓ 2↑ with nothing to commit
  ▾ Merge Changes                       [1]   only while conflicts exist
    main.go · both modified       src +   !
@@ -50,7 +50,7 @@ active repository's box grows; another shows its draft's first line. Its
 selection is the textarea's: `ctrl+a` is remapped from line start to select
 all, copy and cut go through `setClipboard`, and a press on the box starts a
 `dragMsgSel` that `BeginSelection`/`ExtendSelection` follow. The ∨ at its
-top right opens `suggestMenu`: Generate Commit Message (`A`), Generate with
+top right, split off by a ▏ like the Commit button's (on the cell's left edge, so the hover starts at the line), opens `suggestMenu`: Generate Commit Message (`A`), Generate with
 Description, Match Repository Style, Rewrite Current Message (text in the
 box) and Regenerate (after a suggestion, until a commit or a repository
 switch), each a `git.SuggestOpts`; under the mouse
@@ -63,7 +63,10 @@ until the suggestion replaces it. The button is VS Code's SCM action button
 (`scmView.action`): Commit while anything is staged, changed or conflicted or
 an operation waits; else _Publish Branch_ (`push -u`) on a branch without an
 upstream; else _Sync Changes_ when ahead or behind; else a muted Commit that
-only flashes. Publish and Sync have no `∨` menu; `S` publishes too when there
+only flashes. The hovered half (label or `∨`) darkens; the blank rows around
+the button draw ▁ and ▔ in its colors (`scmView.buttonOf`), so it stands a few
+pixels taller than a cell, and they hover and click as the button. Publish and
+Sync have no `∨` menu; `S` publishes too when there
 is no upstream. Publish follows VS Code's `git.publish`: one remote is pushed
 to at once, several open a picker of them (push URL underneath) with _Add a
 new remote…_ that asks for the URL, then the name; none offers _Publish to
