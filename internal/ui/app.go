@@ -2177,7 +2177,7 @@ func (m *Model) paste(msg tea.PasteMsg) tea.Cmd {
 		*in, cmd = in.Update(msg)
 		cmd = tea.Batch(cmd, m.sr.restart(m))
 
-	case m.focus == onMain && m.showsSession():
+	case m.focus == onMain && m.showsSession(), m.sessFocused(): // over the editor, or docked in its column
 		m.term.scroll = 0
 		m.inputs <- proto.InputParams{ID: m.sess, Paste: msg.Content}
 

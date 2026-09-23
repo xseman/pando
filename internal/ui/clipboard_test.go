@@ -3,6 +3,7 @@ package ui
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -124,4 +125,25 @@ func runesLines(plain [][]rune) []string {
 	}
 
 	return out
+}
+
+// TestPasteIntoDockedSession: the terminal's own paste (ctrl+shift+v)
+// reaches a session docked in a column of its own, the default, as it does
+// one over the editor, the Terminal and an editor.
+func TestPasteIntoDockedSession(t *testing.T) {
+	m := testModelSized(t, 140, 30)
+	m.st.Settings.SessPos, m.sess = "", "" // the shipped default: a column on the right
+	rows := m.ag.rows(m)
+	k := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agSession })
+	m.ag.activate(m, &rows[k])
+
+	if m.colOf(viewSession) < 0 || !m.sessFocused() {
+		t.Fatalf("the session is docked and has the keyboard: col %d, focused %v", m.colOf(viewSession), m.sessFocused())
+	}
+
+	m.Update(tea.PasteMsg{Content: "copied text"})
+
+	if in := sent(t, m); in.ID != "s1" || in.Paste != "copied text" {
+		t.Fatalf("paste into the docked session sent %+v", in)
+	}
 }
