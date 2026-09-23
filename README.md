@@ -88,9 +88,10 @@ else inside it.
 - `⌂` marks a project's own checkout, `⑂` its linked worktrees. `x` deletes a
   worktree (folder only, the branch stays) but only closes a project: its
   checkout is never removed.
-- A worktree's sessions are tabs over the terminal, other spaces stay in the
-  Spaces tree: click to switch, middle click to kill,
-  right click to rename. A session opens in a column of its own beside the
+- Every session has tabs of its own, as a herdr workspace does: `+` on the
+  strip over the terminal opens another shell in it, `[` `]` cycle them,
+  middle click kills one, right click renames it. The Spaces tree lists the
+  sessions, each showing its busiest tab's state. A session opens in a column of its own beside the
   editor — drag it to the other side or over the editor area.
 - Symbols follow herdr's: `×` waits for you, `◐` works, `✓` finished unseen,
   `○` idles. A session out of view can play a sound, and one that waits or

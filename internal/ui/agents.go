@@ -262,7 +262,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 	a.l.clamp(len(rows), h)
 
 	hover := m.hoverRow(viewAgents)
-	all := m.agentSessions()
+	all, every := m.agentSessions(), m.mainSessions() // every: their tabs too, which roll up
 
 	return a.l.render(w, h, len(rows), func(i, rw int) string {
 		r := rows[i]
@@ -278,7 +278,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 
 			var ss []proto.Session
 
-			for _, s := range all {
+			for _, s := range every {
 				if w := m.workspace(s.Workspace); (w != nil && w.Project == r.project) || (w == nil && r.project == "") {
 					ss = append(ss, s)
 				}
@@ -335,15 +335,20 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			conn = "   └─ "
 		}
 
-		glyph, c := sessionGlyph(r.s)
+		// A session carries the most demanding of its tabs, as a herdr
+		// workspace does its panes'.
+		tabs := m.tabsOf(r.s.ID)
+		glyph, c := groupGlyph(tabs)
 		label := sessionName(r.s) + titleAfter(r.s)
 
-		if bg == nil {
-			bg = m.highlight(r.s)
+		for _, t := range tabs {
+			if bg == nil {
+				bg = m.highlight(t)
+			}
 		}
 
 		nameSt := base
-		if r.s.ID == m.sess {
+		if m.rootOf(m.sess) == r.s.ID {
 			nameSt = nameSt.Bold(true).Underline(true)
 		}
 
@@ -458,11 +463,11 @@ func (a *agents) activate(m *Model, r *agRow) tea.Cmd {
 	case agWorkspace:
 		return tea.Batch(m.switchWorkspace(r.ws.Path), m.refreshGit(), m.fetchScreen())
 	case agSession:
-		if m.inView(r.s.ID) { // a second click puts it away
+		if m.rootOf(m.sess) == r.s.ID && m.inView(m.sess) { // a second click puts it away
 			return m.hideSession()
 		}
 
-		return m.openSession(r.s.ID)
+		return m.openSession(m.lastTabOf(r.s.ID))
 	}
 
 	return nil
@@ -1094,22 +1099,78 @@ type sessTab struct {
 	bg     color.Color // session_highlight's tint
 }
 
-// sessionTabs are the agent sessions, in the order [ and ] cycle them, with a
-// + to start one more.
+// sessionTabs are the tabs of the session in view, in the order [ and ]
+// cycle them, with a + to open one more in it: herdr's workspace tabs.
 func (m *Model) sessionTabs(w int) []sessTab {
-	return m.tabsFor(w, m.spaceSessions(), m.sess)
+	return m.tabsFor(w, m.tabsOf(m.rootOf(m.sess)), m.sess)
 }
 
-// spaceSessions are the agent sessions of the workspace in view: the tab
-// strip and [ ] stay inside one space, the Spaces tree reaches the others.
+// spaceSessions are the sessions of the workspace in view, their tabs aside.
 func (m *Model) spaceSessions() []proto.Session {
 	return slices.DeleteFunc(m.agentSessions(), func(s proto.Session) bool { return s.Workspace != m.ws })
 }
 
-// agentSessions are the sessions the Agents view and the main area show; the
-// Terminal panel keeps its own.
+// agentSessions are the sessions the Spaces tree lists: neither the Terminal
+// panel's shells nor a session's own tabs, which its strip shows.
 func (m *Model) agentSessions() []proto.Session {
+	return slices.DeleteFunc(m.mainSessions(), isTab)
+}
+
+// mainSessions are everything the main area can show: sessions and their tabs.
+func (m *Model) mainSessions() []proto.Session {
 	return slices.DeleteFunc(slices.Clone(m.sessions), func(s proto.Session) bool { return s.Agent == termAgent })
+}
+
+// tabAgent is the agent name of a session's tabs past its first: shells a +
+// on its strip opens, with the session as their parent, so they die with it
+// and the Spaces tree keeps them under it, as herdr keeps a workspace's tabs.
+const tabAgent = "tab"
+
+func isTab(s proto.Session) bool { return s.Agent == tabAgent && s.Parent != "" }
+
+// rootOf is the session tab id belongs to, id itself for a session.
+func (m *Model) rootOf(id string) string {
+	if s := m.session(id); s != nil && isTab(*s) && m.session(s.Parent) != nil {
+		return s.Parent
+	}
+
+	return id
+}
+
+// tabsOf is session root and its tabs, in the order they were opened.
+func (m *Model) tabsOf(root string) []proto.Session {
+	if root == "" {
+		return nil
+	}
+
+	return slices.DeleteFunc(m.mainSessions(), func(s proto.Session) bool {
+		return s.ID != root && (!isTab(s) || s.Parent != root)
+	})
+}
+
+// lastTabOf is the tab of session root shown last, root itself before any:
+// going back to a session goes back to where it was, as herdr's does.
+func (m *Model) lastTabOf(root string) string {
+	if id := m.lastTab[root]; id != "" && m.rootOf(id) == root {
+		return id
+	}
+
+	return root
+}
+
+// newTab opens a shell as one more tab of the session in view.
+func (m *Model) newTab() tea.Cmd {
+	root := m.session(m.rootOf(m.sess))
+	if root == nil {
+		return m.ag.newSession(m, nil)
+	}
+
+	cmd := m.st.Agents["shell"]
+	if len(cmd) == 0 {
+		cmd = []string{cmp.Or(os.Getenv("SHELL"), "/bin/sh")}
+	}
+
+	return m.spawn(root.Workspace, tabAgent, root.ID, cmd)
 }
 
 // termSessions are the shells of the Terminal panel: the shown session's own,
@@ -1122,7 +1183,7 @@ func (m *Model) termSessions() []proto.Session {
 // every session has tabs of its own, and a shell opened with no session in
 // view stays with its workspace.
 func (m *Model) termOwned(s proto.Session) bool {
-	if s.Agent != termAgent || s.Parent != m.sess {
+	if s.Agent != termAgent || s.Parent != m.rootOf(m.sess) {
 		return false
 	}
 
@@ -1201,7 +1262,7 @@ func sessionName(s proto.Session) string {
 			name = t
 		}
 
-	case s.Agent == termAgent && len(s.Cmd) > 0:
+	case (s.Agent == termAgent || s.Agent == tabAgent) && len(s.Cmd) > 0:
 		name = filepath.Base(s.Cmd[0])
 	}
 
@@ -1277,7 +1338,7 @@ func (m *Model) sessionStripMouse(x int, button tea.MouseButton) tea.Cmd {
 
 		switch {
 		case t.plus:
-			return m.ag.newSession(m, nil)
+			return m.newTab()
 		case button == tea.MouseRight:
 			return m.sessionMenu(t.id)
 		case button == tea.MouseMiddle || (t.active && x >= t.x+t.w-2):
@@ -1831,10 +1892,10 @@ func (m *Model) cycleTerm(d int) tea.Cmd {
 
 func (m *Model) newTerm() tea.Cmd {
 	if cmd := m.st.Agents[termAgent]; len(cmd) > 0 {
-		return m.spawn(m.ws, termAgent, m.sess, nil)
+		return m.spawn(m.ws, termAgent, m.rootOf(m.sess), nil)
 	}
 
-	return m.spawn(m.ws, termAgent, m.sess, []string{cmp.Or(os.Getenv("SHELL"), "/bin/sh")})
+	return m.spawn(m.ws, termAgent, m.rootOf(m.sess), []string{cmp.Or(os.Getenv("SHELL"), "/bin/sh")})
 }
 
 // toggleTerminal is ⌃`: it opens the terminal where it is docked and focuses

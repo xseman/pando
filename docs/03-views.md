@@ -125,10 +125,14 @@ second at most.
 
 A new session is a shell in the workspace, started without asking: agents run
 inside it the way they do in any terminal (*New Agent Session…* still starts an
-`[agents]` preset directly). Every session of the workspace in view is a tab
-on the strip over the terminal (`spaceSessions`; another space's are reached
-through the tree) — click to switch, `+` opens one more, middle click or the active
-tab's `✕` kills it after a confirmation, `[` and `]` cycle them.
+`[agents]` preset directly). A session has tabs of its own, as a herdr
+workspace does: the strip over the terminal shows the one in view and its
+tabs (`tabsOf`), `+` opens one more shell in it (agent `tab`, the session as
+its parent, so it dies with it), `[` and `]` cycle them, and middle click or
+the active tab's `✕` kills one after a confirmation. The Spaces tree lists the
+sessions alone (`agentSessions`), each carrying its most demanding tab's
+symbol; going back to a session shows the tab it was on (`lastTabOf`), and
+its Terminal panel is shared by its tabs.
 
 The daemon remembers which program holds each session's terminal: once a tick
 it reads the pty's foreground process group (`TIOCGPGRP`, then

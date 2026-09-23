@@ -132,9 +132,10 @@ type Model struct {
 	msg         string
 	msgErr      bool
 	msgAt       time.Time
-	soundAt     time.Time // when the last sound cue played
-	blinkOn     bool      // session_highlight "blink": the tint is showing
-	blinking    bool      // its ticker runs
+	soundAt     time.Time         // when the last sound cue played
+	lastTab     map[string]string // session to its tab shown last
+	blinkOn     bool              // session_highlight "blink": the tint is showing
+	blinking    bool              // its ticker runs
 	events      <-chan proto.Event
 	inputs      chan proto.InputParams
 	gitBusy     bool
@@ -1503,6 +1504,10 @@ func (m *Model) terminalItems() []item {
 		})
 	}
 
+	if m.session(m.sess) != nil {
+		items = append(items, item{label: "New Tab in Session", run: func(m *Model) tea.Cmd { return m.newTab() }})
+	}
+
 	items = append(items, item{label: "Focus Terminal", run: func(m *Model) tea.Cmd { return m.focusTerminal() }},
 		item{label: "New Terminal", hint: "^⇧`", run: func(m *Model) tea.Cmd { return tea.Batch(m.openTerminalPanel(), m.newTerm()) }})
 	if m.session(m.tv.id) != nil {
@@ -1831,6 +1836,12 @@ func (m *Model) switchSession(id string) tea.Cmd {
 	// Before the workspace switch, which keeps a session of its workspace
 	// rather than picking one — and the Terminal panel follows the session.
 	m.sess, m.preview = id, false
+
+	if m.lastTab == nil {
+		m.lastTab = map[string]string{}
+	}
+
+	m.lastTab[m.rootOf(id)] = id
 	switched := m.switchWorkspace(s.Workspace)
 
 	return tea.Batch(switched, m.ensureTerm(), m.fetchScreen(), m.refreshGit())
@@ -1958,7 +1969,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if prev := m.session(m.sess); prev != nil && !slices.ContainsFunc(msg, func(s proto.Session) bool { return s.ID == prev.ID }) {
 			m.flash(sessionName(*prev)+" session closed", false)
-			next = nextTab(m.spaceSessions(), m.sess, msg) // before the list is replaced
+			// Before the list is replaced: a closed tab hands over to its
+			// neighbour in the session, a closed session to one of the space.
+			if next = nextTab(m.tabsOf(m.rootOf(m.sess)), m.sess, msg); next == "" {
+				next = nextTab(m.spaceSessions(), m.rootOf(m.sess), msg)
+			}
+
 			m.sess, m.term = "", term{}
 		}
 
@@ -2446,7 +2462,11 @@ func (m *Model) stopEditing() {
 }
 
 func (m *Model) cycleSession(d int) tea.Cmd {
-	ss := m.spaceSessions()
+	ss := m.tabsOf(m.rootOf(m.sess))
+	if len(ss) == 0 {
+		ss = m.spaceSessions() // none in view: the space's first
+	}
+
 	if len(ss) == 0 {
 		return nil
 	}

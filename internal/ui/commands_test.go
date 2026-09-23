@@ -2094,7 +2094,12 @@ func TestSpacesCloseOrDelete(t *testing.T) {
 	}
 }
 
-func TestSessionTabsStayInTheirSpace(t *testing.T) {
+// TestSessionTabs is herdr's workspace and its tabs: every session in the
+// Spaces tree has tabs of its own, which its strip shows and [ ] cycle. A
+// tab is not a session of the tree; the session carries its tabs' state,
+// going back to it lands on the tab it was on, and its Terminal panel is
+// shared by its tabs.
+func TestSessionTabs(t *testing.T) {
 	m := testModel(t)
 	drainInputs(m)
 
@@ -2102,28 +2107,81 @@ func TestSessionTabsStayInTheirSpace(t *testing.T) {
 	m.wss = append(m.wss, proto.Workspace{Path: other, Project: m.ws, Branch: "feat"})
 	m.sessions = append(m.sessions,
 		proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: m.ws, Agent: "shell"}, Status: "idle"},
+		proto.Session{SessionSpec: proto.SessionSpec{ID: "t1", Workspace: m.ws, Agent: tabAgent, Parent: "s1", Cmd: []string{"/bin/fish"}}, Status: "blocked"},
+		proto.Session{SessionSpec: proto.SessionSpec{ID: "p1", Workspace: m.ws, Agent: termAgent, Parent: "s1"}, Status: "idle"},
 		proto.Session{SessionSpec: proto.SessionSpec{ID: "o1", Workspace: other, Agent: "shell"}, Status: "idle"})
 	m.Update(focusSessionMsg("s1"))
 
-	var ids []string
-	for _, s := range m.spaceSessions() {
-		ids = append(ids, s.ID)
+	ids := func(ss []proto.Session) []string {
+		var out []string
+		for _, s := range ss {
+			out = append(out, s.ID)
+		}
+
+		return out
 	}
 
-	if !slices.Equal(ids, []string{"s1", "s2"}) || len(m.sessionTabs(100)) != 3 { // two tabs and +
-		t.Fatalf("the strip holds this space's sessions: %v, %d tabs", ids, len(m.sessionTabs(100)))
+	if got := ids(m.spaceSessions()); !slices.Equal(got, []string{"s1", "s2"}) {
+		t.Fatalf("the space lists its sessions, not their tabs: %v", got)
+	}
+
+	tabs := m.sessionTabs(100)
+	if len(tabs) != 3 || tabs[0].id != "s1" || tabs[1].id != "t1" || !tabs[2].plus || !strings.Contains(tabs[1].label, "fish") {
+		t.Fatalf("the strip holds s1's own tabs and +: %+v", tabs)
+	}
+
+	// The tree shows s1 once, carrying its blocked tab's state.
+	m.showView(viewAgents)
+	checkWidths(t, m)
+
+	var tree []string
+
+	for _, r := range m.ag.rows(m) {
+		if r.kind == agSession {
+			tree = append(tree, r.s.ID)
+		}
+	}
+
+	lines := strings.Join(m.ag.lines(m, 30, 20), "\n")
+	if !slices.Equal(tree, []string{"s1", "s2", "o1"}) || !strings.Contains(ansi.Strip(lines), "├─ × shell") {
+		t.Fatalf("Spaces tree %v:\n%s", tree, ansi.Strip(lines))
 	}
 
 	m.cycleSession(1)
+
+	if m.sess != "t1" || m.rootOf(m.sess) != "s1" {
+		t.Fatalf("] goes to s1's next tab: %q", m.sess)
+	}
+
+	// The Terminal panel is the session's, whichever of its tabs is shown.
+	if got := ids(m.termSessions()); !slices.Equal(got, []string{"p1"}) {
+		t.Fatalf("s1's panel from its tab: %v", got)
+	}
+
 	m.cycleSession(1)
 
 	if m.sess != "s1" {
-		t.Fatalf("] wraps inside the space, got %q", m.sess)
+		t.Fatalf("] wraps inside the session, got %q", m.sess)
+	}
+
+	m.cycleSession(-1)
+	m.Update(focusSessionMsg("s2"))
+
+	if got := m.lastTabOf("s1"); got != "t1" {
+		t.Fatalf("back to s1 lands on the tab it was on: %q", got)
+	}
+
+	// Closing a tab hands the strip to its neighbour in the session.
+	m.Update(focusSessionMsg("t1"))
+	send(m, sessionsMsg(slices.DeleteFunc(slices.Clone(m.sessions), func(s proto.Session) bool { return s.ID == "t1" })))
+
+	if m.sess != "s1" {
+		t.Fatalf("the closed tab handed over to %q", m.sess)
 	}
 
 	m.Update(focusSessionMsg("o1"))
 
 	if m.ws != other || len(m.sessionTabs(100)) != 2 {
-		t.Fatalf("the other space shows its own session only: ws=%q tabs=%d", m.ws, len(m.sessionTabs(100)))
+		t.Fatalf("the other space's session has its own tabs only: ws=%q tabs=%d", m.ws, len(m.sessionTabs(100)))
 	}
 }
