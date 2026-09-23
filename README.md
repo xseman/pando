@@ -115,7 +115,9 @@ aider = ["aider", "--restore-chat-history"]
 
 Claude sessions come back with their own conversation, by id, not the latest
 in the directory, and a conversation that is still open elsewhere is not opened
-twice: the session stays a shell and says where it is.
+twice: the session stays a shell and says where it is. A session attached to a
+Claude background job (`claude attach`) attaches to it again while it runs, and
+a claude started as `CLAUDE_CONFIG_DIR=… claude` comes back in that config.
 
 ### Source Control and diffs
 

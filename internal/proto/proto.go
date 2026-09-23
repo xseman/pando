@@ -126,14 +126,15 @@ type Pane struct {
 // State is everything a client sees, the reply to state.get: the settings
 // from config.toml plus what state.json remembers.
 type State struct {
-	Settings Settings            `json:"settings"`
-	Projects []string            `json:"projects"`
-	Agents   map[string][]string `json:"agents"`
-	Resume   map[string][]string `json:"resume"`    // agent to the command that continues its last conversation
-	ResumeID map[string][]string `json:"resume_id"` // agent to the command that continues conversation {id}
-	Drafts   map[string]string   `json:"drafts"`
-	Editors  map[string]Editors  `json:"editors"` // per workspace: what its tab strip had open
-	Sessions []SessionSpec       `json:"sessions"`
+	Settings  Settings            `json:"settings"`
+	Projects  []string            `json:"projects"`
+	Agents    map[string][]string `json:"agents"`
+	Resume    map[string][]string `json:"resume"`     // agent to the command that continues its last conversation
+	ResumeID  map[string][]string `json:"resume_id"`  // agent to the command that continues conversation {id}
+	ResumeJob map[string][]string `json:"resume_job"` // agent to the command that attaches to background job {id}
+	Drafts    map[string]string   `json:"drafts"`
+	Editors   map[string]Editors  `json:"editors"` // per workspace: what its tab strip had open
+	Sessions  []SessionSpec       `json:"sessions"`
 	// LastWorkspace is the workspace the TUI showed last; pando started
 	// outside a repository opens it again.
 	LastWorkspace string `json:"last_workspace,omitempty"`
@@ -199,6 +200,10 @@ type SessionSpec struct {
 type Conversation struct {
 	Agent string `json:"agent"` // the program, a [resume_id] key
 	ID    string `json:"id"`
+	Job   string `json:"job,omitempty"` // the background job it runs in, which outlives pando: attach to it
+	// Env is KEY=VALUE the agent ran with that its shell does not set, such
+	// as CLAUDE_CONFIG_DIR: the command that brings it back sets them again.
+	Env []string `json:"env,omitempty"`
 }
 
 // Workspace is one git worktree of a project, as workspace.list reports it.

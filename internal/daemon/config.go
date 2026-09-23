@@ -21,6 +21,9 @@ type config struct {
 	// ResumeID continues the very conversation a session had open, when its
 	// agent says which; {id} in an argument becomes the conversation's id.
 	ResumeID map[string][]string `toml:"resume_id"`
+	// ResumeJob attaches to the background job a session was attached to,
+	// while it still runs; {id} becomes the job's id.
+	ResumeJob map[string][]string `toml:"resume_job"`
 }
 
 // nerdFont reports whether fontconfig knows a Nerd Font, once per process.
@@ -56,7 +59,8 @@ func defaultConfig() config {
 			"claude": {"claude", "--continue"}, "codex": {"codex", "resume", "--last"},
 			"opencode": {"opencode", "--continue"},
 		},
-		ResumeID: map[string][]string{"claude": {"claude", "--resume", "{id}"}},
+		ResumeID:  map[string][]string{"claude": {"claude", "--resume", "{id}"}},
+		ResumeJob: map[string][]string{"claude": {"claude", "attach", "{id}"}},
 	}
 }
 
@@ -74,8 +78,8 @@ func (c *config) resolve() {
 // default presets, so a preset can be removed by leaving it out.
 func loadConfig(path string) (config, error) {
 	c := defaultConfig()
-	agents, resume, resumeID := c.Agents, c.Resume, c.ResumeID
-	c.Agents, c.Resume, c.ResumeID = nil, nil, nil
+	agents, resume, resumeID, resumeJob := c.Agents, c.Resume, c.ResumeID, c.ResumeJob
+	c.Agents, c.Resume, c.ResumeID, c.ResumeJob = nil, nil, nil, nil
 
 	md, err := toml.DecodeFile(path, &c)
 	if err != nil {
@@ -99,6 +103,10 @@ func loadConfig(path string) (config, error) {
 
 	if c.ResumeID == nil {
 		c.ResumeID = resumeID
+	}
+
+	if c.ResumeJob == nil {
+		c.ResumeJob = resumeJob
 	}
 
 	c.resolve()
@@ -227,6 +235,9 @@ func (c *config) encode() []byte {
 	b.WriteString("\n# Continuing the very conversation a session had open, when the agent says which\n" +
 		"# (claude does); {id} becomes its id. Two sessions never continue the same one.\n[resume_id]\n")
 	table(&b, c.ResumeID)
+	b.WriteString("\n# Attaching again to the background job a session was attached to (claude attach),\n" +
+		"# which outlives pando; {id} becomes the job's id. A job that ended is resumed instead.\n[resume_job]\n")
+	table(&b, c.ResumeJob)
 
 	return []byte(b.String())
 }

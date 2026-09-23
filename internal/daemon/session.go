@@ -292,7 +292,7 @@ func (s *session) setResume(argv []string, c *proto.Conversation) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if slices.Equal(s.spec.Resume, argv) && ptrEqual(s.spec.Conversation, c) {
+	if slices.Equal(s.spec.Resume, argv) && sameConversation(s.spec.Conversation, c) {
 		return false
 	}
 
@@ -301,8 +301,28 @@ func (s *session) setResume(argv []string, c *proto.Conversation) bool {
 	return true
 }
 
-func ptrEqual[T comparable](a, b *T) bool {
-	return a == b || (a != nil && b != nil && *a == *b)
+// ownEnv is the part of env, KEY=VALUE an agent ran with, that the
+// session's shell does not set the same way: what was typed before the
+// agent's name, and has to be again.
+func (s *session) ownEnv(env []string) []string {
+	var out []string
+
+	for _, kv := range env {
+		k, v, _ := strings.Cut(kv, "=")
+		if envOf(s.cmd.Process.Pid, k) != v {
+			out = append(out, kv)
+		}
+	}
+
+	return out
+}
+
+func sameConversation(a, b *proto.Conversation) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+
+	return a.Agent == b.Agent && a.ID == b.ID && a.Job == b.Job && slices.Equal(a.Env, b.Env)
 }
 
 // notice prints lines dimmed on the session's screen, pando speaking rather

@@ -51,6 +51,7 @@ error, uses the last good values and refuses to save until it is fixed.
 | `[agents]`                                                           | `name = ["command", "args"]`                                                                                |
 | `[resume]`                                                           | program to the command that continues its last conversation                                                 |
 | `[resume_id]`                                                        | program to the command that continues conversation `{id}`, when the program says which                      |
+| `[resume_job]`                                                       | program to the command that attaches to background job `{id}` again while it runs                           |
 
 ## Columns
 

@@ -142,11 +142,21 @@ session's when two share a worktree. So for an agent that says which one a
 process has open, the spec keeps that conversation and `[resume_id]` continues
 it by id. Claude Code writes `~/.claude/sessions/<pid>.json` (`sessionId`,
 `procStart` against `/proc/<pid>/stat` so a reused pid does not count); other
-agents fall back to `[resume]`. On respawn (`Daemon.resume`):
+agents fall back to `[resume]`. `claude attach JOB` writes no file of its own:
+its conversation is the background session (`kind: "bg"`) whose `jobId`
+begins with JOB, run by Claude's own daemon, so it outlives pando and
+`[resume_job]` (`claude attach {id}`) goes back to it. A claude started with
+its own `CLAUDE_CONFIG_DIR` keeps its sessions and transcripts there: the spec
+records the variable when the session's shell does not set it the same way
+(`Conversation.Env`), every check looks in that directory, and the command
+typed back sets it first (`CLAUDE_CONFIG_DIR='…' claude --resume …`, a form
+bash, zsh and fish all read). On respawn (`Daemon.resume`):
 
 | The conversation is…                                  | The session                                                   |
 | ----------------------------------------------------- | ------------------------------------------------------------- |
 | continued already by an earlier session in the list   | stays a shell, saying which session has it                    |
+| running as a background job                           | attaches to the job again; its process is never a leftover    |
+| a background job that ended                           | resumes the conversation by id                                |
 | open in a process outside pando                       | stays a shell, saying which process and the command for later |
 | open in a leftover of this daemon's session (a crash) | stops the leftover, then resumes                              |
 | not open anywhere                                     | resumes                                                       |

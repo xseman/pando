@@ -494,8 +494,9 @@ func TestConfig(t *testing.T) {
 			LSP: map[string][]string{"go": {"gopls"}}, Format: map[string][]string{"ts": {"prettier", "--stdin-filepath", "$FILE"}}, FmtSave: true,
 			Sounds: true, SoundDone: "/a.oga", SoundReq: "",
 		}, Agents: map[string][]string{"my agent": {"x", "y \"z\""}},
-		Resume:   map[string][]string{"my agent": {"x", "--continue"}},
-		ResumeID: map[string][]string{"my agent": {"x", "--resume", "{id}"}},
+		Resume:    map[string][]string{"my agent": {"x", "--continue"}},
+		ResumeID:  map[string][]string{"my agent": {"x", "--resume", "{id}"}},
+		ResumeJob: map[string][]string{"my agent": {"x", "attach", "{id}"}},
 	}
 	round := filepath.Join(t.TempDir(), "config.toml")
 	mustWrite(t, round, string(c.encode()))
@@ -604,8 +605,17 @@ func remembered(d *Daemon, s *session) proto.SessionSpec {
 // Claude Code does.
 func fakeClaude(t *testing.T, pid int, id string) {
 	t.Helper()
+	fakeClaudeProc(t, claudeProcess{PID: pid, SessionID: id})
+}
 
-	b, err := json.Marshal(claudeProcess{PID: pid, SessionID: id, ProcStart: startTime(pid)})
+// fakeClaudeProc publishes p as Claude Code's sessions/<pid>.json.
+func fakeClaudeProc(t *testing.T, p claudeProcess) {
+	t.Helper()
+
+	pid := p.PID
+	p.ProcStart = startTime(pid)
+
+	b, err := json.Marshal(p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -681,7 +691,7 @@ func TestResumeConversation(t *testing.T) {
 		fakeClaude(t, pid, conv)
 
 		want := proto.Conversation{Agent: "myagent", ID: conv}
-		if got := remembered(d, sess); got.Conversation == nil || *got.Conversation != want || !reflect.DeepEqual(got.Resume, []string{"echo", "RESUMED", conv}) {
+		if got := remembered(d, sess); got.Conversation == nil || !reflect.DeepEqual(*got.Conversation, want) || !reflect.DeepEqual(got.Resume, []string{"echo", "RESUMED", conv}) {
 			t.Fatalf("remembered %v %v, want %v", got.Resume, got.Conversation, want)
 		}
 	}
@@ -931,6 +941,233 @@ func TestFocusResolvesSessionNames(t *testing.T) {
 
 	if err := proto.Call("focus", proto.FocusParams{Session: "nobody"}, nil); err == nil {
 		t.Fatal("focus on an unknown session is refused, not broadcast for no TUI to match")
+	}
+}
+
+// TestResumeKeepsConfigDir is a claude started with its own
+// CLAUDE_CONFIG_DIR, a config the session's shell does not set: its
+// conversation lives there, so the restart looks there and types the
+// variable again before the command, quoted for any shell.
+func TestResumeKeepsConfigDir(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir()) // the daemon's and the shell's
+
+	conversations["myagent"] = claudeSource{}
+
+	t.Cleanup(func() { delete(conversations, "myagent") })
+
+	custom := filepath.Join(t.TempDir(), "work config") // a space to quote
+
+	boot := start(t)
+	d := boot()
+	ws := t.TempDir()
+	agent := filepath.Join(ws, "myagent")
+	mustWrite(t, agent, "#!/bin/sh\necho AGENT IN \"$CLAUDE_CONFIG_DIR\"\nsleep 300\n")
+
+	if err := os.Chmod(agent, 0o755); err != nil { // the test runs it
+		t.Fatalf("chmod %s: %v", agent, err)
+	}
+
+	d.mu.Lock()
+	d.state.ResumeID = map[string][]string{"myagent": {"sh", "-c", "'echo RESUMED IN $CLAUDE_CONFIG_DIR'"}}
+	d.state.Agents["myagent"] = []string{"echo", "FRESH"}
+	cfgErr := d.saveConfig()
+	d.mu.Unlock()
+
+	if cfgErr != nil {
+		t.Fatal(cfgErr)
+	}
+
+	screen := func(id string) string {
+		t.Helper()
+
+		var scr proto.Screen
+		call(t, "session.screen", proto.ScreenParams{ID: id, Cols: 100, Rows: 8}, &scr)
+
+		return strings.Join(scr.Lines, "\n")
+	}
+
+	var s proto.Session
+	call(t, "session.new", map[string]any{"workspace": ws, "cmd": []string{"sh"}}, &s)
+	call(t, "session.input", proto.InputParams{ID: s.ID, Text: "CLAUDE_CONFIG_DIR='" + custom + "' ./myagent\r"}, nil)
+	waitFor(t, "the agent to start", func() bool { return strings.Contains(screen(s.ID), "AGENT IN "+custom) })
+
+	sess := d.sessions[s.ID]
+
+	var pid int
+
+	waitFor(t, "the agent to hold the terminal", func() bool {
+		var prog string
+
+		pid, prog = sess.foreground()
+
+		return prog == "myagent"
+	})
+
+	// Claude keeps its sessions and transcripts in the config it ran with.
+	b, err := json.Marshal(claudeProcess{PID: pid, SessionID: "conv-w", ProcStart: startTime(pid)})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mustWrite(t, filepath.Join(custom, "sessions", strconv.Itoa(pid)+".json"), string(b))
+	mustWrite(t, filepath.Join(custom, "projects", "-ws", "conv-w.jsonl"), "{}\n")
+
+	got := remembered(d, sess)
+	if want := []string{"CLAUDE_CONFIG_DIR=" + custom}; got.Conversation == nil || !slices.Equal(got.Conversation.Env, want) {
+		t.Fatalf("remembered %+v, want env %v", got.Conversation, want)
+	}
+
+	if !strings.HasPrefix(strings.Join(got.Resume, " "), "CLAUDE_CONFIG_DIR='"+custom+"' sh -c") {
+		t.Fatalf("resume = %q", got.Resume)
+	}
+
+	d.mu.Lock()
+	saveErr := d.save()
+	d.mu.Unlock()
+
+	if saveErr != nil {
+		t.Fatal(saveErr)
+	}
+
+	d.Close()
+
+	d = boot()
+	defer d.Close()
+
+	// The transcript is found in that config, not the default one, and the
+	// command runs in it again.
+	waitFor(t, "the conversation to resume in its own config", func() bool {
+		return strings.Contains(screen(s.ID), "RESUMED IN "+custom)
+	})
+
+	if strings.Contains(screen(s.ID), "FRESH") {
+		t.Fatal("the transcript was looked for in the default config")
+	}
+}
+
+func TestShellWord(t *testing.T) {
+	for in, want := range map[string]string{
+		"/home/u/.claude-work": "/home/u/.claude-work",
+		"/tmp/work config":     "'/tmp/work config'",
+		"it's":                 `'it'\''s'`,
+		"":                     "''",
+		"~/x":                  "'~/x'", // not expanded by one shell and left by another
+		"a$b":                  "'a$b'",
+	} {
+		if got := shellWord(in); got != want {
+			t.Errorf("shellWord(%q) = %s, want %s", in, got, want)
+		}
+	}
+}
+
+// TestResumeBackgroundJob is a session attached to a Claude background job
+// (`claude attach JOB`), whose conversation runs in Claude's own daemon and
+// outlives pando: a restart attaches to the job again, and never takes it
+// for a leftover to stop, though it inherited the session's PANDO_SESSION.
+// A job that ended by then is resumed by its conversation instead.
+func TestResumeBackgroundJob(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+
+	conversations["myagent"] = claudeSource{}
+
+	t.Cleanup(func() { delete(conversations, "myagent") })
+
+	boot := start(t)
+	d := boot()
+	ws := t.TempDir()
+	agent := filepath.Join(ws, "myagent") // the attach client: no sessions/<pid>.json of its own
+	mustWrite(t, agent, "#!/bin/sh\necho ATTACHED TO \"$2\"\nsleep 300\n")
+
+	if err := os.Chmod(agent, 0o755); err != nil { // the test runs it
+		t.Fatalf("chmod %s: %v", agent, err)
+	}
+
+	d.mu.Lock()
+	d.state.ResumeID = map[string][]string{"myagent": {"echo", "RESUMED", "{id}"}}
+	d.state.ResumeJob = map[string][]string{"myagent": {"echo", "REATTACHED", "{id}"}}
+	cfgErr := d.saveConfig() // the restart reads them back
+	d.mu.Unlock()
+
+	if cfgErr != nil {
+		t.Fatal(cfgErr)
+	}
+
+	screen := func(id string) string {
+		t.Helper()
+
+		var scr proto.Screen
+		call(t, "session.screen", proto.ScreenParams{ID: id, Cols: 60, Rows: 8}, &scr)
+
+		return strings.Join(scr.Lines, "\n")
+	}
+
+	// Two background jobs, each its daemon's process with a sessions entry
+	// of kind bg, and each inheriting the pando session it was started from.
+	jobs := map[string]*exec.Cmd{}
+	gone := map[string]chan struct{}{}
+	ids := map[string]string{}
+
+	for _, job := range []string{"aaaa1111", "bbbb2222"} {
+		var s proto.Session
+		call(t, "session.new", map[string]any{"workspace": ws, "cmd": []string{"sh"}}, &s)
+		ids[job] = s.ID
+
+		bg := exec.Command("sleep", "60")
+
+		bg.Env = append(os.Environ(), "PANDO_SESSION="+s.ID)
+
+		if err := bg.Start(); err != nil {
+			t.Fatal(err)
+		}
+
+		t.Cleanup(func() { _ = bg.Process.Kill() })
+
+		jobs[job], gone[job] = bg, make(chan struct{})
+		go func() { _ = bg.Wait(); close(gone[job]) }()
+
+		fakeClaudeProc(t, claudeProcess{PID: bg.Process.Pid, SessionID: "conv-" + job, Kind: "bg", JobID: job})
+		mustWrite(t, filepath.Join(claudeDir(), "projects", "-ws", "conv-"+job+".jsonl"), "{}\n")
+
+		call(t, "session.input", proto.InputParams{ID: s.ID, Text: "./myagent attach " + job[:4] + "\r"}, nil)
+		waitFor(t, "the client to attach", func() bool { return strings.Contains(screen(s.ID), "ATTACHED TO") })
+
+		sess := d.sessions[s.ID]
+
+		var got proto.SessionSpec
+
+		waitFor(t, "the job to be recognised", func() bool { got = remembered(d, sess); return got.Conversation != nil })
+
+		want := proto.Conversation{Agent: "myagent", ID: "conv-" + job, Job: job}
+		if !reflect.DeepEqual(*got.Conversation, want) || !reflect.DeepEqual(got.Resume, []string{"echo", "REATTACHED", job}) {
+			t.Fatalf("remembered %v %+v, want %+v", got.Resume, *got.Conversation, want)
+		}
+	}
+
+	d.mu.Lock()
+	saveErr := d.save()
+	d.mu.Unlock()
+
+	if saveErr != nil {
+		t.Fatal(saveErr)
+	}
+
+	d.Close()
+
+	// The second job ends while pando is down; the first runs on.
+	_ = jobs["bbbb2222"].Process.Kill()
+
+	<-gone["bbbb2222"]
+
+	d = boot()
+	defer d.Close()
+
+	waitFor(t, "the running job to be attached again", func() bool { return strings.Contains(screen(ids["aaaa1111"]), "REATTACHED aaaa1111") })
+	waitFor(t, "the ended job's conversation to be resumed", func() bool { return strings.Contains(screen(ids["bbbb2222"]), "RESUMED conv-bbbb2222") })
+
+	select {
+	case <-gone["aaaa1111"]:
+		t.Fatal("the background job was stopped as a leftover")
+	case <-time.After(time.Second): // past the leftover's SIGHUP and its wait
 	}
 }
 
