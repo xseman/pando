@@ -905,7 +905,36 @@ func (m *Model) agentSessions() []proto.Session {
 
 // termSessions are the shells of the Terminal panel.
 func (m *Model) termSessions() []proto.Session {
-	return slices.DeleteFunc(slices.Clone(m.sessions), func(s proto.Session) bool { return s.Agent != termAgent })
+	return slices.DeleteFunc(slices.Clone(m.sessions), func(s proto.Session) bool { return !m.termOwned(s) })
+}
+
+// termOwned reports a shell of the Terminal panel.
+func (m *Model) termOwned(s proto.Session) bool { return s.Agent == termAgent }
+
+// attachTerm points the panel at a shell — the one it had when it still runs,
+// else the first — and reports whether it found one.
+func (m *Model) attachTerm() bool {
+	if s := m.session(m.tv.id); s != nil && m.termOwned(*s) {
+		return true
+	}
+
+	m.tv.id, m.tv.term = "", term{}
+	if ss := m.termSessions(); len(ss) > 0 {
+		m.tv.id = ss[0].ID
+		return true
+	}
+
+	return false
+}
+
+// ensureTerm starts a shell for an open panel that has none to show: an open
+// panel shows a shell, never an empty strip.
+func (m *Model) ensureTerm() tea.Cmd {
+	if m.attachTerm() || !m.termOpen() {
+		return nil
+	}
+
+	return m.newTerm()
 }
 
 func (m *Model) tabsFor(w int, sessions []proto.Session, active string) []sessTab {
@@ -1598,15 +1627,8 @@ func (m *Model) maximizeTerminal(on bool) tea.Cmd {
 // startTerm shows a shell in the panel: the one it had, another that is still
 // running, or a new one.
 func (m *Model) startTerm() tea.Cmd {
-	if m.session(m.tv.id) == nil {
-		m.tv.id, m.tv.term = "", term{}
-		if ss := m.termSessions(); len(ss) > 0 {
-			m.tv.id = ss[0].ID
-		}
-	}
-
-	if m.tv.id == "" {
-		return m.newTerm()
+	if cmd := m.ensureTerm(); cmd != nil {
+		return cmd
 	}
 
 	return m.fetchScreen()

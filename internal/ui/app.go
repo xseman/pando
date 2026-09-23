@@ -340,7 +340,7 @@ func New(st proto.State, wss []proto.Workspace, ss []proto.Session, ws string, e
 	m.ag.l.sel = -1
 	m.scm.init()
 	m.sr.init()
-	m.switchWorkspace(ws)
+	m.switchWorkspace(ws) // attaches the Terminal panel too; Init starts a shell when it found none
 
 	return m
 }
@@ -354,7 +354,7 @@ func (m *Model) look() {
 func (m *Model) Init() tea.Cmd {
 	// m.pv is the editor New restored for the workspace; its content loads here.
 	return tea.Batch(waitEvent(m.events), tick(), tea.RequestBackgroundColor, tea.RequestForegroundColor,
-		m.refreshGit(), m.pv.load(m), m.loadDrafts(), loadUpdate())
+		m.refreshGit(), m.pv.load(m), m.loadDrafts(), loadUpdate(), m.ensureTerm())
 }
 
 func hexColor(c color.Color) string {
@@ -1783,7 +1783,7 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 	restored := m.restoreEditors()
 	m.preview = m.preview && (m.sess == "" || m.sessDocked()) // a session over the editor is what shows; the tabs wait in the strip
 
-	return tea.Batch(saved, restored, m.loadDrafts())
+	return tea.Batch(saved, restored, m.loadDrafts(), m.ensureTerm())
 }
 
 // nextTab is the session a closed tab hands its focus to: the tab left of it,

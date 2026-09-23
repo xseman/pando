@@ -1799,3 +1799,30 @@ func TestAmbiguousCtrlSpaceHintsTheTerminalKey(t *testing.T) {
 		t.Errorf("a disambiguating terminal was hinted at: %q", m2.msg)
 	}
 }
+
+func TestTerminalPanelAttachesAtStart(t *testing.T) {
+	// A panel saved open showed its tab strip over an empty body until it was
+	// closed and opened again: nothing pointed it at the shell it had.
+	root := t.TempDir()
+	st := proto.State{Settings: proto.Settings{Width: 30, Icons: "ascii", TermOpen: true}, Projects: []string{root}}
+	wss := []proto.Workspace{{Path: root, Project: root, Branch: "main", Main: true}}
+	m := New(st, wss, []proto.Session{termSession(root, "t1")}, root, nil)
+
+	if m.tv.id != "t1" {
+		t.Fatalf("an open panel starts on the shell it has, got %q", m.tv.id)
+	}
+
+	if m.ensureTerm() != nil {
+		t.Fatal("a panel with a shell starts no other")
+	}
+
+	m = New(st, wss, nil, root, nil)
+	if m.tv.id != "" || m.ensureTerm() == nil {
+		t.Fatalf("an open panel without a shell starts one, id=%q", m.tv.id)
+	}
+
+	st.Settings.TermOpen = false
+	if m = New(st, wss, nil, root, nil); m.ensureTerm() != nil {
+		t.Fatal("a shut panel starts nothing")
+	}
+}

@@ -129,7 +129,9 @@ left or right sidebar, where it is a column of its own — `moveView` and
 ⌃⇧↑ gives the bottom panel the whole editor area and ⌃⇧↓ hands it back.
 
 It holds sessions of the `terminal` agent, which the Spaces tree and the main
-area's session strip leave out. The panel has the same tab strip: click to
+area's session strip leave out. An open panel with no shell to show attaches
+one (`attachTerm`) or starts one (`ensureTerm`) — at startup too, so a panel
+saved open never draws an empty strip. The panel has the same tab strip: click to
 switch, `+` for one more, middle click or the active tab's `✕` to kill after a
 confirmation. A killed tab hands focus to the tab left of it, else the one
 right of it; only the last one closing empties the strip — and, for the panel,
