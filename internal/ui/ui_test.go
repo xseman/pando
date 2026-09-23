@@ -1242,7 +1242,7 @@ func TestSectionActions(t *testing.T) {
 	ch := scmRowAt(m, rowSection, "Changes", "")
 	m.Update(tea.MouseMotionMsg{X: 3, Y: top + ch})
 
-	if got := sidebarRow(t, m, ch); !strings.Contains(got, "↶ + 3  ") {
+	if got := sidebarRow(t, m, ch); !strings.Contains(got, "↶  +  3  ") {
 		t.Fatalf("hovered Changes header = %q", got)
 	}
 
@@ -1266,7 +1266,7 @@ func TestSectionActions(t *testing.T) {
 	f := scmRowAt(m, rowFile, "Changes", "a/b.go")
 	m.Update(tea.MouseMotionMsg{X: 3, Y: top + f})
 
-	if got := sidebarRow(t, m, f); !strings.Contains(got, "src ↶ + M ") {
+	if got := sidebarRow(t, m, f); !strings.Contains(got, "src  ↶  +  M ") {
 		t.Fatalf("hovered file row = %q", got)
 	}
 
@@ -1633,14 +1633,14 @@ func TestMergeChanges(t *testing.T) {
 	sec := scmRowAt(m, rowSection, "Merge Changes", "")
 	m.Update(tea.MouseMotionMsg{X: 3, Y: top + sec})
 
-	if got := sidebarRow(t, m, sec); !strings.Contains(got, "+ 3  ") || strings.Contains(got, "↶") {
+	if got := sidebarRow(t, m, sec); !strings.Contains(got, "+  3  ") || strings.Contains(got, "↶") {
 		t.Fatalf("hovered Merge Changes header = %q", got)
 	}
 
 	f := scmRowAt(m, rowFile, "Merge Changes", "a.go")
 	m.Update(tea.MouseMotionMsg{X: 3, Y: top + f})
 
-	if got := sidebarRow(t, m, f); !strings.Contains(got, "src + ! ") || strings.Contains(got, "↶") {
+	if got := sidebarRow(t, m, f); !strings.Contains(got, "src  +  ! ") || strings.Contains(got, "↶") {
 		t.Fatalf("hovered conflict row = %q", got)
 	}
 

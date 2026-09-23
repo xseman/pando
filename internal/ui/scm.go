@@ -446,7 +446,7 @@ func (s *scmView) actions(r scmRow, w int) []rowAction {
 		}
 	}
 
-	layoutRight(acts, w-tail, 1)
+	layoutRight(acts, w-tail, 2) // " g ": a space either side
 
 	return acts
 }
@@ -458,15 +458,13 @@ func (s *scmView) actionSegs(m *Model, r scmRow, w int) []seg {
 	var out []seg
 
 	for _, a := range s.actions(r, w) {
-		st := plain
 		if mx >= a.x && mx < a.x+a.w {
-			st = keycapHot()
-			out = append(out, sg(" ", plain), sgOwn(a.g.s(), st))
+			out = append(out, sgOwn(" "+a.g.s()+" ", keycapHot()))
 
 			continue
 		}
 
-		out = append(out, sg(" "+a.g.s(), st))
+		out = append(out, sg(" "+a.g.s()+" ", plain))
 	}
 
 	return out
