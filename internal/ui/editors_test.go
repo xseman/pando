@@ -205,6 +205,54 @@ func TestEditorMiddleClickAndSuperArrows(t *testing.T) {
 	}
 }
 
+// TestTabChips frames every tab of a strip as VS Code does: the active one
+// in the selection's colors, the others on tab.inactiveBackground, each with
+// tab.border's hairline after it. The hairline is a gap no click lands on.
+func TestTabChips(t *testing.T) {
+	m := testModelSized(t, 100, 24)
+	m.focus = onMain
+
+	for _, f := range []string{"README.md", ".env"} {
+		fire(m, m.openFile(filepath.Join(m.ws, f)))
+	}
+
+	strip := m.editorStrip(m.mainW())
+	if !strings.Contains(strip, bgParams(pal.tabBg)) || !strings.Contains(strip, bgParams(pal.selBg)) || strings.Count(ansi.Strip(strip), "▏") != 2 {
+		t.Fatalf("strip = %q", strip)
+	}
+
+	tabs := m.editorTabs(m.mainW())
+	if len(tabs) != 2 || tabs[1].x != tabs[0].x+tabs[0].w+tabGap {
+		t.Fatalf("tabs sit a hairline apart: %+v", tabs)
+	}
+
+	gap := m.mainX() + tabs[0].x + tabs[0].w
+	if got := ansi.Strip(strip); []rune(got)[tabs[0].x+tabs[0].w] != '▏' {
+		t.Fatalf("the hairline is not in the gap: %q", got)
+	}
+
+	click(m, gap, 0, tea.MouseLeft)
+
+	if m.edIdx != 1 {
+		t.Fatalf("a click on the hairline switched to %d", m.edIdx)
+	}
+
+	click(m, m.mainX()+tabs[0].x+1, 0, tea.MouseLeft)
+
+	if m.edIdx != 0 {
+		t.Fatalf("a click on the first tab shows it: %d", m.edIdx)
+	}
+
+	// Session tabs, and the Terminal's, are framed the same way.
+	ss := m.tabsFor(100, []proto.Session{
+		{SessionSpec: proto.SessionSpec{ID: "a", Agent: "shell"}},
+		{SessionSpec: proto.SessionSpec{ID: "b", Agent: "shell"}},
+	}, "a")
+	if ss[1].x != ss[0].w+tabGap || !strings.Contains(row(100, nil, tabSegs(ss)), bgParams(pal.tabBg)) {
+		t.Fatalf("session tabs: %+v", ss)
+	}
+}
+
 func TestEditorsPersist(t *testing.T) {
 	m := testModelSized(t, 100, 24)
 	m.focus = onMain

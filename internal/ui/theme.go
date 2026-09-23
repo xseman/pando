@@ -36,6 +36,7 @@ type palette struct {
 	ok, warn, errc, attention                                                                                  color.Color
 	blockedBg, doneBg                                                                                          color.Color // session_highlight: error and attention over the sidebar
 	sliderBg, sliderActiveBg, rulerBorder                                                                      color.Color // VS Code's scrollbarSlider over the editor, and editorOverviewRuler.border
+	tabBg, tabBorder                                                                                           color.Color // tab.inactiveBackground and tab.border, a shade stronger for a terminal
 }
 
 func hex(s string) color.Color { return lipgloss.Color(s) }
@@ -63,6 +64,7 @@ var (
 		ok: hex("#72c892"), warn: hex("#cca700"), errc: hex("#f48771"), attention: hex("#ad80d7"),
 		blockedBg: hex("#4f342e"), doneBg: hex("#3d3248"),
 		sliderBg: hex("#606162"), sliderActiveBg: hex("#6e6f70"), rulerBorder: hex("#2a2b2c"),
+		tabBg: hex("#26272a"), tabBorder: hex("#3c3d40"),
 	}
 	vscodeLight = palette{
 		light:    true,
@@ -84,6 +86,7 @@ var (
 		ok: hex("#388a34"), warn: hex("#b69500"), errc: hex("#ad0707"), attention: hex("#652d90"),
 		blockedBg: hex("#edd4d4"), doneBg: hex("#e2d9e8"),
 		sliderBg: hex("#8a8a8a"), sliderActiveBg: hex("#777777"), rulerBorder: hex("#f0f1f2"),
+		tabBg: hex("#e8e8ec"), tabBorder: hex("#d0d0d6"),
 	}
 	// terminalPal inherits the terminal profile's ANSI colors. Diff tints stay
 	// RGB: an ANSI background would collide with remapped syntax colors.
@@ -107,6 +110,7 @@ var (
 		ok: ansi16(2), warn: ansi16(3), errc: ansi16(1), attention: ansi16(5),
 		blockedBg: vscodeDark.blockedBg, doneBg: vscodeDark.doneBg,
 		sliderBg: ansi16(8), sliderActiveBg: ansi16(7), rulerBorder: ansi16(8),
+		tabBg: ansi16(0), tabBorder: ansi16(8),
 	}
 
 	// themeNames is the Settings cycle order; "vscode" follows the terminal background.
@@ -149,6 +153,7 @@ func (p *palette) colorKeys() map[string]*color.Color {
 		"ok": &p.ok, "warn": &p.warn, "error": &p.errc, "attention": &p.attention,
 		"blocked_bg": &p.blockedBg, "done_bg": &p.doneBg,
 		"scrollbar_slider": &p.sliderBg, "scrollbar_slider_active": &p.sliderActiveBg, "overview_ruler_border": &p.rulerBorder,
+		"tab_bg": &p.tabBg, "tab_border": &p.tabBorder,
 	}
 }
 
@@ -218,6 +223,26 @@ func keycapHot() lipgloss.Style {
 }
 
 // selStyle is the selected tab's chip: bold on the selection background.
+// tabGap is the column after every tab of a strip, where tab.border's
+// hairline sets it apart from the next.
+const tabGap = 1
+
+// tabChip draws one tab of a strip as VS Code does: the active one in the
+// selection's colors, any other on its own background (bg, else
+// tab.inactiveBackground), and the border's hairline after it.
+func tabChip(label string, active bool, bg color.Color) []seg {
+	if bg == nil {
+		bg = pal.tabBg
+	}
+
+	st := dim.Background(bg)
+	if active {
+		st = selStyle()
+	}
+
+	return []seg{sgOwn(label, st), sg("▏", fg(pal.tabBorder))}
+}
+
 func selStyle() lipgloss.Style {
 	st := lipgloss.NewStyle().Background(pal.selBg).Bold(true)
 	if pal.selFg != nil {

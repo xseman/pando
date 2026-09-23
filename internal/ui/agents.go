@@ -1174,12 +1174,12 @@ func (m *Model) tabsFor(w int, sessions []proto.Session, active string) []sessTa
 		label += " "
 
 		tw := ansi.StringWidth(label)
-		if x+tw > w-3 {
+		if x+tw+tabGap > w-3 {
 			break
 		}
 
 		out = append(out, sessTab{id: s.ID, x: x, w: tw, label: label, active: s.ID == active, bg: m.highlight(s)})
-		x += tw
+		x += tw + tabGap
 	}
 
 	return append(out, sessTab{x: x, w: 3, label: " + ", plus: true})
@@ -1259,19 +1259,12 @@ func tabSegs(tabs []sessTab) []seg {
 	var segs []seg
 
 	for _, t := range tabs {
-		st := dim
-
-		switch {
-		case t.plus:
-			st = fg(pal.headerAccent)
-		case t.active:
-			st = selStyle()
-		case t.bg != nil:
-			segs = append(segs, sgOwn(t.label, st.Background(t.bg)))
+		if t.plus {
+			segs = append(segs, sg(t.label, fg(pal.headerAccent)))
 			continue
 		}
 
-		segs = append(segs, sg(t.label, st))
+		segs = append(segs, tabChip(t.label, t.active, t.bg)...)
 	}
 
 	return segs

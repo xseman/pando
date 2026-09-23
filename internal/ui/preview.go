@@ -556,26 +556,26 @@ func (m *Model) editorTabs(w int) []edTab {
 		}
 
 		width[i] = ansi.StringWidth(names[i]) + 2 + 2*b2i(i == m.edIdx) // the active tab shows ✕
-		total += width[i]
+		total += width[i] + tabGap
 	}
 
 	start := 0
 	for total > w && start < m.edIdx {
-		total -= width[start]
+		total -= width[start] + tabGap
 		start++
 	}
 
 	var out []edTab
 
 	x := 0
-	for i := start; i < len(names) && x+width[i] <= w; i++ {
+	for i := start; i < len(names) && x+width[i]+tabGap <= w; i++ {
 		label := " " + names[i] + " "
 		if i == m.edIdx {
 			label += icClose.s() + " "
 		}
 
 		out = append(out, edTab{i: i, x: x, w: width[i], label: label, active: i == m.edIdx})
-		x += width[i]
+		x += width[i] + tabGap
 	}
 
 	return out
@@ -585,12 +585,7 @@ func (m *Model) editorStrip(w int) string {
 	var segs []seg
 
 	for _, t := range m.editorTabs(w) {
-		st := dim
-		if t.active {
-			st = selStyle()
-		}
-
-		segs = append(segs, sg(t.label, st))
+		segs = append(segs, tabChip(t.label, t.active, nil)...)
 	}
 
 	return row(w, nil, segs)

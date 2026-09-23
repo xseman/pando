@@ -111,6 +111,12 @@ above. A click on the slider grabs it, one on the track jumps it there first,
 and the drag (`dragScroll`) follows the mouse. Sidebar lists keep their thin
 `┃`.
 
+Tab strips (editors, a session's tabs, the Terminal's) draw each tab as a
+chip (`tabChip`): the active one in the selection's colors, the others on
+`tab_bg`, VS Code's tab.inactiveBackground, and every tab followed by
+`tab_border`'s `▏` in a column of its own (`tabGap`). The layout counts that
+column, so hit tests stay on the tabs and a click on the hairline does nothing.
+
 Hover works because pando requests all-motion mouse mode: the row under the
 pointer paints `hoverBg`, header actions appear for 3 s after any motion over
 the column (a terminal never reports "mouse left").
