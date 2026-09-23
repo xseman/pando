@@ -1882,3 +1882,69 @@ func TestTerminalTabsBelongToTheSession(t *testing.T) {
 		t.Fatal("newTerm returns the spawn")
 	}
 }
+
+func TestTerminalDragSelectsAndCopies(t *testing.T) {
+	m := testModelSized(t, 120, 30)
+	m.sessions = append(m.sessions, termSession(m.ws, "t1"))
+	drainInputs(m)
+	press(m, "ctrl+j")
+
+	tv := &m.tv
+	tv.term.id, tv.scr = "t1", proto.Screen{Lines: []string{"\x1b[31mhello world\x1b[m", "second line", "third"}}
+	x, y := m.mainX(), m.mainH()+1 // the panel's first screen row
+
+	m.Update(tea.MouseClickMsg{X: x + 6, Y: y, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: x + 2, Y: y + 1, Button: tea.MouseLeft})
+
+	if got := tv.selText(); got != "world\nsec" {
+		t.Fatalf("selected %q", got)
+	}
+
+	if a, b := tv.selRange(0); a != 6 || b != wideCols {
+		t.Fatalf("first row selects to its end: [%d, %d)", a, b)
+	}
+
+	if !strings.Contains(ansi.Strip(tv.mark(1, "second line")), "second line") || !strings.Contains(tv.mark(1, "second line"), "\x1b[7msec\x1b[0m") {
+		t.Fatalf("row 1 marked %q", tv.mark(1, "second line"))
+	}
+
+	_, cmd := m.Update(tea.MouseReleaseMsg{X: x + 2, Y: y + 1, Button: tea.MouseLeft})
+
+	if tv.selecting || !tv.hasSel || cmd == nil {
+		t.Fatalf("release copies and keeps the mark: selecting=%v sel=%v cmd=%v", tv.selecting, tv.hasSel, cmd != nil)
+	}
+
+	checkWidths(t, m)
+	press(m, "a")
+
+	if tv.hasSel {
+		t.Fatal("a key clears the selection")
+	}
+	// A plain click selects nothing.
+	click(m, x+1, y, tea.MouseLeft)
+
+	if tv.hasSel {
+		t.Fatal("a click without a drag leaves no selection")
+	}
+}
+
+func TestSessionDragSelects(t *testing.T) {
+	m := testModelSized(t, 120, 30)
+	drainInputs(m)
+	m.Update(focusSessionMsg("s1"))
+
+	m.term.id, m.term.scr = "s1", proto.Screen{Lines: []string{"agent says hi"}}
+	_, c := m.layout()
+	y := m.stripH() + 1 // the session's title row, then its screen
+
+	m.Update(tea.MouseClickMsg{X: c.x + 6, Y: y, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: c.x + 9, Y: y, Button: tea.MouseLeft})
+
+	if got := m.term.selText(); got != "says" {
+		t.Fatalf("selected %q", got)
+	}
+
+	if !strings.Contains(checkWidths(t, m), "agent says hi") || !strings.Contains(m.View().Content, "\x1b[7msays\x1b[0m") {
+		t.Fatal("the session over the editor draws the selection")
+	}
+}

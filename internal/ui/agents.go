@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -814,6 +815,57 @@ type term struct {
 	scr             proto.Screen
 	scroll          int
 	fetching, again bool
+	// sel is a drag over the screen: anchor and end, as column and row;
+	// selecting while the button is down. The release copies it.
+	sel       [2][2]int
+	hasSel    bool
+	selecting bool
+}
+
+// selRange is the selection's columns on row y, [a, b), none when b <= a.
+func (t *term) selRange(y int) (a, b int) {
+	p, q := t.sel[0], t.sel[1]
+	if p[1] > q[1] || p[1] == q[1] && p[0] > q[0] {
+		p, q = q, p
+	}
+
+	if !t.hasSel || y < p[1] || y > q[1] {
+		return 0, 0
+	}
+
+	a, b = 0, wideCols
+	if y == p[1] {
+		a = p[0]
+	}
+
+	if y == q[1] {
+		b = q[0] + 1
+	}
+
+	return a, b
+}
+
+// mark draws the selection on screen row y as reverse video.
+func (t *term) mark(y int, line string) string {
+	a, b := t.selRange(y)
+	if b <= a {
+		return line
+	}
+
+	return ansi.Cut(line, 0, a) + "\x1b[7m" + ansi.Strip(ansi.Cut(line, a, b)) + "\x1b[0m" + ansi.Cut(line, b, wideCols)
+}
+
+// selText is the selected text, lines trimmed on the right.
+func (t *term) selText() string {
+	var out []string
+
+	for y, line := range t.scr.Lines {
+		if a, b := t.selRange(y); b > a {
+			out = append(out, strings.TrimRight(ansi.Cut(ansi.Strip(line), a, b), " "))
+		}
+	}
+
+	return strings.Join(out, "\n")
 }
 
 type screenMsg struct {
@@ -1137,11 +1189,17 @@ func (t *term) view(m *Model, w, _ int) (string, []string) {
 		return row(w, nil, left, right...), nil
 	}
 
-	return row(w, nil, left, right...), t.scr.Lines
+	lines := slices.Clone(t.scr.Lines)
+	for i := range lines {
+		lines[i] = t.mark(i, lines[i])
+	}
+
+	return row(w, nil, left, right...), lines
 }
 
 func (t *term) key(m *Model, id string, k tea.KeyPressMsg) tea.Cmd {
 	key := k.Key()
+	t.hasSel = false
 
 	if s := m.session(id); id == "" || (s != nil && s.Status == "exited") {
 		return nil
@@ -1165,7 +1223,7 @@ func (t *term) mouse(m *Model, id string, msg tea.MouseMsg, x, y int) tea.Cmd {
 		return nil // ponytail: hover motion is not forwarded; apps using any-event mouse mode miss it
 	}
 
-	if t.scr.Mouse && t.scroll == 0 {
+	if t.scr.Mouse && t.scroll == 0 && !t.selecting {
 		pm := &proto.Mouse{X: x, Y: y, Button: int(mo.Button), Mod: int(mo.Mod)}
 
 		switch msg.(type) {
@@ -1180,6 +1238,35 @@ func (t *term) mouse(m *Model, id string, msg tea.MouseMsg, x, y int) tea.Cmd {
 		}
 
 		m.inputs <- proto.InputParams{ID: id, Mouse: pm}
+
+		return nil
+	}
+	// A left drag selects; the release copies it. ponytail: no word or line
+	// selection on double click, no shift-extend.
+	if mo.Button == tea.MouseLeft {
+		switch msg.(type) {
+		case tea.MouseClickMsg:
+			t.sel, t.hasSel, t.selecting = [2][2]int{{x, y}, {x, y}}, true, true
+		case tea.MouseMotionMsg:
+			if t.selecting {
+				t.sel[1] = [2]int{x, y}
+			}
+
+		case tea.MouseReleaseMsg:
+			if !t.selecting {
+				break
+			}
+
+			t.selecting = false
+			if t.sel[0] == t.sel[1] {
+				t.hasSel = false
+				break
+			}
+
+			text := t.selText()
+
+			return tea.Batch(tea.SetClipboard(text), flash(fmt.Sprintf("copied %d characters", utf8.RuneCountInString(text)), false))
+		}
 
 		return nil
 	}
@@ -1511,7 +1598,7 @@ func (m *Model) termScreen(w, h int) []string {
 	out := make([]string, 0, max(h, 0))
 	for i := range max(h, 0) {
 		if t.id == t.term.id && i < len(t.scr.Lines) {
-			line := t.scr.Lines[i]
+			line := t.mark(i, t.scr.Lines[i])
 			if t.wide {
 				line = ansi.Cut(line, t.left, t.left+w)
 			}

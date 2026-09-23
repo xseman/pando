@@ -69,4 +69,6 @@ needs `set -s extended-keys on` and `set -as terminal-features ",*:extkeys"`.
 | vim mode                          | `vim_mode = true`: the editor opens in normal mode, `i` types, `esc` back |
 
 A tilt wheel or `shift`+wheel scrolls sideways; the plain wheel scrolls a
-session's scrollback when the app does not use the mouse.
+session's scrollback when the app does not use the mouse. A left drag over a
+session or the Terminal selects text and the release copies it (`term.sel`);
+it is drawn in reverse video until a key or the next click.

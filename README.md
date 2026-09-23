@@ -90,6 +90,7 @@ else inside it.
   editor — drag it to the other side or over the editor area.
 - Symbols follow herdr's: `×` waits for you, `◐` works, `✓` finished unseen,
   `○` idles. A session out of view can play a sound.
+- Drag over a session to select text; letting go copies it.
 - Switching a session re-roots Files and Source Control to its worktree.
 - The project name in the status bar switches projects and adds them.
 
