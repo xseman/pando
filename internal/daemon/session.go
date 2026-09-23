@@ -55,6 +55,9 @@ type session struct {
 	screenAt      time.Time // lastOutput when the screen was last classified
 	screenProg    string    // the program it was classified for
 	seen          string    // screenState of it: blocked, running, idle or ""
+
+	started  time.Time  // set before the session is registered, read-only after
+	fallback [][]string // the shells left to try if this one fails at once
 }
 
 func spawn(spec proto.SessionSpec, cols, rows int, onOutput, onExit func()) (*session, error) {
@@ -299,6 +302,21 @@ func (s *session) setResume(argv []string, c *proto.Conversation) bool {
 	s.spec.Resume, s.spec.Conversation = argv, c
 
 	return true
+}
+
+// failedAtOnce reports a shell that exited with an error as soon as it
+// started, with another shell left to try in its place.
+func (s *session) failedAtOnce() bool {
+	info := s.info()
+	return len(s.fallback) > 0 && info.ExitCode != 0 && time.Since(s.started) < quickExit
+}
+
+// size is the emulator's width and height.
+func (s *session) size() (cols, rows int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.emu.Width(), s.emu.Height()
 }
 
 // ownEnv is the part of env, KEY=VALUE an agent ran with, that the

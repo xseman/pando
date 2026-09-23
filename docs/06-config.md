@@ -32,6 +32,7 @@ error, uses the last good values and refuses to save until it is fixed.
 | `terminal_position`                                                  | `bottom` (a panel under the editor), `left` or `right`                                                      |
 | `terminal_height`                                                    | rows of the bottom panel                                                                                    |
 | `terminal_open`                                                      | whether the terminal panel is showing                                                                       |
+| `shell`                                                              | the shell every terminal opens, e.g. `"zsh -l"`; `""`: the `[agents]` shell preset, else the login shell    |
 | `session_position`                                                   | `right`, `left` (the side a session column docks to) or `editor` (over the editor area, until a file opens) |
 | `session_highlight`                                                  | `tint` a session waiting (×), done (✓) or failed (✕), pulsing until clicked; `steady`, `off`                |
 | `diff_view`                                                          | `inline`, `split`                                                                                           |
@@ -52,6 +53,23 @@ error, uses the last good values and refuses to save until it is fixed.
 | `[resume]`                                                           | program to the command that continues its last conversation                                                 |
 | `[resume_id]`                                                        | program to the command that continues conversation `{id}`, when the program says which                      |
 | `[resume_job]`                                                       | program to the command that attaches to background job `{id}` again while it runs                           |
+
+## Shell
+
+Every terminal opens one shell: a session (`n`), a session's tab (`+`) and
+the Terminal panel. The daemon picks it (`shellCandidates`), first that runs:
+
+| Order | From                                                  |
+| ----- | ----------------------------------------------------- |
+| 1     | `shell` in config.toml, a command with its arguments  |
+| 2     | the `[agents]` preset of the kind, then `shell`'s     |
+| 3     | the login shell: `$SHELL`, else `/etc/passwd`         |
+| 4     | `bash`, then `/bin/sh`                                |
+
+One that is not installed is skipped, and one that exits with an error
+within two seconds of starting (a flag it does not know, a config it chokes
+on) is replaced by the next in the same session (`fallBack`); the session
+says which on its screen. A respawned shell tries the one it ran first.
 
 ## Columns
 

@@ -122,15 +122,25 @@ func New(configDir, dataDir string) (*Daemon, error) {
 	resumed := map[string]string{}
 
 	for _, spec := range d.state.Sessions {
-		if st, err := os.Stat(spec.Workspace); err == nil && st.IsDir() && len(spec.Cmd) > 0 {
-			s, err := d.start(spec, 0, 0)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, "respawn", spec.ID, err)
-				continue
-			}
-
-			d.resume(s, resumed)
+		if st, err := os.Stat(spec.Workspace); err != nil || !st.IsDir() || len(spec.Cmd) == 0 {
+			continue
 		}
+
+		start := d.start
+		if isShellAgent(spec.Agent) { // the shell it ran first, then what a new one would open
+			shells := append([][]string{spec.Cmd}, d.shellCandidates(spec.Agent)...)
+			start = func(spec proto.SessionSpec, cols, rows int) (*session, error) {
+				return d.startShell(spec, cols, rows, shells)
+			}
+		}
+
+		s, err := start(spec, 0, 0)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "respawn", spec.ID, err)
+			continue
+		}
+
+		d.resume(s, resumed)
 	}
 
 	return d, nil
@@ -1106,7 +1116,14 @@ func (d *Daemon) newSession(spec proto.SessionSpec, cols, rows int) (proto.Sessi
 
 	spec.Workspace = abs
 
+	var shells [][]string // a shell with nothing given opens the shell setting, falling back on bash
+
 	d.mu.Lock()
+	if len(spec.Cmd) == 0 && isShellAgent(spec.Agent) {
+		shells = d.shellCandidates(spec.Agent)
+		spec.Cmd = shells[0]
+	}
+
 	if len(spec.Cmd) == 0 {
 		spec.Cmd = d.state.Agents[spec.Agent]
 	}
@@ -1141,7 +1158,14 @@ func (d *Daemon) newSession(spec proto.SessionSpec, cols, rows int) (proto.Sessi
 	rand.Read(b)
 	spec.ID = hex.EncodeToString(b)
 
-	s, err := d.start(spec, cols, rows)
+	start := d.start
+	if shells != nil {
+		start = func(spec proto.SessionSpec, cols, rows int) (*session, error) {
+			return d.startShell(spec, cols, rows, shells)
+		}
+	}
+
+	s, err := start(spec, cols, rows)
 	if err != nil {
 		return proto.Session{}, err
 	}
@@ -1161,6 +1185,12 @@ func (d *Daemon) newSession(spec proto.SessionSpec, cols, rows int) (proto.Sessi
 // start spawns a session and registers it. It returns the session it made, not
 // the map entry: a short-lived process may already have removed itself.
 func (d *Daemon) start(spec proto.SessionSpec, cols, rows int) (*session, error) {
+	return d.startWith(spec, cols, rows, nil)
+}
+
+// startWith is start for a shell with fallback left to try: failing as soon
+// as it starts, it is replaced by the first of them (fallBack).
+func (d *Daemon) startWith(spec proto.SessionSpec, cols, rows int, fallback [][]string) (*session, error) {
 	if cols <= 0 || rows <= 0 {
 		cols, rows = 120, 40
 	}
@@ -1188,6 +1218,11 @@ func (d *Daemon) start(spec proto.SessionSpec, cols, rows int) (*session, error)
 		s, closing := d.sessions[id], d.closing
 		d.mu.Unlock()
 		// ponytail: a process exiting before start() registers it stays listed as exited.
+		if !closing && s != nil && s.failedAtOnce() {
+			go d.fallBack(id)
+			return
+		}
+
 		if !closing && s != nil && s.info().ExitCode == 0 {
 			_ = d.killSession(id) // only fails if it is already gone
 			return
@@ -1198,6 +1233,8 @@ func (d *Daemon) start(spec proto.SessionSpec, cols, rows int) (*session, error)
 	if err != nil {
 		return nil, err
 	}
+
+	s.fallback, s.started = fallback, time.Now() // before it is registered: the exit callback reads them
 
 	d.mu.Lock()
 	d.sessions[id] = s

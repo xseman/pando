@@ -536,13 +536,10 @@ func (a *agents) newSession(m *Model, r *agRow) tea.Cmd {
 	return m.newShell(m.workspaceFor(r), "shell")
 }
 
-// newShell starts agent's preset in ws, or the user's shell without one.
+// newShell starts a shell session of agent in ws: which shell, the shell
+// setting or what it falls back on, is the daemon's to pick.
 func (m *Model) newShell(ws, agent string) tea.Cmd {
-	if cmd := m.st.Agents[agent]; len(cmd) > 0 {
-		return m.newSession(ws, agent, nil)
-	}
-
-	return m.newSession(ws, agent, []string{cmp.Or(os.Getenv("SHELL"), "/bin/sh")})
+	return m.newSession(ws, agent, nil) // the daemon picks the shell: the shell setting, falling back on bash
 }
 
 func (a *agents) newAgentSession(m *Model, r *agRow) tea.Cmd {
@@ -1203,12 +1200,7 @@ func (m *Model) newTab() tea.Cmd {
 		return m.ag.newSession(m, nil)
 	}
 
-	cmd := m.st.Agents["shell"]
-	if len(cmd) == 0 {
-		cmd = []string{cmp.Or(os.Getenv("SHELL"), "/bin/sh")}
-	}
-
-	return m.spawn(root.Workspace, tabAgent, root.ID, cmd)
+	return m.spawn(root.Workspace, tabAgent, root.ID, nil) // the daemon picks the shell
 }
 
 // termSessions are the shells of the Terminal panel: the shown session's own,
@@ -1966,11 +1958,7 @@ func (m *Model) cycleTerm(d int) tea.Cmd {
 }
 
 func (m *Model) newTerm() tea.Cmd {
-	if cmd := m.st.Agents[termAgent]; len(cmd) > 0 {
-		return m.spawn(m.ws, termAgent, m.rootOf(m.sess), nil)
-	}
-
-	return m.spawn(m.ws, termAgent, m.rootOf(m.sess), []string{cmp.Or(os.Getenv("SHELL"), "/bin/sh")})
+	return m.spawn(m.ws, termAgent, m.rootOf(m.sess), nil) // the daemon picks the shell
 }
 
 // toggleTerminal is ⌃`: it opens the terminal where it is docked and focuses

@@ -68,6 +68,7 @@ type Settings struct {
 	Vim       bool                `json:"vim_mode" toml:"vim_mode"`                   // an editor opens in vim's normal mode
 	Keys      map[string]string   `json:"keys" toml:"keys"`                           // key to command id, "" unbinds; see pando doctor
 	Colors    map[string]string   `json:"colors" toml:"colors"`                       // palette overrides for the active theme, keys in pando doctor
+	Shell     string              `json:"shell" toml:"shell"`                         // the shell a terminal opens, "zsh -l"; "" for the [agents] shell preset, else the login shell
 	Sounds    bool                `json:"sounds" toml:"sounds"`                       // play a sound when a background session finishes or blocks
 	Updates   bool                `json:"update_check" toml:"update_check"`           // ask GitHub once a day whether a newer pando was released
 	SoundDone string              `json:"sound_done" toml:"sound_done"`               // the files played, "" for the terminal bell

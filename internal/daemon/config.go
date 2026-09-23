@@ -200,6 +200,9 @@ func (c *config) encode() []byte {
 	kv("Terminal panel: \"bottom\" (under the editor), \"left\" or \"right\" (a sidebar column\nof its own), its height in rows, and whether it is open.", "terminal_position", s.TermPos)
 	kv("", "terminal_height", s.TermH)
 	kv("", "terminal_open", s.TermOpen)
+	kv("The shell every terminal opens - a session, a session's tab, the Terminal panel - as a\n"+
+		"command with its arguments, e.g. \"fish\" or \"zsh -l\". \"\" opens the [agents] shell preset,\n"+
+		"else your login shell. One that is missing or fails at once falls back on bash.", "shell", s.Shell)
 	kv("Where a session opens: \"right\" or \"left\" (a column of its own beside the editor)\nor \"editor\" (over the editor area).", "session_position", s.SessPos)
 	kv("A session that waits for an answer, finished unseen or ended with an error: \"tint\"\n"+
 		"its row and tab in its symbol's color and pulse until it is clicked (colors blocked_bg,\n"+
