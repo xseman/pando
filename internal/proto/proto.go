@@ -61,6 +61,7 @@ type Settings struct {
 	TermH     int                 `json:"terminal_height" toml:"terminal_height"`     // rows of the bottom panel
 	TermOpen  bool                `json:"terminal_open" toml:"terminal_open"`         // the panel is showing
 	SessPos   string              `json:"session_position" toml:"session_position"`   // where a session opens: "right" | "left" (a column of its own) | "editor" (over the editor area)
+	SessHi    string              `json:"session_highlight" toml:"session_highlight"` // a session waiting or done unseen: "tint" its row and tab | "blink" the tint | "off"
 	LSP       map[string][]string `json:"lsp" toml:"lsp"`                             // language to server command
 	Format    map[string][]string `json:"format" toml:"format"`                       // language to formatter command, the file on stdin
 	FmtSave   bool                `json:"format_on_save" toml:"format_on_save"`       // run that formatter when a file is saved

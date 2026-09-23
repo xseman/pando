@@ -34,6 +34,7 @@ type palette struct {
 	// merge conflict blocks in an editor: VS Code's merge.*Background over the editor background
 	mergeCurrentHeadBg, mergeCurrentBg, mergeIncomingHeadBg, mergeIncomingBg, mergeCommonHeadBg, mergeCommonBg color.Color
 	ok, warn, errc, attention                                                                                  color.Color
+	blockedBg, doneBg                                                                                          color.Color // session_highlight: error and attention over the sidebar
 }
 
 func hex(s string) color.Color { return lipgloss.Color(s) }
@@ -59,6 +60,7 @@ var (
 		mergeCurrentHeadBg: hex("#2f7366"), mergeCurrentBg: hex("#25403b"), mergeIncomingHeadBg: hex("#2f628f"), mergeIncomingBg: hex("#25394b"),
 		mergeCommonHeadBg: hex("#383838"), mergeCommonBg: hex("#282828"),
 		ok: hex("#72c892"), warn: hex("#cca700"), errc: hex("#f48771"), attention: hex("#ad80d7"),
+		blockedBg: hex("#4f342e"), doneBg: hex("#3d3248"),
 	}
 	vscodeLight = palette{
 		light:    true,
@@ -78,6 +80,7 @@ var (
 		mergeCurrentHeadBg: hex("#a0e4d7"), mergeCurrentBg: hex("#d9f4ef"), mergeIncomingHeadBg: hex("#a0d3ff"), mergeIncomingBg: hex("#d9edff"),
 		mergeCommonHeadBg: hex("#c0c0c0"), mergeCommonBg: hex("#e6e6e6"),
 		ok: hex("#388a34"), warn: hex("#b69500"), errc: hex("#ad0707"), attention: hex("#652d90"),
+		blockedBg: hex("#edd4d4"), doneBg: hex("#e2d9e8"),
 	}
 	// terminalPal inherits the terminal profile's ANSI colors. Diff tints stay
 	// RGB: an ANSI background would collide with remapped syntax colors.
@@ -99,6 +102,7 @@ var (
 		mergeIncomingHeadBg: vscodeDark.mergeIncomingHeadBg, mergeIncomingBg: vscodeDark.mergeIncomingBg,
 		mergeCommonHeadBg: vscodeDark.mergeCommonHeadBg, mergeCommonBg: vscodeDark.mergeCommonBg,
 		ok: ansi16(2), warn: ansi16(3), errc: ansi16(1), attention: ansi16(5),
+		blockedBg: vscodeDark.blockedBg, doneBg: vscodeDark.doneBg,
 	}
 
 	// themeNames is the Settings cycle order; "vscode" follows the terminal background.
@@ -139,6 +143,7 @@ func (p *palette) colorKeys() map[string]*color.Color {
 		"merge_incoming_head_bg": &p.mergeIncomingHeadBg, "merge_incoming_bg": &p.mergeIncomingBg,
 		"merge_common_head_bg": &p.mergeCommonHeadBg, "merge_common_bg": &p.mergeCommonBg,
 		"ok": &p.ok, "warn": &p.warn, "error": &p.errc, "attention": &p.attention,
+		"blocked_bg": &p.blockedBg, "done_bg": &p.doneBg,
 	}
 }
 

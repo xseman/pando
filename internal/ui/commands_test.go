@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"image/color"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -203,6 +204,89 @@ func TestAgentsTreeAndSounds(t *testing.T) {
 
 	if !slices.Equal(played, []string{"req", "done"}) {
 		t.Fatalf("sounds played %q", played)
+	}
+}
+
+// TestSessionHighlight tints a session that waits (×) or finished unseen (✓)
+// in its symbol's color on its Spaces row and tab, unless it is on screen;
+// "blink" flashes the tint and stops when nothing is left to blink, "off"
+// drops it.
+func TestSessionHighlight(t *testing.T) {
+	m := testModel(t)
+	m.st.Settings.SessHi = "tint"
+	m.sessions = append(m.sessions,
+		proto.Session{SessionSpec: proto.SessionSpec{ID: "b", Workspace: m.ws, Agent: "claude"}, Status: "blocked"},
+		proto.Session{SessionSpec: proto.SessionSpec{ID: "d", Workspace: m.ws, Agent: "codex"}, Status: "idle", Attention: true},
+		proto.Session{SessionSpec: proto.SessionSpec{ID: "r", Workspace: m.ws, Agent: "gemini"}, Status: "running", Attention: true})
+	press(m, "3")
+
+	tinted := func() (blocked, done bool) {
+		checkWidths(t, m)
+		out := m.View().Content // with its colors
+
+		return strings.Contains(out, bgParams(pal.blockedBg)), strings.Contains(out, bgParams(pal.doneBg))
+	}
+
+	if b, d := tinted(); !b || !d {
+		t.Fatalf("tint: blocked %v, done %v", b, d)
+	}
+
+	if hl := m.highlight(m.sessions[3]); hl != nil {
+		t.Fatal("a running session is not waiting for anyone")
+	}
+
+	var tabBgs []color.Color
+	for _, tab := range m.tabsFor(100, m.spaceSessions(), "") {
+		tabBgs = append(tabBgs, tab.bg)
+	}
+
+	if !slices.Equal(tabBgs, []color.Color{nil, pal.blockedBg, pal.doneBg, nil, nil}) { // the last is +
+		t.Fatalf("tab tints = %v", tabBgs)
+	}
+
+	// A folded project carries the tint of what it hides, unless selected.
+	other := t.TempDir()
+	m.st.Projects = append(m.st.Projects, other)
+	m.wss = append(m.wss, proto.Workspace{Path: other, Project: other, Branch: "main", Main: true})
+	m.ag.collapsed = map[string]bool{m.ws: true}
+	m.ag.l.sel = len(m.ag.rows(m)) - 1
+
+	if b, _ := tinted(); !b {
+		t.Fatal("a folded project hides its waiting session's tint")
+	}
+
+	m.ag.collapsed = nil
+
+	m.sess = "b"
+	if m.highlight(m.sessions[1]) != nil || m.highlight(m.sessions[2]) == nil {
+		t.Fatal("the session on screen needs no tint, the others keep theirs")
+	}
+
+	m.sess = ""
+	m.st.Settings.SessHi = "off"
+
+	if b, d := tinted(); b || d {
+		t.Fatalf("off: blocked %v, done %v", b, d)
+	}
+
+	m.st.Settings.SessHi = "blink"
+	if m.blink() == nil || !m.blinking || m.blink() != nil {
+		t.Fatal("blink starts one ticker")
+	}
+
+	for i, want := range []bool{true, false, true} {
+		m.Update(blinkMsg{}) // not send: the next tick would sleep and toggle it back
+
+		if b, d := tinted(); b != want || d != want {
+			t.Fatalf("blink %d: blocked %v, done %v, want %v", i, b, d, want)
+		}
+	}
+
+	m.sessions = m.sessions[:1] // nothing waits any more
+	m.Update(blinkMsg{})
+
+	if m.blinking || m.blinkOn {
+		t.Fatal("the ticker stops with nothing to blink")
 	}
 }
 

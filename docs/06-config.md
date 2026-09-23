@@ -33,6 +33,7 @@ error, uses the last good values and refuses to save until it is fixed.
 | `terminal_height`                                                    | rows of the bottom panel                                                                                    |
 | `terminal_open`                                                      | whether the terminal panel is showing                                                                       |
 | `session_position`                                                   | `right`, `left` (the side a session column docks to) or `editor` (over the editor area, until a file opens) |
+| `session_highlight`                                                  | `tint` a session waiting (×) or done unseen (✓) in its symbol's color, `blink` that tint, or `off`          |
 | `diff_view`                                                          | `inline`, `split`                                                                                           |
 | `hidden`, `git_deco`, `git_tree`, `quick_open_tree`, `panel_borders` | booleans                                                                                                    |
 | `sounds`, `sound_done`, `sound_request`                              | play a sound for sessions out of view; the files, `""` for the terminal bell                                |

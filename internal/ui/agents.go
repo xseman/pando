@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -179,6 +180,60 @@ func sessionGlyph(s proto.Session) (string, color.Color) {
 	return "○ ", pal.ok
 }
 
+// sessionTint is the background session_highlight gives s: its symbol's color
+// while it waits for an answer (×) or finished unseen (✓), else nil.
+func sessionTint(s proto.Session) color.Color {
+	switch {
+	case s.Status == "blocked":
+		return pal.blockedBg
+	case s.Status != "running" && s.Status != "exited" && s.Attention:
+		return pal.doneBg
+	}
+
+	return nil
+}
+
+// highlight is the background session s's row and tab get: its tint, unless
+// session_highlight is off, blinking between flashes, or s is on screen.
+func (m *Model) highlight(s proto.Session) color.Color {
+	switch {
+	case m.st.Settings.SessHi == "off", m.st.Settings.SessHi == "blink" && !m.blinkOn:
+		return nil
+	case m.inView(s.ID):
+		return nil
+	}
+
+	return sessionTint(s)
+}
+
+// inView reports session id shown right now, over the editor or docked.
+func (m *Model) inView(id string) bool {
+	return id == m.sess && (m.showsSession() || m.shown(viewSession))
+}
+
+// wantsBlink reports a blinking tint with a session to show it on.
+func (m *Model) wantsBlink() bool {
+	return m.st.Settings.SessHi == "blink" && slices.ContainsFunc(m.agentSessions(), func(s proto.Session) bool {
+		return sessionTint(s) != nil && !m.inView(s.ID)
+	})
+}
+
+// blink starts the blink ticker when a tint wants one and none runs; the
+// ticker stops itself when nothing is left to blink.
+func (m *Model) blink() tea.Cmd {
+	if m.blinking || !m.wantsBlink() {
+		return nil
+	}
+
+	m.blinking = true
+
+	return blinkTick()
+}
+
+func blinkTick() tea.Cmd {
+	return tea.Tick(600*time.Millisecond, func(time.Time) tea.Msg { return blinkMsg{} })
+}
+
 // sessionRank orders states by how much they want the user: blocked first.
 func sessionRank(s proto.Session) int {
 	switch {
@@ -233,6 +288,15 @@ func (a *agents) lines(m *Model, w, h int) []string {
 
 			glyph, c := groupGlyph(ss)
 
+			if bg == nil && !open { // folded, its sessions cannot show their own
+				for _, s := range ss {
+					if hl := m.highlight(s); hl != nil {
+						bg = hl
+						break
+					}
+				}
+			}
+
 			return row(rw, bg, []seg{sg(" "+chevron(open), dim), sg(glyph, fg(c)), sg(agLabel(r), base.Bold(true))})
 
 		case agWorkspace:
@@ -275,6 +339,10 @@ func (a *agents) lines(m *Model, w, h int) []string {
 
 		glyph, c := sessionGlyph(r.s)
 		label := sessionName(r.s) + titleAfter(r.s)
+
+		if bg == nil {
+			bg = m.highlight(r.s)
+		}
 
 		nameSt := base
 		if r.s.ID == m.sess {
@@ -392,7 +460,7 @@ func (a *agents) activate(m *Model, r *agRow) tea.Cmd {
 	case agWorkspace:
 		return tea.Batch(m.switchWorkspace(r.ws.Path), m.refreshGit(), m.fetchScreen())
 	case agSession:
-		if r.s.ID == m.sess && (m.showsSession() || m.shown(viewSession)) { // a second click puts it away
+		if m.inView(r.s.ID) { // a second click puts it away
 			return m.hideSession()
 		}
 
@@ -1024,6 +1092,7 @@ type sessTab struct {
 	label  string
 	active bool
 	plus   bool
+	bg     color.Color // session_highlight's tint
 }
 
 // sessionTabs are the agent sessions, in the order [ and ] cycle them, with a
@@ -1108,7 +1177,7 @@ func (m *Model) tabsFor(w int, sessions []proto.Session, active string) []sessTa
 			break
 		}
 
-		out = append(out, sessTab{id: s.ID, x: x, w: tw, label: label, active: s.ID == active})
+		out = append(out, sessTab{id: s.ID, x: x, w: tw, label: label, active: s.ID == active, bg: m.highlight(s)})
 		x += tw
 	}
 
@@ -1196,6 +1265,9 @@ func tabSegs(tabs []sessTab) []seg {
 			st = fg(pal.headerAccent)
 		case t.active:
 			st = selStyle()
+		case t.bg != nil:
+			segs = append(segs, sgOwn(t.label, st.Background(t.bg)))
+			continue
 		}
 
 		segs = append(segs, sg(t.label, st))

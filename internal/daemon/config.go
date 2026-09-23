@@ -44,7 +44,7 @@ func defaultConfig() config {
 		Settings: proto.Settings{
 			Hidden: true, Width: 40, WidthR: 32, GitDeco: true, GitTree: true,
 			Theme: "vscode", DiffView: "inline", Borders: true, FmtSave: true,
-			ActBar: "top", TermPos: "bottom", TermH: 12, SessPos: "right",
+			ActBar: "top", TermPos: "bottom", TermH: 12, SessPos: "right", SessHi: "tint",
 			Sounds: true, SoundDone: done, SoundReq: req, Updates: true,
 			Drawers: []string{"Commits", "Graph", "Branches", "Stashes", "Remotes"},
 		},
@@ -193,6 +193,7 @@ func (c *config) encode() []byte {
 	kv("", "terminal_height", s.TermH)
 	kv("", "terminal_open", s.TermOpen)
 	kv("Where a session opens: \"right\" or \"left\" (a column of its own beside the editor)\nor \"editor\" (over the editor area).", "session_position", s.SessPos)
+	kv("A session that waits for an answer or finished unseen: \"tint\" its row and tab in\nits symbol's color (colors blocked_bg, done_bg), \"blink\" that tint, or \"off\".", "session_highlight", s.SessHi)
 	b.WriteString("\n# Sidebar columns per side, from the screen edge toward main, each with its tabs\n" +
 		"# and optional width. Views: \"files\", \"git\", \"agents\", \"search\", \"session\"; unlisted\n" +
 		"# views join the left column next to main.\n")

@@ -131,6 +131,8 @@ type Model struct {
 	msgErr      bool
 	msgAt       time.Time
 	soundAt     time.Time // when the last sound cue played
+	blinkOn     bool      // session_highlight "blink": the tint is showing
+	blinking    bool      // its ticker runs
 	events      <-chan proto.Event
 	inputs      chan proto.InputParams
 	gitBusy     bool
@@ -187,6 +189,7 @@ type (
 	workspacesMsg []proto.Workspace
 	sessionsMsg   []proto.Session
 	tickMsg       struct{}
+	blinkMsg      struct{}
 	flashMsg      struct {
 		text string
 		err  bool
@@ -1886,9 +1889,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.fg = hexColor(msg.Color)
 		return m, nil
 
+	case blinkMsg:
+		if !m.wantsBlink() {
+			m.blinking, m.blinkOn = false, false
+			return m, nil
+		}
+
+		m.blinkOn = !m.blinkOn
+
+		return m, blinkTick()
+
 	case tickMsg:
 		m.ex.rebuild(m)
-		cmds := []tea.Cmd{tick(), m.refreshGit(), m.pv.reloadIfLive(m), m.scm.saveDraft(m), m.scm.loadDrawers(m), m.saveWorkspace(), m.saveEditors(), m.saveDrafts()}
+		cmds := []tea.Cmd{tick(), m.blink(), m.refreshGit(), m.pv.reloadIfLive(m), m.scm.saveDraft(m), m.scm.loadDrawers(m), m.saveWorkspace(), m.saveEditors(), m.saveDrafts()}
 		// ponytail: other projects' branches come back every 30 s, one git call
 		// per project; watch their HEADs if that lags.
 		m.ticks++
@@ -1955,6 +1968,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := m.sound(m.soundFor(msg))
 
 		m.sessions = msg
+
+		cmd = tea.Batch(cmd, m.blink())
 		if next != "" { // a tab closed with others left: the neighbour takes over
 			cmd = tea.Batch(cmd, m.switchSession(next))
 		}
