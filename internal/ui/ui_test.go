@@ -1072,19 +1072,19 @@ func TestPreviewWrapAndGutter(t *testing.T) {
 
 	press(m, "down", "end")
 
-	if x, _, ok := m.pv.cursor(m.mainW(), m.pvH()); !ok || x != m.mainW()-1 {
+	if x, _, ok := m.pv.cursor(m.pvW(), m.pvH()); !ok || x != m.pvW()-1 {
 		t.Fatalf("unwrapped end of line scrolls horizontally: x=%d ok=%v left=%d", x, ok, m.pv.left)
 	}
 
 	checkWidths(t, m)
 	press(m, "alt+z") // ⌥z wraps; w types into the file
 
-	rows := m.pv.rows(m.mainW())
+	rows := m.pv.rows(m.pvW())
 	if len(rows) < 3 || rows[1].line != 1 || rows[2].line != 1 {
 		t.Fatalf("wrapped rows = %+v", rows)
 	}
 
-	if _, y, ok := m.pv.cursor(m.mainW(), m.pvH()); !ok || y != len(rows)-1 {
+	if _, y, ok := m.pv.cursor(m.pvW(), m.pvH()); !ok || y != len(rows)-1 {
 		t.Fatalf("cursor on the last wrapped row: y=%d ok=%v", y, ok)
 	}
 
@@ -1303,7 +1303,7 @@ func TestSplitDiff(t *testing.T) {
 
 	out := strings.Split(checkWidths(t, m), "\n")
 
-	c, lw := m.mainX(), (m.mainW()-1)/2
+	c, lw := m.mainX(), (m.pvW()-1)/2
 	if l, r := ansi.Cut(out[2], c, c+lw), ansi.Cut(out[2], c+lw+1, m.w); !strings.HasPrefix(l, " 2 - console.log(\"scm-playground") || !strings.HasPrefix(r, " 2 + console.log(\"scm oh yeah") {
 		t.Fatalf("paired row:\n%q\n%q", l, r)
 	}

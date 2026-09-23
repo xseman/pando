@@ -1461,7 +1461,7 @@ func TestTerminalMenu(t *testing.T) {
 
 	press(m, "alt+z")
 
-	if m.tv.wide || m.tv.left != 0 || m.termCols() != w {
+	if m.tv.wide || m.tv.left != 0 || m.termCols() != w-1 { // the scrollbar keeps its column
 		t.Fatal("alt+z again fits the panel")
 	}
 	// A paste goes to the panel's shell when it has the keyboard.

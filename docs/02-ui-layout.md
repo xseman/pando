@@ -101,6 +101,16 @@ Hit tests use the same geometry helpers the renderer uses (`toggles(w)`,
 `actions(row, w)`, `buttons(m, w)`), so a moved button cannot desync from its
 click zone. The row width passed to a hit test excludes the scrollbar column.
 
+The editor, a session and the Terminal panel keep their last column for VS
+Code's editor scrollbar (`vbar` in `widgets.go`), whether or not anything
+scrolls: the text width stays put (`pvW`, a session's `Cols` one short of its
+view). The slider (`scrollbar_slider`, `scrollbar_slider_active` while held)
+shows once rows are out of view, over a track drawn as the overview ruler's
+border (`overview_ruler_border`); a terminal counts its scrollback as the rows
+above. A click on the slider grabs it, one on the track jumps it there first,
+and the drag (`dragScroll`) follows the mouse. Sidebar lists keep their thin
+`┃`.
+
 Hover works because pando requests all-motion mouse mode: the row under the
 pointer paints `hoverBg`, header actions appear for 3 s after any motion over
 the column (a terminal never reports "mouse left").

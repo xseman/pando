@@ -548,7 +548,7 @@ func (m *Model) newSession(ws, agent string, cmd []string) tea.Cmd {
 // a shell belongs to, "" for one of the workspace's own.
 func (m *Model) spawn(ws, agent, parent string, cmd []string) tea.Cmd {
 	fg, bg := m.sessionColors()
-	p := map[string]any{"workspace": ws, "agent": agent, "parent": parent, "cmd": cmd, "cols": m.mainW(), "rows": m.sessH(), "fg": fg, "bg": bg}
+	p := map[string]any{"workspace": ws, "agent": agent, "parent": parent, "cmd": cmd, "cols": max(m.mainW()-1, 1), "rows": m.sessH(), "fg": fg, "bg": bg}
 
 	return func() tea.Msg {
 		var s proto.Session

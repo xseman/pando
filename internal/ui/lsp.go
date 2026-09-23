@@ -445,7 +445,7 @@ func groupOf(kind string) int {
 // back is how many columns left of the cursor it starts.
 func (m *Model) lightbulb(back int) (x, y int) {
 	x, y = m.mainX(), 1+m.stripH()
-	if cx, cy, ok := m.pv.cursor(m.mainW(), m.pvH()); ok {
+	if cx, cy, ok := m.pv.cursor(m.pvW(), m.pvH()); ok {
 		return max(x+cx-back, x), y + cy + 1
 	}
 

@@ -35,6 +35,7 @@ type palette struct {
 	mergeCurrentHeadBg, mergeCurrentBg, mergeIncomingHeadBg, mergeIncomingBg, mergeCommonHeadBg, mergeCommonBg color.Color
 	ok, warn, errc, attention                                                                                  color.Color
 	blockedBg, doneBg                                                                                          color.Color // session_highlight: error and attention over the sidebar
+	sliderBg, sliderActiveBg, rulerBorder                                                                      color.Color // VS Code's scrollbarSlider over the editor, and editorOverviewRuler.border
 }
 
 func hex(s string) color.Color { return lipgloss.Color(s) }
@@ -61,6 +62,7 @@ var (
 		mergeCommonHeadBg: hex("#383838"), mergeCommonBg: hex("#282828"),
 		ok: hex("#72c892"), warn: hex("#cca700"), errc: hex("#f48771"), attention: hex("#ad80d7"),
 		blockedBg: hex("#4f342e"), doneBg: hex("#3d3248"),
+		sliderBg: hex("#606162"), sliderActiveBg: hex("#6e6f70"), rulerBorder: hex("#2a2b2c"),
 	}
 	vscodeLight = palette{
 		light:    true,
@@ -81,6 +83,7 @@ var (
 		mergeCommonHeadBg: hex("#c0c0c0"), mergeCommonBg: hex("#e6e6e6"),
 		ok: hex("#388a34"), warn: hex("#b69500"), errc: hex("#ad0707"), attention: hex("#652d90"),
 		blockedBg: hex("#edd4d4"), doneBg: hex("#e2d9e8"),
+		sliderBg: hex("#8a8a8a"), sliderActiveBg: hex("#777777"), rulerBorder: hex("#f0f1f2"),
 	}
 	// terminalPal inherits the terminal profile's ANSI colors. Diff tints stay
 	// RGB: an ANSI background would collide with remapped syntax colors.
@@ -103,6 +106,7 @@ var (
 		mergeCommonHeadBg: vscodeDark.mergeCommonHeadBg, mergeCommonBg: vscodeDark.mergeCommonBg,
 		ok: ansi16(2), warn: ansi16(3), errc: ansi16(1), attention: ansi16(5),
 		blockedBg: vscodeDark.blockedBg, doneBg: vscodeDark.doneBg,
+		sliderBg: ansi16(8), sliderActiveBg: ansi16(7), rulerBorder: ansi16(8),
 	}
 
 	// themeNames is the Settings cycle order; "vscode" follows the terminal background.
@@ -144,6 +148,7 @@ func (p *palette) colorKeys() map[string]*color.Color {
 		"merge_common_head_bg": &p.mergeCommonHeadBg, "merge_common_bg": &p.mergeCommonBg,
 		"ok": &p.ok, "warn": &p.warn, "error": &p.errc, "attention": &p.attention,
 		"blocked_bg": &p.blockedBg, "done_bg": &p.doneBg,
+		"scrollbar_slider": &p.sliderBg, "scrollbar_slider_active": &p.sliderActiveBg, "overview_ruler_border": &p.rulerBorder,
 	}
 }
 

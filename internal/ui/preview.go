@@ -620,7 +620,7 @@ func (m *Model) stripMouse(x int, button tea.MouseButton) tea.Cmd {
 func (p *preview) gotoLine(m *Model, line, col int) {
 	p.typed = false
 	p.anchor, p.cur = nil, pos{max(min(line, p.lastLine()), 0), max(col, 0)}
-	w, h := m.mainW(), m.pvH()
+	w, h := m.pvW(), m.pvH()
 	p.top = max(p.cursorRow(w)-h/2, 0)
 	p.follow(w, h)
 }
@@ -899,7 +899,7 @@ func (p *preview) revealCursor(m *Model) {
 	}
 
 	p.reveal = false
-	w, h := m.mainW(), m.pvH()
+	w, h := m.pvW(), m.pvH()
 	p.cur.line = min(p.cur.line, p.lastLine())
 	p.top = max(p.cursorRow(w)-h/2, 0)
 	p.follow(w, h)
@@ -1174,7 +1174,7 @@ func (p *preview) expandSel(m *Model, d int) tea.Cmd {
 	}
 
 	p.cur, s.sel = r[1], r
-	p.follow(m.mainW(), m.pvH())
+	p.follow(m.pvW(), m.pvH())
 
 	return nil
 }
@@ -1698,7 +1698,7 @@ func (p *preview) scrollOnly(m *Model) bool { return p.split(m) || p.side(m) }
 
 func (p *preview) scrollRows(m *Model) int {
 	if p.side(m) {
-		w := m.mainW()
+		w := m.pvW()
 		styled, _ := p.markdown(m, w-1-(w-1)/2-1)
 
 		return max(len(p.src), len(styled))
@@ -1720,18 +1720,18 @@ func (p *preview) markdown(m *Model, w int) (styled, plain []string) {
 // syncMarkdown puts the rendering, laid out for the current width, in place
 // of the source while md == 1.
 func (p *preview) syncMarkdown(m *Model) {
-	if p.md != 1 || !p.ready || p.mdShown == m.mainW() {
+	if p.md != 1 || !p.ready || p.mdShown == m.pvW() {
 		return
 	}
 
-	styled, plainLines := p.markdown(m, m.mainW())
+	styled, plainLines := p.markdown(m, m.pvW())
 
 	p.lines, p.plain = styled, make([][]rune, len(plainLines))
 	for i, l := range plainLines {
 		p.plain[i] = []rune(l)
 	}
 
-	p.mdShown, p.vis, p.anchor = m.mainW(), nil, nil
+	p.mdShown, p.vis, p.anchor = m.pvW(), nil, nil
 	p.cur.line = min(p.cur.line, p.lastLine())
 }
 
@@ -1987,22 +1987,37 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 		return header, nil, footer
 	}
 
+	tw := w - 1 // the text; the scrollbar has the last column, as VS Code's editor.scrollbar does
+	active := m.barActive("editor")
+
 	switch {
 	case p.split(m):
-		return header, p.splitBody(w, h), footer
+		body = p.splitBody(tw, h)
+		return header, withBar(body, w, vbar{p.scrollRows(m), h, p.top}, active), footer
+
 	case p.side(m):
-		return header, p.sideBody(m, w, h), footer
+		body = p.sideBody(m, tw, h)
+		return header, withBar(body, w, vbar{p.scrollRows(m), h, p.top}, active), footer
 	}
 
 	p.hl = p.hlWord()
-	vis := p.rows(w)
+	vis := p.rows(tw)
 
 	p.top = max(0, min(p.top, len(vis)-h))
 	for k := p.top; k < len(vis) && k < p.top+h; k++ {
-		body = append(body, p.renderRow(vis[k], w))
+		body = append(body, p.renderRow(vis[k], tw))
 	}
 
-	return header, body, footer
+	return header, withBar(body, w, vbar{len(vis), h, p.top}, active), footer
+}
+
+// bar is the editor's scrollbar as the view draws it.
+func (p *preview) bar(m *Model) vbar {
+	if p.scrollOnly(m) {
+		return vbar{p.scrollRows(m), m.pvH(), p.top}
+	}
+
+	return vbar{len(p.rows(m.pvW())), m.pvH(), p.top}
 }
 
 // newFind is the ⌃f box: a text input with the preview's own placeholder.
@@ -2173,8 +2188,8 @@ func (p *preview) selectHit(m *Model) {
 	h := p.hits[min(p.hit, len(p.hits)-1)]
 	a := h.at
 	p.anchor, p.cur = &a, pos{h.at.line, h.end}
-	p.top = max(p.cursorRow(m.mainW())-m.pvH()/2, 0)
-	p.follow(m.mainW(), m.pvH())
+	p.top = max(p.cursorRow(m.pvW())-m.pvH()/2, 0)
+	p.follow(m.pvW(), m.pvH())
 }
 
 // hitSelected reports whether the selection a..z is the current match.
@@ -2341,7 +2356,7 @@ const findW, findStatusW = 60, 12
 // and its width. It covers the body's top findH rows at the right edge, as
 // VS Code's floats at the top right.
 func (p *preview) findRect(m *Model) (x0, bw int, ok bool) {
-	w := m.mainW()
+	w := m.pvW()
 	bw = min(findW, w-2)
 
 	return w - bw - 1, bw, p.find.on && p.ready && bw >= 36 && m.pvH() >= p.findH()
@@ -2849,7 +2864,7 @@ func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	}
 
 	p.typed = false // not an edit: the cursor moves on its own from here
-	w, h := m.mainW(), m.pvH()
+	w, h := m.pvW(), m.pvH()
 	p.syncMarkdown(m)
 
 	s := k.String()
@@ -3001,7 +3016,7 @@ func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 }
 
 func (p *preview) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
-	w, h, mo := m.mainW(), m.pvH(), msg.Mouse()
+	w, h, mo := m.pvW(), m.pvH(), msg.Mouse()
 
 	_, click := msg.(tea.MouseClickMsg)
 	if p.kind == "" { // the welcome screen: double click it and start writing
@@ -3055,7 +3070,7 @@ func (p *preview) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 		case x < 3: // the ✕ in the header
 			return m.closeEditor(m.edIdx)
 		default:
-			if a, ok := hit(p.buttons(m, w), x); ok {
+			if a, ok := hit(p.buttons(m, m.mainW()), x); ok { // the header spans the scrollbar too
 				return a.run(m)
 			}
 		}
@@ -3063,6 +3078,13 @@ func (p *preview) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 
 	if !p.ready || p.err != "" || len(p.plain) == 0 {
 		return nil
+	}
+
+	if click && mo.Button == tea.MouseLeft && x >= w && y >= 0 && y < h { // the scrollbar
+		return m.barClick("editor", y, mo.Y-y, func() vbar { return p.bar(m) }, func(top int) tea.Cmd {
+			p.top = top
+			return nil
+		})
 	}
 
 	switch msg.(type) {
@@ -3167,7 +3189,7 @@ func wheelX(mo tea.Mouse) (int, bool) {
 
 // dragTo extends the selection to the mouse, scrolling at the edges.
 func (p *preview) dragTo(m *Model, x, y int, release bool) tea.Cmd {
-	c, w, h := m.mainX(), m.mainW(), m.pvH()
+	c, w, h := m.mainX(), m.pvW(), m.pvH()
 
 	// The same translation the click went through (Model.mouse): the header,
 	// then the editor strip above it. Dropping the strip would put every drag

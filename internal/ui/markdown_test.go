@@ -67,7 +67,7 @@ func TestMarkdownPreview(t *testing.T) {
 	press(m, "ctrl+shift+v", "alt+v") // back to source, then side by side
 	out = strings.Split(checkWidths(t, m), "\n")
 
-	c, lw := m.mainX(), (m.mainW()-1)/2
+	c, lw := m.mainX(), (m.pvW()-1)/2
 	if l, r := ansi.Cut(out[1], c, c+lw), ansi.Cut(out[1], c+lw+1, m.w); !strings.Contains(l, "# Title") || !strings.HasPrefix(r, " Title") || m.View().Cursor != nil {
 		t.Fatalf("side by side:\n%q\n%q", l, r)
 	}

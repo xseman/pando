@@ -51,7 +51,7 @@ func TestMergeConflictEditor(t *testing.T) {
 	}
 
 	out := checkWidths(t, m)
-	for _, want := range []string{"(Current Change)", "Accept Current Change | Accept Incoming Change | Accept", "(Incoming Change)", "2 merge conflicts"} {
+	for _, want := range []string{"(Current Change)", "Accept Current Change | Accept Incoming Change", "(Incoming Change)", "2 merge conflicts"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q:\n%s", want, out)
 		}

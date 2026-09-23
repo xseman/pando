@@ -339,7 +339,7 @@ func (p *preview) editRaw(m *Model, a, z pos, text string) tea.Cmd {
 func (p *preview) setCursor(m *Model, c pos) {
 	p.cur = pos{max(min(c.line, p.lastLine()), 0), max(c.col, 0)}
 	p.cur.col = min(p.cur.col, p.lineLen(p.cur.line))
-	p.follow(m.mainW(), m.pvH())
+	p.follow(m.pvW(), m.pvH())
 }
 
 // cutRange is the selection, or the cursor's line when there is none.

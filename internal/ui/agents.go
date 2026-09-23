@@ -1045,9 +1045,10 @@ func (m *Model) fetchMain() tea.Cmd {
 
 	t.fetching = true
 
-	p := proto.ScreenParams{ID: m.sess, Cols: m.mainW(), Rows: m.sessH(), Scroll: t.scroll}
+	// One column less than the view: the scrollbar has it.
+	p := proto.ScreenParams{ID: m.sess, Cols: max(m.mainW()-1, 1), Rows: m.sessH(), Scroll: t.scroll}
 	if docked { // its column: the tab strip above the screen
-		p.Cols, p.Rows = m.sessW(), max(m.bodyH(viewSession)-1, 1)
+		p.Cols, p.Rows = max(m.sessW()-1, 1), max(m.bodyH(viewSession)-1, 1)
 	}
 
 	return func() tea.Msg {
@@ -1343,7 +1344,27 @@ func (t *term) view(m *Model, w, _ int) (string, []string) {
 		lines[i] = t.mark(i, lines[i])
 	}
 
-	return row(w, nil, left, right...), lines
+	return row(w, nil, left, right...), withBar(lines, w, t.bar(len(lines)), m.barActive("session"))
+}
+
+// bar is the terminal's scrollbar: its scrollback above the h rows it shows.
+func (t *term) bar(h int) vbar {
+	return vbar{t.scr.Scrollback + h, h, t.scr.Scrollback - t.scroll}
+}
+
+// barMouse starts a drag on terminal t's scrollbar (id names it) from a
+// left click at row y of its screen, at screen row sy.
+func (m *Model) barMouse(t *term, id string, y, sy int) tea.Cmd {
+	geo := func() vbar { return t.bar(len(t.scr.Lines)) }
+
+	return m.barClick(id, y, sy-y, geo, func(top int) tea.Cmd {
+		prev := t.scroll
+		if t.scroll = max(min(t.scr.Scrollback-top, t.scr.Scrollback), 0); t.scroll != prev {
+			return m.fetchScreen()
+		}
+
+		return nil
+	})
 }
 
 func (t *term) key(m *Model, id string, k tea.KeyPressMsg) tea.Cmd {
@@ -1542,6 +1563,8 @@ const wideCols = 240
 // termCols is the width the Terminal panel's shell runs at.
 func (m *Model) termCols() int {
 	w, _ := m.termBody()
+	w = max(w-1, 1) // the scrollbar's column
+
 	if m.tv.wide {
 		return max(w, wideCols)
 	}
@@ -1568,9 +1591,9 @@ func (m *Model) termPanelKey(k tea.KeyPressMsg) tea.Cmd {
 	}
 
 	t := &m.tv
-	if t.wide { // keep the cursor in view while typing
+	if t.wide { // keep the cursor in view while typing; the scrollbar has a column
 		w, _ := m.termBody()
-		t.left = max(min(t.left, t.scr.CursorX), t.scr.CursorX-w+1, 0)
+		t.left = max(min(t.left, t.scr.CursorX), t.scr.CursorX-w+2, 0)
 	}
 
 	return t.key(m, t.id, k)
@@ -1584,10 +1607,18 @@ func (m *Model) termPanelMouse(msg tea.MouseMsg, x, y int) tea.Cmd {
 		return m.termMenu(mo.X, mo.Y)
 	}
 
+	if w, _ := m.termBody(); x == w-1 {
+		if _, click := msg.(tea.MouseClickMsg); click && mo.Button == tea.MouseLeft && y >= 0 {
+			return m.barMouse(&t.term, "terminal", y, mo.Y)
+		}
+
+		return nil
+	}
+
 	if _, wheel := msg.(tea.MouseWheelMsg); wheel && t.wide {
 		if dx, ok := wheelX(mo); ok {
 			w, _ := m.termBody()
-			t.left = max(0, min(t.left+dx, m.termCols()-w))
+			t.left = max(0, min(t.left+dx, m.termCols()-w+1))
 
 			return nil
 		}
@@ -1744,21 +1775,21 @@ func (m *Model) termLines(w, h int) []string {
 func (m *Model) termScreen(w, h int) []string {
 	t := &m.tv
 
+	tw := max(w-1, 0) // the scrollbar has the last column
+
 	out := make([]string, 0, max(h, 0))
 	for i := range max(h, 0) {
 		if t.id == t.term.id && i < len(t.scr.Lines) {
 			line := t.mark(i, t.scr.Lines[i])
 			if t.wide {
-				line = ansi.Cut(line, t.left, t.left+w)
+				line = ansi.Cut(line, t.left, t.left+tw)
 			}
 
-			out = append(out, fit(line, w))
-		} else {
-			out = append(out, blank(w))
+			out = append(out, line)
 		}
 	}
 
-	return out
+	return withBar(out, w, t.bar(h), m.barActive("terminal"))
 }
 
 func (m *Model) termTabs(w int) []sessTab { return m.tabsFor(w, m.termSessions(), m.tv.id) }

@@ -54,6 +54,7 @@ const (
 	dragTab
 	dragTerm
 	dragRow
+	dragScroll
 )
 
 // actH is the height of a sidebar's activity bar: the icons, then the row
@@ -79,7 +80,8 @@ type drag struct {
 	drop   *dropTarget
 	y0, h0 int
 	moved  bool
-	fine   bool // dragTab: one row of motion is a drag (vertical bar chips sit a row apart)
+	fine   bool        // dragTab: one row of motion is a drag (vertical bar chips sit a row apart)
+	bar    *scrollDrag // dragScroll: the scrollbar and where its slider was picked up
 }
 
 // dropTarget is where a dragged tab would land, drawn as a rectangle: over
@@ -2684,6 +2686,14 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 			return m.sessionTitleClick(mo)
 		}
 
+		if y := mo.Y - 1 - strip; mo.X-c.x == c.w-1 && y >= 0 { // the scrollbar
+			if click && mo.Button == tea.MouseLeft {
+				return m.barMouse(&m.term, "session", y, mo.Y)
+			}
+
+			return nil
+		}
+
 		return m.term.mouse(m, m.sess, msg, mo.X-c.x, mo.Y-1-strip)
 	}
 
@@ -2919,6 +2929,14 @@ func (m *Model) viewMouse(v view, msg tea.MouseMsg, x, y int) tea.Cmd {
 			return nil
 		}
 
+		if x == m.sessW()-1 && y > 0 { // the scrollbar
+			if click && mo.Button == tea.MouseLeft {
+				return m.barMouse(&m.term, "session", y-1, mo.Y)
+			}
+
+			return nil
+		}
+
 		return m.term.mouse(m, m.sess, msg, x, y-1)
 
 	default: // Agents.
@@ -2945,6 +2963,8 @@ func (m *Model) dragMouse(msg tea.MouseMsg) tea.Cmd {
 		return m.dragTerm(d, mo.Y, release)
 	case dragRow:
 		return m.ag.dragRowTo(m, d, mo.Y, release)
+	case dragScroll:
+		return m.barDragTo(d.bar, mo.Y, release)
 	}
 
 	if !release {
@@ -3652,6 +3672,9 @@ func (m *Model) attentionCount() int {
 
 // pvH is the preview body height: the main area minus the editor strip, the
 // header, the footer and the references widget.
+// pvW is the editor's text width: the main area less the scrollbar's column.
+func (m *Model) pvW() int { return max(m.mainW()-1, 1) }
+
 func (m *Model) pvH() int { return max(m.mainH()-2-m.stripH()-m.peekH(), 1) }
 
 // stripH is 1 when a tab strip is drawn over the main area: a session always

@@ -210,6 +210,133 @@ func (l *list) renderBar(w, h, n, skip int, rowFn func(i, w int) string) []strin
 	return out
 }
 
+// vbar is the geometry of VS Code's editor scrollbar: n rows in all, h of
+// them in view from top. The editor and the terminals keep their last column
+// for it, as VS Code keeps the scrollbar's width off the text.
+type vbar struct{ n, h, top int }
+
+// on reports rows out of view, which is when the slider shows.
+func (b vbar) on() bool { return b.h > 0 && b.n > b.h }
+
+// thumb is the slider's first row and its height.
+func (b vbar) thumb() (y, sh int) {
+	sh = max(1, b.h*b.h/max(b.n, 1))
+	y = max(min(b.top, b.n-b.h), 0) * (b.h - sh) / max(b.n-b.h, 1)
+
+	return y, sh
+}
+
+// topAt is the first top that puts the slider's first row at row y,
+// clamped to what can scroll: thumb and topAt round the same way.
+func (b vbar) topAt(y int) int {
+	_, sh := b.thumb()
+
+	span := b.h - sh
+	if span <= 0 {
+		return 0
+	}
+
+	y = max(min(y, span), 0)
+
+	return (y*(b.n-b.h) + span - 1) / span
+}
+
+// cells are the bar's column, one cell a row: the slider shaded over the
+// rows in view, the track a thin border like the overview ruler's, and
+// blanks when everything fits.
+func (b vbar) cells(active bool) []string {
+	out := make([]string, max(b.h, 0))
+	if !b.on() {
+		for i := range out {
+			out[i] = " "
+		}
+
+		return out
+	}
+
+	slider := pal.sliderBg
+	if active {
+		slider = pal.sliderActiveBg
+	}
+
+	ty, sh := b.thumb()
+	for i := range out {
+		if i >= ty && i < ty+sh {
+			out[i] = lipgloss.NewStyle().Background(slider).Render(" ")
+		} else {
+			out[i] = fg(pal.rulerBorder).Render("▏")
+		}
+	}
+
+	return out
+}
+
+// withBar fits lines to w-1 columns and puts b's column after them, h rows.
+func withBar(lines []string, w int, b vbar, active bool) []string {
+	cells := b.cells(active)
+	out := make([]string, len(cells))
+
+	for i := range out {
+		line := ""
+		if i < len(lines) {
+			line = lines[i]
+		}
+
+		out[i] = fit(line, max(w-1, 0)) + cells[i]
+	}
+
+	return out
+}
+
+// scrollDrag follows a drag on a scrollbar: geo reads the bar as it is, to
+// scrolls to a top, and off is where on the slider it was picked up.
+type scrollDrag struct {
+	id  string // the bar's owner: "editor", "session" or "terminal"
+	geo func() vbar
+	to  func(top int) tea.Cmd
+	y0  int // the screen row of the bar's first row
+	off int
+}
+
+// barClick starts dragging bar b from a left click at its row y, which is
+// screen row y0+y: on the slider it is grabbed where it was hit, on the track
+// the slider jumps to put its middle there first, as VS Code's does.
+func (m *Model) barClick(id string, y, y0 int, geo func() vbar, to func(top int) tea.Cmd) tea.Cmd {
+	b := geo()
+	if !b.on() {
+		return nil
+	}
+
+	ty, sh := b.thumb()
+
+	var cmd tea.Cmd
+
+	off := y - ty
+	if off < 0 || off >= sh {
+		off = sh / 2
+		cmd = to(b.topAt(y - off))
+	}
+
+	m.drag = &drag{kind: dragScroll, bar: &scrollDrag{id: id, geo: geo, to: to, y0: y0, off: off}}
+
+	return cmd
+}
+
+// barDragTo moves the dragged slider with the mouse at screen row y.
+func (m *Model) barDragTo(d *scrollDrag, y int, release bool) tea.Cmd {
+	if release {
+		m.drag = nil
+		return nil
+	}
+
+	return d.to(d.geo().topAt(y - d.y0 - d.off))
+}
+
+// barActive reports bar id's slider held by the mouse.
+func (m *Model) barActive(id string) bool {
+	return m.drag != nil && m.drag.kind == dragScroll && m.drag.bar.id == id
+}
+
 // ptree groups slash-separated relative paths by directory.
 type ptree struct {
 	dirs  map[string]*ptree

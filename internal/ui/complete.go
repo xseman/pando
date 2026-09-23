@@ -346,7 +346,7 @@ func (p *preview) compBox(m *Model) (box []string, x, y int, ok bool) {
 		return nil, 0, 0, false
 	}
 
-	if _, _, vis := p.cursor(m.mainW(), m.pvH()); !vis {
+	if _, _, vis := p.cursor(m.pvW(), m.pvH()); !vis {
 		return nil, 0, 0, false
 	}
 

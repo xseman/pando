@@ -84,7 +84,7 @@ func (p *preview) vimEsc(m *Model) {
 	p.vim = vimState{}
 	p.anchor = nil
 	p.cur = p.vimClamp(p.at())
-	p.follow(m.mainW(), m.pvH())
+	p.follow(m.pvW(), m.pvH())
 }
 
 // vimClamp keeps the normal-mode cursor on a rune rather than past the line
@@ -236,7 +236,7 @@ func (p *preview) vimAction(m *Model, key string, n int) tea.Cmd {
 func (p *preview) vimInsert(m *Model) {
 	p.vim = vimState{mode: vimInsert}
 	p.anchor = nil
-	p.follow(m.mainW(), m.pvH())
+	p.follow(m.pvW(), m.pvH())
 }
 
 // vimMove is where a motion lands the cursor, n times over; ok is false when
@@ -572,7 +572,7 @@ func (p *preview) vimVisual(m *Model, n int, key string) tea.Cmd {
 
 	if t, ok := p.vimMove(m, key, n); ok {
 		p.cur = t // the anchor stays put: the selection grows
-		p.follow(m.mainW(), m.pvH())
+		p.follow(m.pvW(), m.pvH())
 	}
 
 	return nil

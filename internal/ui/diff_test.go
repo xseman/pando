@@ -189,7 +189,7 @@ func TestSplitDiffSelection(t *testing.T) {
 	}
 
 	// A click picks the row under the mouse; its half decides which line.
-	lw := (m.mainW() - 1) / 2
+	lw := (m.pvW() - 1) / 2
 	click(m, m.mainX()+lw+2, 2, tea.MouseLeft)
 
 	if at := m.pv.at(); at.line != 2 || m.pv.anchor != nil {
