@@ -224,16 +224,17 @@ func (d *Daemon) resume(s *session, by map[string]string) {
 	s.resumeWith(argv, leftover)
 }
 
-// ours reports whether process pid ran in one of this daemon's sessions: a
-// leftover of a daemon that died, with no terminal to show it in any more.
+// ours reports whether process pid is a leftover of this daemon's sessions:
+// it ran in one under this runtime directory, and either that session is one
+// the daemon respawns, or the process lost its terminal - a pty only a daemon
+// that died held, whatever became of the session since.
 func (d *Daemon) ours(pid int) bool {
-	if envOf(pid, "PANDO_RUNTIME_DIR") != proto.Dir() {
+	id := envOf(pid, "PANDO_SESSION")
+	if envOf(pid, "PANDO_RUNTIME_DIR") != proto.Dir() || id == "" {
 		return false
 	}
 
-	id := envOf(pid, "PANDO_SESSION")
-
-	return slices.ContainsFunc(d.state.Sessions, func(s proto.SessionSpec) bool { return s.ID == id })
+	return !hasTerminal(pid) || slices.ContainsFunc(d.state.Sessions, func(s proto.SessionSpec) bool { return s.ID == id })
 }
 
 // Serve accepts clients until Close; it also drives the status ticker.

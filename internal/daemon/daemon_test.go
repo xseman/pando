@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -662,11 +663,11 @@ func TestResumeConversation(t *testing.T) {
 
 	// Two sessions came to have conversation one open, the third has
 	// conversation two; the fourth's has nothing in it yet.
-	for _, id := range []string{"one", "two"} {
+	for _, id := range []string{"one", "two", "three"} {
 		mustWrite(t, filepath.Join(claudeDir(), "projects", "-ws", id+".jsonl"), "{}\n")
 	}
 
-	convs := []string{"one", "one", "two", "empty"}
+	convs := []string{"one", "one", "two", "empty", "three"}
 	ids := make([]string, len(convs))
 
 	for i, conv := range convs {
@@ -707,28 +708,40 @@ func TestResumeConversation(t *testing.T) {
 	// Stopping takes the agents down with their shells.
 	d.Close()
 
-	// Meanwhile conversation two is opened outside pando, and the first
-	// session's agent outlived its terminal, as after a crash.
+	// Meanwhile conversation two is opened outside pando, the first
+	// session's agent outlived its terminal, as after a crash, and so did an
+	// agent of a session long gone, which holds conversation three: without
+	// a terminal, whatever its session, it is a leftover too.
 	other := exec.Command("sleep", "60")
+
+	other.Env = append(os.Environ(), "PANDO_SESSION=") // not from a pando session, whatever runs the test
 	leftover := exec.Command("sleep", "60")
 
 	leftover.Env = append(os.Environ(), "PANDO_SESSION="+ids[0])
+	orphan := exec.Command("sleep", "60")
 
-	for _, c := range []*exec.Cmd{other, leftover} {
+	orphan.Env = append(os.Environ(), "PANDO_SESSION=gone00")
+	orphan.SysProcAttr = &syscall.SysProcAttr{Setsid: true} // no controlling terminal: its pty went with its daemon
+
+	for _, c := range []*exec.Cmd{other, leftover, orphan} {
 		if err := c.Start(); err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	t.Cleanup(func() { _ = other.Process.Kill(); _ = other.Wait() })
-	t.Cleanup(func() { _ = leftover.Process.Kill() }) // reaped below
 
-	gone := make(chan struct{})
+	gone, orphanGone := make(chan struct{}), make(chan struct{})
 
-	go func() { _ = leftover.Wait(); close(gone) }()
+	for c, ch := range map[*exec.Cmd]chan struct{}{leftover: gone, orphan: orphanGone} {
+		t.Cleanup(func() { _ = c.Process.Kill() }) // reaped below
+
+		go func() { _ = c.Wait(); close(ch) }()
+	}
 
 	fakeClaude(t, other.Process.Pid, "two")
 	fakeClaude(t, leftover.Process.Pid, "one")
+	fakeClaude(t, orphan.Process.Pid, "three")
 
 	d = boot()
 	defer d.Close()
@@ -743,10 +756,14 @@ func TestResumeConversation(t *testing.T) {
 	waitFor(t, "conversation one to be resumed", func() bool { return strings.Contains(screen(ss[0].ID), "RESUMED one") })
 	waitFor(t, "the empty one to start afresh", func() bool { return strings.Contains(screen(ss[3].ID), "$ echo FRESH") })
 
-	select {
-	case <-gone:
-	case <-time.After(time.Second):
-		t.Error("the leftover agent still runs next to its resumed conversation")
+	waitFor(t, "the orphan's conversation to be resumed", func() bool { return strings.Contains(screen(ss[4].ID), "RESUMED three") })
+
+	for _, ch := range []chan struct{}{gone, orphanGone} {
+		select {
+		case <-ch:
+		case <-time.After(time.Second):
+			t.Error("a leftover agent still runs next to its resumed conversation")
+		}
 	}
 
 	for i, want := range map[int]string{1: "session " + ss[0].ID + " continues", 2: "process " + strconv.Itoa(other.Process.Pid) + " has"} {

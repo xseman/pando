@@ -171,7 +171,18 @@ func (claudeSource) saved(c proto.Conversation) bool {
 
 // startTime is field 22 of /proc/<pid>/stat, when the process started in
 // clock ticks after boot; "" when it is not running.
-func startTime(pid int) string {
+func startTime(pid int) string { return statField(pid, 22) }
+
+// hasTerminal reports whether process pid still has a controlling terminal:
+// field 7 of /proc/<pid>/stat, tty_nr, is 0 once the one it had is gone.
+func hasTerminal(pid int) bool {
+	tty := statField(pid, 7)
+	return tty != "" && tty != "0"
+}
+
+// statField is field n (1-based, as proc(5) numbers them) of
+// /proc/<pid>/stat, "" when the process is gone.
+func statField(pid, n int) string {
 	b, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
 	if err != nil {
 		return ""
@@ -183,11 +194,11 @@ func startTime(pid int) string {
 	}
 
 	f := strings.Fields(string(b[i+1:]))
-	if len(f) < 20 {
+	if n < 3 || len(f) < n-2 {
 		return ""
 	}
 
-	return f[19] // fields 3.. follow the name
+	return f[n-3] // fields 3.. follow the name
 }
 
 // cmdline is process pid's argv, nil when it is gone.

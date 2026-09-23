@@ -149,7 +149,10 @@ it by id. Claude Code writes `~/.claude/sessions/<pid>.json` (`sessionId`,
 agents fall back to `[resume]`. `claude attach JOB` writes no file of its own:
 its conversation is the background session (`kind: "bg"`) whose `jobId`
 begins with JOB, run by Claude's own daemon, so it outlives pando and
-`[resume_job]` (`claude attach {id}`) goes back to it. A claude started with
+`[resume_job]` (`claude attach {id}`) goes back to it. A leftover is a process
+of this runtime directory whose session the daemon respawns, or one that lost
+its controlling terminal: only a daemon that died held that pty, whatever
+became of the session since (`Daemon.ours`). A claude started with
 its own `CLAUDE_CONFIG_DIR` keeps its sessions and transcripts there: the spec
 records the variable when the session's shell does not set it the same way
 (`Conversation.Env`), every check looks in that directory, and the command
@@ -162,7 +165,7 @@ bash, zsh and fish all read). On respawn (`Daemon.resume`):
 | running as a background job                           | attaches to the job again; its process is never a leftover    |
 | a background job that ended                           | resumes the conversation by id                                |
 | open in a process outside pando                       | stays a shell, saying which process and the command for later |
-| open in a leftover of this daemon's session (a crash) | stops the leftover, then resumes                              |
+| open in a leftover of this daemon (a crash)           | stops the leftover, then resumes                              |
 | not open anywhere                                     | resumes                                                       |
 | empty: no transcript yet, `--resume` would fail       | starts the agent afresh, its `[agents]` preset                |
 
