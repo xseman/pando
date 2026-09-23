@@ -185,12 +185,27 @@ func (s *session) kill() {
 	s.mu.Unlock()
 
 	if !exited {
-		_ = syscall.Kill(-s.cmd.Process.Pid, syscall.SIGHUP)
+		// An agent started from the shell is a job with a process group of
+		// its own; it goes too, and is waited for, so a daemon started next
+		// does not find its conversation still open.
+		pid := s.cmd.Process.Pid
+		fg, _ := s.foreground()
+
+		_ = syscall.Kill(-pid, syscall.SIGHUP)
+		if fg > 0 && fg != pid {
+			_ = syscall.Kill(-fg, syscall.SIGHUP)
+		}
+
 		select {
 		case <-s.done:
 		case <-time.After(2 * time.Second):
-			_ = syscall.Kill(-s.cmd.Process.Pid, syscall.SIGKILL)
+			_ = syscall.Kill(-pid, syscall.SIGKILL)
+
 			<-s.done
+		}
+
+		if fg > 0 && fg != pid {
+			waitGone(-fg, 2*time.Second)
 		}
 	}
 	// Ends the io.Copy reader. Not emu.Close(): it writes an unsynchronized
@@ -207,24 +222,32 @@ func (s *session) kill() {
 	_ = c.Close()
 }
 
-// foreground is the program the session's terminal is running right now: the
-// leader of the pty's foreground process group, which is the agent the user
-// started in the shell, or the shell itself.
+// foreground is the program the session's terminal is running right now and
+// the leader of its process group: the agent the user started in the shell,
+// or the shell itself. The pid is 0 when the terminal is gone.
 // ponytail: /proc and one ioctl, no process tree walk.
-func (s *session) foreground() string {
-	pgrp, err := unix.IoctlGetInt(int(s.pty.Fd()), unix.TIOCGPGRP)
-	if err != nil || pgrp <= 0 {
-		return ""
+func (s *session) foreground() (int, string) {
+	// Through the raw conn, not Fd(): the reader may be closing the pty.
+	rc, err := s.pty.SyscallConn()
+	if err != nil {
+		return 0, ""
+	}
+
+	var pgrp int
+
+	cerr := rc.Control(func(fd uintptr) { pgrp, err = unix.IoctlGetInt(int(fd), unix.TIOCGPGRP) })
+	if cerr != nil || err != nil || pgrp <= 0 {
+		return 0, ""
 	}
 
 	b, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pgrp))
 	if err != nil {
-		return ""
+		return 0, ""
 	}
 
 	argv := strings.Split(strings.TrimSuffix(string(b), "\x00"), "\x00")
 
-	return programOf(argv)
+	return pgrp, programOf(argv)
 }
 
 // runtimes run a script whose name is the program the user means.
@@ -245,30 +268,53 @@ func programOf(argv []string) string {
 }
 
 // resumeWith types a command into the session once its shell is listening, so
-// a restarted daemon brings the agent back instead of an empty prompt.
-func (s *session) resumeWith(argv []string) {
+// a restarted daemon brings the agent back instead of an empty prompt. A
+// leftover process still holding the conversation is stopped first.
+func (s *session) resumeWith(argv []string, leftover int) {
 	if len(argv) == 0 {
 		return
 	}
 
 	time.AfterFunc(600*time.Millisecond, func() {
+		if leftover > 0 {
+			_ = syscall.Kill(leftover, syscall.SIGHUP) // its terminal is gone
+			waitGone(leftover, 3*time.Second)
+		}
+
 		_, _ = s.pty.WriteString(strings.Join(argv, " ") + "\r") // best effort
 	})
 }
 
-// setResume records what would bring this session's agent back; it reports a
-// change worth saving.
-func (s *session) setResume(argv []string) bool {
+// setResume records what would bring this session's agent back and the
+// conversation that is, when known; it reports a change worth saving.
+func (s *session) setResume(argv []string, c *proto.Conversation) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if slices.Equal(s.spec.Resume, argv) {
+	if slices.Equal(s.spec.Resume, argv) && ptrEqual(s.spec.Conversation, c) {
 		return false
 	}
 
-	s.spec.Resume = argv
+	s.spec.Resume, s.spec.Conversation = argv, c
 
 	return true
+}
+
+func ptrEqual[T comparable](a, b *T) bool {
+	return a == b || (a != nil && b != nil && *a == *b)
+}
+
+// notice prints lines dimmed on the session's screen, pando speaking rather
+// than the program, and marks the session for attention.
+func (s *session) notice(lines ...string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, l := range lines {
+		_, _ = s.emu.WriteString("\x1b[2mpando: " + l + "\x1b[0m\r\n") // the emulator absorbs anything
+	}
+
+	s.attention = true
 }
 
 // tick recomputes status; returns true when anything a client shows changed.

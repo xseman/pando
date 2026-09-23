@@ -121,6 +121,25 @@ matching `[resume]` command in the session's spec. A daemon that starts again
 respawns the shell and types that command into it, so the agent comes back with
 its conversation instead of an empty prompt. Leaving the agent clears it.
 
+`--continue` means the latest conversation in the directory, which is another
+session's when two share a worktree. So for an agent that says which one a
+process has open, the spec keeps that conversation and `[resume_id]` continues
+it by id. Claude Code writes `~/.claude/sessions/<pid>.json` (`sessionId`,
+`procStart` against `/proc/<pid>/stat` so a reused pid does not count); other
+agents fall back to `[resume]`. On respawn (`Daemon.resume`):
+
+| The conversation is…                                  | The session                                                   |
+| ----------------------------------------------------- | ------------------------------------------------------------- |
+| continued already by an earlier session in the list   | stays a shell, saying which session has it                    |
+| open in a process outside pando                       | stays a shell, saying which process and the command for later |
+| open in a leftover of this daemon's session (a crash) | stops the leftover, then resumes                              |
+| not open anywhere                                     | resumes                                                       |
+| empty: no transcript yet, `--resume` would fail       | starts the agent afresh, its `[agents]` preset                |
+
+Stopping a session signals the foreground job's process group as well as the
+shell's and waits for both, and the ticker leaves specs alone while the daemon
+closes, so what a restart finds is what was running.
+
 ## Terminal
 
 ⌃` (or `5`) opens the Terminal under the editor and focuses it; pressing it

@@ -4,6 +4,7 @@ package daemon
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -104,7 +105,7 @@ func New(configDir, dataDir string) (*Daemon, error) {
 
 	c, err := loadConfig(d.cfgPath)
 
-	d.state.Settings, d.state.Agents, d.state.Resume = c.Settings, c.Agents, c.Resume
+	d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID = c.Settings, c.Agents, c.Resume, c.ResumeID
 	if errors.Is(err, os.ErrNotExist) {
 		if err := d.saveConfig(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -118,6 +119,8 @@ func New(configDir, dataDir string) (*Daemon, error) {
 		d.cfgMod = modTime(d.cfgPath)
 	}
 
+	resumed := map[proto.Conversation]string{}
+
 	for _, spec := range d.state.Sessions {
 		if st, err := os.Stat(spec.Workspace); err == nil && st.IsDir() && len(spec.Cmd) > 0 {
 			s, err := d.start(spec, 0, 0)
@@ -126,11 +129,84 @@ func New(configDir, dataDir string) (*Daemon, error) {
 				continue
 			}
 
-			s.resumeWith(spec.Resume)
+			d.resume(s, resumed)
 		}
 	}
 
 	return d, nil
+}
+
+// remember records what would bring session s's agent back after a restart:
+// the conversation process pid of program prog has open, when the agent says
+// which, else its latest. It reports a change worth saving; d.mu is held.
+func (d *Daemon) remember(s *session, pid int, prog string) bool {
+	if src, t := conversations[prog], d.state.ResumeID[prog]; src != nil && len(t) > 0 && pid > 0 {
+		if id := src.open(pid); id != "" {
+			return s.setResume(withID(t, id), &proto.Conversation{Agent: prog, ID: id})
+		}
+	}
+
+	return s.setResume(d.state.Resume[prog], nil)
+}
+
+// resume brings a respawned session's agent back, each conversation once:
+// one that an earlier session in by already continues, or that a process
+// outside pando has open, stays where it is and s says so instead. What is
+// left of the session before the restart is stopped first; a conversation
+// with nothing in it yet starts the agent afresh, as its [agents] preset.
+func (d *Daemon) resume(s *session, by map[proto.Conversation]string) {
+	spec := s.spec
+
+	c := spec.Conversation
+	if c == nil {
+		s.resumeWith(spec.Resume, 0)
+		return
+	}
+
+	if other, ok := by[*c]; ok {
+		s.notice(fmt.Sprintf("not resumed, session %s continues this conversation", other))
+		return
+	}
+
+	src := conversations[c.Agent]
+	if src == nil {
+		s.resumeWith(spec.Resume, 0)
+		return
+	}
+
+	var leftover int
+
+	if pid := src.holder(c.ID); pid > 0 {
+		if !d.ours(pid) {
+			s.notice(fmt.Sprintf("not resumed, process %d has this conversation open", pid),
+				"once it is closed: "+strings.Join(spec.Resume, " "))
+
+			return
+		}
+
+		leftover = pid
+	}
+
+	argv := spec.Resume
+	if !src.saved(c.ID) {
+		argv = d.state.Agents[c.Agent] // nothing said yet: start it afresh
+	} else {
+		by[*c] = cmp.Or(spec.Name, spec.ID)
+	}
+
+	s.resumeWith(argv, leftover)
+}
+
+// ours reports whether process pid ran in one of this daemon's sessions: a
+// leftover of a daemon that died, with no terminal to show it in any more.
+func (d *Daemon) ours(pid int) bool {
+	if envOf(pid, "PANDO_RUNTIME_DIR") != proto.Dir() {
+		return false
+	}
+
+	id := envOf(pid, "PANDO_SESSION")
+
+	return slices.ContainsFunc(d.state.Sessions, func(s proto.SessionSpec) bool { return s.ID == id })
 }
 
 // Serve accepts clients until Close; it also drives the status ticker.
@@ -146,10 +222,14 @@ func (d *Daemon) Serve(ln net.Listener) error {
 			changed, dirty := false, false
 
 			for _, s := range d.sessions {
-				prog := s.foreground()
+				if d.closing { // a killed agent is not a left one: keep its resume
+					break
+				}
+
+				pid, prog := s.foreground()
 				changed = s.tick(now) || changed
 				changed = s.setProgram(prog) || changed
-				dirty = s.setResume(d.state.Resume[prog]) || dirty
+				dirty = d.remember(s, pid, prog) || dirty
 			}
 
 			if dirty {
@@ -551,7 +631,7 @@ func (d *Daemon) saveConfig() error {
 		return fmt.Errorf("not saved, fix it first: %w", d.cfgErr)
 	}
 
-	c := config{d.state.Settings, d.state.Agents, d.state.Resume}
+	c := config{d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID}
 	if err := writeFile(d.cfgPath, c.encode()); err != nil {
 		return err
 	}
@@ -580,7 +660,7 @@ func (d *Daemon) reloadConfig() {
 		return
 	}
 
-	d.state.Settings, d.state.Agents, d.state.Resume = c.Settings, c.Agents, c.Resume
+	d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID = c.Settings, c.Agents, c.Resume, c.ResumeID
 	d.mu.Unlock()
 	d.broadcast(proto.Event{Kind: "state"})
 }

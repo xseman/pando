@@ -49,6 +49,7 @@ error, uses the last good values and refuses to save until it is fixed.
 | `[colors]`                                                           | palette overrides                                                                                           |
 | `[agents]`                                                           | `name = ["command", "args"]`                                                                                |
 | `[resume]`                                                           | program to the command that continues its last conversation                                                 |
+| `[resume_id]`                                                        | program to the command that continues conversation `{id}`, when the program says which                      |
 
 ## Columns
 

@@ -108,6 +108,10 @@ line:
 aider = ["aider", "--restore-chat-history"]
 ```
 
+Claude sessions come back with their own conversation, by id, not the latest
+in the directory, and a conversation that is still open elsewhere is not opened
+twice: the session stays a shell and says where it is.
+
 ### Source Control and diffs
 
 Source Control follows VS Code: Merge / Staged / Changes / Untracked sections

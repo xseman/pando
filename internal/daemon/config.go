@@ -18,6 +18,9 @@ type config struct {
 	proto.Settings
 	Agents map[string][]string `toml:"agents"`
 	Resume map[string][]string `toml:"resume"`
+	// ResumeID continues the very conversation a session had open, when its
+	// agent says which; {id} in an argument becomes the conversation's id.
+	ResumeID map[string][]string `toml:"resume_id"`
 }
 
 // nerdFont reports whether fontconfig knows a Nerd Font, once per process.
@@ -53,6 +56,7 @@ func defaultConfig() config {
 			"claude": {"claude", "--continue"}, "codex": {"codex", "resume", "--last"},
 			"opencode": {"opencode", "--continue"},
 		},
+		ResumeID: map[string][]string{"claude": {"claude", "--resume", "{id}"}},
 	}
 }
 
@@ -70,8 +74,8 @@ func (c *config) resolve() {
 // default presets, so a preset can be removed by leaving it out.
 func loadConfig(path string) (config, error) {
 	c := defaultConfig()
-	agents, resume := c.Agents, c.Resume
-	c.Agents, c.Resume = nil, nil
+	agents, resume, resumeID := c.Agents, c.Resume, c.ResumeID
+	c.Agents, c.Resume, c.ResumeID = nil, nil, nil
 
 	md, err := toml.DecodeFile(path, &c)
 	if err != nil {
@@ -91,6 +95,10 @@ func loadConfig(path string) (config, error) {
 
 	if c.Resume == nil {
 		c.Resume = resume
+	}
+
+	if c.ResumeID == nil {
+		c.ResumeID = resumeID
 	}
 
 	c.resolve()
@@ -215,6 +223,9 @@ func (c *config) encode() []byte {
 	b.WriteString("\n# Continuing an agent: when pando restarts it types this into the session's\n" +
 		"# shell instead of leaving an empty prompt, keyed by the program it saw running.\n[resume]\n")
 	table(&b, c.Resume)
+	b.WriteString("\n# Continuing the very conversation a session had open, when the agent says which\n" +
+		"# (claude does); {id} becomes its id. Two sessions never continue the same one.\n[resume_id]\n")
+	table(&b, c.ResumeID)
 
 	return []byte(b.String())
 }

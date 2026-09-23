@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -480,7 +481,8 @@ func TestConfig(t *testing.T) {
 			LSP: map[string][]string{"go": {"gopls"}}, Format: map[string][]string{"ts": {"prettier", "--stdin-filepath", "$FILE"}}, FmtSave: true,
 			Sounds: true, SoundDone: "/a.oga", SoundReq: "",
 		}, Agents: map[string][]string{"my agent": {"x", "y \"z\""}},
-		Resume: map[string][]string{"my agent": {"x", "--continue"}},
+		Resume:   map[string][]string{"my agent": {"x", "--continue"}},
+		ResumeID: map[string][]string{"my agent": {"x", "--resume", "{id}"}},
 	}
 	round := filepath.Join(t.TempDir(), "config.toml")
 	mustWrite(t, round, string(c.encode()))
@@ -543,12 +545,10 @@ func TestResumeAgentAfterRestart(t *testing.T) {
 	// What the ticker does: notice the program and remember how to bring it back.
 	sess := d.sessions[s.ID]
 
-	waitFor(t, "the running agent to be recognised", func() bool {
-		return sess.setResume(d.state.Resume[sess.foreground()]) || sess.spec.Resume != nil
-	})
+	waitFor(t, "the running agent to be recognised", func() bool { return remembered(d, sess).Resume != nil })
 
-	if got := sess.spec.Resume; !reflect.DeepEqual(got, []string{"echo", "RESUMED"}) {
-		t.Fatalf("resume = %v, foreground = %q", got, sess.foreground())
+	if got := remembered(d, sess); !reflect.DeepEqual(got.Resume, []string{"echo", "RESUMED"}) || got.Conversation != nil {
+		t.Fatalf("resume = %v %v", got.Resume, got.Conversation)
 	}
 
 	d.mu.Lock()
@@ -573,6 +573,164 @@ func TestResumeAgentAfterRestart(t *testing.T) {
 	}
 
 	waitFor(t, "the agent to be resumed", func() bool { return strings.Contains(screen(ss[0].ID), "RESUMED") })
+}
+
+// remembered is what the ticker does for session s: notice the program and
+// remember how to bring it back. It returns the spec as it is then.
+func remembered(d *Daemon, s *session) proto.SessionSpec {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	pid, prog := s.foreground()
+	d.remember(s, pid, prog)
+
+	return s.info().SessionSpec
+}
+
+// fakeClaude publishes that process pid has conversation id open, the way
+// Claude Code does.
+func fakeClaude(t *testing.T, pid int, id string) {
+	t.Helper()
+
+	b, err := json.Marshal(claudeProcess{PID: pid, SessionID: id, ProcStart: startTime(pid)})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mustWrite(t, filepath.Join(claudeDir(), "sessions", strconv.Itoa(pid)+".json"), string(b))
+}
+
+func TestResumeConversation(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+
+	conversations["myagent"] = claudeSource{}
+
+	t.Cleanup(func() { delete(conversations, "myagent") })
+
+	boot := start(t)
+	d := boot()
+	ws := t.TempDir()
+	agent := filepath.Join(ws, "myagent")
+	mustWrite(t, agent, "#!/bin/sh\necho AGENT UP\nsleep 300\n")
+
+	if err := os.Chmod(agent, 0o755); err != nil { // the test runs it
+		t.Fatalf("chmod %s: %v", agent, err)
+	}
+
+	d.mu.Lock()
+	d.state.Resume = map[string][]string{"myagent": {"echo", "LATEST"}}
+	d.state.ResumeID = map[string][]string{"myagent": {"echo", "RESUMED", "{id}"}}
+	d.state.Agents["myagent"] = []string{"echo", "FRESH"}
+	cfgErr := d.saveConfig()
+	d.mu.Unlock()
+
+	if cfgErr != nil {
+		t.Fatal(cfgErr)
+	}
+
+	screen := func(id string) string {
+		t.Helper()
+
+		var scr proto.Screen
+		call(t, "session.screen", proto.ScreenParams{ID: id, Cols: 60, Rows: 8}, &scr)
+
+		return strings.Join(scr.Lines, "\n")
+	}
+
+	// Two sessions came to have conversation one open, the third has
+	// conversation two; the fourth's has nothing in it yet.
+	for _, id := range []string{"one", "two"} {
+		mustWrite(t, filepath.Join(claudeDir(), "projects", "-ws", id+".jsonl"), "{}\n")
+	}
+
+	convs := []string{"one", "one", "two", "empty"}
+	ids := make([]string, len(convs))
+
+	for i, conv := range convs {
+		var s proto.Session
+		call(t, "session.new", map[string]any{"workspace": ws, "cmd": []string{"sh"}}, &s)
+		ids[i] = s.ID
+		call(t, "session.input", proto.InputParams{ID: s.ID, Text: "./myagent\r"}, nil)
+		waitFor(t, "the agent to start", func() bool { return strings.Contains(screen(s.ID), "AGENT UP") })
+
+		sess := d.sessions[s.ID]
+
+		var pid int
+
+		waitFor(t, "the agent to hold the terminal", func() bool {
+			var prog string
+
+			pid, prog = sess.foreground()
+
+			return prog == "myagent"
+		})
+
+		fakeClaude(t, pid, conv)
+
+		want := proto.Conversation{Agent: "myagent", ID: conv}
+		if got := remembered(d, sess); got.Conversation == nil || *got.Conversation != want || !reflect.DeepEqual(got.Resume, []string{"echo", "RESUMED", conv}) {
+			t.Fatalf("remembered %v %v, want %v", got.Resume, got.Conversation, want)
+		}
+	}
+
+	d.mu.Lock()
+	saveErr := d.save()
+	d.mu.Unlock()
+
+	if saveErr != nil {
+		t.Fatal(saveErr)
+	}
+
+	// Stopping takes the agents down with their shells.
+	d.Close()
+
+	// Meanwhile conversation two is opened outside pando, and the first
+	// session's agent outlived its terminal, as after a crash.
+	other := exec.Command("sleep", "60")
+	leftover := exec.Command("sleep", "60")
+
+	leftover.Env = append(os.Environ(), "PANDO_SESSION="+ids[0])
+
+	for _, c := range []*exec.Cmd{other, leftover} {
+		if err := c.Start(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	t.Cleanup(func() { _ = other.Process.Kill(); _ = other.Wait() })
+	t.Cleanup(func() { _ = leftover.Process.Kill() }) // reaped below
+
+	gone := make(chan struct{})
+
+	go func() { _ = leftover.Wait(); close(gone) }()
+
+	fakeClaude(t, other.Process.Pid, "two")
+	fakeClaude(t, leftover.Process.Pid, "one")
+
+	d = boot()
+	defer d.Close()
+
+	var ss []proto.Session
+	call(t, "session.list", nil, &ss)
+
+	if len(ss) != len(convs) {
+		t.Fatalf("sessions after restart: %+v", ss)
+	}
+
+	waitFor(t, "conversation one to be resumed", func() bool { return strings.Contains(screen(ss[0].ID), "RESUMED one") })
+	waitFor(t, "the empty one to start afresh", func() bool { return strings.Contains(screen(ss[3].ID), "$ echo FRESH") })
+
+	select {
+	case <-gone:
+	case <-time.After(time.Second):
+		t.Error("the leftover agent still runs next to its resumed conversation")
+	}
+
+	for i, want := range map[int]string{1: "session " + ss[0].ID + " continues", 2: "process " + strconv.Itoa(other.Process.Pid) + " has"} {
+		if got := screen(ss[i].ID); !strings.Contains(got, want) || strings.Contains(got, "$ echo") {
+			t.Errorf("session %d after restart:\n%s\nwant %q", i, got, want)
+		}
+	}
 }
 
 func TestProgramOf(t *testing.T) {

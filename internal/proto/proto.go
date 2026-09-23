@@ -128,7 +128,8 @@ type State struct {
 	Settings Settings            `json:"settings"`
 	Projects []string            `json:"projects"`
 	Agents   map[string][]string `json:"agents"`
-	Resume   map[string][]string `json:"resume"` // agent to the command that continues its last conversation
+	Resume   map[string][]string `json:"resume"`    // agent to the command that continues its last conversation
+	ResumeID map[string][]string `json:"resume_id"` // agent to the command that continues conversation {id}
 	Drafts   map[string]string   `json:"drafts"`
 	Editors  map[string]Editors  `json:"editors"` // per workspace: what its tab strip had open
 	Sessions []SessionSpec       `json:"sessions"`
@@ -184,10 +185,19 @@ type SessionSpec struct {
 	Agent     string   `json:"agent"`
 	Cmd       []string `json:"cmd"`
 	Resume    []string `json:"resume,omitempty"` // what a restarted daemon types to bring the agent back
-	Name      string   `json:"name,omitempty"`   // the tab's own name, from a rename
-	Parent    string   `json:"parent,omitempty"` // the agent session whose Terminal panel this shell belongs to; killed with it
-	FG        string   `json:"fg,omitempty"`     // host terminal colors, #rrggbb
-	BG        string   `json:"bg,omitempty"`
+	// Conversation is the agent conversation the session had open, when the
+	// agent says which: a restart continues it once, not the latest one.
+	Conversation *Conversation `json:"conversation,omitempty"`
+	Name         string        `json:"name,omitempty"`   // the tab's own name, from a rename
+	Parent       string        `json:"parent,omitempty"` // the agent session whose Terminal panel this shell belongs to; killed with it
+	FG           string        `json:"fg,omitempty"`     // host terminal colors, #rrggbb
+	BG           string        `json:"bg,omitempty"`
+}
+
+// Conversation is an agent's conversation by the agent's own id.
+type Conversation struct {
+	Agent string `json:"agent"` // the program, a [resume_id] key
+	ID    string `json:"id"`
 }
 
 // Workspace is one git worktree of a project, as workspace.list reports it.
