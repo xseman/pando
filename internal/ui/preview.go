@@ -2789,6 +2789,10 @@ func (p *preview) moved(key string, h int) (pos, bool) {
 
 		return c, true
 
+	case "ctrl+left": // VS Code's cursorWordStartLeft
+		return p.wordLeft(c), true
+	case "ctrl+right": // and cursorWordEndRight
+		return p.wordRight(c), true
 	case "home", "0":
 		return pos{c.line, 0}, true
 	case "end", "$":
@@ -2804,6 +2808,72 @@ func (p *preview) moved(key string, h int) (pos, bool) {
 	}
 
 	return pos{}, false
+}
+
+// runeClass groups runes the way a word move walks them: blanks, word
+// characters, and any other run of punctuation.
+func runeClass(r rune) int {
+	switch {
+	case unicode.IsSpace(r):
+		return 0
+	case isWordRune(r):
+		return 1
+	}
+
+	return 2
+}
+
+// wordLeft is the start of the word before c, past the blanks between; at a
+// line's start it is the end of the line above.
+func (p *preview) wordLeft(c pos) pos {
+	if c.col == 0 {
+		if c.line > 0 {
+			return pos{c.line - 1, p.lineLen(c.line - 1)}
+		}
+
+		return c
+	}
+
+	l, i := p.plain[c.line], c.col
+	for i > 0 && runeClass(l[i-1]) == 0 {
+		i--
+	}
+
+	if i > 0 {
+		cls := runeClass(l[i-1])
+		for i > 0 && runeClass(l[i-1]) == cls {
+			i--
+		}
+	}
+
+	return pos{c.line, i}
+}
+
+// wordRight is the end of the word after c, past the blanks before it; at a
+// line's end it is the start of the line below.
+func (p *preview) wordRight(c pos) pos {
+	n := p.lineLen(c.line)
+	if c.col >= n {
+		if c.line < p.lastLine() {
+			return pos{c.line + 1, 0}
+		}
+
+		return c
+	}
+
+	l, i := p.plain[c.line], c.col
+	for i < n && runeClass(l[i]) == 0 {
+		i++
+	}
+
+	if i < n {
+		cls := runeClass(l[i])
+		for i < n && runeClass(l[i]) == cls {
+			i++
+		}
+	}
+
+	return pos{c.line, i}
 }
 
 // closeAndRefocus is esc and q in an editor: unsaved text goes through the
@@ -2890,8 +2960,8 @@ func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		}
 
 	case p.ready && len(p.plain) > 0:
-		if np, ok := p.moved(strings.TrimPrefix(s, "shift+"), h); ok {
-			if strings.HasPrefix(s, "shift+") {
+		if np, ok := p.moved(strings.Replace(s, "shift+", "", 1), h); ok {
+			if strings.Contains(s, "shift+") {
 				if p.anchor == nil {
 					a := p.at()
 					p.anchor = &a
@@ -2920,9 +2990,9 @@ func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		return m.closeEditor(m.edIdx)
 	case "m", "shift+f10": // ⇧F10 is the context menu key an editor leaves free
 		return p.menu(m, -1, 0)
-	case "alt+shift+right", "ctrl+shift+right": // VS Code's Expand Selection, Linux and Mac
+	case "alt+shift+right": // VS Code's Expand Selection; ctrl+shift+→ selects a word
 		return p.expandSel(m, 1)
-	case "alt+shift+left", "ctrl+shift+left":
+	case "alt+shift+left":
 		return p.expandSel(m, -1)
 	case "ctrl+a":
 		p.anchor = &pos{}

@@ -9,6 +9,22 @@ without the kitty keyboard protocol, and in an editor that byte belongs to the
 suggestions, so the panel stays on `ctrl+j` there. Inside tmux the protocol
 needs `set -s extended-keys on` and `set -as terminal-features ",*:extkeys"`.
 
+A key means what the focused part makes of it, as VS Code's `when` clauses
+say (`keyContext`, `keybindings` in `internal/ui/keys.go`):
+
+| Focus                                   | Keys                                                                                              |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| a session or the Terminal panel         | every key goes to the app, but for the chords a terminal gives up (VS Code's commandsToSkipShell) |
+| an editable file                        | its keys are text: `5`, `[` `]` type, `ctrl+←` `ctrl+→` move by words                             |
+| a text box (commit message, find, …)    | the box keeps its keys; `[keys]` and pando's panel chords wait                                    |
+| a sidebar list, a diff, a rendering     | the single letters and every chord below                                                          |
+
+A terminal gives up `ctrl+]`, `ctrl+shift+p`, `ctrl+shift+f` `ctrl+shift+e`
+`ctrl+shift+g` `ctrl+shift+h`, `ctrl+j` ``ctrl+` `` `ctrl+space`,
+``ctrl+shift+` ``, `ctrl+shift+↑↓`, `ctrl+b`, `ctrl+,`, `ctrl+0` `ctrl+1`,
+`alt+t`, `ctrl+pgup` `ctrl+pgdn` and `alt+1`…`alt+9`; everything else, `ctrl+←`
+`ctrl+p` `ctrl+s` `ctrl+enter` `F1` included, is the shell's.
+
 | Key                                                         | Action                                                                                       |
 | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `ctrl+]`                                                    | cycle focus: left sidebar, main, right sidebar. In a session every other key goes to the app |
@@ -24,7 +40,7 @@ needs `set -s extended-keys on` and `set -as terminal-features ",*:extkeys"`.
 | `ctrl+n`                                                    | new untitled file (a double click on the empty editor area does the same)                    |
 | `ctrl+tab`, `ctrl+w`                                        | next editor, close editor (middle click closes a tab too); a workspace reopens its editors   |
 | `ctrl+pgup` `ctrl+pgdn`, `alt+1`…`alt+9`                    | previous / next editor, editor N                                                             |
-| `ctrl+←` `ctrl+→`, `alt+,` `alt+.`                          | back and forward through visited editors (also `super+←` `super+→`)                          |
+| `ctrl+alt+-` `ctrl+shift+-`, `alt+,` `alt+.`                | back and forward through visited editors (also `ctrl+-`, `super+←` `super+→`)                |
 | `ctrl+0` `ctrl+1`                                           | focus sidebar / editor                                                                       |
 | `ctrl+f`                                                    | in a panel: filter the list (`enter` keeps it, `esc` clears); in a file: find                |
 | `ctrl+b`, `b`, `<` `>`                                      | fold the sidebars to a rail of view icons (click one or `»` to reopen), resize a column      |
@@ -41,6 +57,7 @@ needs `set -s extended-keys on` and `set -as terminal-features ",*:extkeys"`.
 | In a file                         | Action                                                                    |
 | --------------------------------- | ------------------------------------------------------------------------- |
 | arrows, `shift`+arrows, drag      | move the cursor, select                                                   |
+| `ctrl+←` `ctrl+→`                 | a word back, a word on (`shift` selects), past blanks and punctuation     |
 | `ctrl+↑` `ctrl+↓`                 | scroll the view, the cursor stays where it is (the wheel does the same)   |
 | `ctrl+a`, `ctrl+c`                | select all, copy the selection (or the whole file)                        |
 | `ctrl+z` `ctrl+y`, `ctrl+s`       | undo, redo, save (`●` until you do; an untitled file asks where)          |
@@ -48,7 +65,7 @@ needs `set -s extended-keys on` and `set -as terminal-features ",*:extkeys"`.
 | `ctrl+x`, `ctrl+shift+k`          | cut, delete the line or selection                                         |
 | `alt+shift+↑↓`, `ctrl+d`          | copy the line or the selected lines up, down                              |
 | `alt+↑` `alt+↓`                   | move the line                                                             |
-| `alt+shift+→←` (`ctrl+shift` too) | expand, shrink the selection: word, line, brackets, file                  |
+| `alt+shift+→←`                    | expand, shrink the selection: word, line, brackets, file                  |
 | `ctrl+/`                          | toggle a comment                                                          |
 | `ctrl+space`                      | suggestions                                                               |
 | `ctrl+shift+i`                    | format document                                                           |

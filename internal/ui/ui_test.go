@@ -992,13 +992,13 @@ func TestPreviewExpandSelection(t *testing.T) {
 		t.Fatalf("shrink = %q", got)
 	}
 
-	press(m, "right", "ctrl+shift+right") // a move starts a new chain from the cursor
+	press(m, "right", "alt+shift+right") // a move starts a new chain from the cursor
 
 	if got := m.pv.selectedText(); got != "}" {
 		t.Fatalf("expand after move = %q", got)
 	}
 
-	press(m, "ctrl+shift+left")
+	press(m, "alt+shift+left")
 
 	if m.pv.anchor != nil {
 		t.Fatalf("shrink to the cursor left a selection: %q", m.pv.selectedText())

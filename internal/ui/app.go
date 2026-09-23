@@ -2235,109 +2235,17 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 
 	m.fixFocus()
 
-	s := k.String()
-	inSession := m.focus == onMain && m.showsSession() || m.sessFocused()
-	// [keys] goes first, so every chord below can be rebound or unbound too.
-	if !inSession && !m.typing() {
+	s, c := k.String(), m.keyContext()
+	// [keys] goes first, so every chord below can be rebound or unbound too;
+	// a terminal and a text box keep their keys, as VS Code's do.
+	if c&ctxPanels != 0 {
 		if cmd, ok := m.runKey(s); ok {
 			return cmd
 		}
 	}
 
-	if s == "ctrl+]" {
-		m.cycleFocus()
-		return m.fetchScreen()
-	}
-
-	if s == "ctrl+shift+f" {
-		return tea.Batch(m.showView(viewSearch), m.sr.focus())
-	}
-	// ⌃` is VS Code's. Outside the kitty protocol a terminal sends NUL for
-	// it — the same byte as ⌃space — which arrives as one of these.
-	// ⌃space is also VS Code's Trigger Suggest, which an editor gets first; the
-	// terminal stays on ⌃j, and on ⌃` where the kitty protocol tells them apart.
-	if (s == "ctrl+space" || s == "ctrl+@") && m.focus == onMain && m.showsPreview() && m.pv.editable() {
-		if m.ambiguous && !m.saidCtrlJ { // it may have been ⌃` meaning the panel
-			m.saidCtrlJ = true
-			m.flash("this terminal sends one key for ⌃` and ⌃space — the panel is on ⌃j", false)
-		}
-
-		return m.pv.suggest(m, "", true)
-	}
-
-	if s == "ctrl+`" || s == "ctrl+space" || s == "ctrl+@" {
-		return m.toggleTerminal()
-	}
-
-	if s == "ctrl+shift+up" || s == "ctrl+shift+down" {
-		return m.maximizeTerminal(s == "ctrl+shift+up" && !m.termMax)
-	}
-	// VS Code's own chords, on keys no view uses. They work from anywhere,
-	// a focused session included, because a terminal cannot type them.
-	switch s {
-	case "ctrl+b":
-		return m.toggleSidebars()
-	case "ctrl+j":
-		return m.toggleTerminal()
-	case "ctrl+shift+`":
-		return tea.Batch(m.openTerminalPanel(), m.newTerm())
-	case "ctrl+,":
-		m.modal = settingsModal(m)
-		return nil
-
-	case "ctrl+shift+e":
-		return m.showView(viewFiles)
-	case "ctrl+shift+g":
-		return m.showView(viewGit)
-	case "ctrl+shift+h":
-		m.sr.showReplace = true
-		return tea.Batch(m.showView(viewSearch), m.sr.focus())
-
-	case "ctrl+shift+v":
-		return m.toggleRendered()
-	case "ctrl+enter":
-		return m.scm.commit(m)
-	case "ctrl+0":
-		return m.focusSidebar()
-	case "ctrl+1":
-		m.focus = onMain
-		return m.fetchScreen()
-	}
-
-	switch {
-	case s == "ctrl+shift+p", s == "f1" && !inSession:
-		return m.commandPalette()
-	case s == "5" && !inSession && m.focus != onPanel && !m.typing():
-		return m.toggleTerminal()
-	case s == "alt+t":
-		return m.agentNavigator()
-	case s == "ctrl+tab" && !inSession, s == "ctrl+pgdown":
-		return m.cycleEditor(1)
-	case s == "ctrl+shift+tab" && !inSession, s == "ctrl+pgup":
-		return m.cycleEditor(-1)
-	case strings.HasPrefix(s, "alt+") && len(s) == 5 && s[4] >= '1' && s[4] <= '9':
-		return m.showEditor(int(s[4] - '1'))
-	case s == "ctrl+p" && !inSession && !m.typing():
-		return m.loadIndex(true)
-	case s == "ctrl+shift+o" && !inSession && m.showsPreview():
-		return m.gotoSymbol("@")
-	case s == "ctrl+g" && !inSession && m.focus != onPanel && !m.typing() && m.showsPreview():
-		return m.gotoLineQuery(":")
-	case s == "ctrl+s" && !inSession:
-		if !m.showsPreview() {
-			return flash("no file open", true)
-		}
-
-		return m.pv.save(m, false)
-
-	case s == "ctrl+n" && !inSession && m.focus != onPanel && !m.typing():
-		return m.newUntitled()
-	case s == "ctrl+w" && m.focus == onMain && !inSession:
-		return m.closeEditor(m.edIdx)
-	case s == "alt+," || s == "ctrl+-" || s == "ctrl+alt+-" || s == "super+left" || s == "ctrl+left":
-		return m.navGo(-1)
-	case s == "alt+." || s == "ctrl+shift+-" || s == "super+right" || s == "ctrl+right":
-		return m.navGo(1)
+	if b, ok := m.bindingFor(c, s); ok {
+		return b.run(m, s)
 	}
 
 	if m.focus == onPanel { // the panel is a terminal: every other key is the shell's

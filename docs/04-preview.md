@@ -17,7 +17,7 @@ A revision of the open file stays in its tab; a diff gets its own.
 
 ```
  app.ts ✕ │ README.md │ notes.md      ctrl+tab / ctrl+shift+tab cycle
-     ▲ active, ✕ closes it            ctrl+w closes, ctrl+← / ctrl+→ go back
+     ▲ active, ✕ closes it            ctrl+w closes, ctrl+alt+- / ctrl+shift+- go back
 ```
 
 Every jump (search hit, quick open, `go to line`, a revision step) is a history
