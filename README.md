@@ -257,6 +257,7 @@ pando session keys fix esc                           # named keys: esc ctrl+c sh
 pando session read fix --lines 120
 pando session switch fix                             # every attached TUI follows
 pando ws new feat-x --project .                      # git worktree under ~/.local/share/pando
+pando ws new                                         # the same on a random worktree/<adj>-<noun>-<hex> branch
 pando project move ~/code/app 0                      # first in the Spaces list
 pando open README.md | pando set diff_view split
 pando version | pando update | pando stop

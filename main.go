@@ -39,7 +39,7 @@ const usage = `pando — terminal sidebar with agent sessions
   pando skill                   print the guide to driving pando from an agent
 
   pando project add|rm [DIR] | move DIR INDEX | ls
-  pando ws ls | new BRANCH [--project DIR] | rm PATH | switch PATH
+  pando ws ls | new [BRANCH] [--project DIR] | rm PATH | switch PATH
   pando session new [--agent NAME] [--ws PATH] [--name NAME] [--parent ID] [--wait] [-- CMD...]
   pando session ls | get ID | kill ID | switch ID | rename ID [NAME...]
   pando session send ID TEXT... [--enter] [--wait]
@@ -320,11 +320,11 @@ func workspace(rest []string) error {
 			return err
 		}
 
-		if len(pos) != 1 {
-			return errors.New("ws new BRANCH [--project DIR]")
+		if len(pos) > 1 {
+			return errors.New("ws new [BRANCH] [--project DIR]")
 		}
 
-		return printJSON("workspace.new", map[string]string{"project": root, "branch": pos[0]})
+		return printJSON("workspace.new", map[string]string{"project": root, "branch": arg(pos, 0, "")}) // "": a random one
 
 	case "rm":
 		return proto.Call("workspace.remove", map[string]string{"path": abs(arg(pos, 0, ""))}, nil)
@@ -332,7 +332,7 @@ func workspace(rest []string) error {
 		return proto.Call("focus", proto.FocusParams{Workspace: abs(arg(pos, 0, ""))}, nil)
 	}
 
-	return errors.New("ws ls | new BRANCH | rm PATH | switch PATH")
+	return errors.New("ws ls | new [BRANCH] | rm PATH | switch PATH")
 }
 
 // parse reads flags from anywhere among the positionals, so `new feat --project x`

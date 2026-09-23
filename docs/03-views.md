@@ -82,6 +82,10 @@ re-roots Explorer and Source Control to its worktree (the Zed threads model).
 ▸ · folded too
 ```
 
+_New Worktree…_ (`w`) asks for a branch prefilled with a random name,
+`worktree/rapid-meadow-a12e` as herdr makes them; ⏎ takes it, and an emptied
+prompt still gets one from `workspace.new`.
+
 Dragging a project row moves it up and down the list: the tree reorders under
 the pointer and the release sends `project.move`, so the order is saved with
 the projects. `alt+↑↓` and the menu's _Move Project Up / Down_ do the same

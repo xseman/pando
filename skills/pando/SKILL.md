@@ -160,6 +160,7 @@ agent to write its answer to a file and read the file yourself.
 
 ```sh
 pando ws new feat-x --project /path/to/repo   # a git worktree, prints its path
+pando ws new --project /path/to/repo          # no branch: a random worktree/… one
 pando ws ls
 pando session new --agent claude --ws <that path> --name feat-x --wait
 ```

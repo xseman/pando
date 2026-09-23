@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -297,6 +298,22 @@ func TestMergeConflict(t *testing.T) {
 
 	if out, _ := Run(root, "log", "-1", "--format=%B"); strings.TrimSpace(out) != "Merge branch 'feat'" {
 		t.Fatalf("merge commit: %q", out)
+	}
+}
+
+func TestRandomBranch(t *testing.T) {
+	root := repo(t)
+	name := regexp.MustCompile(`^worktree/[a-z]+-[a-z]+-[0-9a-f]{4}$`)
+
+	for range 50 {
+		b := RandomBranch()
+		if !name.MatchString(b) {
+			t.Fatalf("RandomBranch() = %q", b)
+		}
+
+		if _, err := Run(root, "check-ref-format", "--branch", b); err != nil {
+			t.Fatalf("%q is not a branch name: %v", b, err)
+		}
 	}
 }
 

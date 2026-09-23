@@ -16,6 +16,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/xseman/pando/internal/git"
 	"github.com/xseman/pando/internal/proto"
 )
 
@@ -461,12 +462,8 @@ func (a *agents) newWorktree(m *Model, r *agRow) tea.Cmd {
 		return flash("select a project first", true)
 	}
 
-	m.modal = newPrompt("New worktree branch in "+filepath.Base(project), "", func(_ *Model, branch string) tea.Cmd {
-		if branch == "" {
-			return nil
-		}
-
-		return func() tea.Msg {
+	m.modal = newPrompt("New worktree branch in "+filepath.Base(project), git.RandomBranch(), func(_ *Model, branch string) tea.Cmd {
+		return func() tea.Msg { // an emptied name gets a random one from the daemon
 			var w proto.Workspace
 			if err := proto.Call("workspace.new", map[string]string{"project": project, "branch": branch}, &w); err != nil {
 				return flashMsg{err.Error(), true}

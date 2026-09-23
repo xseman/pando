@@ -34,6 +34,9 @@ or `commit --no-edit --cleanup=strip` with no message, which takes the
 core.editor=true rebase --continue` for a rebase. `Status.MergeMsg` is that
 file cleaned up the same way, for the message box to show.
 
+`RandomBranch` names a worktree nobody named, herdr's
+`worktree/<adjective>-<noun>-<4 hex>`.
+
 ## Worktrees and projects
 
 A project is a repository's main worktree; `git worktree list --porcelain`

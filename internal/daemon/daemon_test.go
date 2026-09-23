@@ -146,6 +146,16 @@ func TestDaemon(t *testing.T) {
 		t.Fatalf("workspaces = %+v", list)
 	}
 
+	// Without a branch the daemon names one, as herdr does.
+	var named proto.Workspace
+	call(t, "workspace.new", map[string]string{"project": root}, &named)
+
+	if !strings.HasPrefix(named.Branch, "worktree/") || filepath.Base(named.Path) != strings.ReplaceAll(named.Branch, "/", "-") {
+		t.Fatalf("unnamed worktree = %+v", named)
+	}
+
+	call(t, "workspace.remove", map[string]string{"path": named.Path}, nil)
+
 	// project.move reorders the project list the Spaces tree walks. A second
 	// project goes to the top, an index past the end clamps to the last place.
 	second := t.TempDir()

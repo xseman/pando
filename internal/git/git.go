@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -955,6 +956,22 @@ func Worktrees(root string) ([]Worktree, error) {
 	}
 
 	return wts, nil
+}
+
+// RandomBranch names a new worktree's branch when none is given, as herdr
+// does: worktree/<adjective>-<noun>-<4 hex digits>.
+func RandomBranch() string {
+	adjectives := []string{
+		"brave", "calm", "clear", "green", "lucky", "quiet", "rapid", "silver",
+		"bold", "bright", "gentle", "golden", "keen", "swift", "warm", "wild",
+	}
+	nouns := []string{
+		"river", "cloud", "field", "forest", "harbor", "meadow", "stone", "valley",
+		"brook", "canyon", "cedar", "dune", "grove", "lake", "ridge", "shore",
+	}
+
+	return fmt.Sprintf("worktree/%s-%s-%04x",
+		adjectives[rand.IntN(len(adjectives))], nouns[rand.IntN(len(nouns))], rand.IntN(0x10000))
 }
 
 // AddWorktree creates path on branch, creating the branch when it does not exist.

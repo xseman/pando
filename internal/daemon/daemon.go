@@ -860,7 +860,7 @@ var unsafeBranch = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
 
 func (d *Daemon) newWorkspace(project, branch string) (proto.Workspace, error) {
 	if branch == "" {
-		return proto.Workspace{}, errors.New("branch is required")
+		branch = git.RandomBranch()
 	}
 
 	path := filepath.Join(d.dataDir, "worktrees", filepath.Base(project), unsafeBranch.ReplaceAllString(branch, "-"))
