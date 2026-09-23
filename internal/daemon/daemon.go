@@ -398,6 +398,15 @@ func (d *Daemon) dispatch(method string, raw json.RawMessage) (any, error) {
 			return nil, err
 		}
 
+		if p.Session != "" { // a name or a prefix: the TUIs match on the id
+			s, err := d.session(p.Session)
+			if err != nil {
+				return nil, err
+			}
+
+			p.Session = s.info().ID
+		}
+
 		data, _ := json.Marshal(p) // FocusParams is plain strings and ints
 		d.broadcast(proto.Event{Kind: "focus", Data: data})
 

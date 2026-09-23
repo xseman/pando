@@ -750,3 +750,15 @@ func TestKillSessionKillsItsTerminals(t *testing.T) {
 		return len(ss) == 1 && ss[0].ID == other.ID
 	})
 }
+
+func TestFocusResolvesSessionNames(t *testing.T) {
+	d := start(t)()
+	defer d.Close()
+
+	call(t, "session.new", map[string]any{"workspace": t.TempDir(), "name": "agent", "cmd": []string{"sleep", "30"}}, nil)
+	call(t, "focus", proto.FocusParams{Session: "agent"}, nil)
+
+	if err := proto.Call("focus", proto.FocusParams{Session: "nobody"}, nil); err == nil {
+		t.Fatal("focus on an unknown session is refused, not broadcast for no TUI to match")
+	}
+}
