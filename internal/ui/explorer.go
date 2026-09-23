@@ -404,11 +404,11 @@ func (e *explorer) action(key string) func(m *Model) tea.Cmd {
 		}
 
 	case "y":
-		return func(*Model) tea.Cmd { return tea.Batch(tea.SetClipboard(path), flash("copied "+path, false)) }
+		return func(*Model) tea.Cmd { return setClipboard(path, "copied "+path) }
 	case "Y":
 		return func(m *Model) tea.Cmd {
 			rel, _ := filepath.Rel(m.ws, path)
-			return tea.Batch(tea.SetClipboard(rel), flash("copied "+rel, false))
+			return setClipboard(rel, "copied "+rel)
 		}
 
 	case "o":

@@ -463,7 +463,7 @@ func (p *preview) editKey(m *Model, k tea.KeyPressMsg) (tea.Cmd, bool) {
 		a, z := p.cutRange()
 		text := p.buf.textIn(p.rawPos(a), p.rawPos(z))
 
-		return tea.Batch(tea.SetClipboard(text), p.edit(m, a, z, "")), true
+		return tea.Batch(setClipboard(text, ""), p.edit(m, a, z, "")), true
 	}
 	// Anything printable types, as it does in an editor.
 	if k.Mod&^tea.ModShift == 0 && k.Text != "" {

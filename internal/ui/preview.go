@@ -2996,10 +2996,10 @@ func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 
 	case "y", "ctrl+c":
 		if text := p.selectedText(); text != "" {
-			return tea.Batch(tea.SetClipboard(text), flash(fmt.Sprintf("copied %d characters", utf8.RuneCountInString(text)), false))
+			return setClipboard(text, fmt.Sprintf("copied %d characters", utf8.RuneCountInString(text)))
 		}
 
-		return tea.Batch(tea.SetClipboard(p.text()), flash("copied preview", false))
+		return setClipboard(p.text(), "copied preview")
 
 	case "w", "alt+z": // ⌥z is VS Code's word wrap
 		p.wrap, p.left, p.vis = !p.wrap, 0, nil

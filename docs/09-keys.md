@@ -59,7 +59,7 @@ A terminal gives up `ctrl+]`, `ctrl+shift+p`, `ctrl+shift+f` `ctrl+shift+e`
 | arrows, `shift`+arrows, drag      | move the cursor, select                                                   |
 | `ctrl+←` `ctrl+→`                 | a word back, a word on (`shift` selects), past blanks and punctuation     |
 | `ctrl+↑` `ctrl+↓`                 | scroll the view, the cursor stays where it is (the wheel does the same)   |
-| `ctrl+a`, `ctrl+c`                | select all, copy the selection (or the whole file)                        |
+| `ctrl+a`, `ctrl+c`, `ctrl+v`      | select all, copy the selection (or the whole file), paste                 |
 | `ctrl+z` `ctrl+y`, `ctrl+s`       | undo, redo, save (`●` until you do; an untitled file asks where)          |
 | `⏎`, `tab`, `⌫`, `del`            | typing; `⏎` keeps the indent                                              |
 | `ctrl+x`, `ctrl+shift+k`          | cut, delete the line or selection                                         |
@@ -84,6 +84,13 @@ A terminal gives up `ctrl+]`, `ctrl+shift+p`, `ctrl+shift+f` `ctrl+shift+e`
 | `e`                               | open in `$EDITOR`                                                         |
 | `esc`, `q`                        | clear the selection, close                                                |
 | vim mode                          | `vim_mode = true`: the editor opens in normal mode, `i` types, `esc` back |
+
+Every copy (a selection, a terminal's text, a path) goes to the desktop's
+clipboard through `wl-copy`, `xclip`, `xsel` or `pbcopy`, whichever the session
+has, and as OSC 52 too for a terminal that takes it, which is what reaches the
+desktop over ssh; VTE terminals (GNOME Terminal, Ptyxis) ignore OSC 52. `ctrl+v`
+in a file and the Terminal's _Paste_ read it back with the matching tool; the
+terminal's own paste (`ctrl+shift+v`) arrives as a bracketed paste anywhere.
 
 A tilt wheel or `shift`+wheel scrolls sideways; the plain wheel scrolls a
 session's scrollback when the app does not use the mouse. A left drag over a

@@ -112,6 +112,9 @@ var keybindings = []keybinding{
 	{keys: []string{"ctrl+p"}, when: ctxPanels, run: func(m *Model, _ string) tea.Cmd { return m.loadIndex(true) }},
 	{keys: []string{"ctrl+g"}, when: ctxPanels, cond: (*Model).showsPreview, run: func(m *Model, _ string) tea.Cmd { return m.gotoLineQuery(":") }},
 	{keys: []string{"ctrl+n"}, when: ctxPanels, run: func(m *Model, _ string) tea.Cmd { return m.newUntitled() }},
+	// VS Code's paste in a file: the terminal's own paste (ctrl+shift+v) lands
+	// here too, as a bracketed paste. A shell keeps ctrl+v, claude its image paste.
+	{keys: []string{"ctrl+v"}, when: ctxText, run: func(*Model, string) tea.Cmd { return pasteClipboard }},
 	{keys: []string{"ctrl+w"}, when: ctxEditor | ctxText, run: func(m *Model, _ string) tea.Cmd { return m.closeEditor(m.edIdx) }},
 	// Go Back / Go Forward: VS Code's Linux ctrl+alt+- and ctrl+shift+-, its
 	// Mac ctrl+-, and alt+, alt+. ctrl+← ctrl+→ move by words in an editor and

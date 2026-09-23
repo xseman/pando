@@ -2,12 +2,10 @@ package ui
 
 import (
 	"cmp"
-	"errors"
 	"fmt"
 	"image/color"
 	"maps"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -1428,7 +1426,7 @@ func (t *term) mouse(m *Model, id string, msg tea.MouseMsg, x, y int) tea.Cmd {
 
 			text := t.selText()
 
-			return tea.Batch(tea.SetClipboard(text), flash(fmt.Sprintf("copied %d characters", utf8.RuneCountInString(text)), false))
+			return setClipboard(text, fmt.Sprintf("copied %d characters", utf8.RuneCountInString(text)))
 		}
 
 		return nil
@@ -1633,7 +1631,7 @@ func (m *Model) termMenu(x, y int) tea.Cmd {
 	}
 
 	m.modal = newMenu("", x, y,
-		item{label: "Copy All", run: func(*Model) tea.Cmd { return tea.Batch(copyTerminal(id), flash("copied the terminal", false)) }},
+		item{label: "Copy All", run: func(*Model) tea.Cmd { return copyTerminal(id) }},
 		item{label: "Paste", run: func(m *Model) tea.Cmd { return m.pasteInto(id) }},
 		item{label: "Clear", run: func(m *Model) tea.Cmd { return m.clearTerm(id) }},
 		item{label: "Rename…", run: func(m *Model) tea.Cmd { return m.renameSession(id) }},
@@ -1651,7 +1649,7 @@ func copyTerminal(id string) tea.Cmd {
 			return flashMsg{"copy: " + err.Error(), true}
 		}
 
-		return tea.SetClipboard(text)()
+		return setClipboard(text, "copied the terminal")()
 	}
 }
 
@@ -1669,23 +1667,6 @@ func (m *Model) pasteInto(id string) tea.Cmd {
 
 		return nil
 	}
-}
-
-// clipboardText reads the system clipboard with the first tool that answers.
-// ponytail: wl-paste, xclip, xsel or pbpaste; an OSC 52 read is left out,
-// most terminals refuse it.
-func clipboardText() (string, error) {
-	for _, argv := range [][]string{{"wl-paste", "--no-newline"}, {"xclip", "-o", "-selection", "clipboard"}, {"xsel", "-ob"}, {"pbpaste"}} {
-		if _, err := exec.LookPath(argv[0]); err != nil {
-			continue
-		}
-
-		if out, err := exec.Command(argv[0], argv[1:]...).Output(); err == nil {
-			return string(out), nil
-		}
-	}
-
-	return "", errors.New("no clipboard tool answered (wl-paste, xclip, xsel)")
 }
 
 // clearTerm clears a shell's screen with ⌃l.
