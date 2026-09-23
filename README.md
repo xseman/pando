@@ -8,7 +8,7 @@
     changed with VS Code's diffs, all in one TUI.
 </p>
 
-![the TUI: explorer, a diff, search, the terminal and a claude session in the Spaces tree](docs/demo/tui.gif)
+![the TUI: explorer, a diff, search, the terminal, and a claude session in the Spaces tree beside a worktree](docs/demo/tui.gif)
 
 ## Why
 
@@ -101,7 +101,7 @@ else inside it.
 - Switching a session re-roots Files and Source Control to its worktree.
 - The project name in the status bar switches projects and adds them.
 
-![two claude sessions at once, the tree marking one working then done](docs/demo/sessions.gif)
+![two claude sessions at once, the tree marking one working, then done and pulsing until clicked, and a shell tab of its own](docs/demo/sessions.gif)
 
 When the daemon restarts, every session comes back as its shell _and_
 continues the agent that was in it: pando watches which program holds the
@@ -136,7 +136,7 @@ stashes, tags).
   inline or side by side. Selected lines can be staged, unstaged or reverted
   from either view.
 
-![a diff inline and side by side, staging part of it, then a conflicting merge](docs/demo/diff.gif)
+![a diff inline and side by side, staging part of it, then a conflicting merge continued with git's message](docs/demo/diff.gif)
 
 ### Editor
 
@@ -280,7 +280,7 @@ filesystem, so a script uses git for those.
 `pando skill` prints [skills/pando/SKILL.md](skills/pando/SKILL.md), the guide
 for an agent driving pando: states, waits, naming and the safety rules.
 
-![the CLI: a project, a worktree, a session driven from the shell, and a setting](docs/demo/cli.gif)
+![the CLI: a project, a worktree named at random, a session driven from the shell, and a setting](docs/demo/cli.gif)
 
 ## Files
 
@@ -339,7 +339,7 @@ its own from `PANDO_DEMO_REPO` and `PANDO_DEMO_STATE`; a serial one keeps the
 defaults, either because it runs claude — and every directory claude opens is
 one you must trust by hand the first time, so the tapes share the single
 `/tmp/pando-demo` — or because the path is on screen and `/tmp/pando-demo` is
-what belongs in the GIF. Three things bite:
+what belongs in the GIF. Five things bite:
 
 - VHS cannot send `F12`, `ctrl+.`, `ctrl+s`, `ctrl+space` or `alt+shift`
   chords, so tapes bind those commands to `ctrl` letters in their own
@@ -350,3 +350,9 @@ what belongs in the GIF. Three things bite:
   reason: on main the empty editor swallows them.
 - Switching a project already puts that project's session on screen, so `⏎`
   on its row in Spaces takes it off again rather than opening it.
+- Keys follow the focus: an editable file types `5` and `[` rather than
+  toggling the terminal or cycling tabs, so a tape reaches them from a sidebar
+  (`ctrl+]` from the Terminal lands in one).
+- claude records in its classic renderer: `cfg.sh` passes `"tui": "default"`,
+  since a fullscreen claude (the machine's own `settings.json`) draws on the
+  alternate screen and matches none of the tapes' waits.

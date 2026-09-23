@@ -16,7 +16,10 @@ mode=dark
 # mode=light
 
 # The command the session tapes start an agent with; projects.tape types it too.
-claude_cmd="claude --settings '{\"theme\": \"$mode\"}'"
+# "tui": "default" keeps claude in its classic renderer, the one the GIFs show,
+# whatever the recording machine's settings.json picked (a fullscreen claude
+# draws on the alternate screen and looks nothing like them).
+claude_cmd="claude --settings '{\"theme\": \"$mode\", \"tui\": \"default\"}'"
 
 cfg() {
 	local width=$1 keys="" a
@@ -27,8 +30,8 @@ cfg() {
 		for a in "$@"; do
 			case $a in
 			vim) echo 'vim_mode = true' ;;
-			claude) printf '[agents]\nclaude = ["claude", "--settings", "{\\"theme\\": \\"%s\\"}"]\n' "$mode" ;;
-			claude-edits) printf '[agents]\nclaude = ["claude", "--permission-mode", "acceptEdits", "--allowedTools", "Bash", "--settings", "{\\"theme\\": \\"%s\\"}"]\n' "$mode" ;;
+			claude) printf '[agents]\nclaude = ["claude", "--settings", "{\\"theme\\": \\"%s\\", \\"tui\\": \\"default\\"}"]\n' "$mode" ;;
+			claude-edits) printf '[agents]\nclaude = ["claude", "--permission-mode", "acceptEdits", "--allowedTools", "Bash", "--settings", "{\\"theme\\": \\"%s\\", \\"tui\\": \\"default\\"}"]\n' "$mode" ;;
 			shell) printf '[agents]\nshell = ["bash"]\n' ;;
 			*=*) keys+=$(printf '"%s" = "%s"\n' "${a%%=*}" "${a#*=}")$'\n' ;;
 			*) echo "cfg: unknown argument $a" >&2 ;;

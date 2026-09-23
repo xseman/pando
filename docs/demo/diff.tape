@@ -100,15 +100,12 @@ Sleep 1500ms
 Ctrl+k
 Sleep 1200ms
 
-# Back in Source Control ⏎ stages the resolved file, and Continue finishes
-# the merge.
+# Back in Source Control ⏎ stages the resolved file. The message box shows
+# the message git prepared ("Merge branch 'feat'"), and Continue (C) commits
+# it as VS Code does, with nothing typed.
 Ctrl+]
 Sleep 600ms
 Enter
-Sleep 1500ms
-Type "c"
-Sleep 400ms
-Type "Merge feat"
-Sleep 500ms
-Enter
+Sleep 2500ms
+Type "C"
 Sleep 3s

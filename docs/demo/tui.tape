@@ -10,6 +10,9 @@ Source docs/demo/settings.tape
 Set TypingSpeed 50ms
 Source docs/demo/setup.tape
 Type `cfg 34 claude` Enter
+# A worktree beside the checkout, named at random: Spaces marks the checkout
+# ⌂ and the worktree ⑂.
+Type "pando project add . >/dev/null && pando ws new >/dev/null" Enter
 Type "clear" Enter
 Show
 
@@ -56,8 +59,9 @@ Sleep 300ms
 Type "5"
 Sleep 600ms
 
-# Spaces: a claude session hangs off its branch, and its symbol follows it -
-# working while it answers, idle after. (Claude asks its onboarding questions -
+# Spaces: the project's checkout (⌂) and its worktree (⑂), and a claude
+# session hanging off its branch; its symbol follows it - working while it
+# answers, idle after. (Claude asks its onboarding questions -
 # whether it trusts the folder, and the default permission mode - once; answer
 # them by hand before recording, they are remembered.)
 Type "3"
