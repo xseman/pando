@@ -3,17 +3,20 @@ package daemon
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/xseman/pando/internal/git"
 	"github.com/xseman/pando/internal/proto"
 )
@@ -928,5 +931,47 @@ func TestFocusResolvesSessionNames(t *testing.T) {
 
 	if err := proto.Call("focus", proto.FocusParams{Session: "nobody"}, nil); err == nil {
 		t.Fatal("focus on an unknown session is refused, not broadcast for no TUI to match")
+	}
+}
+
+// TestXtermKey checks every special key with every modifier set a terminal
+// can send: what xtermKey writes decodes back to the same key, the way the
+// app in the session reads it, and what it leaves is what vt encodes itself.
+func TestXtermKey(t *testing.T) {
+	var d uv.EventDecoder
+
+	keys := slices.Concat(slices.Collect(maps.Keys(xtermFinal)), slices.Collect(maps.Keys(xtermTilde)))
+	mods := []uv.KeyMod{uv.ModShift, uv.ModCtrl, uv.ModMeta, uv.ModShift | uv.ModCtrl, uv.ModAlt | uv.ModCtrl, uv.ModAlt | uv.ModShift | uv.ModCtrl | uv.ModMeta}
+
+	for _, code := range keys {
+		for _, mod := range mods {
+			seq, ok := xtermKey(code, mod)
+			if !ok {
+				t.Fatalf("key %d mod %d: not encoded", code, mod)
+			}
+
+			n, ev := d.Decode([]byte(seq))
+			if multi, ok := ev.(uv.MultiEvent); ok { // F3 with modifiers is also a cursor report, as in xterm
+				ev = multi[0]
+			}
+
+			if k, isKey := ev.(uv.KeyPressEvent); n != len(seq) || !isKey || k.Code != code || k.Mod != mod {
+				t.Fatalf("key %d mod %d: %q decodes to %#v (%d of %d bytes)", code, mod, seq, ev, n, len(seq))
+			}
+		}
+
+		for _, mod := range []uv.KeyMod{0, uv.ModAlt} {
+			if _, ok := xtermKey(code, mod); ok {
+				t.Fatalf("key %d mod %d is vt's to encode", code, mod)
+			}
+		}
+	}
+
+	if _, ok := xtermKey('a', uv.ModCtrl); ok {
+		t.Fatal("ctrl+a is a control byte, vt's to send")
+	}
+
+	if _, ok := xtermKey(uv.KeyTab, uv.ModShift); ok {
+		t.Fatal("shift+tab is vt's CSI Z")
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -462,6 +463,42 @@ func (s *session) name() string {
 	return s.spec.Name
 }
 
+// xtermFinal and xtermTilde are the special keys xterm sends with their
+// modifiers: CSI 1;m <final> and CSI <n>;m ~.
+var (
+	xtermFinal = map[rune]byte{
+		uv.KeyUp: 'A', uv.KeyDown: 'B', uv.KeyRight: 'C', uv.KeyLeft: 'D', uv.KeyHome: 'H', uv.KeyEnd: 'F',
+		uv.KeyF1: 'P', uv.KeyF2: 'Q', uv.KeyF3: 'R', uv.KeyF4: 'S',
+	}
+	xtermTilde = map[rune]int{
+		uv.KeyInsert: 2, uv.KeyDelete: 3, uv.KeyPgUp: 5, uv.KeyPgDown: 6,
+		uv.KeyF5: 15, uv.KeyF6: 17, uv.KeyF7: 18, uv.KeyF8: 19, uv.KeyF9: 20, uv.KeyF10: 21, uv.KeyF11: 23, uv.KeyF12: 24,
+	}
+)
+
+// xtermKey is xterm's encoding of a special key held with shift, ctrl or
+// meta, which is how readline, zsh and agents read ctrl+← and shift+end: the
+// modifier parameter is 1 plus shift 1, alt 2, ctrl 4, meta 8. ok is false
+// for what vt's SendKey encodes itself: other keys, and none or alt alone.
+func xtermKey(code rune, mod uv.KeyMod) (seq string, ok bool) {
+	mod &= uv.ModShift | uv.ModAlt | uv.ModCtrl | uv.ModMeta
+	if mod&^uv.ModAlt == 0 {
+		return "", false
+	}
+
+	m := 1 + int(mod)
+
+	if f, ok := xtermFinal[code]; ok {
+		return "\x1b[1;" + strconv.Itoa(m) + string(f), true
+	}
+
+	if n, ok := xtermTilde[code]; ok {
+		return "\x1b[" + strconv.Itoa(n) + ";" + strconv.Itoa(m) + "~", true
+	}
+
+	return "", false
+}
+
 func (s *session) input(p proto.InputParams) error {
 	if p.Text != "" {
 		if _, err := s.pty.WriteString(p.Text); err != nil {
@@ -475,9 +512,14 @@ func (s *session) input(p proto.InputParams) error {
 	for _, k := range p.Keys {
 		// vt's SendKey only emits printable keys without modifiers, which
 		// drops shifted letters; plain text goes through the same pipe instead.
-		if k.Text != "" && uv.KeyMod(k.Mod)&^uv.ModShift == 0 {
+		seq, special := xtermKey(k.Code, uv.KeyMod(k.Mod))
+
+		switch {
+		case k.Text != "" && uv.KeyMod(k.Mod)&^uv.ModShift == 0:
 			s.emu.SendText(k.Text)
-		} else {
+		case special: // ctrl+←, shift+end, …: vt drops a special key with modifiers
+			s.emu.SendText(seq)
+		default:
 			s.emu.SendKey(uv.KeyPressEvent{Code: k.Code, Mod: uv.KeyMod(k.Mod), Text: k.Text})
 		}
 	}
