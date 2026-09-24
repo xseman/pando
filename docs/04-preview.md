@@ -38,7 +38,7 @@ still takes `app.ts:120:5`.
 raw ──render()──▶ lines[]   styled, one per source line
                   plain[][] the same without styles  ← cursor, selection, copy
                   meta[]    diff rows: old/new line number + kind (c a d h p f)
-lines ──rows(w)──▶ vrow{line, from, to}  screen rows (wrapping when `w` is on)
+lines ──rows(w)──▶ vrow{line, from, to}  screen rows (wrapping when `wrap` is on)
 ```
 
 While nothing is selected, `hlWord` takes the identifier under the cursor and

@@ -115,6 +115,17 @@ alternate scroll). A click on the slider grabs it, one on the track jumps it the
 and the drag (`dragScroll`) follows the mouse. Sidebar lists keep their thin
 `┃`.
 
+With word wrap off (the default) the editor has a horizontal bar too: the
+same `vbar` geometry on its side (`hbar`, the widest line against the text
+width, from `left`), drawn by `hcells` on a row of its own under the text (blanks
+underlined in the slider's and the track's colors: a block glyph per cell
+seams in VTE at fractional scaling, a background would fill the row), the
+gutter and the corner under the vertical bar left blank. The row exists only
+while a line runs past the right edge: `pvH` gives it back (`hbarH`), so
+`follow`, the peek and every hit test below the text move with it. A drag on
+it (`editor-h`, `scrollDrag.horiz`) follows the mouse's column. Split diffs
+and Markdown beside its source have none.
+
 Tab strips (editors, a session's tabs, the Terminal's) draw each tab as a
 chip (`tabChip`): the active one in the selection's colors, the others on
 `tab_bg`, VS Code's tab.inactiveBackground, and every tab followed by

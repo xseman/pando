@@ -2645,7 +2645,7 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 		return m.term.mouse(m, m.sess, msg, mo.X-c.x, mo.Y-1-strip)
 	}
 
-	if top := 1 + strip + m.pvH(); m.pk != nil && mo.Y >= top {
+	if top := 1 + strip + m.pvH() + m.hbarH(); m.pk != nil && mo.Y >= top {
 		return m.pk.mouse(m, msg, mo.X-c.x, mo.Y-top)
 	}
 
@@ -2912,7 +2912,7 @@ func (m *Model) dragMouse(msg tea.MouseMsg) tea.Cmd {
 	case dragRow:
 		return m.ag.dragRowTo(m, d, mo.Y, release)
 	case dragScroll:
-		return m.barDragTo(d.bar, mo.Y, release)
+		return m.barDragTo(d.bar, mo.X, mo.Y, release)
 	case dragMsgSel:
 		m.scm.input.ExtendSelection(mo.X-d.x0, mo.Y-d.y0)
 
@@ -3632,7 +3632,11 @@ func (m *Model) attentionCount() int {
 // pvW is the editor's text width: the main area less the scrollbar's column.
 func (m *Model) pvW() int { return max(m.mainW()-1, 1) }
 
-func (m *Model) pvH() int { return max(m.mainH()-2-m.stripH()-m.peekH(), 1) }
+func (m *Model) pvH() int { return max(m.mainH()-2-m.stripH()-m.peekH()-m.hbarH(), 1) }
+
+// hbarH is the row the editor's horizontal scrollbar takes under the text:
+// 1 while a line runs past the right edge.
+func (m *Model) hbarH() int { return b2i(m.pv.hbar(m, m.pvW()).on()) }
 
 // stripH is 1 when a tab strip is drawn over the main area: a session always
 // has one (it carries the + that opens another), and so does any open editor.
@@ -3673,6 +3677,8 @@ func (m *Model) editorLines(w int) []string {
 		h = m.pvH()
 
 		header, body, footer = m.pv.view(m, w, h)
+
+		h += m.hbarH() // the horizontal bar's row, which view puts under the text
 		if m.pk != nil {
 			for len(body) < h {
 				body = append(body, "")

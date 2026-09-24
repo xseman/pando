@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 	"testing"
 
@@ -99,6 +100,97 @@ func TestEditorScrollbar(t *testing.T) {
 	if m.drag != nil || m.pv.cur.line != 0 {
 		t.Fatalf("the release ends the drag and leaves the cursor: drag %v cursor %+v", m.drag, m.pv.cur)
 	}
+}
+
+// TestEditorHScrollbar is VS Code's horizontal scrollbar: with word wrap off,
+// the default, a line wider than the editor puts a bar under the text that a
+// click or a drag pans, and turning wrap on (⌥z or the header's toggle)
+// takes the bar away.
+func TestEditorHScrollbar(t *testing.T) {
+	short, _ := editorModel(t, "short.go", "package x\n")
+	if short.pv.wrap || short.hbarH() != 0 {
+		t.Fatalf("wrap starts off and a file that fits has no bar: wrap %v, bar %d", short.pv.wrap, short.hbarH())
+	}
+
+	m, _ := editorModel(t, "wide.go", "package x\n\nvar s = \""+strings.Repeat("x", 400)+"\"\n")
+	checkWidths(t, m)
+
+	if m.hbarH() != 1 || m.pvH() != short.pvH()-1 {
+		t.Fatalf("a wide line takes a row for the bar: bar %d, text rows %d of %d", m.hbarH(), m.pvH(), short.pvH())
+	}
+
+	h, g := m.pvH(), m.pv.gutter()
+	y, x0 := 1+m.stripH()+h, m.mainX()+g
+
+	row := m.editorLines(m.mainW())[y]
+	if !strings.Contains(row, underParams(pal.sliderBg)) || !strings.Contains(row, underParams(pal.rulerBorder)) || strings.TrimSpace(ansi.Strip(row)) != "" {
+		t.Fatalf("the row under the text is the bar: %q", ansi.Strip(row))
+	}
+
+	hb := m.pv.hbar(m, m.pvW())
+	m.Update(tea.MouseClickMsg{X: x0 + hb.h - 1, Y: y, Button: tea.MouseLeft})
+
+	if want := hb.n - hb.h; m.pv.left != want {
+		t.Fatalf("a click at the right end of the track pans to the end: left %d, want %d", m.pv.left, want)
+	}
+
+	if !m.barActive("editor-h") || m.barActive("editor") {
+		t.Fatal("the horizontal slider is the one held")
+	}
+
+	if !strings.Contains(m.View().Content, underParams(pal.sliderActiveBg)) {
+		t.Fatal("the held slider is drawn active")
+	}
+
+	m.Update(tea.MouseMotionMsg{X: x0 - 20, Y: y + 3, Button: tea.MouseLeft})
+
+	if m.pv.left != 0 {
+		t.Fatalf("dragging past the left end pans to the start: left %d", m.pv.left)
+	}
+
+	m.Update(tea.MouseReleaseMsg{X: x0, Y: y, Button: tea.MouseLeft})
+
+	if m.drag != nil || m.pv.cur != (pos{}) {
+		t.Fatalf("the release ends the drag and leaves the cursor: drag %v cursor %+v", m.drag, m.pv.cur)
+	}
+
+	press(m, "down", "down", "end")
+
+	if want := hb.n - hb.h; m.pv.left != want {
+		t.Fatalf("the cursor at the end of the widest line brings the bar to its end: left %d, want %d", m.pv.left, want)
+	}
+
+	m.pv.left = 10_000 // a shift+wheel runs on; the view stops it at the widest line
+	m.View()
+
+	if want := hb.n - hb.h; m.pv.left != want {
+		t.Fatalf("panning stops at the widest line: left %d, want %d", m.pv.left, want)
+	}
+
+	press(m, "alt+z")
+
+	if !m.pv.wrap || m.pv.left != 0 || m.hbarH() != 0 || m.pvH() != short.pvH() {
+		t.Fatalf("⌥z wraps, and the bar goes: wrap %v left %d bar %d", m.pv.wrap, m.pv.left, m.hbarH())
+	}
+
+	checkWidths(t, m)
+
+	acts := m.pv.buttons(m, m.mainW())
+	if a := acts[len(acts)-1]; a.g != icWrap || !a.on {
+		t.Fatalf("the header's last button is the lit wrap toggle: %+v", a)
+	}
+
+	click(m, m.mainX()+acts[len(acts)-1].x+1, 0, tea.MouseLeft)
+
+	if m.pv.wrap || m.hbarH() != 1 {
+		t.Fatalf("the header toggle unwraps: wrap %v bar %d", m.pv.wrap, m.hbarH())
+	}
+}
+
+// underParams is the SGR that colors an underline c, the horizontal bar's line.
+func underParams(c color.Color) string {
+	r, g, b, _ := c.RGBA()
+	return fmt.Sprintf("58;2;%d;%d;%d", r>>8, g>>8, b>>8)
 }
 
 // TestSessionScrollbar gives a session's scrollback the same bar: its last

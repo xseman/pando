@@ -409,6 +409,7 @@ func untrackedPaths(st git.Status) []string {
 type rowAction struct {
 	g    glyph
 	x, w int
+	on   bool // a toggle that is set, drawn lit
 	run  func(m *Model) tea.Cmd
 }
 

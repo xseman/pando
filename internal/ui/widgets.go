@@ -214,7 +214,9 @@ func (l *list) renderBar(w, h, n, skip int, rowFn func(i, w int) string) []strin
 
 // vbar is the geometry of VS Code's editor scrollbar: n rows in all, h of
 // them in view from top. The editor and the terminals keep their last column
-// for it, as VS Code keeps the scrollbar's width off the text.
+// for it, as VS Code keeps the scrollbar's width off the text. The editor's
+// horizontal bar is the same geometry turned on its side: n cells of the
+// widest line, h of them in view from p.left.
 type vbar struct{ n, h, top int }
 
 // on reports rows out of view, which is when the slider shows.
@@ -273,6 +275,29 @@ func (b vbar) cells(active bool) []string {
 	return out
 }
 
+// hcells is the bar laid along a row, b.h cells: blanks underlined, the
+// slider's color over the columns in view and the track's border elsewhere.
+// A block glyph per cell (▀) seams at fractional scaling in VTE and a
+// background fills the whole row; an underline is one line across the run.
+func (b vbar) hcells(active bool) string {
+	if !b.on() {
+		return blank(max(b.h, 0))
+	}
+
+	slider := pal.sliderBg
+	if active {
+		slider = pal.sliderActiveBg
+	}
+
+	line := func(c color.Color, n int) string {
+		return lipgloss.NewStyle().Underline(true).UnderlineSpaces(true).UnderlineColor(c).Render(blank(n))
+	}
+
+	x, sw := b.thumb()
+
+	return line(pal.rulerBorder, x) + line(slider, sw) + line(pal.rulerBorder, b.h-x-sw)
+}
+
 // withBar fits lines to w-1 columns and puts b's column after them, h rows.
 func withBar(lines []string, w int, b vbar, active bool) []string {
 	cells := b.cells(active)
@@ -293,11 +318,12 @@ func withBar(lines []string, w int, b vbar, active bool) []string {
 // scrollDrag follows a drag on a scrollbar: geo reads the bar as it is, to
 // scrolls to a top, and off is where on the slider it was picked up.
 type scrollDrag struct {
-	id  string // the bar's owner: "editor", "session" or "terminal"
-	geo func() vbar
-	to  func(top int) tea.Cmd
-	y0  int // the screen row of the bar's first row
-	off int
+	id    string // the bar's owner: "editor", "editor-h", "session" or "terminal"
+	geo   func() vbar
+	to    func(top int) tea.Cmd
+	y0    int // the screen row of the bar's first row, or column when horiz
+	off   int
+	horiz bool // the bar runs along a row: the mouse's column moves it
 }
 
 // barClick starts dragging bar b from a left click at its row y, which is
@@ -324,11 +350,26 @@ func (m *Model) barClick(id string, y, y0 int, geo func() vbar, to func(top int)
 	return cmd
 }
 
-// barDragTo moves the dragged slider with the mouse at screen row y.
-func (m *Model) barDragTo(d *scrollDrag, y int, release bool) tea.Cmd {
+// hbarClick is barClick for a bar along a row: x is the click's column on it,
+// x0 the screen column of the bar's first cell.
+func (m *Model) hbarClick(id string, x, x0 int, geo func() vbar, to func(left int) tea.Cmd) tea.Cmd {
+	cmd := m.barClick(id, x, x0, geo, to)
+	if m.barActive(id) {
+		m.drag.bar.horiz = true
+	}
+
+	return cmd
+}
+
+// barDragTo moves the dragged slider with the mouse at screen cell (x, y).
+func (m *Model) barDragTo(d *scrollDrag, x, y int, release bool) tea.Cmd {
 	if release {
 		m.drag = nil
 		return nil
+	}
+
+	if d.horiz {
+		y = x
 	}
 
 	return d.to(d.geo().topAt(y - d.y0 - d.off))

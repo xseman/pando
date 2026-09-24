@@ -71,6 +71,7 @@ type preview struct {
 	hl     []rune // the word under the cursor, painted wherever else it stands
 	comp   completion
 	left   int // horizontal scroll in cells when not wrapping
+	wide   int // cells of the widest line, measured with the rows while not wrapping
 	cur    pos
 	anchor *pos // selection start; nil = no selection
 	reveal bool // center the cursor once the content loads
@@ -977,12 +978,14 @@ func (p *preview) rows(w int) []vrow {
 		return p.vis
 	}
 
-	p.vis, p.visKey, p.lineRow = p.vis[:0], key, make([]int, len(p.plain))
+	p.vis, p.visKey, p.lineRow, p.wide = p.vis[:0], key, make([]int, len(p.plain)), 0
 	for i, l := range p.plain {
 		p.lineRow[i] = len(p.vis)
 		from, cells := 0, 0
 
-		if p.wrap {
+		if !p.wrap {
+			p.wide = max(p.wide, cellsOf(l))
+		} else {
 			for j, r := range l {
 				c := runeCells(r)
 				if cells+c > tw && j > from {
@@ -1820,6 +1823,10 @@ func (p *preview) buttons(m *Model, w int) []rowAction {
 		add(icHistory, tea.KeyPressMsg{Code: 'H', Text: "H"})
 	}
 
+	if !p.scrollOnly(m) { // last, so it keeps its place whatever else the kind shows
+		acts = append(acts, rowAction{g: icWrap, on: p.wrap, run: func(m *Model) tea.Cmd { m.pv.toggleWrap(m); return nil }})
+	}
+
 	layoutRight(acts, w, 2)
 
 	return acts
@@ -1954,8 +1961,12 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 	bw, mx := 0, m.mouseX-m.mainX()
 	for _, a := range p.buttons(m, w) {
 		st := dim
-		if m.mouseY == 0 && mx >= a.x && mx < a.x+a.w {
+
+		switch {
+		case m.mouseY == 0 && mx >= a.x && mx < a.x+a.w:
 			st = keycapHot()
+		case a.on:
+			st = lipgloss.NewStyle().Background(pal.accent).Foreground(pal.buttonFg) // as find's toggles
 		}
 
 		right, bw = append(right, sg(" "+a.g.s()+" ", st)), bw+a.w
@@ -1993,14 +2004,43 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 	}
 
 	p.hl = p.hlWord()
-	vis := p.rows(tw)
+	vis, hb := p.rows(tw), p.hbar(m, tw)
 
 	p.top = max(0, min(p.top, len(vis)-h))
+	p.left = max(0, min(p.left, hb.n-hb.h)) // a shift+wheel pans no further than the widest line
+	hb.top = p.left
+
 	for k := p.top; k < len(vis) && k < p.top+h; k++ {
 		body = append(body, p.renderRow(vis[k], tw))
 	}
 
-	return header, withBar(body, w, vbar{len(vis), h, p.top}, active), footer
+	body = withBar(body, w, vbar{len(vis), h, p.top}, active)
+	if hb.on() { // under the text, the gutter and the vertical bar's corner left blank
+		body = append(body, blank(p.gutter())+hb.hcells(m.barActive("editor-h"))+" ")
+	}
+
+	return header, body, footer
+}
+
+// hbar is the editor's horizontal scrollbar for a view w cells wide: the
+// widest line against the text area, from p.left. It shows only while a line
+// runs past the right edge, so never while wrapping, and the two-column views
+// have none.
+func (p *preview) hbar(m *Model, w int) vbar {
+	if p.wrap || !p.ready || p.err != "" || len(p.plain) == 0 || p.scrollOnly(m) {
+		return vbar{}
+	}
+
+	p.rows(w)
+
+	return vbar{p.wide + 1, max(w-p.gutter(), 1), p.left} // +1: the cursor stands past the line end
+}
+
+// toggleWrap is VS Code's Toggle Word Wrap, for every editor until it is
+// toggled back; off, long lines scroll sideways under the horizontal bar.
+func (p *preview) toggleWrap(m *Model) {
+	p.wrap, p.left, p.vis = !p.wrap, 0, nil
+	p.follow(m.pvW(), m.pvH())
 }
 
 // bar is the editor's scrollbar as the view draws it.
@@ -2999,8 +3039,7 @@ func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		return setClipboard(p.text(), "copied preview")
 
 	case "w", "alt+z": // ⌥z is VS Code's word wrap
-		p.wrap, p.left, p.vis = !p.wrap, 0, nil
-		p.follow(w, h)
+		p.toggleWrap(m)
 
 	case "p":
 		if p.kind == pvFile && isMarkdown(p.path) {
@@ -3145,6 +3184,15 @@ func (p *preview) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 	if click && mo.Button == tea.MouseLeft && x >= w && y >= 0 && y < h { // the scrollbar
 		return m.barClick("editor", y, mo.Y-y, func() vbar { return p.bar(m) }, func(top int) tea.Cmd {
 			p.top = top
+			return nil
+		})
+	}
+
+	if click && mo.Button == tea.MouseLeft && y == h && x >= p.gutter() && x < w { // the horizontal bar under the text
+		bx := x - p.gutter()
+
+		return m.hbarClick("editor-h", bx, mo.X-bx, func() vbar { return p.hbar(m, m.pvW()) }, func(left int) tea.Cmd {
+			p.left = left
 			return nil
 		})
 	}

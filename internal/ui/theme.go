@@ -344,6 +344,7 @@ var (
 	icDown       = glyph{"arrow-down", "\uea9a", "↓", ""}
 	icNextRev    = glyph{"arrow-right", "\uea9c", "→", ""}
 	icHistory    = glyph{"history", "\uea82", "rev", ""}
+	icWrap       = glyph{"word-wrap", "\ueb80", "wrap", ""}
 	icReplace    = glyph{"replace", "\ueb3d", "↹", ""}
 	icPreserve   = glyph{"preserve-case", "\ueb2e", "AB", ""}
 	icReplaceAll = glyph{"replace-all", "\ueb3c", "⇄", ""}
@@ -356,7 +357,7 @@ var (
 		icAdd, icRemove, icDiscard, icWorktree, icSparkle, icCheck, icChevron, icClose, icBranch, icPublish, icSync, icSplit, icInline,
 		icOpenLeft, icOpenRight, icSearch, icCase, icWord, icRegex, icEllipsis, icClearAll, icOptions, icPreview, icSource,
 		icPrevRev, icNextRev, icUp, icDown, icHistory, icTag, icDetach, icReplace, icPreserve, icReplaceAll, icTerminal, icDot,
-		icMainWt, icLinkedWt,
+		icMainWt, icLinkedWt, icWrap,
 	}
 )
 
