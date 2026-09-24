@@ -27,6 +27,10 @@ const (
 
 // keyContext is the context the focused part gives a key.
 func (m *Model) keyContext() keyCtx {
+	if t, _ := m.focusedTerm(); t != nil && t.find.editing {
+		return ctxInput // the terminal's find widget has the keyboard
+	}
+
 	switch {
 	case m.focus == onPanel || m.termFocused() || m.sessFocused(), m.focus == onMain && m.showsSession():
 		return ctxTerminal
@@ -57,6 +61,26 @@ var keybindings = []keybinding{
 	// Ways out of a terminal and the chords VS Code keeps from its shell.
 	{keys: []string{"ctrl+]"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { m.cycleFocus(); return m.fetchScreen() }},
 	{keys: []string{"ctrl+shift+p"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.commandPalette() }},
+	// VS Code's terminal find: ⌃f opens it over the shell, F3 walks its
+	// matches, esc closes it while it shows.
+	{keys: []string{"ctrl+f"}, when: ctxTerminal, run: func(m *Model, _ string) tea.Cmd {
+		t, id := m.focusedTerm()
+		return t.openFind(m, id)
+	}},
+	{keys: []string{"f3", "shift+f3", "esc"}, when: ctxTerminal, cond: termFindOn, run: func(m *Model, s string) tea.Cmd {
+		t, id := m.focusedTerm()
+
+		switch s {
+		case "esc":
+			t.closeFind()
+			return nil
+
+		case "f3":
+			return t.findGo(m, id, 1)
+		}
+
+		return t.findGo(m, id, -1)
+	}},
 	{keys: []string{"ctrl+shift+f"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return tea.Batch(m.showView(viewSearch), m.sr.focus()) }},
 	// ⌃space is VS Code's Trigger Suggest, which an editable file gets first.
 	// Outside the kitty protocol a terminal sends NUL for ⌃` too, so the
@@ -132,4 +156,10 @@ func (m *Model) bindingFor(c keyCtx, key string) (keybinding, bool) {
 	}
 
 	return keybinding{}, false
+}
+
+// termFindOn reports the find widget showing over the focused terminal.
+func termFindOn(m *Model) bool {
+	t, _ := m.focusedTerm()
+	return t != nil && t.find.on
 }

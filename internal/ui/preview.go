@@ -2417,6 +2417,13 @@ func (p *preview) findActs(bw int) (field int, acts []rowAction) {
 		{g: icDown, run: func(m *Model) tea.Cmd { return m.pv.findGo(m, 1) }},
 		{g: icClose, run: func(m *Model) tea.Cmd { m.pv.closeFind(); return nil }},
 	}
+
+	return findLayout(acts, bw), acts
+}
+
+// findLayout places a find widget's six buttons (three toggles, previous,
+// next, close) for a widget bw wide and returns the query's width.
+func findLayout(acts []rowAction, bw int) (field int) {
 	used := 0
 
 	for i := range acts {
@@ -2436,7 +2443,7 @@ func (p *preview) findActs(bw int) (field int, acts []rowAction) {
 		x += acts[i].w
 	}
 
-	return field, acts
+	return field
 }
 
 // replActs are the replace row's buttons, under the query's toggles:
@@ -2473,63 +2480,25 @@ func (p *preview) findBox(m *Model) (box []string, x, y int, ok bool) {
 	}
 
 	field, acts := p.findActs(bw)
-
-	edge := dim
-	if p.find.editing {
-		edge = fg(pal.accent)
-	}
-
-	in := lipgloss.NewStyle().Background(pal.inputBg)
-	input := func(t *textinput.Model) string {
-		t.SetStyles(inputStyles(m.dark))
-		t.SetWidth(max(field, 1))
-
-		text := t.View()
-		if pad := field - ansi.StringWidth(text); pad > 0 {
-			return text + in.Render(blank(pad))
-		}
-
-		return ansi.Truncate(text, field, "")
-	}
-
-	status := dim
-	if len(p.hits) == 0 && p.find.input.Value() != "" {
-		status = fg(pal.errc)
-	}
-
-	onStyle := lipgloss.NewStyle().Background(pal.accent).Foreground(pal.buttonFg)
+	edge := findEdge(p.find.editing)
 
 	lead := "  "
 	if p.editable() { // the chevron opens the replace box; a read-only file has none
 		lead = dim.Render(strings.TrimSuffix(chevron(p.replOn), " ")) + " "
 	}
 
-	on := []bool{p.findCase, p.findWord, p.findRegex}
-
-	var b strings.Builder
-	b.WriteString(edge.Render("│") + " " + lead + input(&p.find.input))
-
-	for i, a := range acts {
-		if i == 3 {
-			b.WriteString("  " + status.Render(fit(p.findStatus(), findStatusW)))
-		}
-
-		st := dim
-		if i < 3 && on[i] {
-			st = onStyle
-		}
-
-		b.WriteString(" " + st.Render(a.g.s()))
-	}
-
-	b.WriteString(" " + edge.Render("│"))
-
 	rule := strings.Repeat("─", bw-2)
-	box = []string{edge.Render("╭" + rule + "╮"), b.String()}
+	box = []string{edge.Render("╭" + rule + "╮"), findRow(m, field, acts, findLook{
+		input: &p.find.input, editing: p.find.editing, lead: lead,
+		on: [3]bool{p.findCase, p.findWord, p.findRegex}, status: p.findStatus(),
+		miss: len(p.hits) == 0 && p.find.input.Value() != "",
+	})}
 
 	if p.replOn {
+		onStyle := lipgloss.NewStyle().Background(pal.accent).Foreground(pal.buttonFg)
+
 		var r strings.Builder
-		r.WriteString(edge.Render("│") + "   " + input(&p.repl))
+		r.WriteString(edge.Render("│") + "   " + findInput(m, &p.repl, field))
 
 		for i, a := range p.replActs(field) {
 			st := dim
@@ -2550,6 +2519,71 @@ func (p *preview) findBox(m *Model) (box []string, x, y int, ok bool) {
 	}
 
 	return append(box, edge.Render("╰"+rule+"╯")), m.mainX() + x0, 1 + m.stripH(), true
+}
+
+// findLook is what one find widget shows on its query row.
+type findLook struct {
+	input   *textinput.Model
+	editing bool
+	lead    string  // what stands before the query: the replace chevron, or blanks
+	on      [3]bool // match case, whole word, regular expression
+	status  string  // "n of m"
+	miss    bool    // a query without a match: the status in the error color
+}
+
+// findEdge is a find widget's frame, in the accent color while it has the keyboard.
+func findEdge(editing bool) lipgloss.Style {
+	if editing {
+		return fg(pal.accent)
+	}
+
+	return dim
+}
+
+// findInput draws a find widget's text box field cells wide.
+func findInput(m *Model, t *textinput.Model, field int) string {
+	t.SetStyles(inputStyles(m.dark))
+	t.SetWidth(max(field, 1))
+
+	text := t.View()
+	if pad := field - ansi.StringWidth(text); pad > 0 {
+		return text + lipgloss.NewStyle().Background(pal.inputBg).Render(blank(pad))
+	}
+
+	return ansi.Truncate(text, field, "")
+}
+
+// findRow is a find widget's query row: the box, the toggles lit while on,
+// "n of m" and the buttons findLayout placed, inside the frame's sides.
+func findRow(m *Model, field int, acts []rowAction, l findLook) string {
+	edge := findEdge(l.editing)
+
+	status := dim
+	if l.miss {
+		status = fg(pal.errc)
+	}
+
+	onStyle := lipgloss.NewStyle().Background(pal.accent).Foreground(pal.buttonFg)
+
+	var b strings.Builder
+	b.WriteString(edge.Render("│") + " " + l.lead + findInput(m, l.input, field))
+
+	for i, a := range acts {
+		if i == 3 {
+			b.WriteString("  " + status.Render(fit(l.status, findStatusW)))
+		}
+
+		st := dim
+		if i < 3 && l.on[i] {
+			st = onStyle
+		}
+
+		b.WriteString(" " + st.Render(a.g.s()))
+	}
+
+	b.WriteString(" " + edge.Render("│"))
+
+	return b.String()
 }
 
 // findKey handles the box while it has the focus; ok is false for other keys.

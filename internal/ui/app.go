@@ -2022,6 +2022,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case screenMsg:
 		return m, m.onScreen(msg)
+	case termTextMsg:
+		return m, m.onTermText(msg)
 	case gitMsg:
 		m.gitBusy = false
 		if msg.ws != m.ws {
@@ -2281,6 +2283,10 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 
 	if b, ok := m.bindingFor(c, s); ok {
 		return b.run(m, s)
+	}
+
+	if t, id := m.focusedTerm(); t != nil && t.find.editing {
+		return t.findKey(m, id, k)
 	}
 
 	if m.focus == onPanel { // the panel is a terminal: every other key is the shell's
@@ -2636,15 +2642,7 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 			return m.sessionTitleClick(mo)
 		}
 
-		if y := mo.Y - 1 - strip; mo.X-c.x == c.w-1 && y >= 0 { // the scrollbar
-			if click && mo.Button == tea.MouseLeft {
-				return m.barMouse(&m.term, "session", y, mo.Y)
-			}
-
-			return nil
-		}
-
-		return m.term.mouse(m, m.sess, msg, mo.X-c.x, mo.Y-1-strip)
+		return m.sessionMouse(msg, mo.X-c.x, mo.Y-1-strip, c.w)
 	}
 
 	if top := 1 + strip + m.pvH() + m.hbarH(); m.pk != nil && mo.Y >= top {
@@ -2652,6 +2650,25 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 	}
 
 	return m.pv.mouse(m, msg, mo.X-c.x, mo.Y-1-strip)
+}
+
+// sessionMouse is the session's screen at body cell (x, y), w cells wide in
+// the editor area or its column: the find widget, the scrollbar in the last
+// column, then the app.
+func (m *Model) sessionMouse(msg tea.MouseMsg, x, y, w int) tea.Cmd {
+	if cmd, ok := m.term.findMouse(m, m.sess, msg, x, y, w); ok {
+		return cmd
+	}
+
+	if x == w-1 && y >= 0 { // the scrollbar
+		if _, click := msg.(tea.MouseClickMsg); click && msg.Mouse().Button == tea.MouseLeft {
+			return m.barMouse(&m.term, "session", y, msg.Mouse().Y)
+		}
+
+		return nil
+	}
+
+	return m.term.mouse(m, m.sess, msg, x, y)
 }
 
 // sessionTitleClick picks the session up by its title, or opens its menu.
@@ -2879,15 +2896,7 @@ func (m *Model) viewMouse(v view, msg tea.MouseMsg, x, y int) tea.Cmd {
 			return nil
 		}
 
-		if x == m.sessW()-1 && y > 0 { // the scrollbar
-			if click && mo.Button == tea.MouseLeft {
-				return m.barMouse(&m.term, "session", y-1, mo.Y)
-			}
-
-			return nil
-		}
-
-		return m.term.mouse(m, m.sess, msg, x, y-1)
+		return m.sessionMouse(msg, x, y-1, m.sessW())
 
 	default: // Agents.
 		return m.ag.mouse(m, msg, y)
@@ -3057,23 +3066,29 @@ func (m *Model) View() tea.View {
 		m.overlayBox(lines, box, x, y)
 	}
 
+	if boxes, xs, ys := m.termFindBoxes(); m.modal == nil {
+		for i, box := range boxes {
+			m.overlayBox(lines, box, xs[i], ys[i])
+		}
+	}
+
 	switch {
 	case m.modal != nil:
 		box, x, y := m.modal.view(m)
 		m.overlayBox(lines, strings.Split(box, "\n"), x, y)
 
 	case m.focus == onPanel && m.termRows() > 1:
-		if m.tv.scr.CursorVisible && m.tv.term.id == m.tv.id && m.tv.scr.CursorX >= m.tv.left {
+		if m.tv.scr.CursorVisible && !m.tv.find.editing && m.tv.term.id == m.tv.id && m.tv.scr.CursorX >= m.tv.left {
 			v.Cursor = tea.NewCursor(c.x+m.tv.scr.CursorX-m.tv.left, b+m.mainH()+1+m.tv.scr.CursorY)
 		}
 
 	case m.focus == onMain && m.showsSession():
-		if m.term.scr.CursorVisible && m.term.id == m.sess {
+		if m.term.scr.CursorVisible && m.term.id == m.sess && !m.term.find.editing {
 			v.Cursor = tea.NewCursor(c.x+m.term.scr.CursorX, b+1+m.stripH()+m.term.scr.CursorY)
 		}
 
 	case m.sessFocused():
-		if m.term.scr.CursorVisible && m.term.id == m.sess {
+		if m.term.scr.CursorVisible && m.term.id == m.sess && !m.term.find.editing {
 			v.Cursor = tea.NewCursor(m.colRect(m.focus).x+m.term.scr.CursorX, b+m.bodyTop(viewSession)+1+m.term.scr.CursorY)
 		}
 

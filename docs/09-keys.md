@@ -27,8 +27,15 @@ the editor's: `ctrl+a` all, `shift+←→↑↓` or a mouse drag, then `ctrl+c` 
 A terminal gives up `ctrl+]`, `ctrl+shift+p`, `ctrl+shift+f` `ctrl+shift+e`
 `ctrl+shift+g` `ctrl+shift+h`, `ctrl+j` ``ctrl+` `` `ctrl+space`,
 ``ctrl+shift+` ``, `ctrl+shift+↑↓`, `ctrl+b`, `ctrl+,`, `ctrl+0` `ctrl+1`,
-`alt+t`, `ctrl+pgup` `ctrl+pgdn` and `alt+1`…`alt+9`; everything else, `ctrl+←`
-`ctrl+p` `ctrl+s` `ctrl+enter` `F1` included, is the shell's.
+`alt+t`, `ctrl+pgup` `ctrl+pgdn`, `alt+1`…`alt+9` and `ctrl+f` (find), with
+`F3` `shift+F3` and `esc` while the find widget shows; everything else,
+`ctrl+←` `ctrl+p` `ctrl+s` `ctrl+enter` `F1` included, is the shell's.
+
+In a terminal's find widget `⏎` goes to the previous match, up toward older
+output, and `shift+⏎` to the next, as in VS Code's terminal; `↑` `↓`, `F3`
+`shift+F3` and the buttons do the same, `alt+c` `alt+w` `alt+r` toggle case,
+word and regex. A click on the terminal gives the shell its keys back with the
+matches still shown; `esc` closes the widget.
 
 | Key                                                         | Action                                                                                       |
 | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
@@ -47,7 +54,7 @@ A terminal gives up `ctrl+]`, `ctrl+shift+p`, `ctrl+shift+f` `ctrl+shift+e`
 | `ctrl+pgup` `ctrl+pgdn`, `alt+1`…`alt+9`                    | previous / next editor, editor N                                                             |
 | `ctrl+alt+-` `ctrl+shift+-`, `alt+,` `alt+.`                | back and forward through visited editors (also `ctrl+-`, `super+←` `super+→`)                |
 | `ctrl+0` `ctrl+1`                                           | focus sidebar / editor                                                                       |
-| `ctrl+f`                                                    | in a panel: filter the list (`enter` keeps it, `esc` clears); in a file: find                |
+| `ctrl+f`                                                    | in a panel: filter the list (`enter` keeps it, `esc` clears); in a file or a terminal: find  |
 | `ctrl+b`, `b`, `<` `>`                                      | fold the sidebars to a rail of view icons (click one or `»` to reopen), resize a column      |
 | `ctrl+,`, `?`                                               | settings, help (`,` in a sidebar too)                                                        |
 | `m`, right click                                            | context menu                                                                                 |

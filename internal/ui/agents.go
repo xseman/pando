@@ -1257,6 +1257,7 @@ type term struct {
 	sel       [2][2]int
 	hasSel    bool
 	selecting bool
+	find      termFind // ⌃f: VS Code's terminal find widget
 }
 
 // selRange is the selection's columns on row y, [a, b), none when b <= a.
@@ -1357,14 +1358,22 @@ func (m *Model) onScreen(msg screenMsg) tea.Cmd {
 		}
 
 		t.t.fetching = false
+
+		var find tea.Cmd
+
 		if msg.err == nil {
 			t.t.id, t.t.scr = msg.id, msg.scr
 			t.t.scroll = min(t.t.scroll, msg.scr.Scrollback)
+			find = t.t.refind(m)
 		}
 
 		if t.t.again {
 			t.t.again = false
-			return m.fetchScreen()
+			return tea.Batch(find, m.fetchScreen())
+		}
+
+		if find != nil {
+			return find
 		}
 	}
 
@@ -1688,7 +1697,7 @@ func (t *term) view(m *Model, w, _ int) (string, []string) {
 
 	lines := slices.Clone(t.scr.Lines)
 	for i := range lines {
-		lines[i] = t.mark(i, lines[i])
+		lines[i] = t.mark(i, t.paintFind(i, lines[i]))
 	}
 
 	return row(w, nil, left, right...), withBar(lines, w, t.bar(len(lines)), m.barActive("session"))
@@ -1970,11 +1979,17 @@ func (m *Model) termPanelKey(k tea.KeyPressMsg) tea.Cmd {
 // sideways wheel pans a shell wider than the panel, the rest goes to the shell.
 func (m *Model) termPanelMouse(msg tea.MouseMsg, x, y int) tea.Cmd {
 	t, mo := &m.tv, msg.Mouse()
+	w, _ := m.termBody()
+
+	if cmd, ok := t.findMouse(m, t.id, msg, x, y, w); ok {
+		return cmd
+	}
+
 	if _, click := msg.(tea.MouseClickMsg); click && mo.Button == tea.MouseRight && y >= 0 {
 		return m.termMenu(mo.X, mo.Y)
 	}
 
-	if w, _ := m.termBody(); x == w-1 {
+	if x == w-1 {
 		if _, click := msg.(tea.MouseClickMsg); click && mo.Button == tea.MouseLeft && y >= 0 {
 			return m.barMouse(&t.term, "terminal", y, mo.Y)
 		}
@@ -1984,7 +1999,6 @@ func (m *Model) termPanelMouse(msg tea.MouseMsg, x, y int) tea.Cmd {
 
 	if _, wheel := msg.(tea.MouseWheelMsg); wheel && t.wide {
 		if dx, ok := wheelX(mo); ok {
-			w, _ := m.termBody()
 			t.left = max(0, min(t.left+dx, m.termCols()-w+1))
 
 			return nil
@@ -2130,7 +2144,7 @@ func (m *Model) termScreen(w, h int) []string {
 	out := make([]string, 0, max(h, 0))
 	for i := range max(h, 0) {
 		if t.id == t.term.id && i < len(t.scr.Lines) {
-			line := t.mark(i, t.scr.Lines[i])
+			line := t.mark(i, t.paintFind(i, t.scr.Lines[i]))
 			if t.wide {
 				line = ansi.Cut(line, t.left, t.left+tw)
 			}

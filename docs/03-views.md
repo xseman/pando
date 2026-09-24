@@ -234,6 +234,27 @@ right of it; only the last one closing empties the strip — and, for the panel,
 closes it. Its screen is fetched sized to wherever it sits, so the shell
 reflows with it.
 
+`⌃f` over a session or a Terminal shell is VS Code's terminal find
+(`termfind.go`): the editor's widget (`findRow`, `findLayout`) at the top
+right of the screen, searching everything the emulator holds.
+
+```
+query ─▶ session.read {scrollback} ─▶ lines, oldest first ─▶ termHit{line, cells}
+                                                                 │
+row y of a screen scrolled back s  =  line Scrollback − s + y  ◀─┘  paintFind, reveal
+```
+
+A match out of view scrolls the screen to put it in the middle, as xterm's
+search addon does. A new query selects the newest match at or above the one
+selected, `⏎` walks up toward older output and `⇧⏎` down, both wrapping. Every
+screen update searches again (one read at a time, `busy`), keeping the
+selection, so a streaming agent's new matches are counted. The alternate
+screen has no scrollback: its screen is searched as it is. No API method was
+needed: `session.read` is what a script uses for the same text.
+
+ponytail: the line count goes stale when the emulator drops its oldest
+scrollback lines or an app redraws above the prompt, until the next search.
+
 ## Search
 
 Workspace-wide text search, run 250 ms after the last keystroke, capped at 2000
