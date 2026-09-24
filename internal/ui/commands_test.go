@@ -1161,8 +1161,14 @@ func TestVSCodeKeys(t *testing.T) {
 
 	press(m, "ctrl+j")
 
+	if !m.termOpen() || m.keyContext() != ctxTerminal {
+		t.Fatal("ctrl+j inside the panel is the shell's line feed")
+	}
+
+	press(m, "ctrl+`")
+
 	if m.termOpen() {
-		t.Fatal("ctrl+j closes it again")
+		t.Fatal("ctrl+` closes it from inside")
 	}
 }
 

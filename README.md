@@ -207,7 +207,8 @@ diagnostics — formatting goes through `[format]`.
 
 ### Terminal, layout and settings
 
-``ctrl+` ``, `ctrl+j` or `5` opens a shell panel under the editor;
+``ctrl+` ``, `ctrl+j` or `5` opens a shell panel under the editor (inside a
+session or a shell `ctrl+j` is the app's newline, so only ``ctrl+` ``);
 `ctrl+shift+↑` gives it the whole editor area. Every agent session has shell
 tabs of its own in it, killed with the session; with no session in view the
 panel holds the workspace's shells. They stay out of the Spaces tree, and the

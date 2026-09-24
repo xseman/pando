@@ -35,7 +35,7 @@ func TestKeyContexts(t *testing.T) {
 		t.Fatalf("a session on screen is a terminal: %b", c)
 	}
 	// ⌃←/⌃→ move the shell's cursor by words; they used to walk editor history.
-	for _, key := range []string{"ctrl+left", "ctrl+right", "ctrl+p", "ctrl+s", "ctrl+enter", "5", "f1", "alt+,"} {
+	for _, key := range []string{"ctrl+left", "ctrl+right", "ctrl+p", "ctrl+s", "ctrl+enter", "ctrl+j", "5", "f1", "alt+,"} {
 		if _, ok := m.bindingFor(ctxTerminal, key); ok {
 			t.Errorf("%s is pando's in a terminal, not the shell's", key)
 		}
@@ -46,8 +46,16 @@ func TestKeyContexts(t *testing.T) {
 	if in := sent(t, m); len(in.Keys) != 1 || in.Keys[0].Code != tea.KeyLeft || in.Keys[0].Mod != int(tea.ModCtrl) || m.msg != "" {
 		t.Fatalf("ctrl+left reaches the session: %+v, flash %q", in, m.msg)
 	}
+
+	// ⌃j is a line feed there, a newline in claude's prompt, not the panel.
+	open := m.termOpen()
+	press(m, "ctrl+j")
+
+	if in := sent(t, m); len(in.Keys) != 1 || in.Keys[0].Code != 'j' || in.Keys[0].Mod != int(tea.ModCtrl) || m.termOpen() != open {
+		t.Fatalf("ctrl+j reaches the session: %+v, panel toggled %v", in, m.termOpen() != open)
+	}
 	// The ways out, and VS Code's commandsToSkipShell, still work from there.
-	for _, key := range []string{"ctrl+]", "ctrl+shift+p", "ctrl+j", "ctrl+b", "alt+t", "ctrl+pgdown"} {
+	for _, key := range []string{"ctrl+]", "ctrl+shift+p", "ctrl+`", "ctrl+space", "ctrl+b", "alt+t", "ctrl+pgdown"} {
 		if _, ok := m.bindingFor(ctxTerminal, key); !ok {
 			t.Errorf("%s does not leave the terminal", key)
 		}
@@ -59,7 +67,7 @@ func TestKeyContexts(t *testing.T) {
 		t.Fatalf("an editable file is text: %b", c)
 	}
 
-	open := ed.termOpen()
+	open = ed.termOpen()
 	press(ed, "5")
 
 	if ed.termOpen() != open || string(ed.pv.plain[0]) != "5package x" {

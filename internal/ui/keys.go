@@ -93,7 +93,10 @@ var keybindings = []keybinding{
 
 		return m.pv.suggest(m, "", true)
 	}},
-	{keys: []string{"ctrl+`", "ctrl+space", "ctrl+@", "ctrl+j"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.toggleTerminal() }},
+	{keys: []string{"ctrl+`", "ctrl+space", "ctrl+@"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.toggleTerminal() }},
+	// In a terminal ⌃j is the app's line feed: a newline in claude's prompt,
+	// accept-line in readline. VS Code skips the shell for it; pando does not.
+	{keys: []string{"ctrl+j"}, when: ctxNotTerm, run: func(m *Model, _ string) tea.Cmd { return m.toggleTerminal() }},
 	{keys: []string{"ctrl+shift+up", "ctrl+shift+down"}, when: ctxAny, run: func(m *Model, s string) tea.Cmd {
 		return m.maximizeTerminal(s == "ctrl+shift+up" && !m.termMax)
 	}},

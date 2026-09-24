@@ -6,8 +6,11 @@ is what `[keys]` in `config.toml` rebinds; `pando doctor` prints the ids.
 
 ⌃` reaches pando only where the terminal can tell it from ⌃space: both are NUL
 without the kitty keyboard protocol, and in an editor that byte belongs to the
-suggestions, so the panel stays on `ctrl+j` there. Inside tmux the protocol
-needs `set -s extended-keys on` and `set -as terminal-features ",*:extkeys"`.
+suggestions, so the panel stays on `ctrl+j` there. In a session or a shell
+`ctrl+j` is the app's line feed (a newline in claude's prompt), so the panel
+is on ``ctrl+` `` there, which reaches pando as `ctrl+space` without the
+protocol. Inside tmux the protocol needs `set -s extended-keys on` and
+`set -as terminal-features ",*:extkeys"`.
 
 A key means what the focused part makes of it, as VS Code's `when` clauses
 say (`keyContext`, `keybindings` in `internal/ui/keys.go`):
@@ -25,7 +28,7 @@ the editor's: `ctrl+a` all, `shift+←→↑↓` or a mouse drag, then `ctrl+c` 
 `ctrl+x` cut, or type over it. `home` is the line start.
 
 A terminal gives up `ctrl+]`, `ctrl+shift+p`, `ctrl+shift+f` `ctrl+shift+e`
-`ctrl+shift+g` `ctrl+shift+h`, `ctrl+j` ``ctrl+` `` `ctrl+space`,
+`ctrl+shift+g` `ctrl+shift+h`, ``ctrl+` `` `ctrl+space`,
 ``ctrl+shift+` ``, `ctrl+shift+↑↓`, `ctrl+b`, `ctrl+,`, `ctrl+0` `ctrl+1`,
 `alt+t`, `ctrl+pgup` `ctrl+pgdn`, `alt+1`…`alt+9` and `ctrl+f` (find), with
 `F3` `shift+F3` and `esc` while the find widget shows; everything else,
@@ -42,7 +45,7 @@ matches still shown; `esc` closes the widget.
 | `ctrl+]`                                                    | cycle focus: left sidebar, main, right sidebar. In a session every other key goes to the app |
 | `1`–`4`                                                     | Files, Git, Spaces, Search                                                                   |
 | `ctrl+shift+e` `ctrl+shift+g` `ctrl+shift+f` `ctrl+shift+h` | Explorer, Source Control, Search, Search with replace                                        |
-| `ctrl+j`, `5`, ``ctrl+` ``                                  | toggle the terminal panel (a terminal sends the same byte for ``ctrl+` `` and `ctrl+space`)  |
+| `ctrl+j`, `5`, ``ctrl+` ``                                  | toggle the terminal panel; inside a terminal only ``ctrl+` `` (`ctrl+j` is its line feed)    |
 | ``ctrl+shift+` ``                                           | another shell in the terminal panel                                                          |
 | `ctrl+shift+↑` `ctrl+shift+↓`                               | maximize the terminal panel, and restore it                                                  |
 | `ctrl+shift+p`, `F1`                                        | command palette: every command available now, each one bindable in `[keys]`                  |
