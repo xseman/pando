@@ -233,10 +233,7 @@ func (t *term) findSpans(y int) []cellSpan {
 		return nil
 	}
 
-	line := y
-	if !t.scr.AltScreen {
-		line += t.scr.Scrollback - t.scroll
-	}
+	line := t.lineAt(y)
 
 	var spans []cellSpan
 

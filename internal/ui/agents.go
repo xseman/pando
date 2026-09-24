@@ -1252,36 +1252,58 @@ type term struct {
 	scr             proto.Screen
 	scroll          int
 	fetching, again bool
-	// sel is a drag over the screen: anchor and end, as column and row;
-	// selecting while the button is down. The release copies it.
+	// sel is a drag over the screen: anchor and end, as column and line
+	// (lineAt), so it stays on its text as the screen scrolls; selecting
+	// while the button is down. The release copies it.
 	sel       [2][2]int
 	hasSel    bool
 	selecting bool
 	find      termFind // ⌃f: VS Code's terminal find widget
 }
 
-// selRange is the selection's columns on row y, [a, b), none when b <= a.
-func (t *term) selRange(y int) (a, b int) {
-	p, q := t.sel[0], t.sel[1]
+// lineAt is the line on screen row y, counted from the oldest scrollback
+// line as session.read returns them: the screen scrolled back by scroll
+// starts at Scrollback-scroll. New output keeps the count, so a line keeps
+// its number as it scrolls. The alternate screen has no scrollback.
+func (t *term) lineAt(y int) int {
+	if t.scr.AltScreen {
+		return y
+	}
+
+	return t.scr.Scrollback - t.scroll + y
+}
+
+// selEnds are the selection's ends in text order.
+func (t *term) selEnds() (p, q [2]int) {
+	p, q = t.sel[0], t.sel[1]
 	if p[1] > q[1] || p[1] == q[1] && p[0] > q[0] {
 		p, q = q, p
 	}
 
-	if !t.hasSel || y < p[1] || y > q[1] {
+	return p, q
+}
+
+// selCols is the selection's columns on line n, [a, b), none when b <= a.
+func (t *term) selCols(n int) (a, b int) {
+	p, q := t.selEnds()
+	if !t.hasSel || n < p[1] || n > q[1] {
 		return 0, 0
 	}
 
 	a, b = 0, wideCols
-	if y == p[1] {
+	if n == p[1] {
 		a = p[0]
 	}
 
-	if y == q[1] {
+	if n == q[1] {
 		b = q[0] + 1
 	}
 
 	return a, b
 }
+
+// selRange is the selection's columns on screen row y.
+func (t *term) selRange(y int) (a, b int) { return t.selCols(t.lineAt(y)) }
 
 // mark draws the selection on screen row y as reverse video.
 func (t *term) mark(y int, line string) string {
@@ -1293,17 +1315,64 @@ func (t *term) mark(y int, line string) string {
 	return ansi.Cut(line, 0, a) + "\x1b[7m" + ansi.Strip(ansi.Cut(line, a, b)) + "\x1b[0m" + ansi.Cut(line, b, wideCols)
 }
 
-// selText is the selected text, lines trimmed on the right.
+// selText is the selected text on screen, lines trimmed on the right.
 func (t *term) selText() string {
+	top := t.lineAt(0)
+
+	return t.cutSel(func(n int) (string, bool) {
+		if n < top || n-top >= len(t.scr.Lines) {
+			return "", false
+		}
+
+		return ansi.Strip(t.scr.Lines[n-top]), true
+	})
+}
+
+// cutSel is the selection cut out of the plain lines text gives by number,
+// lines trimmed on the right; lines text does not have are left out.
+func (t *term) cutSel(text func(n int) (string, bool)) string {
+	p, q := t.selEnds()
+
 	var out []string
 
-	for y, line := range t.scr.Lines {
-		if a, b := t.selRange(y); b > a {
-			out = append(out, strings.TrimRight(ansi.Cut(ansi.Strip(line), a, b), " "))
+	for n := p[1]; t.hasSel && n <= q[1]; n++ {
+		if line, ok := text(n); ok {
+			a, b := t.selCols(n)
+			out = append(out, strings.TrimRight(ansi.Cut(line, a, b), " "))
 		}
 	}
 
 	return strings.Join(out, "\n")
+}
+
+// copySel puts the selection on the clipboard. Rows scrolled out of view
+// since the drag began come from session.read, which holds them all.
+func (t *term) copySel(id string) tea.Cmd {
+	p, q := t.selEnds()
+	if top := t.lineAt(0); p[1] >= top && q[1] < top+len(t.scr.Lines) || t.scr.AltScreen {
+		text := t.selText()
+		return setClipboard(text, fmt.Sprintf("copied %d characters", utf8.RuneCountInString(text)))
+	}
+
+	sel := term{sel: t.sel, hasSel: true} // as it is now: the mouse may start another
+
+	return func() tea.Msg {
+		var all string
+		if err := proto.Call("session.read", proto.ReadParams{ID: id, Scrollback: true}, &all); err != nil {
+			return flashMsg{"copy: " + err.Error(), true}
+		}
+
+		lines := strings.Split(all, "\n")
+		text := sel.cutSel(func(n int) (string, bool) {
+			if n < 0 || n >= len(lines) {
+				return "", false
+			}
+
+			return lines[n], true
+		})
+
+		return setClipboard(text, fmt.Sprintf("copied %d characters", utf8.RuneCountInString(text)))()
+	}
 }
 
 type screenMsg struct {
@@ -1772,10 +1841,12 @@ func (t *term) mouse(m *Model, id string, msg tea.MouseMsg, x, y int) tea.Cmd {
 	if mo.Button == tea.MouseLeft {
 		switch msg.(type) {
 		case tea.MouseClickMsg:
-			t.sel, t.hasSel, t.selecting = [2][2]int{{x, y}, {x, y}}, true, true
+			n := t.lineAt(y)
+			t.sel, t.hasSel, t.selecting = [2][2]int{{x, n}, {x, n}}, true, true
+
 		case tea.MouseMotionMsg:
 			if t.selecting {
-				t.sel[1] = [2]int{x, y}
+				t.sel[1] = [2]int{x, t.lineAt(y)}
 			}
 
 		case tea.MouseReleaseMsg:
@@ -1789,9 +1860,7 @@ func (t *term) mouse(m *Model, id string, msg tea.MouseMsg, x, y int) tea.Cmd {
 				break
 			}
 
-			text := t.selText()
-
-			return setClipboard(text, fmt.Sprintf("copied %d characters", utf8.RuneCountInString(text)))
+			return t.copySel(id)
 		}
 
 		return nil

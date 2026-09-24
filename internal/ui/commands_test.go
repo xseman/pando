@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"image/color"
 	"path/filepath"
 	"slices"
@@ -2204,6 +2205,70 @@ func TestSessionDragSelects(t *testing.T) {
 
 	if !strings.Contains(checkWidths(t, m), "agent says hi") || !strings.Contains(m.View().Content, "\x1b[7msays\x1b[0m") {
 		t.Fatal("the session over the editor draws the selection")
+	}
+}
+
+// TestSessionSelectionScrolls keeps a selection on its text, as the editor
+// does: scrolling back or new output moves it with the lines it covers, and a
+// selection reaching past the screen is cut from the whole scrollback.
+func TestSessionSelectionScrolls(t *testing.T) {
+	m := testModelSized(t, 120, 30)
+	drainInputs(m)
+	m.Update(focusSessionMsg("s1"))
+
+	screen := func(top, h int) []string { // lines top.. of a transcript "line N"
+		out := make([]string, h)
+		for i := range out {
+			out[i] = fmt.Sprintf("line %d", top+i)
+		}
+
+		return out
+	}
+
+	h := m.sessH()
+	m.term.id, m.term.scr = "s1", proto.Screen{Lines: screen(100, h), Scrollback: 100}
+	_, c := m.layout()
+	y := m.stripH() + 1
+
+	m.Update(tea.MouseClickMsg{X: c.x, Y: y + 2, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: c.x + 7, Y: y + 3, Button: tea.MouseLeft})
+
+	if got := m.term.selText(); got != "line 102\nline 103" {
+		t.Fatalf("selected %q", got)
+	}
+
+	// Scrolled back three lines, the text sits three rows lower and so does the mark.
+	m.term.scroll, m.term.scr.Lines = 3, screen(97, h)
+
+	if a, b := m.term.selRange(2); b > a {
+		t.Fatalf("the mark stayed on its screen row: [%d, %d)", a, b)
+	}
+
+	if a, b := m.term.selRange(5); b <= a || m.term.selText() != "line 102\nline 103" {
+		t.Fatalf("the mark follows its text: row 5 [%d, %d), text %q", a, b, m.term.selText())
+	}
+
+	// Output pushes the screen up a line at the bottom: the mark goes up with it.
+	m.term.scroll, m.term.scr = 0, proto.Screen{Lines: screen(101, h), Scrollback: 101}
+
+	if a, b := m.term.selRange(1); b <= a || m.term.selText() != "line 102\nline 103" {
+		t.Fatalf("new output carries the mark: row 1 [%d, %d), text %q", a, b, m.term.selText())
+	}
+
+	// Extended past the top of the screen, the copy reads what scrolled away.
+	m.term.sel[0] = [2]int{0, 50}
+	all := screen(0, 101+h)
+
+	text := func(n int) (string, bool) {
+		if n >= len(all) {
+			return "", false
+		}
+
+		return all[n], true
+	}
+
+	if got := m.term.cutSel(text); !strings.HasPrefix(got, "line 50\n") || !strings.HasSuffix(got, "line 103") {
+		t.Fatalf("the copy spans the scrollback: %q", got)
 	}
 }
 

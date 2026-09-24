@@ -109,4 +109,7 @@ session's scrollback when the app does not use the mouse, and on the alternate
 screen (a fullscreen claude, less, vim) it is the app's: mouse events, or
 arrows for one without the mouse. A left drag over a
 session or the Terminal selects text and the release copies it (`term.sel`);
-it is drawn in reverse video until a key or the next click.
+it is drawn in reverse video until a key or the next click. The selection
+holds lines of the scrollback, not screen rows (`lineAt`, the numbering
+terminal find uses), so it moves with its text when the wheel scrolls or new
+output arrives; one reaching past the screen is copied from `session.read`.
