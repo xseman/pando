@@ -194,6 +194,7 @@ func (c *config) encode() []byte {
 	kv("Activity bar: \"top\" (icons above the view) or \"side\" (down the sidebar's outer edge).", "activity_bar", s.ActBar)
 	kv("Format a file with its [format] tool when it is saved.", "format_on_save", s.FmtSave)
 	kv("Editors open in vim's normal mode: i inserts, esc goes back.", "vim_mode", s.Vim)
+	kv("Editors wrap long lines at the edge; off, they scroll sideways under a horizontal\nscrollbar. alt+z toggles it.", "word_wrap", s.Wrap)
 	kv("Play a sound when a session out of view finishes a run or waits for an answer:\nthe files played by paplay, pw-play, afplay, ffplay or mpv; \"\" rings the terminal bell.", "sounds", s.Sounds)
 	kv("", "sound_done", s.SoundDone)
 	kv("", "sound_request", s.SoundReq)

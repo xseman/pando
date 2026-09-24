@@ -207,7 +207,6 @@ func (p *preview) snapshot() preview {
 // the tab strip and the navigation history.
 func (m *Model) setPreview(p preview) tea.Cmd {
 	m.saveSpot()
-	wrap := m.pv.wrap
 
 	i := slices.IndexFunc(m.editors, func(e preview) bool { return e.id() == p.id() })
 	switch {
@@ -242,7 +241,7 @@ func (m *Model) setPreview(p preview) tea.Cmd {
 	}
 
 	m.pv = p
-	m.pv.wrap = wrap
+	m.pv.wrap = m.st.Settings.Wrap
 
 	var dock tea.Cmd
 
@@ -1824,7 +1823,7 @@ func (p *preview) buttons(m *Model, w int) []rowAction {
 	}
 
 	if !p.scrollOnly(m) { // last, so it keeps its place whatever else the kind shows
-		acts = append(acts, rowAction{g: icWrap, on: p.wrap, run: func(m *Model) tea.Cmd { m.pv.toggleWrap(m); return nil }})
+		acts = append(acts, rowAction{g: icWrap, on: p.wrap, run: func(m *Model) tea.Cmd { return m.toggleWrap() }})
 	}
 
 	layoutRight(acts, w, 2)
@@ -2036,11 +2035,19 @@ func (p *preview) hbar(m *Model, w int) vbar {
 	return vbar{p.wide + 1, max(w-p.gutter(), 1), p.left} // +1: the cursor stands past the line end
 }
 
-// toggleWrap is VS Code's Toggle Word Wrap, for every editor until it is
-// toggled back; off, long lines scroll sideways under the horizontal bar.
-func (p *preview) toggleWrap(m *Model) {
-	p.wrap, p.left, p.vis = !p.wrap, 0, nil
-	p.follow(m.pvW(), m.pvH())
+// toggleWrap is VS Code's Toggle Word Wrap. It flips the word_wrap setting,
+// so every editor and every attached TUI follows, as `s` does for diff_view.
+func (m *Model) toggleWrap() tea.Cmd {
+	return m.setSettings(map[string]any{"word_wrap": !m.st.Settings.Wrap})
+}
+
+// syncWrap puts the word_wrap setting on the open editor; off, long lines
+// scroll sideways under the horizontal bar.
+func (m *Model) syncWrap() {
+	if p := &m.pv; p.wrap != m.st.Settings.Wrap {
+		p.wrap, p.left, p.vis = m.st.Settings.Wrap, 0, nil
+		p.follow(m.pvW(), m.pvH())
+	}
 }
 
 // bar is the editor's scrollbar as the view draws it.
@@ -3039,7 +3046,7 @@ func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		return setClipboard(p.text(), "copied preview")
 
 	case "w", "alt+z": // ⌥z is VS Code's word wrap
-		p.toggleWrap(m)
+		return m.toggleWrap()
 
 	case "p":
 		if p.kind == pvFile && isMarkdown(p.path) {

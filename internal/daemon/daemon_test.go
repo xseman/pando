@@ -492,7 +492,7 @@ func TestConfig(t *testing.T) {
 			GitPanes: map[string]proto.Pane{"File History": {Open: true, H: 4}}, QuickTree: true,
 			Drawers: []string{"Graph", "Tags"}, SpSort: "updated", SpGroup: "time", SpHide: []string{"exited"},
 			Theme: "terminal", DiffView: "split", ActBar: "top", TermPos: "right", TermH: 14, TermOpen: true, Borders: false, Colors: map[string]string{"accent": "#ff8800", "ok": "2"}, Keys: map[string]string{"ctrl+g": "view.showSearch"},
-			LSP: map[string][]string{"go": {"gopls"}}, Format: map[string][]string{"ts": {"prettier", "--stdin-filepath", "$FILE"}}, FmtSave: true,
+			LSP: map[string][]string{"go": {"gopls"}}, Format: map[string][]string{"ts": {"prettier", "--stdin-filepath", "$FILE"}}, FmtSave: true, Wrap: true,
 			Sounds: true, SoundDone: "/a.oga", SoundReq: "",
 		}, Agents: map[string][]string{"my agent": {"x", "y \"z\""}},
 		Resume:    map[string][]string{"my agent": {"x", "--continue"}},

@@ -165,6 +165,9 @@ back with its text and its cursor.
   language server's completions when it answers. `ctrl+space` forces them.
 - **Markdown**: `ctrl+shift+v` renders a file, `alt+v` shows it beside the
   source.
+- **Word wrap** is off: a long line scrolls sideways under a horizontal
+  scrollbar. `word_wrap = true`, Settings (`ctrl+,`), `alt+z` or the header's
+  wrap toggle wraps every editor.
 - **Vim mode** (`vim_mode = true`) opens every editor in normal mode: motions
   with counts, `d c y` over a motion, visual mode. It is a key layer, not a
   second editor — no ex commands, macros or text objects.

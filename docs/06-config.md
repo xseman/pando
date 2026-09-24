@@ -48,6 +48,7 @@ error, uses the last good values and refuses to save until it is fixed.
 | `[format]`                                                           | language id to formatter command, `$FILE` for the path                                                      |
 | `format_on_save`                                                     | run that formatter when a file is saved                                                                     |
 | `vim_mode`                                                           | editors open in vim's normal mode                                                                           |
+| `word_wrap`                                                          | editors wrap long lines; off (default), they scroll under a horizontal scrollbar                            |
 | `git_drawers`                                                        | which Source Control drawers show                                                                           |
 | `[colors]`                                                           | palette overrides                                                                                           |
 | `[agents]`                                                           | `name = ["command", "args"]`                                                                                |

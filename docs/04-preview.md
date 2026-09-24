@@ -41,6 +41,13 @@ raw ──render()──▶ lines[]   styled, one per source line
 lines ──rows(w)──▶ vrow{line, from, to}  screen rows (wrapping when `wrap` is on)
 ```
 
+Word wrap is the `word_wrap` setting, off by default: Settings, `alt+z`, `w`
+in a read-only view and the header's toggle (lit while on) all flip it through
+the daemon, as `s` flips `diff_view`, and `syncWrap` puts it on the open
+editor when the settings change. Off, a
+row is cut at `left` and a horizontal scrollbar under the text pans it
+(`docs/02-ui-layout.md`); the cursor still pulls `left` along.
+
 While nothing is selected, `hlWord` takes the identifier under the cursor and
 `renderRow` paints every place it stands on a visible line (`wordSpans`, whole
 words only, two characters or more) — VS Code's occurrence highlight without a

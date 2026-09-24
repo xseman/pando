@@ -66,6 +66,7 @@ type Settings struct {
 	Format    map[string][]string `json:"format" toml:"format"`                       // language to formatter command, the file on stdin
 	FmtSave   bool                `json:"format_on_save" toml:"format_on_save"`       // run that formatter when a file is saved
 	Vim       bool                `json:"vim_mode" toml:"vim_mode"`                   // an editor opens in vim's normal mode
+	Wrap      bool                `json:"word_wrap" toml:"word_wrap"`                 // editors wrap long lines instead of scrolling them sideways
 	Keys      map[string]string   `json:"keys" toml:"keys"`                           // key to command id, "" unbinds; see pando doctor
 	Colors    map[string]string   `json:"colors" toml:"colors"`                       // palette overrides for the active theme, keys in pando doctor
 	Shell     string              `json:"shell" toml:"shell"`                         // the shell a terminal opens, "zsh -l"; "" for the [agents] shell preset, else the login shell

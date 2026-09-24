@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"image/color"
+	"slices"
 	"strings"
 	"testing"
 
@@ -169,8 +170,8 @@ func TestEditorHScrollbar(t *testing.T) {
 
 	press(m, "alt+z")
 
-	if !m.pv.wrap || m.pv.left != 0 || m.hbarH() != 0 || m.pvH() != short.pvH() {
-		t.Fatalf("⌥z wraps, and the bar goes: wrap %v left %d bar %d", m.pv.wrap, m.pv.left, m.hbarH())
+	if !m.pv.wrap || !m.st.Settings.Wrap || m.pv.left != 0 || m.hbarH() != 0 || m.pvH() != short.pvH() {
+		t.Fatalf("⌥z sets word_wrap, and the bar goes: wrap %v setting %v left %d bar %d", m.pv.wrap, m.st.Settings.Wrap, m.pv.left, m.hbarH())
 	}
 
 	checkWidths(t, m)
@@ -182,8 +183,25 @@ func TestEditorHScrollbar(t *testing.T) {
 
 	click(m, m.mainX()+acts[len(acts)-1].x+1, 0, tea.MouseLeft)
 
+	if m.pv.wrap || m.st.Settings.Wrap || m.hbarH() != 1 {
+		t.Fatalf("the header toggle unwraps: wrap %v setting %v bar %d", m.pv.wrap, m.st.Settings.Wrap, m.hbarH())
+	}
+
+	i := slices.IndexFunc(settingsItems(m), func(it item) bool { return it.label == "Word wrap" })
+	if i < 0 || settingsItems(m)[i].hint != "off" {
+		t.Fatal("Settings lists word wrap, off")
+	}
+
+	settingsItems(m)[i].run(m)
+
+	if !m.pv.wrap || settingsItems(m)[i].hint != "on" {
+		t.Fatalf("the Settings toggle wraps the open editor: wrap %v", m.pv.wrap)
+	}
+
+	m.Update(stateMsg(proto.State{})) // another TUI, or config.toml, turned it off
+
 	if m.pv.wrap || m.hbarH() != 1 {
-		t.Fatalf("the header toggle unwraps: wrap %v bar %d", m.pv.wrap, m.hbarH())
+		t.Fatalf("a state event carries word_wrap to the editor: wrap %v", m.pv.wrap)
 	}
 }
 

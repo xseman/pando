@@ -79,7 +79,7 @@ A terminal gives up `ctrl+]`, `ctrl+shift+p`, `ctrl+shift+f` `ctrl+shift+e`
 | `alt+p`                           | preserve case while replacing                                             |
 | `ctrl+g`                          | go to line: the `:` picker, also `:` typed first in `ctrl+p`              |
 | `ctrl+shift+o`                    | go to symbol; `@:` groups them by kind, `@` in `ctrl+p` does the same     |
-| `alt+z`                           | wrap                                                                      |
+| `alt+z`, header wrap toggle       | word wrap (`word_wrap`, off by default); off, a scrollbar pans long lines |
 | `s`                               | diff inline or side by side                                               |
 | `shift+F10`, right click          | Stage / Unstage / Revert Selected Ranges in a diff (`m` outside a file)   |
 | `ctrl+⏎`                          | commit                                                                    |

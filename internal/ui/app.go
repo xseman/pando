@@ -436,6 +436,7 @@ func (m *Model) setSettings(patch map[string]any) tea.Cmd {
 	_ = json.Unmarshal(b, &m.st.Settings) // optimistic: the daemon sends the settings back
 	m.look()
 	m.resize()
+	m.syncWrap()
 	m.fixFocus()
 	m.ex.rebuild(m)
 	m.scm.build(m)
@@ -1961,6 +1962,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.st = proto.State(msg)
 		m.look()
 		m.resize()
+		m.syncWrap()
 		m.ex.rebuild(m)
 		m.scm.build(m)
 		m.fixFocus()
@@ -3831,6 +3833,7 @@ func settingsItems(m *Model) []item {
 		{label: "Vim mode", hint: onOff(s.Vim), run: func(m *Model) tea.Cmd {
 			return m.setSettings(map[string]any{"vim_mode": !m.st.Settings.Vim})
 		}},
+		{label: "Word wrap", hint: onOff(s.Wrap), run: func(m *Model) tea.Cmd { return m.toggleWrap() }},
 		{label: "Activity bar", hint: map[bool]string{true: "side", false: "top"}[m.sideBar()], run: func(m *Model) tea.Cmd {
 			next := "side"
 			if m.sideBar() {
