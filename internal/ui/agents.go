@@ -2121,13 +2121,24 @@ func (m *Model) termPanelLines(w, h int) []string {
 		st = accent
 	}
 
-	head := row(w, pal.sectionBg, []seg{sg(" "+icTerminal.s()+" ", st)},
-		sg(" "+icClose.s()+" ", dim))
+	left := []seg{sg(" "+icTerminal.s()+" ", st)}
 	if tabs := m.termTabs(m.termStripW()); len(tabs) > 0 {
-		head = row(w, pal.sectionBg, append([]seg{sg(" ", plain)}, tabSegs(tabs)...), sg(" "+icClose.s()+" ", dim))
+		left = append([]seg{sg(" ", plain)}, tabSegs(tabs)...)
 	}
 
-	return append([]string{head}, m.termScreen(w, h-1)...)
+	closer := sg(" "+icClose.s()+" ", dim)
+	if sash, ok := m.sashStyle(termSash); ok { // the row is the sash: a rule across its free part
+		used := ansi.StringWidth(closer.s)
+		for _, s := range left {
+			used += ansi.StringWidth(s.s)
+		}
+
+		if gap := w - used; gap > 2 {
+			left = append(left, sg(" "+strings.Repeat("━", gap-2)+" ", sash))
+		}
+	}
+
+	return append([]string{row(w, pal.sectionBg, left, closer)}, m.termScreen(w, h-1)...)
 }
 
 // termLines are the panel: its tab strip, then the terminal screen.

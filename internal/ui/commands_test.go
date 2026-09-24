@@ -2359,3 +2359,71 @@ func TestSessionTabs(t *testing.T) {
 		t.Fatalf("the other space's session has its own tabs only: ws=%q tabs=%d", m.ws, len(m.sessionTabs(100)))
 	}
 }
+
+// TestSashHover lights a divider once the pointer has rested on it, VS
+// Code's sash.hoverBorder after its hover delay, in a shade apart from the
+// accent it drags in: a column's edge with and without panel borders, and
+// the Terminal panel's title row.
+func TestSashHover(t *testing.T) {
+	for _, borders := range []bool{false, true} {
+		m := testModelSized(t, 130, 30)
+		m.sessions = append(m.sessions, termSession(m.ws, "t1"))
+		drainInputs(m)
+		m.st.Settings.Borders = borders
+		m.resize()
+
+		cs, _ := m.layout()
+		x, y := cs[0].x+cs[0].w, 5 // the gap on the Explorer's editor side
+		hover := fgParams(pal.sashHover)
+
+		if _, cmd := m.Update(tea.MouseMotionMsg{X: x + m.bord(), Y: y + m.bord()}); m.sashAt != 0 || cmd == nil {
+			t.Fatalf("borders %v: the pointer on the divider is noted and waits: sash %d", borders, m.sashAt)
+		}
+
+		if strings.Contains(m.View().Content, hover) {
+			t.Fatalf("borders %v: a divider does not light before the delay", borders)
+		}
+
+		m.sashSince = time.Now().Add(-sashDelay)
+
+		if view := m.View().Content; !strings.Contains(view, hover) || !strings.Contains(ansi.Strip(view), "┃") {
+			t.Fatalf("borders %v: a divider the pointer rests on lights", borders)
+		}
+
+		m.Update(tea.MouseClickMsg{X: x + m.bord(), Y: y + m.bord(), Button: tea.MouseLeft})
+
+		if st, ok := m.sashStyle(0); !ok || st.GetForeground() != pal.accent || strings.Contains(m.View().Content, hover) {
+			t.Fatalf("borders %v: dragged, the divider is the accent, not the hover shade", borders)
+		}
+
+		m.Update(tea.MouseReleaseMsg{X: x + m.bord(), Y: y + m.bord(), Button: tea.MouseLeft})
+		m.Update(tea.MouseMotionMsg{X: x + 10 + m.bord(), Y: y + m.bord()})
+
+		if m.sashAt != noSash || strings.Contains(m.View().Content, hover) {
+			t.Fatalf("borders %v: off the divider it goes out", borders)
+		}
+
+		checkWidths(t, m)
+	}
+
+	m := testModelSized(t, 130, 30)
+	m.sessions = append(m.sessions, termSession(m.ws, "t1"))
+	drainInputs(m)
+	press(m, "ctrl+j")
+
+	_, c := m.layout()
+	x, y := c.x+c.w-8, m.mainH() // past the tabs, before the ✕
+	m.Update(tea.MouseMotionMsg{X: x + m.bord(), Y: y + m.bord()})
+
+	if m.sashAt != termSash {
+		t.Fatalf("the Terminal's title row is a sash: %d", m.sashAt)
+	}
+
+	m.sashSince = time.Now().Add(-sashDelay)
+
+	if head := ansi.Strip(m.termPanelLines(c.w, m.termRows())[0]); !strings.Contains(head, "━") {
+		t.Fatalf("the rested-on title row draws a rule: %q", head)
+	}
+
+	checkWidths(t, m)
+}

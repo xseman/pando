@@ -23,7 +23,14 @@ terminal cells.
   a switcher over every project with _Add Project…_ on top; the agent count
   opens the navigator.
 - The bottom terminal panel's title row, outside its tabs, is a sash: dragging
-  it sets `terminal_height`. A right click in the panel opens its menu (Copy
+  it sets `terminal_height`.
+- A sash (a column's divider, that title row) lights once the pointer has
+  rested on it for `sashDelay` (300 ms, VS Code's `workbench.sash.hoverDelay`):
+  `┃` in `sash_hover`, a rule across the title row, and the accent while it is
+  dragged, VS Code's `sash.hoverBorder` and `sash.activeBorder`. `trackSash`
+  notes the sash under each mouse event (`sashUnder`, the same gaps the mouse
+  code drags) and ticks View once the delay is out; with panel borders both
+  frame edges of the gap light. A right click in the panel opens its menu (Copy
   All, Paste, Clear, Kill Terminal, Toggle Size to Content Width).
 - A view moves by dragging its tab or its header title to the other side.
 - The agent session is the `session` view: a column of its own beside the

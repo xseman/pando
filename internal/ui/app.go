@@ -153,6 +153,8 @@ type Model struct {
 	filters   [6]filter // per view
 	mouseX    int       // last mouse position (content rows) for hover
 	mouseY    int
+	sashAt    sash      // the divider under the mouse, noSash for none
+	sashSince time.Time // when the mouse came onto it
 	mouseAt   time.Time
 	index     struct { // workspace file list for quick open and the Files filter
 		ws    string
@@ -337,7 +339,7 @@ func (m *Model) saveWorkspace() tea.Cmd {
 func New(st proto.State, wss []proto.Workspace, ss []proto.Session, ws string, events <-chan proto.Event) *Model {
 	m := &Model{
 		st: st, wss: wss, sessions: ss, recent: make([]int, len(viewKeys)), dark: true, events: events,
-		inputs: make(chan proto.InputParams, 512), mouseY: -1, edIdx: -1, navAt: -1,
+		inputs: make(chan proto.InputParams, 512), mouseY: -1, edIdx: -1, navAt: -1, sashAt: noSash,
 		ambiguous: true, // until the terminal answers that it disambiguates keys
 	}
 	for i := range m.filters {
@@ -2105,7 +2107,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.PasteMsg:
 		return m, m.paste(msg)
 	case tea.MouseMsg:
-		return m, m.mouse(msg)
+		return m, tea.Batch(m.mouse(msg), m.trackSash())
+	case sashMsg: // the pointer has rested: View lights the sash
+		return m, nil
 	}
 	// Cursor blink and other input messages.
 	var cmds []tea.Cmd
@@ -3033,17 +3037,37 @@ func (m *Model) View() tea.View {
 	for i := range m.panelH() {
 		var sb strings.Builder
 
+		// owner is the column the divider before panel j resizes: the
+		// sidebar column beside it.
+		owner := func(j int) int {
+			if ps[j-1].focus != onMain && ps[j-1].focus < left {
+				return ps[j-1].focus
+			}
+
+			return ps[j].focus
+		}
+
 		for j, p := range ps {
 			switch {
-			case b == 1:
-				sb.WriteString(edge(p).Render("│") + p.lines[i] + edge(p).Render("│"))
-			case j > 0:
-				owner := p.focus // a divider belongs to the sidebar column beside it
-				if ps[j-1].focus != onMain && ps[j-1].focus < left {
-					owner = ps[j-1].focus
+			case b == 1: // the divider is the two frame edges either side of it
+				l, r := edge(p).Render("│"), edge(p).Render("│")
+
+				if j > 0 {
+					if st, ok := m.sashStyle(sash(owner(j))); ok {
+						l = st.Render("┃")
+					}
 				}
 
-				sb.WriteString(m.divider(owner) + p.lines[i])
+				if j+1 < len(ps) {
+					if st, ok := m.sashStyle(sash(owner(j + 1))); ok {
+						r = st.Render("┃")
+					}
+				}
+
+				sb.WriteString(l + p.lines[i] + r)
+
+			case j > 0:
+				sb.WriteString(m.divider(owner(j)) + p.lines[i])
 
 			default:
 				sb.WriteString(p.lines[i])
@@ -3121,11 +3145,85 @@ func (m *Model) View() tea.View {
 }
 
 func (m *Model) divider(i int) string {
-	if m.drag != nil && m.drag.kind == dragDivider && m.drag.col == i {
-		return fg(pal.accent).Render("┃")
+	if st, ok := m.sashStyle(sash(i)); ok {
+		return st.Render("┃")
 	}
 
 	return dim.Render("│")
+}
+
+// sash is a divider the mouse drags to resize: a column's edge toward the
+// editor (its index), or the bottom Terminal panel's title row.
+type sash int
+
+const (
+	noSash   sash = -1
+	termSash sash = -2
+)
+
+// sashDelay is how long the pointer rests on a sash before it lights, VS
+// Code's workbench.sash.hoverDelay default.
+const sashDelay = 300 * time.Millisecond
+
+// sashMsg wakes View once a sash may have waited out sashDelay.
+type sashMsg struct{}
+
+// sashUnder is the sash at content cell (x, y): the gaps the mouse code
+// starts a dragDivider in, and the Terminal title row outside its tabs and ✕.
+func (m *Model) sashUnder(x, y int) sash {
+	if y < 0 || y >= m.panelH() {
+		return noSash
+	}
+
+	cs, c := m.layout()
+	gap := 1 + m.bord()
+
+	for i, r := range cs {
+		switch {
+		case r.w == 0 || m.railed(i):
+		case m.side(i) == 0 && x >= r.x+r.w && x < r.x+r.w+gap, m.side(i) == 1 && x >= r.x-gap && x < r.x:
+			return sash(i)
+		}
+	}
+
+	if m.termRows() == 0 || y != m.mainH() || x < c.x || x >= c.x+c.w-3 {
+		return noSash
+	}
+
+	tx := x - c.x - 1
+
+	if slices.ContainsFunc(m.termTabs(m.termStripW()), func(t sessTab) bool { return tx >= t.x && tx < t.x+t.w }) {
+		return noSash
+	}
+
+	return termSash
+}
+
+// trackSash notes the sash the mouse is on and wakes View after sashDelay
+// to light it, as long as the mouse stays.
+func (m *Model) trackSash() tea.Cmd {
+	s := m.sashUnder(m.mouseX, m.mouseY)
+	if s == m.sashAt {
+		return nil
+	}
+
+	m.sashAt, m.sashSince = s, time.Now()
+	if s == noSash {
+		return nil
+	}
+
+	return tea.Tick(sashDelay, func(time.Time) tea.Msg { return sashMsg{} })
+}
+
+// sashStyle is how sash s draws when it is more than a plain divider: the
+// accent while it is dragged, sash_hover once the pointer has rested on it,
+// VS Code's sash.activeBorder and sash.hoverBorder. ok is false otherwise.
+func (m *Model) sashStyle(s sash) (lipgloss.Style, bool) {
+	if d := m.drag; d != nil {
+		return fg(pal.accent), d.kind == dragDivider && sash(d.col) == s || d.kind == dragTerm && s == termSash
+	}
+
+	return fg(pal.sashHover), m.modal == nil && s != noSash && s == m.sashAt && time.Since(m.sashSince) >= sashDelay
 }
 
 func (m *Model) sideTitle(s int) string {

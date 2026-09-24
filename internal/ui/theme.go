@@ -39,6 +39,7 @@ type palette struct {
 	blockedSoftBg, doneSoftBg                                                                                  color.Color // the other shade of their pulse
 	sliderBg, sliderActiveBg, rulerBorder                                                                      color.Color // VS Code's scrollbarSlider over the editor, and editorOverviewRuler.border
 	tabBg, tabBorder                                                                                           color.Color // tab.inactiveBackground and tab.border, a shade stronger for a terminal
+	sashHover                                                                                                  color.Color // VS Code's sash.hoverBorder: a divider under a resting pointer, a shade off the accent it drags in
 }
 
 func hex(s string) color.Color { return lipgloss.Color(s) }
@@ -68,6 +69,7 @@ var (
 		blockedSoftBg: hex("#35272a"), doneSoftBg: hex("#2b2733"),
 		sliderBg: hex("#606162"), sliderActiveBg: hex("#6e6f70"), rulerBorder: hex("#2a2b2c"),
 		tabBg: hex("#26272a"), tabBorder: hex("#3c3d40"),
+		sashHover: hex("#2c7092"),
 	}
 	vscodeLight = palette{
 		light:    true,
@@ -91,6 +93,7 @@ var (
 		blockedSoftBg: hex("#f6e8e8"), doneSoftBg: hex("#efeaf3"),
 		sliderBg: hex("#8a8a8a"), sliderActiveBg: hex("#777777"), rulerBorder: hex("#f0f1f2"),
 		tabBg: hex("#e8e8ec"), tabBorder: hex("#d0d0d6"),
+		sashHover: hex("#5c9fe0"),
 	}
 	// terminalPal inherits the terminal profile's ANSI colors. Diff tints stay
 	// RGB: an ANSI background would collide with remapped syntax colors.
@@ -116,6 +119,7 @@ var (
 		blockedSoftBg: vscodeDark.blockedSoftBg, doneSoftBg: vscodeDark.doneSoftBg,
 		sliderBg: ansi16(8), sliderActiveBg: ansi16(7), rulerBorder: ansi16(8),
 		tabBg: ansi16(0), tabBorder: ansi16(8),
+		sashHover: ansi16(12),
 	}
 
 	// themeNames is the Settings cycle order; "vscode" follows the terminal background.
@@ -158,7 +162,7 @@ func (p *palette) colorKeys() map[string]*color.Color {
 		"ok": &p.ok, "warn": &p.warn, "error": &p.errc, "attention": &p.attention,
 		"blocked_bg": &p.blockedBg, "done_bg": &p.doneBg, "blocked_soft_bg": &p.blockedSoftBg, "done_soft_bg": &p.doneSoftBg,
 		"scrollbar_slider": &p.sliderBg, "scrollbar_slider_active": &p.sliderActiveBg, "overview_ruler_border": &p.rulerBorder,
-		"tab_bg": &p.tabBg, "tab_border": &p.tabBorder,
+		"tab_bg": &p.tabBg, "tab_border": &p.tabBorder, "sash_hover": &p.sashHover,
 	}
 }
 
