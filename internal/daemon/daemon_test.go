@@ -54,10 +54,13 @@ func start(t *testing.T) func() *Daemon {
 	return boot
 }
 
+// waitFor polls cond until it holds. The deadline is generous: a CI runner
+// under -race takes seconds to start a shell, and a fallback waits out
+// quickExit first; a condition that holds returns at once either way.
 func waitFor(t *testing.T, what string, cond func() bool) {
 	t.Helper()
 
-	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+	for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
 		if cond() {
 			return
 		}
