@@ -11,6 +11,28 @@ render into a windowed list → handle keys and mouse.
 | Search         | `search.go`   | query box, summary, matches grouped by file                           |
 | Terminal       | `agents.go`   | shell panel under the editor (or a sidebar), opened by ⌃`             |
 
+## Explorer
+
+The context menu (`m`, right click) follows VS Code's, in groups split by a
+rule (`separator()`, which the keys and the mouse skip). A right click below
+the tree clears the selection, so the menu acts on the workspace root.
+
+| Group     | File                                                           | Folder                                  | Below the tree (the root)                       |
+| --------- | -------------------------------------------------------------- | --------------------------------------- | ----------------------------------------------- |
+| create    | New File…, New Folder… beside it                               | New File…, New Folder… inside           | … in the root                                   |
+| open      | Open Containing Folder, Open with Default App, Edit in $EDITOR | Open Containing Folder, Find in Folder… | the same, on the root                           |
+| copy      | Copy Name, Copy Path, Copy Relative Path                       | the same                                | Copy Name, Copy Path                            |
+| change    | Duplicate…, Rename…, Delete…                                   | the same                                |                                                 |
+| git, view | Stage Changes, Collapse All                                    | the same                                | Refresh, Show / Hide Hidden Files, Collapse All |
+
+Open Containing Folder is VS Code's Linux label: `xdg-open` on the parent,
+which cannot select the entry in it; on the root it opens the root itself.
+Find in Folder opens Search with files to include set to `dir/**`, glob
+characters escaped (`app/\[id\]/**`). Duplicate asks for the name, offering
+VS Code's `main copy.go`, then `main copy 2.go`; it copies in a `tea.Cmd`
+(`os.CopyFS` for a folder, a symlink as a link, a file with its mode), never
+over an existing path or into itself, and selects the copy.
+
 ## Source Control
 
 ```

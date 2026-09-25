@@ -2,6 +2,7 @@ package ui
 
 import (
 	"cmp"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -307,11 +308,11 @@ func (e *explorer) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 
 // action maps the shared key/menu actions on the selected node.
 func (e *explorer) action(key string) func(m *Model) tea.Cmd {
-	n := e.selected()
+	n, dir := e.selected(), e.target()
 
 	switch key {
 	case "n", "N":
-		dir, folder := e.target(), key == "N"
+		folder := key == "N"
 
 		title := "New file in "
 		if folder {
@@ -353,13 +354,43 @@ func (e *explorer) action(key string) func(m *Model) tea.Cmd {
 
 			return nil
 		}
+
+	case "F":
+		return func(m *Model) tea.Cmd { return m.findInFolder(dir) }
+	}
+
+	// With nothing selected the root answers what can apply to it.
+	path, name, isDir := e.root, filepath.Base(e.root), true
+	if n != nil {
+		path, name, isDir = n.path, n.name, n.dir
+	}
+
+	switch key {
+	case "c":
+		return func(*Model) tea.Cmd { return setClipboard(name, "copied "+name) }
+	case "y":
+		return func(*Model) tea.Cmd { return setClipboard(path, "copied "+path) }
+	case "O":
+		// The root opens itself: the parent would hide it among its siblings.
+		// ponytail: opens the folder without selecting the entry in it;
+		// org.freedesktop.FileManager1.ShowItems (open -R on macOS) would.
+		folder := filepath.Dir(path)
+		if n == nil {
+			folder = path
+		}
+
+		return func(*Model) tea.Cmd {
+			if err := openExternal(folder); err != nil {
+				return flash("open: "+err.Error(), true)
+			}
+
+			return nil
+		}
 	}
 
 	if n == nil {
 		return nil
 	}
-
-	path := n.path
 
 	switch key {
 	case "R", "f2":
@@ -403,8 +434,34 @@ func (e *explorer) action(key string) func(m *Model) tea.Cmd {
 			return nil
 		}
 
-	case "y":
-		return func(*Model) tea.Cmd { return setClipboard(path, "copied "+path) }
+	case "d":
+		return func(m *Model) tea.Cmd {
+			m.modal = newPrompt("Duplicate "+name+" as", copyName(path, isDir), func(_ *Model, v string) tea.Cmd {
+				if v == "" {
+					return nil
+				}
+
+				to := filepath.Join(filepath.Dir(path), v)
+				if to == path || strings.HasPrefix(to, path+"/") {
+					return flash("cannot duplicate "+name+" into itself", true)
+				}
+
+				if _, err := os.Lstat(to); err == nil {
+					return flash(v+" already exists", true)
+				}
+
+				return func() tea.Msg {
+					if err := duplicate(path, to); err != nil {
+						return flashMsg{"duplicate: " + err.Error(), true}
+					}
+
+					return duplicatedMsg(to)
+				}
+			})
+
+			return nil
+		}
+
 	case "Y":
 		return func(m *Model) tea.Cmd {
 			rel, _ := filepath.Rel(m.ws, path)
@@ -447,8 +504,9 @@ func (e *explorer) action(key string) func(m *Model) tea.Cmd {
 	return nil
 }
 
-// items are the Explorer commands for the selection.
-func (e *explorer) items(_ *Model) []item {
+// items are the Explorer commands for the selection, in VS Code's groups;
+// with nothing selected (a right click below the tree) they act on the root.
+func (e *explorer) items(m *Model) []item {
 	n := e.selected()
 	mk := func(label, hint, key string) item {
 		a := e.action(key)
@@ -461,22 +519,59 @@ func (e *explorer) items(_ *Model) []item {
 			return a(m)
 		}}
 	}
-	items := []item{
-		mk("New File…", "n", "n"), mk("New Folder…", "N", "N"),
-		{label: "Collapse All", hint: "C", run: func(m *Model) tea.Cmd { m.ex.collapseAll(m); return nil }},
+
+	groups := [][]item{{mk("New File…", "n", "n"), mk("New Folder…", "N", "N")}}
+
+	switch {
+	case n == nil:
+		groups = append(groups,
+			[]item{mk("Open Containing Folder", "O", "O"), mk("Find in Folder…", "F", "F")},
+			[]item{mk("Copy Name", "c", "c"), mk("Copy Path", "y", "y")},
+			[]item{
+				{label: "Refresh", hint: "r", run: func(m *Model) tea.Cmd { m.ex.rebuild(m); return m.refreshGit() }},
+				{label: hiddenLabel(m), hint: ".", run: func(m *Model) tea.Cmd {
+					return m.setSettings(map[string]any{"hidden": !m.st.Settings.Hidden})
+				}},
+			})
+
+	case n.dir:
+		groups = append(groups, []item{mk("Open Containing Folder", "O", "O"), mk("Find in Folder…", "F", "F")})
+	default:
+		groups = append(groups, []item{
+			mk("Open Containing Folder", "O", "O"), mk("Open with Default App", "o", "o"), mk("Edit in $EDITOR", "e", "e"),
+		})
 	}
 
 	if n != nil {
-		if !n.dir {
-			items = append(items, mk("Edit in $EDITOR", "e", "e"))
+		groups = append(groups,
+			[]item{mk("Copy Name", "c", "c"), mk("Copy Path", "y", "y"), mk("Copy Relative Path", "Y", "Y")},
+			[]item{mk("Duplicate…", "d", "d"), mk("Rename…", "R", "R"), mk("Delete…", "D", "D")},
+			[]item{mk("Stage Changes", "s", "s")})
+	}
+
+	last := &groups[len(groups)-1]
+	*last = append(*last, item{label: "Collapse All", hint: "C", run: func(m *Model) tea.Cmd { m.ex.collapseAll(m); return nil }})
+
+	var items []item
+
+	for i, g := range groups {
+		if i > 0 {
+			items = append(items, separator())
 		}
 
-		items = append(items, mk("Rename…", "R", "R"), mk("Delete…", "D", "D"),
-			mk("Copy Path", "y", "y"), mk("Copy Relative Path", "Y", "Y"),
-			mk("Stage Changes", "s", "s"), mk("Open with Default App", "o", "o"))
+		items = append(items, g...)
 	}
 
 	return items
+}
+
+// hiddenLabel names the dotfile toggle by what it will do.
+func hiddenLabel(m *Model) string {
+	if m.st.Settings.Hidden {
+		return "Hide Hidden Files"
+	}
+
+	return "Show Hidden Files"
 }
 
 func (e *explorer) menu(m *Model, x, y int) tea.Cmd { return m.menuOf(e.items(m), x, y) }
@@ -491,6 +586,11 @@ func (e *explorer) mouse(m *Model, msg tea.MouseMsg, y int) tea.Cmd {
 	case tea.MouseClickMsg:
 		i := e.l.at(y, len(e.nodes))
 		if i < 0 {
+			if mo.Button == tea.MouseRight { // below the tree: the root's menu
+				e.l.sel = -1
+				return e.menu(m, mo.X, mo.Y)
+			}
+
 			return nil
 		}
 
@@ -510,6 +610,73 @@ func (e *explorer) mouse(m *Model, msg tea.MouseMsg, y int) tea.Cmd {
 	}
 
 	return nil
+}
+
+// duplicatedMsg is the path a Duplicate wrote, to reveal in the tree.
+type duplicatedMsg string
+
+// copyName is VS Code's name for a copy beside path: "main copy.go", then
+// "main copy 2.go" while that one is taken. A directory or a dotfile keeps its
+// whole name as the stem.
+func copyName(path string, dir bool) string {
+	name := filepath.Base(path)
+
+	ext := filepath.Ext(name)
+	if dir || ext == name {
+		ext = ""
+	}
+
+	stem := strings.TrimSuffix(name, ext)
+
+	for i := 1; ; i++ {
+		c := stem + " copy" + ext
+		if i > 1 {
+			c = stem + " copy " + strconv.Itoa(i) + ext
+		}
+
+		if _, err := os.Lstat(filepath.Join(filepath.Dir(path), c)); err != nil {
+			return c
+		}
+	}
+}
+
+// duplicate copies a file, a symlink or a directory tree to a path that does
+// not exist yet; a file keeps its permissions.
+func duplicate(from, to string) error {
+	st, err := os.Lstat(from)
+	if err != nil {
+		return err
+	}
+
+	switch {
+	case st.IsDir():
+		return os.CopyFS(to, os.DirFS(from))
+	case st.Mode()&os.ModeSymlink != 0:
+		target, err := os.Readlink(from)
+		if err != nil {
+			return err
+		}
+
+		return os.Symlink(target, to)
+	}
+
+	src, err := os.Open(from)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = src.Close() }() // read only: nothing to lose
+
+	dst, err := os.OpenFile(to, os.O_CREATE|os.O_EXCL|os.O_WRONLY, st.Mode().Perm())
+	if err != nil {
+		return err
+	}
+
+	if _, err := io.Copy(dst, src); err != nil {
+		_ = dst.Close() // the copy failed already; that error is the one to report
+		return err
+	}
+
+	return dst.Close()
 }
 
 // edit opens path in $EDITOR as a session in the active workspace.

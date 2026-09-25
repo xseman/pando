@@ -63,11 +63,11 @@ matches still shown; `esc` closes the widget.
 | `m`, right click                                            | context menu                                                                                 |
 | `q`, `esc`                                                  | close the TUI once there is nothing left to close; it asks first (sessions keep running)     |
 
-| View   | Keys                                                                                                                                                                                                                                |
-| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Files  | `⏎` open, `h`/`l` fold, `n`/`N` new file/folder, `R` rename, `D` delete, `s` stage, `e` edit, `y`/`Y` copy path, `.` hidden files, `C` collapse all                                                                                 |
-| Git    | `⏎` stage/unstage, `o` diff, `t` tree or list, `a`/`u` stage/unstage all, `U` stage untracked, `d` discard, `c` message, `C` commit, `A` suggest, `S` sync or publish, `O` open file, `B` switch branch or tag, `{` `}` switch repo |
-| Spaces | `⏎` switch, `M-↑↓` move a project, worktree or session, `n` new shell session, `w` new worktree, `a` add project, `o` view options (filter, sort, group), `x` kill a session, delete a worktree, close a project                    |
+| View   | Keys                                                                                                                                                                                                                                                |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Files  | `⏎` open, `h`/`l` fold, `n`/`N` new file/folder, `R` rename, `D` delete, `d` duplicate, `s` stage, `e` edit, `o` open, `O` open containing folder, `F` find in folder, `c`/`y`/`Y` copy name/path/relative path, `.` hidden files, `C` collapse all |
+| Git    | `⏎` stage/unstage, `o` diff, `t` tree or list, `a`/`u` stage/unstage all, `U` stage untracked, `d` discard, `c` message, `C` commit, `A` suggest, `S` sync or publish, `O` open file, `B` switch branch or tag, `{` `}` switch repo                 |
+| Spaces | `⏎` switch, `M-↑↓` move a project, worktree or session, `n` new shell session, `w` new worktree, `a` add project, `o` view options (filter, sort, group), `x` kill a session, delete a worktree, close a project                                    |
 
 | In a file                         | Action                                                                    |
 | --------------------------------- | ------------------------------------------------------------------------- |

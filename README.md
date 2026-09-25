@@ -36,8 +36,9 @@ session is its own stem, and one daemon underneath keeps them all alive.
   through a file's revisions like GitLens.
 - **Editor**: undo, find, suggestions, format on save, vim mode, and language
   servers for definition, references, rename and code actions.
-- **Explorer and Search**: a tree with git decorations, quick open, and
-  workspace search & replace.
+- **Explorer and Search**: a tree with git decorations and VS Code's context
+  menu (new, duplicate, rename, delete, copy path, find in folder), quick
+  open, and workspace search & replace.
 - **Layout**: a terminal panel, draggable views and columns, VS Code's 2026
   themes, Nerd Font / emoji / ASCII icons, remappable keys.
 - **CLI and API**: everything the TUI does is JSON over a unix socket.

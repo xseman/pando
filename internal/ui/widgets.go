@@ -457,6 +457,7 @@ type item struct {
 	always bool   // stays on top whatever the filter
 	group  string // the heading a prefixed picker files it under after ":"
 	cont   bool   // the detail row of the item above, made by refilter
+	sep    bool   // a rule between groups of a menu; run stays nil so it is skipped
 }
 
 // cancelItem is the last entry of a menu or a confirmation: it closes the
@@ -464,6 +465,9 @@ type item struct {
 func cancelItem() item {
 	return item{label: "Cancel", run: func(*Model) tea.Cmd { return nil }}
 }
+
+// separator is VS Code's menu rule between groups of commands.
+func separator() item { return item{sep: true} }
 
 // matchItem scores an item for a picker query: words starting with @ or !
 // must appear verbatim in its search text, the rest match fuzzily.
@@ -820,6 +824,10 @@ func (md *modal) view(m *Model) (string, int, int) {
 			}
 
 			return row(rw, bg, []seg{sg("   "+it.label, dim)})
+		}
+
+		if it.sep {
+			return dim.Render(strings.Repeat("─", rw))
 		}
 
 		if it.styled {

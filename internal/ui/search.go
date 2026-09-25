@@ -134,6 +134,37 @@ func (s *searchView) focus() tea.Cmd {
 	return s.query.Focus()
 }
 
+// findInFolder is Explorer's Find in Folder: Search scoped to dir through
+// files to include, opened so it shows, with the caret in the query.
+// ponytail: a comma in a folder name still splits the include box (globs).
+func (m *Model) findInFolder(dir string) tea.Cmd {
+	include := ""
+	if rel, err := filepath.Rel(m.ws, dir); err == nil && rel != "." {
+		include = globQuote(filepath.ToSlash(rel)) + "/**"
+	}
+
+	m.sr.include.SetValue(include)
+	m.sr.showDetails = true
+
+	return tea.Batch(m.showView(viewSearch), m.sr.focus(), m.sr.restart(m))
+}
+
+// globQuote escapes the glob metacharacters in a literal path, so a folder
+// such as app/[id] matches itself in rg and git pathspecs alike.
+func globQuote(p string) string {
+	var b strings.Builder
+
+	for _, r := range p {
+		if strings.ContainsRune(`*?[]{}\`, r) {
+			b.WriteByte('\\')
+		}
+
+		b.WriteRune(r)
+	}
+
+	return b.String()
+}
+
 // clear drops the results, for another workspace or the clear action.
 func (s *searchView) clear() {
 	if s.cancel != nil {

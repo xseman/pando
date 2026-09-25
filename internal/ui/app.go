@@ -2178,6 +2178,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.flash(msg.text, msg.err)
 		return m, nil
 
+	case duplicatedMsg:
+		m.ex.reveal(m, string(msg))
+		return m, tea.Batch(flash("duplicated as "+filepath.Base(string(msg)), false), m.refreshGit())
+
 	case tea.KeyPressMsg:
 		return m, m.key(msg)
 	case tea.PasteMsg:
