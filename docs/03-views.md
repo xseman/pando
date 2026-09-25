@@ -121,6 +121,13 @@ the projects. `alt+↑↓` and the menu's _Move Project Up / Down_ do the same
 without the mouse, and a press that never leaves its row is still the click
 that folds the project.
 
+A session row drags the same way among its worktree's sessions and sends
+`session.move`, which takes its tabs along; `alt+↑↓` and _Move Session Up /
+Down_ do it from the keyboard. Only Sort by Created and Group by Workspace keep
+that order, so under the others a press opens the session at once. A
+`sessions` event mid-drag replaces the list, and `drag.to` puts the held
+session back under the pointer.
+
 A blank row sits before a project whenever the project above it is unfolded,
 so a run of folded ones stays a tight list. It is a row like any other, and
 the scrollbar and the wheel count it, but `↑↓` steps over it and a click on

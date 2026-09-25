@@ -629,8 +629,13 @@ func (a *agents) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	case "down", "j":
 		a.step(rows, 1, h)
 	case "alt+up", "alt+down":
+		d := map[bool]int{true: -1, false: 1}[k.String() == "alt+up"]
+		if r != nil && r.kind == agSession {
+			return a.shiftSession(m, r.s.ID, d)
+		}
+
 		if r != nil && r.project != "" {
-			return a.shiftProject(m, r.project, map[bool]int{true: -1, false: 1}[k.String() == "alt+up"])
+			return a.shiftProject(m, r.project, d)
 		}
 
 	case "g", "home":
@@ -917,6 +922,11 @@ func (a *agents) items(m *Model) []item {
 		id := r.s.ID
 
 		items = append(items, item{label: "Rename Session…", hint: "R", run: func(m *Model) tea.Cmd { return m.renameSession(id) }})
+		if m.sessionsMovable() && len(m.siblings(id)) > 1 {
+			items = append(items,
+				item{label: "Move Session Up", hint: "M-↑", run: func(m *Model) tea.Cmd { return a.shiftSession(m, id, -1) }},
+				item{label: "Move Session Down", hint: "M-↓", run: func(m *Model) tea.Cmd { return a.shiftSession(m, id, 1) }})
+		}
 	}
 
 	if label := removeLabel(r); label != "" {
@@ -1022,6 +1032,14 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, y int) tea.Cmd {
 			m.drag = &drag{kind: dragRow, proj: p, from: slices.Index(m.st.Projects, p), y0: mo.Y}
 			return nil
 		}
+		// A session drags the same way among its worktree's, and a press
+		// that never leaves its row opens it on the release.
+		if id := rows[i].s.ID; mo.Button == tea.MouseLeft && rows[i].kind == agSession && m.sessionsMovable() {
+			if sibs := m.siblings(id); len(sibs) > 1 {
+				m.drag = &drag{kind: dragRow, sess: id, from: slices.Index(sibs, id), y0: mo.Y}
+				return nil
+			}
+		}
 
 		return a.activate(m, &rows[i])
 	}
@@ -1029,15 +1047,22 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, y int) tea.Cmd {
 	return nil
 }
 
-// dragRowTo moves the dragged project to wherever the pointer is: the tree
-// reorders under it row by row, and the release tells the daemon the index it
-// landed on. A press that never left its row folds the project instead.
+// dragRowTo moves the dragged project or session to wherever the pointer is:
+// the tree reorders under it row by row, and the release tells the daemon
+// where it landed. A press that never left its row is a click instead.
 func (a *agents) dragRowTo(m *Model, d *drag, y int, release bool) tea.Cmd {
 	if y != d.y0 {
 		d.moved = true
 	}
 
-	if d.moved {
+	switch {
+	case d.moved && d.sess != "":
+		if over := a.sessionAt(m, m.hoverRow(viewAgents)); over != "" && over != d.sess && slices.Contains(m.siblings(d.sess), over) {
+			a.moveSession(m, d.sess, over)
+			d.to = target(m.siblings(d.sess), d.sess, d.from)
+		}
+
+	case d.moved:
 		if over := a.projectAt(m, m.hoverRow(viewAgents)); over != "" && over != d.proj {
 			a.moveProject(m, d.proj, over)
 		}
@@ -1050,6 +1075,14 @@ func (a *agents) dragRowTo(m *Model, d *drag, y int, release bool) tea.Cmd {
 	m.drag = nil
 	if !d.moved {
 		return a.activate(m, a.selected(m))
+	}
+
+	if d.sess != "" {
+		if d.to == "" {
+			return nil
+		}
+
+		return do("session.move", proto.SessionMoveParams{ID: d.sess, To: d.to})
 	}
 
 	to := slices.Index(m.st.Projects, d.proj)
@@ -1107,6 +1140,124 @@ func (a *agents) moveProject(m *Model, from, to string) {
 	rows := a.rows(m)
 	if k := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agProject && r.project == from }); k >= 0 {
 		a.l.sel = k
+		a.l.snap(m.bodyH(viewAgents))
+	}
+}
+
+// sessionsMovable says whether the Spaces tree lists sessions in the order
+// session.move keeps: grouped by worktree and sorted by Created. Sorted by
+// Updated or grouped by time, the order is the clock's.
+func (m *Model) sessionsMovable() bool {
+	st := m.st.Settings
+
+	return st.SpSort != "updated" && st.SpGroup != "time"
+}
+
+// siblings are the ids of the sessions Spaces lists in session id's worktree,
+// id among them, in their order.
+func (m *Model) siblings(id string) []string {
+	s := m.session(id)
+	if s == nil {
+		return nil
+	}
+
+	var out []string
+
+	for _, x := range m.listedSessions() {
+		if x.Workspace == s.Workspace {
+			out = append(out, x.ID)
+		}
+	}
+
+	return out
+}
+
+// sessionAt is the session the list row at screen row y shows, "" on any
+// other row or off the list.
+func (a *agents) sessionAt(m *Model, y int) string {
+	if y < 0 {
+		return ""
+	}
+
+	rows := a.rows(m)
+	if i := a.l.at(y, len(rows)); i >= 0 && rows[i].kind == agSession {
+		return rows[i].s.ID
+	}
+
+	return ""
+}
+
+// target is the entry whose place x, picked up at index from, takes in the
+// order the daemon still has: the one now just above it when it
+// went down, just below it when it went up, "" back where it started. Moved
+// onto it in the daemon's order, x lands where it is now.
+func target(order []string, x string, from int) string {
+	k := slices.Index(order, x)
+	switch {
+	case k < 0 || k == from:
+		return ""
+	case k > from:
+		return order[k-1]
+	}
+
+	return order[k+1]
+}
+
+// shiftSession moves session id d places among its worktree's and saves it
+// at once: the menu's and alt+↑↓'s half of the drag.
+func (a *agents) shiftSession(m *Model, id string, d int) tea.Cmd {
+	if !m.sessionsMovable() {
+		m.flash("sort by Created, grouped by Workspace, to reorder sessions", false)
+		return nil
+	}
+
+	sibs := m.siblings(id)
+	i := slices.Index(sibs, id)
+
+	to := i + d
+	if i < 0 || to < 0 || to >= len(sibs) {
+		return nil
+	}
+
+	a.moveSession(m, id, sibs[to])
+
+	return do("session.move", proto.SessionMoveParams{ID: id, To: sibs[to]})
+}
+
+// moveSession puts session id where session to sits in the model's own
+// list, as session.move does in the daemon's: its tabs go with it, and the
+// moved row stays selected. The daemon is told once, on release.
+func (a *agents) moveSession(m *Model, id, to string) {
+	i := slices.IndexFunc(m.sessions, func(s proto.Session) bool { return s.ID == id })
+	j := slices.IndexFunc(m.sessions, func(s proto.Session) bool { return s.ID == to })
+
+	if i < 0 || j < 0 || i == j {
+		return
+	}
+
+	var moved, rest []proto.Session
+
+	for _, s := range m.sessions {
+		if s.ID == id || s.Parent == id {
+			moved = append(moved, s)
+		} else {
+			rest = append(rest, s)
+		}
+	}
+
+	k := slices.IndexFunc(rest, func(s proto.Session) bool { return s.ID == to })
+	if i < j { // past the target and the tabs that follow it
+		k++
+		for k < len(rest) && rest[k].Parent == to {
+			k++
+		}
+	}
+
+	m.sessions = slices.Insert(rest, k, moved...)
+
+	rows := a.rows(m)
+	if r := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agSession && r.s.ID == id }); r >= 0 {
+		a.l.sel = r
 		a.l.snap(m.bodyH(viewAgents))
 	}
 }

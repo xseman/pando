@@ -584,6 +584,14 @@ func (d *Daemon) dispatch(method string, raw json.RawMessage) (any, error) {
 
 		return nil, d.renameSession(p.ID, strings.TrimSpace(p.Name))
 
+	case "session.move":
+		p, err := parse[proto.SessionMoveParams](raw)
+		if err != nil {
+			return nil, err
+		}
+
+		return nil, d.moveSession(p.ID, p.To)
+
 	case "session.input":
 		p, err := parse[proto.InputParams](raw)
 		if err != nil {
@@ -992,6 +1000,65 @@ func (d *Daemon) renameSession(id, name string) error {
 	s.spec.Name = name
 	s.mu.Unlock()
 
+	err = d.save()
+	d.mu.Unlock()
+	d.broadcast(proto.Event{Kind: "sessions"})
+
+	return err
+}
+
+// moveSession puts session id where session to sits now: after it when id
+// comes from above, before it otherwise. Its tabs and Terminal shells move
+// with it, so they keep following it in the order.
+func (d *Daemon) moveSession(id, to string) error {
+	s, err := d.session(id)
+	if err != nil {
+		return err
+	}
+
+	t, err := d.session(to)
+	if err != nil {
+		return err
+	}
+
+	d.mu.Lock()
+
+	sid, tid := s.spec.ID, t.spec.ID
+	switch {
+	case s.spec.Parent != "" || t.spec.Parent != "":
+		d.mu.Unlock()
+		return errors.New("a tab moves with its session: move the session")
+
+	case s.spec.Workspace != t.spec.Workspace:
+		d.mu.Unlock()
+		return fmt.Errorf("%s and %s are in different workspaces", id, to)
+
+	case sid == tid:
+		d.mu.Unlock()
+		return nil
+	}
+
+	down := slices.Index(d.order, sid) < slices.Index(d.order, tid)
+
+	var moved, rest []string
+
+	for _, x := range d.order {
+		if x == sid || d.sessions[x].spec.Parent == sid {
+			moved = append(moved, x)
+		} else {
+			rest = append(rest, x)
+		}
+	}
+
+	j := slices.Index(rest, tid)
+	if down { // past the target and the tabs that follow it
+		j++
+		for j < len(rest) && d.sessions[rest[j]].spec.Parent == tid {
+			j++
+		}
+	}
+
+	d.order = slices.Insert(rest, j, moved...)
 	err = d.save()
 	d.mu.Unlock()
 	d.broadcast(proto.Event{Kind: "sessions"})

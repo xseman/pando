@@ -91,7 +91,8 @@ else inside it.
 - Every session has tabs of its own, as a herdr workspace does: `+` on the
   strip over the terminal opens another shell in it, `[` `]` cycle them,
   middle click kills one, right click renames it. The Spaces tree lists the
-  sessions, each showing its busiest tab's state. A session opens in a column of its own beside the
+  sessions, each showing its busiest tab's state; drag one (or `alt+↑↓`) to
+  reorder it under its worktree. A session opens in a column of its own beside the
   editor — drag it to the other side or over the editor area.
 - Symbols follow herdr's: `×` waits for you, `◐` works, `✓` finished unseen,
   `○` idles. A session out of view can play a sound, and one that waits,

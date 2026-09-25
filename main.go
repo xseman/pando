@@ -41,7 +41,7 @@ const usage = `pando — terminal sidebar with agent sessions
   pando project add|rm [DIR] | move DIR INDEX | ls
   pando ws ls | new [BRANCH] [--project DIR] | rm PATH | switch PATH
   pando session new [--agent NAME] [--ws PATH] [--name NAME] [--parent ID] [--wait] [-- CMD...]
-  pando session ls | get ID | kill ID | switch ID | rename ID [NAME...]
+  pando session ls | get ID | kill ID | switch ID | rename ID [NAME...] | move ID OTHER
   pando session send ID TEXT... [--enter] [--wait]
   pando session keys ID KEY...  named keys, e.g. esc ctrl+c shift+tab
   pando session wait ID [--until idle|blocked|running|exited] [--match RE] [--timeout MS]
@@ -57,7 +57,7 @@ guide to doing it well. Read it before the first call.
 
 API methods: ping state.get state.set draft.list draft.set project.add
 project.remove project.move workspace.list workspace.new workspace.remove focus session.new
-session.get session.list session.kill session.rename session.input session.screen
+session.get session.list session.kill session.rename session.move session.input session.screen
 session.read session.wait update.status update.check update.install subscribe shutdown
 
 The API covers sessions, workspaces, projects and settings — everything a
@@ -328,6 +328,7 @@ func workspace(rest []string) error {
 
 	case "rm":
 		return proto.Call("workspace.remove", map[string]string{"path": abs(arg(pos, 0, ""))}, nil)
+
 	case "switch":
 		return proto.Call("focus", proto.FocusParams{Workspace: abs(arg(pos, 0, ""))}, nil)
 	}
@@ -422,6 +423,13 @@ func session(rest []string) error {
 		return proto.Call("session.kill", map[string]string{"id": arg(pos, 0, "")}, nil)
 	case "rename": // no name: named by what runs in it again
 		return proto.Call("session.rename", map[string]string{"id": arg(pos, 0, ""), "name": strings.Join(pos[min(1, len(pos)):], " ")}, nil)
+	case "move", "mv":
+		if len(pos) != 2 {
+			return errors.New("session move ID OTHER (ID takes OTHER's place in its worktree)")
+		}
+
+		return proto.Call("session.move", proto.SessionMoveParams{ID: pos[0], To: pos[1]}, nil)
+
 	case "switch":
 		return proto.Call("focus", proto.FocusParams{Session: arg(pos, 0, "")}, nil)
 	case "send":

@@ -344,6 +344,14 @@ type MoveParams struct {
 	To   int    `json:"to"`
 }
 
+// SessionMoveParams is session.move: session ID takes the place session To
+// holds now, in the order session.list and the Spaces tree list sessions.
+// Both are sessions of the same workspace, not tabs; ID's tabs move with it.
+type SessionMoveParams struct {
+	ID string `json:"id"`
+	To string `json:"to"`
+}
+
 // FocusParams is focus: the daemon broadcasts it unchanged so every attached
 // TUI shows the same workspace, session or file.
 type FocusParams struct {

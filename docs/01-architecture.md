@@ -28,9 +28,9 @@ subscribe → {"event":"sessions"} {"event":"screen","id":"a1b2"} {"event":"stat
 
 Methods: `ping state.get state.set draft.list draft.set project.add
 project.remove project.move workspace.list workspace.new workspace.remove focus
-session.new session.get session.list session.kill session.rename session.input
-session.screen session.read session.wait update.status update.check
-update.install subscribe shutdown`.
+session.new session.get session.list session.kill session.rename session.move
+session.input session.screen session.read session.wait update.status
+update.check update.install subscribe shutdown`.
 
 The API is the orchestration surface — sessions, workspaces, projects,
 settings — not a mirror of the TUI. Explorer, Source Control, Search, diffs
@@ -46,8 +46,10 @@ Sessions resolve by id, by the name `session.new` or `session.rename` gave
 them, or by an unambiguous prefix of either; a name is unique among live
 sessions. A `parent` on `session.new` (resolved the same way, stored as the id)
 makes a shell of that session's Terminal panel; `session.kill` on the parent
-kills them with it. `skills/pando/SKILL.md`, which `pando skill` prints, is the guide an
-agent reads before driving any of this.
+kills them with it. `session.move` puts a session in the place of another in
+its workspace, in the order `session.list` returns, and its children go with it.
+`skills/pando/SKILL.md`, which `pando skill` prints, is the guide an agent
+reads before driving any of this.
 
 `draft.list`/`draft.set` are the editors' unsaved text. They are the one pair
 that does not broadcast: a draft is written on the TUI's tick, and a `state`

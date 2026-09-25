@@ -76,6 +76,8 @@ type drag struct {
 	pane   string // dragPane: Git drawer title
 	v      view   // dragTab: the tab being dragged
 	proj   string // dragRow: the project being moved in the Spaces list
+	sess   string // dragRow: the session being moved under its worktree instead
+	to     string // dragRow, sess: the session whose place it takes, "" where it started
 	from   int    // dragRow: the index it was picked up from
 	x0     int    // dragTab: where it was picked up; dragMsgSel: the message text's screen origin, with y0
 	drop   *dropTarget
@@ -1999,6 +2001,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := m.sound(m.soundFor(msg))
 
 		m.sessions = msg
+		if d := m.drag; d != nil && d.kind == dragRow && d.sess != "" && d.to != "" { // a session held mid-drag stays under the pointer
+			m.ag.moveSession(m, d.sess, d.to)
+		}
 
 		for _, s := range m.mainSessions() { // what is on screen is seen as it changes
 			if m.inView(s.ID) {

@@ -952,6 +952,62 @@ func TestKillSessionKillsItsTerminals(t *testing.T) {
 	})
 }
 
+// TestMoveSession reorders a worktree's sessions: a session takes another's
+// place from either side, its tab goes with it, and one of another worktree
+// or a tab is refused.
+func TestMoveSession(t *testing.T) {
+	d := start(t)()
+	defer d.Close()
+
+	ws, elsewhere := t.TempDir(), t.TempDir()
+	stay := []string{"sleep", "30"}
+
+	for _, name := range []string{"a", "b", "c"} {
+		call(t, "session.new", map[string]any{"workspace": ws, "name": name, "cmd": stay}, nil)
+	}
+
+	call(t, "session.new", map[string]any{"workspace": ws, "agent": "tab", "parent": "a", "name": "a-tab", "cmd": stay}, nil)
+	call(t, "session.new", map[string]any{"workspace": elsewhere, "name": "far", "cmd": stay}, nil)
+
+	order := func() string {
+		var ss []proto.Session
+		call(t, "session.list", nil, &ss)
+
+		names := make([]string, len(ss))
+		for i, s := range ss {
+			names[i] = s.Name
+		}
+
+		return strings.Join(names, " ")
+	}
+
+	call(t, "session.move", proto.SessionMoveParams{ID: "a", To: "b"}, nil)
+
+	if got := order(); got != "b a a-tab c far" {
+		t.Fatalf("moved down past b = %q", got)
+	}
+
+	call(t, "session.move", proto.SessionMoveParams{ID: "c", To: "b"}, nil)
+
+	if got := order(); got != "c b a a-tab far" {
+		t.Fatalf("moved up to the top = %q", got)
+	}
+
+	call(t, "session.move", proto.SessionMoveParams{ID: "b", To: "a"}, nil)
+
+	if got := order(); got != "c a a-tab b far" {
+		t.Fatalf("moved past a and its tab = %q", got)
+	}
+
+	if err := proto.Call("session.move", proto.SessionMoveParams{ID: "far", To: "a"}, nil); err == nil {
+		t.Fatal("a session of another worktree is refused")
+	}
+
+	if err := proto.Call("session.move", proto.SessionMoveParams{ID: "a-tab", To: "c"}, nil); err == nil {
+		t.Fatal("a tab is refused: it moves with its session")
+	}
+}
+
 func TestFocusResolvesSessionNames(t *testing.T) {
 	d := start(t)()
 	defer d.Close()

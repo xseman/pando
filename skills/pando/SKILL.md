@@ -170,8 +170,8 @@ the session in a workspace that already exists.
 
 ## Safety
 
-- Do not kill, rename or send input to a session you did not create, and never
-  to `$PANDO_SESSION`. Killing a session also kills its own tabs
+- Do not kill, rename, move or send input to a session you did not create,
+  and never to `$PANDO_SESSION`. Killing a session also kills its own tabs
   (`--agent tab --parent ID`) and the shells of its Terminal panel
   (`--agent terminal --parent ID`), so a kill takes more than one terminal.
 - Do not run `pando stop`: it takes down the daemon and every session in it,

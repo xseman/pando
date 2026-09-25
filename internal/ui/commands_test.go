@@ -597,6 +597,84 @@ func TestSpacesDragReorder(t *testing.T) {
 	}
 }
 
+// TestSpacesDragSession drags a session down its worktree: it follows the
+// pointer with its tab, a sessions event mid-drag does not undo it, the
+// release names the session whose place it took, and a press that never
+// moves still opens it.
+func TestSpacesDragSession(t *testing.T) {
+	m := testModel(t)
+	sess := func(id, parent string) proto.Session {
+		agent := "shell"
+		if parent != "" {
+			agent = tabAgent
+		}
+
+		return proto.Session{SessionSpec: proto.SessionSpec{ID: id, Workspace: m.ws, Agent: agent, Parent: parent}, Status: "idle"}
+	}
+	daemon := sessionsMsg{sess("s1", ""), sess("s2", ""), sess("s2t", "s2"), sess("s3", "")}
+	m.Update(daemon)
+	press(m, "3")
+	checkWidths(t, m)
+	cs, _ := m.layout()
+	x, top := cs[m.colOf(viewAgents)].x+1, m.bodyTop(viewAgents)
+	ids := func() string {
+		var out []string
+		for _, s := range m.sessions {
+			out = append(out, s.ID)
+		}
+
+		return strings.Join(out, " ")
+	}
+
+	m.Update(tea.MouseClickMsg{X: x, Y: top + 2, Button: tea.MouseLeft}) // project, worktree, s1
+
+	if m.drag == nil || m.drag.sess != "s1" {
+		t.Fatalf("a press on a session row starts a drag: %+v", m.drag)
+	}
+
+	m.Update(tea.MouseMotionMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
+
+	if got := ids(); got != "s2 s2t s1 s3" || m.drag.to != "s2" {
+		t.Fatalf("the session follows the pointer past s2 and its tab: %q, to %q", got, m.drag.to)
+	}
+
+	if r := m.ag.selected(m); r == nil || r.s.ID != "s1" {
+		t.Fatalf("the moved row stays selected: %+v", r)
+	}
+
+	m.Update(daemon)
+
+	if got := ids(); got != "s2 s2t s1 s3" {
+		t.Fatalf("a sessions event mid-drag keeps the held session in place: %q", got)
+	}
+
+	_, cmd := m.Update(tea.MouseReleaseMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
+	if cmd == nil || m.drag != nil {
+		t.Fatalf("the release saves the order: cmd %v drag %+v", cmd != nil, m.drag)
+	}
+
+	press(m, "alt+up")
+
+	if got := ids(); got != "s1 s2 s2t s3" {
+		t.Fatalf("alt+up moves the session back: %q", got)
+	}
+
+	press(m, "3")
+	click(m, x, top+4, tea.MouseLeft)
+
+	if m.drag != nil || m.focus != onMain || m.sess != "s3" {
+		t.Fatalf("a click that never moved opens the session: drag %+v, sess %q", m.drag, m.sess)
+	}
+	// Sorted by Updated the clock orders sessions: a press opens at once.
+	m.st.Settings.SpSort = "updated"
+	press(m, "3")
+	m.Update(tea.MouseClickMsg{X: x, Y: top + 2, Button: tea.MouseLeft})
+
+	if m.drag != nil {
+		t.Fatalf("no drag when sorted by Updated: %+v", m.drag)
+	}
+}
+
 func TestStatusBar(t *testing.T) {
 	m := gitModel(t)
 	// The active session is not counted: you are looking at it.
