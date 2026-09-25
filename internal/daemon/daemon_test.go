@@ -229,6 +229,24 @@ func TestDaemon(t *testing.T) {
 	if len(fresh.Editors) != 0 {
 		t.Fatalf("forgotten editors = %+v", fresh.Editors)
 	}
+	// So is the Terminal panel, with the settings patch in the same call.
+	call(t, "state.set", map[string]any{"settings": map[string]any{"terminal_open": false}, "terminals": map[string]proto.Terminal{root: {Open: true, Tab: "t1"}}}, nil)
+
+	var terms proto.State
+	call(t, "state.get", nil, &terms)
+
+	if terms.Terminals[root] != (proto.Terminal{Open: true, Tab: "t1"}) || terms.Settings.TermOpen {
+		t.Fatalf("terminals = %+v, default open %v", terms.Terminals, terms.Settings.TermOpen)
+	}
+
+	call(t, "state.set", map[string]any{"terminals": map[string]any{root: nil}}, nil)
+
+	terms = proto.State{}
+	call(t, "state.get", nil, &terms)
+
+	if len(terms.Terminals) != 0 {
+		t.Fatalf("forgotten terminals = %+v", terms.Terminals)
+	}
 
 	pane := func(title string, h int) map[string]any {
 		return map[string]any{"settings": map[string]any{"git_panes": map[string]any{title: map[string]any{"open": true, "h": h}}}}

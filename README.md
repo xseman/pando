@@ -215,7 +215,8 @@ session or a shell `ctrl+j` is the app's newline, so only ``ctrl+` ``);
 tabs of its own in it, killed with the session; with no session in view the
 panel holds the workspace's shells. They stay out of the Spaces tree, and the
 panel can move to a sidebar. `pando session new --agent terminal --parent ID`
-opens one from a script. `ctrl+f` over a session or a shell finds in its
+opens one from a script. Each worktree keeps the panel open or shut on its
+own. `ctrl+f` over a session or a shell finds in its
 scrollback, as VS Code's terminal find does: `⏎` walks up to older output.
 
 Drag a view's tab along its activity bar to reorder it, onto another sidebar

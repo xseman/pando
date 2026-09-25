@@ -59,7 +59,7 @@ type Settings struct {
 	ActBar    string              `json:"activity_bar" toml:"activity_bar"`           // "top" (a row of chips) | "side" (icons down the outer edge)
 	TermPos   string              `json:"terminal_position" toml:"terminal_position"` // "bottom" (a panel under the editor) | "left" | "right"
 	TermH     int                 `json:"terminal_height" toml:"terminal_height"`     // rows of the bottom panel
-	TermOpen  bool                `json:"terminal_open" toml:"terminal_open"`         // the panel is showing
+	TermOpen  bool                `json:"terminal_open" toml:"terminal_open"`         // the panel's state for a workspace without one in State.Terminals: the last one set
 	SessPos   string              `json:"session_position" toml:"session_position"`   // where a session opens: "right" | "left" (a column of its own) | "editor" (over the editor area)
 	SessHi    string              `json:"session_highlight" toml:"session_highlight"` // a session waiting, done unseen or failed: "tint" its row and tab, pulsing until clicked | "steady" | "off"
 	LSP       map[string][]string `json:"lsp" toml:"lsp"`                             // language to server command
@@ -139,6 +139,9 @@ type State struct {
 	ResumeJob map[string][]string `json:"resume_job"` // agent to the command that attaches to background job {id}
 	Drafts    map[string]string   `json:"drafts"`
 	Editors   map[string]Editors  `json:"editors"` // per workspace: what its tab strip had open
+	// Terminals is per workspace: whether its Terminal panel was open, and
+	// the shell it showed.
+	Terminals map[string]Terminal `json:"terminals"`
 	Sessions  []SessionSpec       `json:"sessions"`
 	// Worktrees is each project's worktree paths in the order workspace.move
 	// left them; git's order for any it does not name, after these.
@@ -153,6 +156,13 @@ type State struct {
 type Editors struct {
 	Open   []Editor `json:"open"`
 	Active int      `json:"active"` // index into Open
+}
+
+// Terminal is a workspace's Terminal panel as state.json keeps it, so every
+// workspace opens and shuts its own.
+type Terminal struct {
+	Open bool   `json:"open"`
+	Tab  string `json:"tab,omitempty"` // the shell it showed
 }
 
 // Editor is one open file with its cursor (0-based) and scroll. An untitled

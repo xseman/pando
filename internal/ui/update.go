@@ -86,7 +86,7 @@ func (m *Model) startUpdate() tea.Cmd {
 func (m *Model) finishUpdate() tea.Cmd {
 	m.modal = newMenu("pando v"+m.upd.Latest+" is installed", -1, 0,
 		item{label: "Quit pando", hint: "start it again to run v" + m.upd.Latest, run: func(m *Model) tea.Cmd {
-			return tea.Sequence(m.saveEditors(), m.saveDrafts(), tea.Quit)
+			return tea.Sequence(m.saveEditors(), m.saveTerm(), m.saveDrafts(), tea.Quit)
 		}},
 		cancelItem())
 

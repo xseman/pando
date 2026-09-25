@@ -5,7 +5,7 @@ with `PANDO_CONFIG_DIR`:
 
 ```
 config.toml   what you configure : settings, colors, agent presets
-state.json    what pando remembers: projects and their worktree order, commit drafts, open editors, session specs
+state.json    what pando remembers: projects and their worktree order, commit drafts, open editors, terminal panels, session specs
 ```
 
 Unsaved editor text lives beside them, in the data directory: see Drafts below.
@@ -31,7 +31,7 @@ error, uses the last good values and refuses to save until it is fixed.
 | `activity_bar`                                                       | `top` (icons in a row above the view) or `side` (down the sidebar's outer edge)                             |
 | `terminal_position`                                                  | `bottom` (a panel under the editor), `left` or `right`                                                      |
 | `terminal_height`                                                    | rows of the bottom panel                                                                                    |
-| `terminal_open`                                                      | whether the terminal panel is showing                                                                       |
+| `terminal_open`                                                      | the panel's state for a worktree that has none of its own yet: the last one set                             |
 | `shell`                                                              | the shell every terminal opens, e.g. `"zsh -l"`; `""`: the `[agents]` shell preset, else the login shell    |
 | `session_position`                                                   | `right`, `left` (the side a session column docks to) or `editor` (over the editor area, until a file opens) |
 | `session_highlight`                                                  | `tint` a session waiting (×), done (✓) or failed (✕), pulsing until clicked; `steady`, `off`                |
@@ -169,6 +169,20 @@ when it leaves the workspace and when it quits; `null` or an empty `open`
 forgets the workspace. Opening the workspace again reopens the tabs where they
 were, skipping files that are gone. Two TUIs on one workspace each save their
 own strip; the last one wins.
+
+## Terminal panel
+
+Each worktree opens and shuts its own Terminal panel, and comes back on the
+shell it showed:
+
+```json
+"terminals": { "/home/me/app": { "open": true, "tab": "a1b2c3" } }
+```
+
+``ctrl+` `` sends it with `terminal_open` in one `state.set`; the tick, leaving
+the workspace and quitting send it too, the way `editors` goes. A worktree
+without an entry takes `terminal_open`, the last state set anywhere. `null`
+forgets one. Where the panel sits and its height stay global.
 
 ## Drafts
 

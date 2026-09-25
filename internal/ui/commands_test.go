@@ -2644,3 +2644,45 @@ func TestSashHover(t *testing.T) {
 
 	checkWidths(t, m)
 }
+
+// TestTerminalPanelPerWorkspace shuts the panel in one worktree and finds it
+// still open in the other, on the shell it showed there; a worktree that
+// never had it takes the last state set.
+func TestTerminalPanelPerWorkspace(t *testing.T) {
+	m := testModel(t)
+	root, wt, fresh := m.ws, t.TempDir(), t.TempDir()
+	m.wss = append(m.wss, proto.Workspace{Path: wt, Project: root, Branch: "feat"}, proto.Workspace{Path: fresh, Project: root, Branch: "new"})
+	m.sessions = []proto.Session{termSession(root, "t1"), termSession(root, "t2"), termSession(wt, "t3")}
+
+	m.toggleTerminal()
+	m.cycleTerm(1)
+
+	if !m.termOpen() || m.tv.id != "t2" {
+		t.Fatalf("opened on the second shell: open %v, on %q", m.termOpen(), m.tv.id)
+	}
+
+	m.switchWorkspace(wt)
+
+	if !m.termOpen() || m.tv.id != "t3" {
+		t.Fatalf("a worktree without a panel of its own takes the last state: open %v, on %q", m.termOpen(), m.tv.id)
+	}
+
+	m.toggleTerminal()
+	m.switchWorkspace(root)
+
+	if !m.termOpen() || m.tv.id != "t2" {
+		t.Fatalf("shut elsewhere, the panel stays open here, on its shell: open %v, on %q", m.termOpen(), m.tv.id)
+	}
+
+	m.switchWorkspace(wt)
+
+	if m.termOpen() {
+		t.Fatal("the worktree it was shut in keeps it shut")
+	}
+
+	m.switchWorkspace(fresh)
+
+	if m.termOpen() {
+		t.Fatal("a worktree never visited follows the last state set: shut")
+	}
+}

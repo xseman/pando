@@ -125,6 +125,7 @@ type Model struct {
 	recent      []int             // per view: when it was last shown; a column shows its most recent tab
 	savedWs     string            // the workspace the daemon was last told about
 	savedEds    proto.Editors     // the open editors the daemon was last told about
+	savedTerm   proto.Terminal    // the workspace's Terminal panel, as this TUI last told the daemon
 	savedDrafts map[string]string // per draft key: the unsaved text the daemon was last told about
 	branchSeen  string            // the open worktree's branch the worktree list was last reloaded for
 	ticks       int
@@ -436,7 +437,11 @@ func flash(text string, err bool) tea.Cmd {
 }
 
 // setSettings applies a settings patch locally and persists it in the daemon.
-func (m *Model) setSettings(patch map[string]any) tea.Cmd {
+func (m *Model) setSettings(patch map[string]any) tea.Cmd { return m.setSettingsWith(patch, nil) }
+
+// setSettingsWith is setSettings with more of the state (its other state.set
+// keys) in the same call, so no state event lands between the two halves.
+func (m *Model) setSettingsWith(patch, more map[string]any) tea.Cmd {
 	b, _ := json.Marshal(patch)
 	_ = json.Unmarshal(b, &m.st.Settings) // optimistic: the daemon sends the settings back
 	m.look()
@@ -446,7 +451,11 @@ func (m *Model) setSettings(patch map[string]any) tea.Cmd {
 	m.ex.rebuild(m)
 	m.scm.build(m)
 
-	cmds := []tea.Cmd{do("state.set", map[string]any{"settings": patch})}
+	p := map[string]any{"settings": patch}
+	maps.Copy(p, more)
+
+	cmds := []tea.Cmd{do("state.set", p)}
+
 	if _, ok := patch["color_theme"]; ok {
 		m.pv.raw = "" // re-render the tints in the new palette
 		cmds = append(cmds, m.pv.load(m))
@@ -816,8 +825,57 @@ func (m *Model) termPos() string {
 	return "bottom"
 }
 
-// termOpen reports the Terminal showing, wherever it sits.
-func (m *Model) termOpen() bool { return m.st.Settings.TermOpen }
+// termOpen reports the Terminal showing in this workspace, wherever it sits:
+// each workspace keeps its own, and one that has none yet takes the last set.
+func (m *Model) termOpen() bool {
+	if t, ok := m.st.Terminals[m.ws]; ok {
+		return t.Open
+	}
+
+	return m.st.Settings.TermOpen
+}
+
+// setTermOpen opens or shuts the Terminal in this workspace alone, patch
+// riding along in the same state.set; terminal_open follows, as the default
+// for a workspace that has not had the panel yet.
+func (m *Model) setTermOpen(open bool, patch map[string]any) tea.Cmd {
+	if patch == nil {
+		patch = map[string]any{}
+	}
+
+	patch["terminal_open"] = open
+	t := proto.Terminal{Open: open, Tab: m.tv.id}
+	m.keepTerm(t)
+
+	return m.setSettingsWith(patch, map[string]any{"terminals": map[string]proto.Terminal{m.ws: t}})
+}
+
+// saveTerm tells the daemon the workspace's panel and the shell it shows when
+// that changed since the last save, or when the workspace has none saved yet:
+// left behind, it keeps the state it had rather than following the default.
+func (m *Model) saveTerm() tea.Cmd {
+	if m.ws == "" {
+		return nil
+	}
+
+	t := proto.Terminal{Open: m.termOpen(), Tab: m.tv.id}
+	if _, ok := m.st.Terminals[m.ws]; ok && t == m.savedTerm {
+		return nil
+	}
+
+	m.keepTerm(t)
+
+	return do("state.set", map[string]any{"terminals": map[string]proto.Terminal{m.ws: t}})
+}
+
+// keepTerm records t as the workspace's panel ahead of the daemon's echo.
+func (m *Model) keepTerm(t proto.Terminal) {
+	if m.st.Terminals == nil {
+		m.st.Terminals = map[string]proto.Terminal{}
+	}
+
+	m.st.Terminals[m.ws], m.savedTerm = t, t
+}
 
 // termRows is the height of the bottom panel, 0 when it is elsewhere or shut.
 func (m *Model) termRows() int {
@@ -1776,8 +1834,9 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 		return nil
 	}
 
-	saved := tea.Batch(m.saveEditors(), m.saveDrafts())
+	saved := tea.Batch(m.saveEditors(), m.saveTerm(), m.saveDrafts())
 	m.savedDrafts = nil
+	open := m.termOpen()
 	m.ws = path
 	m.ex.setRoot(m, path)
 	m.scm.reset()
@@ -1801,6 +1860,13 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 
 	restored := m.restoreEditors()
 	m.preview = m.preview && (m.sess == "" || m.sessDocked()) // a session over the editor is what shows; the tabs wait in the strip
+	// The panel as this workspace left it: open or shut, on the shell it showed.
+	m.savedTerm, m.tv.id, m.tv.term = m.st.Terminals[path], "", term{}
+	if open != m.termOpen() && m.w > 0 { // New switches before the window has a size
+		m.termMax = false
+		m.resize()
+		m.fixFocus()
+	}
 
 	return tea.Batch(saved, restored, m.loadDrafts(), m.ensureTerm())
 }
@@ -1929,7 +1995,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		m.ex.rebuild(m)
 		m.scm.fit(m) // the box learns its width when drawn: a resize rewraps it
-		cmds := []tea.Cmd{tick(), m.blink(), m.refreshGit(), m.pv.reloadIfLive(m), m.scm.saveDraft(m), m.scm.loadDrawers(m), m.saveWorkspace(), m.saveEditors(), m.saveDrafts()}
+		cmds := []tea.Cmd{tick(), m.blink(), m.refreshGit(), m.pv.reloadIfLive(m), m.scm.saveDraft(m), m.scm.loadDrawers(m), m.saveWorkspace(), m.saveEditors(), m.saveTerm(), m.saveDrafts()}
 		// ponytail: other projects' branches come back every 30 s, one git call
 		// per project; watch their HEADs if that lags.
 		m.ticks++
@@ -2345,7 +2411,7 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 	case "q":
 		return m.confirmQuit()
 	case "ctrl+c":
-		return tea.Sequence(m.saveEditors(), m.saveDrafts(), tea.Quit)
+		return tea.Sequence(m.saveEditors(), m.saveTerm(), m.saveDrafts(), tea.Quit)
 	case "1", "2", "3", "4":
 		cmd := m.showView(view(s[0] - '1'))
 		if s == "4" {
@@ -4183,11 +4249,11 @@ func (m *Model) confirmQuit() tea.Cmd {
 
 	m.modal = newMenu(title, -1, 0,
 		item{label: "Close", hint: "unsaved text is kept", run: func(m *Model) tea.Cmd {
-			return tea.Sequence(m.saveEditors(), m.saveDrafts(), tea.Quit)
+			return tea.Sequence(m.saveEditors(), m.saveTerm(), m.saveDrafts(), tea.Quit)
 		}},
 		item{label: "Save all and close", hint: "", run: func(m *Model) tea.Cmd {
 			m.saveAll()
-			return tea.Sequence(m.saveEditors(), m.saveDrafts(), tea.Quit)
+			return tea.Sequence(m.saveEditors(), m.saveTerm(), m.saveDrafts(), tea.Quit)
 		}},
 		cancelItem())
 

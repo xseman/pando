@@ -1806,12 +1806,18 @@ func (m *Model) attachTerm() bool {
 	}
 
 	m.tv.id, m.tv.term = "", term{}
-	if ss := m.termSessions(); len(ss) > 0 {
-		m.tv.id = ss[0].ID
-		return true
+
+	ss := m.termSessions()
+	if len(ss) == 0 {
+		return false
 	}
 
-	return false
+	m.tv.id = ss[0].ID
+	if tab := m.st.Terminals[m.ws].Tab; slices.ContainsFunc(ss, func(s proto.Session) bool { return s.ID == tab }) {
+		m.tv.id = tab // the shell the workspace showed last
+	}
+
+	return true
 }
 
 // ensureTerm starts a shell for an open panel that has none to show: an open
@@ -2560,13 +2566,13 @@ func (m *Model) newTerm() tea.Cmd {
 func (m *Model) toggleTerminal() tea.Cmd {
 	if m.termOpen() {
 		m.termMax = false
-		cmd := m.setSettings(map[string]any{"terminal_open": false})
+		cmd := m.setTermOpen(false, nil)
 		m.fixFocus()
 
 		return tea.Batch(cmd, m.fetchScreen())
 	}
 
-	cmd := m.setSettings(map[string]any{"terminal_open": true})
+	cmd := m.setTermOpen(true, nil)
 	if m.termPos() == "bottom" {
 		m.focus = onPanel
 	} else {
@@ -2578,7 +2584,7 @@ func (m *Model) toggleTerminal() tea.Cmd {
 
 // moveTerminal parks the panel under the editor or in a sidebar of its own.
 func (m *Model) moveTerminal(pos string) tea.Cmd {
-	cmds := []tea.Cmd{m.setSettings(map[string]any{"terminal_position": pos, "terminal_open": true})}
+	cmds := []tea.Cmd{m.setTermOpen(true, map[string]any{"terminal_position": pos})}
 
 	m.termMax = false
 	if pos == "bottom" {
