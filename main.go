@@ -39,7 +39,7 @@ const usage = `pando — terminal sidebar with agent sessions
   pando skill                   print the guide to driving pando from an agent
 
   pando project add|rm [DIR] | move DIR INDEX | ls
-  pando ws ls | new [BRANCH] [--project DIR] | rm PATH | switch PATH
+  pando ws ls | new [BRANCH] [--project DIR] | rm PATH | switch PATH | move PATH INDEX
   pando session new [--agent NAME] [--ws PATH] [--name NAME] [--parent ID] [--wait] [-- CMD...]
   pando session ls | get ID | kill ID | switch ID | rename ID [NAME...] | move ID OTHER
   pando session send ID TEXT... [--enter] [--wait]
@@ -56,9 +56,10 @@ Driving pando from an agent: "pando skill" prints skills/pando/SKILL.md, the
 guide to doing it well. Read it before the first call.
 
 API methods: ping state.get state.set draft.list draft.set project.add
-project.remove project.move workspace.list workspace.new workspace.remove focus session.new
-session.get session.list session.kill session.rename session.move session.input session.screen
-session.read session.wait update.status update.check update.install subscribe shutdown
+project.remove project.move workspace.list workspace.new workspace.remove
+workspace.move focus session.new session.get session.list session.kill
+session.rename session.move session.input session.screen session.read
+session.wait update.status update.check update.install subscribe shutdown
 
 The API covers sessions, workspaces, projects and settings — everything a
 script needs to drive pando. Explorer, Source Control, Search and the editor
@@ -328,12 +329,19 @@ func workspace(rest []string) error {
 
 	case "rm":
 		return proto.Call("workspace.remove", map[string]string{"path": abs(arg(pos, 0, ""))}, nil)
+	case "move", "mv":
+		to, err := strconv.Atoi(arg(pos, 1, ""))
+		if err != nil {
+			return errors.New("ws move PATH INDEX (0 is the top of its project)")
+		}
+
+		return proto.Call("workspace.move", proto.MoveParams{Path: abs(arg(pos, 0, "")), To: to}, nil)
 
 	case "switch":
 		return proto.Call("focus", proto.FocusParams{Workspace: abs(arg(pos, 0, ""))}, nil)
 	}
 
-	return errors.New("ws ls | new [BRANCH] | rm PATH | switch PATH")
+	return errors.New("ws ls | new [BRANCH] | rm PATH | switch PATH | move PATH INDEX")
 }
 
 // parse reads flags from anywhere among the positionals, so `new feat --project x`

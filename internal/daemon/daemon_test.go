@@ -1008,6 +1008,81 @@ func TestMoveSession(t *testing.T) {
 	}
 }
 
+// TestMoveWorkspace reorders a project's worktrees: the order survives a
+// restart, the checkout stays Main wherever it goes, and a worktree made
+// after the move joins at the end.
+func TestMoveWorkspace(t *testing.T) {
+	boot := start(t)
+	d := boot()
+
+	repo := t.TempDir()
+	for _, a := range [][]string{{"init", "-q", "-b", "main"}, {"-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "i"}} {
+		mustGit(t, repo, a...)
+	}
+
+	var root string
+	call(t, "project.add", map[string]string{"path": repo}, &root)
+
+	for _, b := range []string{"a", "b"} {
+		call(t, "workspace.new", map[string]string{"project": root, "branch": b}, nil)
+	}
+
+	order := func() string {
+		var list []proto.Workspace
+		call(t, "workspace.list", nil, &list)
+
+		var out []string
+
+		for _, w := range list {
+			if w.Main && w.Path != root {
+				t.Fatalf("Main moved off the checkout: %+v", list)
+			}
+
+			out = append(out, w.Branch)
+		}
+
+		return strings.Join(out, " ")
+	}
+
+	var list []proto.Workspace
+	call(t, "workspace.list", nil, &list)
+
+	if got := order(); got != "main a b" {
+		t.Fatalf("git's order before any move = %q", got)
+	}
+
+	call(t, "workspace.move", proto.MoveParams{Path: list[2].Path, To: 0}, nil)
+
+	if got := order(); got != "b main a" {
+		t.Fatalf("moved to the top = %q", got)
+	}
+
+	call(t, "workspace.move", proto.MoveParams{Path: root, To: 99}, nil)
+
+	if got := order(); got != "b a main" {
+		t.Fatalf("an index past the end clamps to the last place = %q", got)
+	}
+
+	d.Close()
+
+	d = boot()
+	defer d.Close()
+
+	if got := order(); got != "b a main" {
+		t.Fatalf("after a restart = %q", got)
+	}
+
+	call(t, "workspace.new", map[string]string{"project": root, "branch": "c"}, nil)
+
+	if got := order(); got != "b a main c" {
+		t.Fatalf("a new worktree joins at the end = %q", got)
+	}
+
+	if err := proto.Call("workspace.move", proto.MoveParams{Path: "/nowhere", To: 0}, nil); err == nil {
+		t.Fatal("moving a path that is not a worktree must fail")
+	}
+}
+
 func TestFocusResolvesSessionNames(t *testing.T) {
 	d := start(t)()
 	defer d.Close()

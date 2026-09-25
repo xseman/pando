@@ -488,11 +488,15 @@ func (d *Daemon) dispatch(method string, raw json.RawMessage) (any, error) {
 		return nil, d.moveProject(p.Path, p.To)
 
 	case "workspace.list":
-		d.mu.Lock()
-		projects := slices.Clone(d.state.Projects)
-		d.mu.Unlock()
+		return d.workspaces(), nil
 
-		return workspaces(projects), nil
+	case "workspace.move":
+		p, err := parse[proto.MoveParams](raw)
+		if err != nil {
+			return nil, err
+		}
+
+		return nil, d.moveWorkspace(p.Path, p.To)
 
 	case "workspace.new":
 		p, err := parse[struct{ Project, Branch string }](raw)
@@ -658,12 +662,13 @@ func (d *Daemon) save() error {
 	d.state.Sessions = d.specs()
 
 	b, err := json.MarshalIndent(struct {
-		Projects []string                 `json:"projects"`
-		Drafts   map[string]string        `json:"drafts"`
-		Editors  map[string]proto.Editors `json:"editors"`
-		Sessions []proto.SessionSpec      `json:"sessions"`
-		Last     string                   `json:"last_workspace,omitempty"`
-	}{d.state.Projects, d.state.Drafts, d.state.Editors, d.state.Sessions, d.state.LastWorkspace}, "", "  ")
+		Projects  []string                 `json:"projects"`
+		Drafts    map[string]string        `json:"drafts"`
+		Editors   map[string]proto.Editors `json:"editors"`
+		Sessions  []proto.SessionSpec      `json:"sessions"`
+		Worktrees map[string][]string      `json:"worktrees,omitempty"`
+		Last      string                   `json:"last_workspace,omitempty"`
+	}{d.state.Projects, d.state.Drafts, d.state.Editors, d.state.Sessions, d.state.Worktrees, d.state.LastWorkspace}, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -841,7 +846,7 @@ func (d *Daemon) addProject(path string) (string, error) {
 }
 
 func (d *Daemon) removeProject(path string) error {
-	for _, w := range workspaces([]string{path}) {
+	for _, w := range workspaces([]string{path}, nil) {
 		if d.hasSessions(w.Path) {
 			return fmt.Errorf("kill the sessions in %s first", w.Path)
 		}
@@ -849,6 +854,7 @@ func (d *Daemon) removeProject(path string) error {
 
 	d.mu.Lock()
 	d.state.Projects = slices.DeleteFunc(d.state.Projects, func(p string) bool { return p == path })
+	delete(d.state.Worktrees, path)
 	err := d.save()
 	d.mu.Unlock()
 	d.broadcast(proto.Event{Kind: "workspaces"})
@@ -883,8 +889,20 @@ func (d *Daemon) moveProject(path string, to int) error {
 	return err
 }
 
-// workspaces lists every project's worktrees; a non-git project is one workspace.
-func workspaces(projects []string) []proto.Workspace {
+// workspaces lists every project's worktrees in the order workspace.move
+// left them. git runs outside the lock.
+func (d *Daemon) workspaces() []proto.Workspace {
+	d.mu.Lock()
+	projects, order := slices.Clone(d.state.Projects), maps.Clone(d.state.Worktrees)
+	d.mu.Unlock()
+
+	return workspaces(projects, order)
+}
+
+// workspaces lists every project's worktrees; a non-git project is one
+// workspace. order puts a project's worktrees in the order it names, git's
+// for the rest after them; Main stays git's first, the project's checkout.
+func workspaces(projects []string, order map[string][]string) []proto.Workspace {
 	out := []proto.Workspace{}
 
 	for _, p := range projects {
@@ -894,12 +912,68 @@ func workspaces(projects []string) []proto.Workspace {
 			continue
 		}
 
+		var ws []proto.Workspace
 		for i, w := range wts {
-			out = append(out, proto.Workspace{Path: w.Path, Project: p, Branch: w.Branch, Main: i == 0})
+			ws = append(ws, proto.Workspace{Path: w.Path, Project: p, Branch: w.Branch, Main: i == 0})
 		}
+
+		rank := func(w proto.Workspace) int {
+			if i := slices.Index(order[p], w.Path); i >= 0 {
+				return i
+			}
+
+			return len(order[p])
+		}
+
+		slices.SortStableFunc(ws, func(a, b proto.Workspace) int { return rank(a) - rank(b) })
+
+		out = append(out, ws...)
 	}
 
 	return out
+}
+
+// moveWorkspace puts worktree path at index to among its project's, the
+// order the Spaces tree lists them in, with the sessions under them. An index
+// outside the list is clamped, and an order that does not change is not saved.
+func (d *Daemon) moveWorkspace(path string, to int) error {
+	all := d.workspaces()
+
+	i := slices.IndexFunc(all, func(w proto.Workspace) bool { return w.Path == path })
+	if i < 0 {
+		return fmt.Errorf("%s is not a worktree of a project", path)
+	}
+
+	project := all[i].Project
+
+	var paths []string
+
+	for _, w := range all {
+		if w.Project == project {
+			paths = append(paths, w.Path)
+		}
+	}
+
+	from := slices.Index(paths, path)
+
+	to = max(min(to, len(paths)-1), 0)
+	if to == from {
+		return nil
+	}
+
+	paths = slices.Insert(slices.Delete(paths, from, from+1), to, path)
+
+	d.mu.Lock()
+	if d.state.Worktrees == nil {
+		d.state.Worktrees = map[string][]string{}
+	}
+
+	d.state.Worktrees[project] = paths
+	err := d.save()
+	d.mu.Unlock()
+	d.broadcast(proto.Event{Kind: "workspaces"})
+
+	return err
 }
 
 var unsafeBranch = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
@@ -924,11 +998,7 @@ func (d *Daemon) newWorkspace(project, branch string) (proto.Workspace, error) {
 }
 
 func (d *Daemon) removeWorkspace(path string) error {
-	d.mu.Lock()
-	projects := slices.Clone(d.state.Projects)
-	d.mu.Unlock()
-
-	for _, w := range workspaces(projects) {
+	for _, w := range d.workspaces() {
 		if w.Path != path {
 			continue
 		}

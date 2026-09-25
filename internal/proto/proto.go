@@ -140,6 +140,9 @@ type State struct {
 	Drafts    map[string]string   `json:"drafts"`
 	Editors   map[string]Editors  `json:"editors"` // per workspace: what its tab strip had open
 	Sessions  []SessionSpec       `json:"sessions"`
+	// Worktrees is each project's worktree paths in the order workspace.move
+	// left them; git's order for any it does not name, after these.
+	Worktrees map[string][]string `json:"worktrees,omitempty"`
 	// LastWorkspace is the workspace the TUI showed last; pando started
 	// outside a repository opens it again.
 	LastWorkspace string `json:"last_workspace,omitempty"`
@@ -337,8 +340,9 @@ type ScreenParams struct {
 	Scroll int    `json:"scroll,omitempty"` // lines back into scrollback
 }
 
-// MoveParams is project.move: Path takes the place To holds now, and the
-// projects after it shift up. An index outside the list is clamped to it.
+// MoveParams is project.move and workspace.move: Path takes the place To
+// holds now, among the projects or among its project's worktrees, and the
+// ones after it shift up. An index outside the list is clamped to it.
 type MoveParams struct {
 	Path string `json:"path"`
 	To   int    `json:"to"`

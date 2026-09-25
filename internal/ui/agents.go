@@ -634,6 +634,10 @@ func (a *agents) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 			return a.shiftSession(m, r.s.ID, d)
 		}
 
+		if r != nil && r.kind == agWorkspace {
+			return a.shiftWorkspace(m, r.ws.Path, d)
+		}
+
 		if r != nil && r.project != "" {
 			return a.shiftProject(m, r.project, d)
 		}
@@ -910,7 +914,15 @@ func (a *agents) items(m *Model) []item {
 		{label: "Open Project…", run: func(m *Model) tea.Cmd { return m.projectPicker() }},
 		{label: "View Options…", hint: "o", run: func(m *Model) tea.Cmd { return a.viewMenu(m, m.mouseX, m.mouseY) }},
 	}
-	if r != nil && r.project != "" && r.kind != agSession && len(m.st.Projects) > 1 {
+	if r != nil && r.kind == agWorkspace && len(m.worktreesOf(r.project)) > 1 {
+		path := r.ws.Path
+
+		items = append(items,
+			item{label: "Move Worktree Up", hint: "M-↑", run: func(m *Model) tea.Cmd { return a.shiftWorkspace(m, path, -1) }},
+			item{label: "Move Worktree Down", hint: "M-↓", run: func(m *Model) tea.Cmd { return a.shiftWorkspace(m, path, 1) }})
+	}
+
+	if r != nil && r.project != "" && r.kind == agProject && len(m.st.Projects) > 1 {
 		// What a drag does, for the keyboard: the project keeps its place in
 		// config, so the order survives a restart either way.
 		items = append(items,
@@ -1032,8 +1044,16 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, y int) tea.Cmd {
 			m.drag = &drag{kind: dragRow, proj: p, from: slices.Index(m.st.Projects, p), y0: mo.Y}
 			return nil
 		}
-		// A session drags the same way among its worktree's, and a press
-		// that never leaves its row opens it on the release.
+		// A worktree drags the same way among its project's, taking its
+		// sessions along, and a session among its worktree's; a press that
+		// never leaves its row switches to it on the release.
+		if w := rows[i].ws.Path; mo.Button == tea.MouseLeft && rows[i].kind == agWorkspace {
+			if wts := m.worktreesOf(rows[i].project); len(wts) > 1 {
+				m.drag = &drag{kind: dragRow, ws: w, from: slices.Index(wts, w), y0: mo.Y}
+				return nil
+			}
+		}
+
 		if id := rows[i].s.ID; mo.Button == tea.MouseLeft && rows[i].kind == agSession && m.sessionsMovable() {
 			if sibs := m.siblings(id); len(sibs) > 1 {
 				m.drag = &drag{kind: dragRow, sess: id, from: slices.Index(sibs, id), y0: mo.Y}
@@ -1047,15 +1067,21 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, y int) tea.Cmd {
 	return nil
 }
 
-// dragRowTo moves the dragged project or session to wherever the pointer is:
-// the tree reorders under it row by row, and the release tells the daemon
-// where it landed. A press that never left its row is a click instead.
+// dragRowTo moves the dragged project, worktree or session to wherever the
+// pointer is: the tree reorders under it row by row, and the release tells the
+// daemon where it landed. A press that never left its row is a click instead.
 func (a *agents) dragRowTo(m *Model, d *drag, y int, release bool) tea.Cmd {
 	if y != d.y0 {
 		d.moved = true
 	}
 
 	switch {
+	case d.moved && d.ws != "":
+		if over := a.workspaceAt(m, m.hoverRow(viewAgents)); over != "" && over != d.ws && slices.Contains(m.worktreesOf(m.projectOf(d.ws)), over) {
+			a.moveWorkspace(m, d.ws, over)
+			d.to = target(m.worktreesOf(m.projectOf(d.ws)), d.ws, d.from)
+		}
+
 	case d.moved && d.sess != "":
 		if over := a.sessionAt(m, m.hoverRow(viewAgents)); over != "" && over != d.sess && slices.Contains(m.siblings(d.sess), over) {
 			a.moveSession(m, d.sess, over)
@@ -1077,11 +1103,12 @@ func (a *agents) dragRowTo(m *Model, d *drag, y int, release bool) tea.Cmd {
 		return a.activate(m, a.selected(m))
 	}
 
-	if d.sess != "" {
-		if d.to == "" {
-			return nil
-		}
-
+	switch {
+	case d.ws != "" && d.to == "", d.sess != "" && d.to == "":
+		return nil
+	case d.ws != "":
+		return do("workspace.move", proto.MoveParams{Path: d.ws, To: slices.Index(m.worktreesOf(m.projectOf(d.ws)), d.ws)})
+	case d.sess != "":
 		return do("session.move", proto.SessionMoveParams{ID: d.sess, To: d.to})
 	}
 
@@ -1201,6 +1228,80 @@ func target(order []string, x string, from int) string {
 	}
 
 	return order[k+1]
+}
+
+// worktreesOf are the paths of project's worktrees, in the tree's order.
+func (m *Model) worktreesOf(project string) []string {
+	var out []string
+
+	for _, w := range m.wss {
+		if w.Project == project {
+			out = append(out, w.Path)
+		}
+	}
+
+	return out
+}
+
+// projectOf is the project worktree path belongs to, "" for none.
+func (m *Model) projectOf(path string) string {
+	if w := m.workspace(path); w != nil {
+		return w.Project
+	}
+
+	return ""
+}
+
+// workspaceAt is the worktree the list row at screen row y shows, "" on any
+// other row or off the list.
+func (a *agents) workspaceAt(m *Model, y int) string {
+	if y < 0 {
+		return ""
+	}
+
+	rows := a.rows(m)
+	if i := a.l.at(y, len(rows)); i >= 0 && rows[i].kind == agWorkspace {
+		return rows[i].ws.Path
+	}
+
+	return ""
+}
+
+// shiftWorkspace moves worktree path d places among its project's and saves
+// it at once: the menu's and alt+↑↓'s half of the drag.
+func (a *agents) shiftWorkspace(m *Model, path string, d int) tea.Cmd {
+	wts := m.worktreesOf(m.projectOf(path))
+	i := slices.Index(wts, path)
+
+	to := i + d
+	if i < 0 || to < 0 || to >= len(wts) {
+		return nil
+	}
+
+	a.moveWorkspace(m, path, wts[to])
+
+	return do("workspace.move", proto.MoveParams{Path: path, To: to})
+}
+
+// moveWorkspace puts worktree from where worktree to sits now, in the
+// model's own list, and keeps the moved row selected; its sessions follow it
+// in the tree. The daemon is told once, on release.
+func (a *agents) moveWorkspace(m *Model, from, to string) {
+	i := slices.IndexFunc(m.wss, func(w proto.Workspace) bool { return w.Path == from })
+	j := slices.IndexFunc(m.wss, func(w proto.Workspace) bool { return w.Path == to })
+
+	if i < 0 || j < 0 || i == j {
+		return
+	}
+
+	w := m.wss[i]
+	m.wss = slices.Insert(slices.Delete(slices.Clone(m.wss), i, i+1), j, w)
+
+	rows := a.rows(m)
+	if k := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agWorkspace && r.ws.Path == from }); k >= 0 {
+		a.l.sel = k
+		a.l.snap(m.bodyH(viewAgents))
+	}
 }
 
 // shiftSession moves session id d places among its worktree's and saves it

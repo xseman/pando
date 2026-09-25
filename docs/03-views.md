@@ -128,6 +128,11 @@ that order, so under the others a press opens the session at once. A
 `sessions` event mid-drag replaces the list, and `drag.to` puts the held
 session back under the pointer.
 
+A worktree row drags among its project's worktrees the same way, its sessions
+under it, and sends `workspace.move`; `alt+↑↓` and _Move Worktree Up / Down_
+do it from the keyboard, and a press that never leaves the row still switches
+to it. The checkout keeps its `⌂` wherever it goes.
+
 A blank row sits before a project whenever the project above it is unfolded,
 so a run of folded ones stays a tight list. It is a row like any other, and
 the scrollbar and the wheel count it, but `↑↓` steps over it and a click on

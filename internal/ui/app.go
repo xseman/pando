@@ -77,7 +77,8 @@ type drag struct {
 	v      view   // dragTab: the tab being dragged
 	proj   string // dragRow: the project being moved in the Spaces list
 	sess   string // dragRow: the session being moved under its worktree instead
-	to     string // dragRow, sess: the session whose place it takes, "" where it started
+	ws     string // dragRow: the worktree being moved under its project instead
+	to     string // dragRow, sess or ws: the one whose place it takes, "" where it started
 	from   int    // dragRow: the index it was picked up from
 	x0     int    // dragTab: where it was picked up; dragMsgSel: the message text's screen origin, with y0
 	drop   *dropTarget
@@ -1977,6 +1978,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.onUpdate(proto.Update(msg))
 	case workspacesMsg:
 		m.wss = msg
+		if d := m.drag; d != nil && d.kind == dragRow && d.ws != "" && d.to != "" { // so does a worktree
+			m.ag.moveWorkspace(m, d.ws, d.to)
+		}
+
 		return m, nil
 
 	case sessionsMsg:

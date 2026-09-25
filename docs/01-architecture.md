@@ -27,10 +27,10 @@ subscribe → {"event":"sessions"} {"event":"screen","id":"a1b2"} {"event":"stat
 ```
 
 Methods: `ping state.get state.set draft.list draft.set project.add
-project.remove project.move workspace.list workspace.new workspace.remove focus
-session.new session.get session.list session.kill session.rename session.move
-session.input session.screen session.read session.wait update.status
-update.check update.install subscribe shutdown`.
+project.remove project.move workspace.list workspace.new workspace.remove
+workspace.move focus session.new session.get session.list session.kill
+session.rename session.move session.input session.screen session.read
+session.wait update.status update.check update.install subscribe shutdown`.
 
 The API is the orchestration surface — sessions, workspaces, projects,
 settings — not a mirror of the TUI. Explorer, Source Control, Search, diffs
@@ -48,6 +48,8 @@ sessions. A `parent` on `session.new` (resolved the same way, stored as the id)
 makes a shell of that session's Terminal panel; `session.kill` on the parent
 kills them with it. `session.move` puts a session in the place of another in
 its workspace, in the order `session.list` returns, and its children go with it.
+`workspace.move` puts a worktree at an index among its project's, kept per
+project in `state.json`; worktrees it has not seen follow in git's order.
 `skills/pando/SKILL.md`, which `pando skill` prints, is the guide an agent
 reads before driving any of this.
 

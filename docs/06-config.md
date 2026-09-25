@@ -5,7 +5,7 @@ with `PANDO_CONFIG_DIR`:
 
 ```
 config.toml   what you configure : settings, colors, agent presets
-state.json    what pando remembers: projects, commit drafts, open editors, session specs
+state.json    what pando remembers: projects and their worktree order, commit drafts, open editors, session specs
 ```
 
 Unsaved editor text lives beside them, in the data directory: see Drafts below.

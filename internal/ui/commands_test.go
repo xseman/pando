@@ -675,6 +675,74 @@ func TestSpacesDragSession(t *testing.T) {
 	}
 }
 
+// TestSpacesDragWorktree drags a project's checkout below its linked
+// worktree: each takes its sessions along, a workspaces event mid-drag does
+// not undo it, and a press that never moves still switches to the worktree.
+func TestSpacesDragWorktree(t *testing.T) {
+	m := testModel(t)
+	root, wt := m.ws, t.TempDir()
+	daemon := workspacesMsg{m.wss[0], {Path: wt, Project: root, Branch: "feat"}}
+	m.Update(daemon)
+	m.Update(sessionsMsg{
+		{SessionSpec: proto.SessionSpec{ID: "s1", Workspace: root, Agent: "shell"}, Status: "idle"},
+		{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: wt, Agent: "shell"}, Status: "idle"},
+	})
+	press(m, "3")
+	checkWidths(t, m)
+	cs, _ := m.layout()
+	x, top := cs[m.colOf(viewAgents)].x+1, m.bodyTop(viewAgents)
+	tree := func() string {
+		var out []string
+
+		for _, r := range m.ag.rows(m) {
+			switch r.kind {
+			case agWorkspace:
+				out = append(out, r.ws.Branch)
+			case agSession:
+				out = append(out, r.s.ID)
+			}
+		}
+
+		return strings.Join(out, " ")
+	}
+
+	m.Update(tea.MouseClickMsg{X: x, Y: top + 1, Button: tea.MouseLeft}) // project, main
+
+	if m.drag == nil || m.drag.ws != root {
+		t.Fatalf("a press on a worktree row starts a drag: %+v", m.drag)
+	}
+
+	m.Update(tea.MouseMotionMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
+
+	if got := tree(); got != "feat s2 main s1" || m.drag.to != wt {
+		t.Fatalf("the worktree follows the pointer with its session: %q, to %q", got, m.drag.to)
+	}
+
+	m.Update(daemon)
+
+	if got := tree(); got != "feat s2 main s1" {
+		t.Fatalf("a workspaces event mid-drag keeps the held worktree in place: %q", got)
+	}
+
+	_, cmd := m.Update(tea.MouseReleaseMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
+	if cmd == nil || m.drag != nil {
+		t.Fatalf("the release saves the order: cmd %v drag %+v", cmd != nil, m.drag)
+	}
+
+	press(m, "alt+up")
+
+	if got := tree(); got != "main s1 feat s2" {
+		t.Fatalf("alt+up moves the worktree back: %q", got)
+	}
+
+	press(m, "3")
+	click(m, x, top+3, tea.MouseLeft)
+
+	if m.drag != nil || m.ws != wt {
+		t.Fatalf("a click that never moved switches to the worktree: drag %+v, ws %q", m.drag, m.ws)
+	}
+}
+
 func TestStatusBar(t *testing.T) {
 	m := gitModel(t)
 	// The active session is not counted: you are looking at it.
