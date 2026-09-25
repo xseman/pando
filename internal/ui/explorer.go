@@ -2,12 +2,14 @@ package ui
 
 import (
 	"cmp"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/xseman/pando/internal/git"
@@ -26,13 +28,17 @@ type explorer struct {
 	nodes    []exNode
 	l        list
 	deco     map[string]byte
+	// clip is what Cut or Copy took for Paste, VS Code's explorer clipboard:
+	// pando's own, not the system's, and kept across workspaces.
+	clip string
+	cut  bool
 }
 
 // ponytail: filter matches stop here; a narrower query shows the rest.
 const maxFilterMatches = 2000
 
 func (e *explorer) setRoot(m *Model, root string) {
-	*e = explorer{root: root, expanded: map[string]bool{}, l: list{sel: -1}}
+	*e = explorer{root: root, expanded: map[string]bool{}, l: list{sel: -1}, clip: e.clip, cut: e.cut}
 	e.rebuild(m)
 }
 
@@ -200,6 +206,10 @@ func (e *explorer) lines(m *Model, w, h int) []string {
 			right = []seg{sg(string(letter)+" ", fg(statusColor(letter)))}
 		}
 
+		if e.cut && n.path == e.clip { // faded until it is pasted, as VS Code's
+			name = name.Foreground(pal.ignored)
+		}
+
 		return row(rw, bg, []seg{
 			sg(" "+strings.Repeat("  ", n.depth)+chev, dim),
 			iconSeg(n.name, n.dir, open),
@@ -357,6 +367,14 @@ func (e *explorer) action(key string) func(m *Model) tea.Cmd {
 
 	case "F":
 		return func(m *Model) tea.Cmd { return m.findInFolder(dir) }
+	case "ctrl+v":
+		if e.clip == "" {
+			return nil
+		}
+
+		from, cut := e.clip, e.cut
+
+		return func(*Model) tea.Cmd { return pasteFile(from, dir, cut) }
 	}
 
 	// With nothing selected the root answers what can apply to it.
@@ -455,11 +473,20 @@ func (e *explorer) action(key string) func(m *Model) tea.Cmd {
 						return flashMsg{"duplicate: " + err.Error(), true}
 					}
 
-					return duplicatedMsg(to)
+					return fileOpMsg{to, "duplicated as " + filepath.Base(to), ""}
 				}
 			})
 
 			return nil
+		}
+
+	case "ctrl+x", "ctrl+c":
+		cut := key == "ctrl+x"
+		verb := map[bool]string{true: "cut ", false: "copied "}[cut]
+
+		return func(*Model) tea.Cmd {
+			e.clip, e.cut = path, cut
+			return flash(verb+name+" · ^v pastes it", false)
 		}
 
 	case "Y":
@@ -522,10 +549,16 @@ func (e *explorer) items(m *Model) []item {
 
 	groups := [][]item{{mk("New File…", "n", "n"), mk("New Folder…", "N", "N")}}
 
+	paste := mk("Paste", "^v", "ctrl+v")
+	if e.clip == "" {
+		paste.run = nil // greyed out, as VS Code's, until Cut or Copy
+	}
+
 	switch {
 	case n == nil:
 		groups = append(groups,
 			[]item{mk("Open Containing Folder", "O", "O"), mk("Find in Folder…", "F", "F")},
+			[]item{paste},
 			[]item{mk("Copy Name", "c", "c"), mk("Copy Path", "y", "y")},
 			[]item{
 				{label: "Refresh", hint: "r", run: func(m *Model) tea.Cmd { m.ex.rebuild(m); return m.refreshGit() }},
@@ -544,6 +577,7 @@ func (e *explorer) items(m *Model) []item {
 
 	if n != nil {
 		groups = append(groups,
+			[]item{mk("Cut", "^x", "ctrl+x"), mk("Copy", "^c", "ctrl+c"), paste},
 			[]item{mk("Copy Name", "c", "c"), mk("Copy Path", "y", "y"), mk("Copy Relative Path", "Y", "Y")},
 			[]item{mk("Duplicate…", "d", "d"), mk("Rename…", "R", "R"), mk("Delete…", "D", "D")},
 			[]item{mk("Stage Changes", "s", "s")})
@@ -612,8 +646,70 @@ func (e *explorer) mouse(m *Model, msg tea.MouseMsg, y int) tea.Cmd {
 	return nil
 }
 
-// duplicatedMsg is the path a Duplicate wrote, to reveal in the tree.
-type duplicatedMsg string
+// fileOpMsg is the path a Duplicate or a Paste wrote, to reveal in the tree,
+// and what to say about it; moved is where a pasted Cut came from.
+type fileOpMsg struct{ path, text, moved string }
+
+// pasteFile copies or moves from into dir off the UI loop. A copy onto a
+// taken name gets copyName's; a move never replaces anything, and one onto
+// itself does nothing.
+func pasteFile(from, dir string, cut bool) tea.Cmd {
+	return func() tea.Msg {
+		name := filepath.Base(from)
+
+		st, err := os.Lstat(from)
+		if err != nil {
+			return flashMsg{"paste: " + err.Error(), true}
+		}
+
+		if dir == from || strings.HasPrefix(dir, from+"/") {
+			return flashMsg{"cannot paste " + name + " into itself", true}
+		}
+
+		to := filepath.Join(dir, name)
+
+		if cut {
+			if to == from {
+				return nil
+			}
+
+			if _, err := os.Lstat(to); err == nil {
+				return flashMsg{name + " already exists in " + filepath.Base(dir), true}
+			}
+
+			if err := move(from, to); err != nil {
+				return flashMsg{"move: " + err.Error(), true}
+			}
+
+			return fileOpMsg{to, "moved " + name, from}
+		}
+
+		if _, err := os.Lstat(to); err == nil {
+			to = filepath.Join(dir, copyName(to, st.IsDir()))
+		}
+
+		if err := duplicate(from, to); err != nil {
+			return flashMsg{"paste: " + err.Error(), true}
+		}
+
+		return fileOpMsg{to, "pasted " + filepath.Base(to), ""}
+	}
+}
+
+// move renames from to to, copying and deleting across file systems where a
+// rename cannot go.
+func move(from, to string) error {
+	err := os.Rename(from, to)
+	if !errors.Is(err, syscall.EXDEV) {
+		return err
+	}
+
+	if err := duplicate(from, to); err != nil {
+		return err
+	}
+
+	return os.RemoveAll(from)
+}
 
 // copyName is VS Code's name for a copy beside path: "main copy.go", then
 // "main copy 2.go" while that one is taken. A directory or a dotfile keeps its

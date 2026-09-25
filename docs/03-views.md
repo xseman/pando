@@ -21,12 +21,21 @@ the tree clears the selection, so the menu acts on the workspace root.
 | --------- | -------------------------------------------------------------- | --------------------------------------- | ----------------------------------------------- |
 | create    | New File…, New Folder… beside it                               | New File…, New Folder… inside           | … in the root                                   |
 | open      | Open Containing Folder, Open with Default App, Edit in $EDITOR | Open Containing Folder, Find in Folder… | the same, on the root                           |
+| clipboard | Cut, Copy, Paste                                               | the same                                | Paste                                           |
 | copy      | Copy Name, Copy Path, Copy Relative Path                       | the same                                | Copy Name, Copy Path                            |
 | change    | Duplicate…, Rename…, Delete…                                   | the same                                |                                                 |
 | git, view | Stage Changes, Collapse All                                    | the same                                | Refresh, Show / Hide Hidden Files, Collapse All |
 
 Open Containing Folder is VS Code's Linux label: `xdg-open` on the parent,
 which cannot select the entry in it; on the root it opens the root itself.
+Cut (`^x`) and Copy (`^c`) keep one entry in `explorer.clip`, pando's own
+clipboard rather than the system's, kept across workspaces; a cut entry is
+drawn faded and Paste stays greyed out while it is empty. Paste (`^v`, or a
+terminal's paste) goes into the selected folder, a file's folder, or the
+root, in a `tea.Cmd`: a copy onto a taken name becomes `name copy.ext`; a
+move refuses to replace anything, falls back to copy and delete across file
+systems, and empties the clipboard once it lands. Neither goes into itself.
+In Explorer `^c` copies rather than quits; a terminal still gets its `^c`.
 Find in Folder opens Search with files to include set to `dir/**`, glob
 characters escaped (`app/\[id\]/**`). Duplicate asks for the name, offering
 VS Code's `main copy.go`, then `main copy 2.go`; it copies in a `tea.Cmd`

@@ -2178,9 +2178,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.flash(msg.text, msg.err)
 		return m, nil
 
-	case duplicatedMsg:
-		m.ex.reveal(m, string(msg))
-		return m, tea.Batch(flash("duplicated as "+filepath.Base(string(msg)), false), m.refreshGit())
+	case fileOpMsg:
+		if msg.moved != "" && m.ex.clip == msg.moved { // a moved entry is pasted once, as in VS Code
+			m.ex.clip, m.ex.cut = "", false
+		}
+
+		m.ex.reveal(m, msg.path)
+
+		return m, tea.Batch(flash(msg.text, false), m.refreshGit())
 
 	case tea.KeyPressMsg:
 		return m, m.key(msg)
@@ -2279,9 +2284,17 @@ func (m *Model) paste(msg tea.PasteMsg) tea.Cmd {
 		m.inputs <- proto.InputParams{ID: m.tv.id, Paste: msg.Content}
 
 	case m.focus != onMain:
-		if v, ok := m.viewOn(m.focus); ok && m.filters[v].editing {
+		v, ok := m.viewOn(m.focus)
+
+		switch {
+		case ok && m.filters[v].editing:
 			m.filters[v].input, cmd = m.filters[v].input.Update(msg)
 			m.refilter(v)
+
+		case ok && v == viewFiles: // a terminal that turns ^v into a paste
+			if a := m.ex.action("ctrl+v"); a != nil {
+				cmd = a(m)
+			}
 		}
 	}
 
@@ -2415,7 +2428,12 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 	case "q":
 		return m.confirmQuit()
 	case "ctrl+c":
+		if v == viewFiles { // Explorer's Copy, as VS Code's; q and esc still quit
+			break
+		}
+
 		return tea.Sequence(m.saveEditors(), m.saveTerm(), m.saveDrafts(), tea.Quit)
+
 	case "1", "2", "3", "4":
 		cmd := m.showView(view(s[0] - '1'))
 		if s == "4" {
@@ -3952,7 +3970,7 @@ func welcome(w, h int, sess bool) []string {
 }
 
 var hotkeys = map[view][][2]string{
-	viewFiles:  {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"n N", "new"}, {"R", "rename"}, {"D", "delete"}, {"s", "stage"}, {"e", "edit"}, {".", "dotfiles"}, {"^f", "filter"}},
+	viewFiles:  {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"n N", "new"}, {"R", "rename"}, {"D", "delete"}, {"s", "stage"}, {"e", "edit"}, {"^x ^c ^v", "cut/copy/paste"}, {".", "dotfiles"}, {"^f", "filter"}},
 	viewGit:    {{"↑↓", "move"}, {"⏎", "stage"}, {"o", "diff"}, {"t", "tree"}, {"c", "message"}, {"C", "commit"}, {"A", "suggest"}, {"S", "sync/publish"}, {"a u", "stage/unstage all"}, {"U", "stage untracked"}, {"O", "open file"}, {"B", "branch"}, {"d", "discard"}, {"^f", "filter"}},
 	viewSearch: {{"^f /", "query"}, {"^h", "replace"}, {"r R", "replace file/all"}, {"⏎", "open"}, {"↑↓", "move"}, {"←→", "fold"}, {"M-c", "case"}, {"M-w", "word"}, {"M-r", "regex"}, {"^r", "rerun"}, {"x", "clear"}, {"C", "collapse"}},
 	viewAgents: {{"↑↓", "move"}, {"M-↑↓", "reorder"}, {"⏎", "switch"}, {"n", "session"}, {"w", "worktree"}, {"a", "project"}, {"x", "kill"}, {"o", "view options"}, {"^f", "filter"}},

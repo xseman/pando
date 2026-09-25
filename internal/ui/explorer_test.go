@@ -30,6 +30,7 @@ func TestExplorerContextMenu(t *testing.T) {
 		{"file", top + 1, []string{
 			"New File…", "New Folder…", "",
 			"Open Containing Folder", "Open with Default App", "Edit in $EDITOR", "",
+			"Cut", "Copy", "Paste", "",
 			"Copy Name", "Copy Path", "Copy Relative Path", "",
 			"Duplicate…", "Rename…", "Delete…", "",
 			"Stage Changes", "Collapse All",
@@ -37,6 +38,7 @@ func TestExplorerContextMenu(t *testing.T) {
 		{"folder", top, []string{
 			"New File…", "New Folder…", "",
 			"Open Containing Folder", "Find in Folder…", "",
+			"Cut", "Copy", "Paste", "",
 			"Copy Name", "Copy Path", "Copy Relative Path", "",
 			"Duplicate…", "Rename…", "Delete…", "",
 			"Stage Changes", "Collapse All",
@@ -44,6 +46,7 @@ func TestExplorerContextMenu(t *testing.T) {
 		{"below the tree", top + 5, []string{
 			"New File…", "New Folder…", "",
 			"Open Containing Folder", "Find in Folder…", "",
+			"Paste", "",
 			"Copy Name", "Copy Path", "",
 			"Refresh", "Show Hidden Files", "Collapse All",
 		}},
@@ -222,5 +225,103 @@ func TestFindInFolderQuotesGlobs(t *testing.T) {
 		if err != nil || strings.Join(got, " ") != "app/[id]/page.go" {
 			t.Errorf("%s include %q = %q (%v)", e, include, got, err)
 		}
+	}
+}
+
+// pressFire presses k and delivers what its command produces, once.
+func pressFire(m *Model, k string) {
+	_, cmd := m.Update(keyMsg(k))
+	fire(m, cmd)
+}
+
+func TestExplorerCutCopyPaste(t *testing.T) {
+	m := testModel(t)
+	readme, src := filepath.Join(m.ws, "README.md"), filepath.Join(m.ws, "src")
+
+	pasteItem := func() item {
+		for _, it := range m.ex.items(m) {
+			if it.label == "Paste" {
+				return it
+			}
+		}
+
+		t.Fatal("no Paste in the menu")
+
+		return item{}
+	}
+	if pasteItem().run != nil || m.ex.action("ctrl+v") != nil {
+		t.Fatal("Paste is greyed out until Cut or Copy")
+	}
+	// ^c in Explorer copies the entry instead of quitting; ^v pastes into
+	// the selected folder, then beside the original under a copy's name.
+	m.ex.reveal(m, readme)
+	pressFire(m, "ctrl+c")
+
+	if m.ex.clip != readme || m.ex.cut || pasteItem().run == nil {
+		t.Fatalf("copy: clip=%q cut=%v", m.ex.clip, m.ex.cut)
+	}
+
+	m.ex.reveal(m, src)
+	pressFire(m, "ctrl+v")
+
+	if got := mustRead(t, filepath.Join(src, "README.md")); got != "# hi\n" || mustRead(t, readme) != "# hi\n" {
+		t.Fatalf("pasted copy holds %q", got)
+	}
+
+	if n := m.ex.selected(); n == nil || n.path != filepath.Join(src, "README.md") {
+		t.Fatalf("the pasted entry is selected: %+v", n)
+	}
+
+	pressFire(m, "ctrl+v") // on src/README.md: into src again, which has one now
+	mustRead(t, filepath.Join(src, "README copy.md"))
+
+	if m.ex.clip != readme {
+		t.Fatal("a copy can be pasted again")
+	}
+	// ^x fades the entry; the paste moves it and empties the clipboard.
+	m.ex.reveal(m, readme)
+	pressFire(m, "ctrl+x")
+
+	if !m.ex.cut || !strings.Contains(m.View().Content, fgParams(pal.ignored)) {
+		t.Fatal("a cut entry is drawn faded")
+	}
+
+	m.ex.reveal(m, filepath.Join(src, "deep"))
+	pressFire(m, "ctrl+v")
+
+	if _, err := os.Lstat(readme); err == nil || mustRead(t, filepath.Join(src, "deep", "README.md")) != "# hi\n" {
+		t.Fatalf("cut and paste moves the file: %v", err)
+	}
+
+	if m.ex.clip != "" || m.ex.cut {
+		t.Fatalf("a moved entry is pasted once: clip=%q", m.ex.clip)
+	}
+	// A folder does not go into itself, copied or moved.
+	for _, k := range []string{"ctrl+c", "ctrl+x"} {
+		m.ex.reveal(m, src)
+		pressFire(m, k)
+		m.ex.reveal(m, filepath.Join(src, "deep"))
+		pressFire(m, "ctrl+v")
+
+		if !m.msgErr || !strings.Contains(m.msg, "into itself") {
+			t.Fatalf("%s then paste into a subfolder: flash %q", k, m.msg)
+		}
+
+		mustRead(t, filepath.Join(src, "deep", "x.go"))
+	}
+	// A move never replaces what is there.
+	mustWrite(t, filepath.Join(m.ws, "x.go"), "other\n")
+	m.ex.rebuild(m)
+	m.ex.reveal(m, filepath.Join(m.ws, "x.go"))
+	pressFire(m, "ctrl+x")
+	m.ex.reveal(m, filepath.Join(src, "deep", "x.go"))
+	pressFire(m, "ctrl+v")
+
+	if !m.msgErr || mustRead(t, filepath.Join(src, "deep", "x.go")) != "package x\n" {
+		t.Fatalf("move onto a taken name: flash %q", m.msg)
+	}
+
+	if m.ex.clip != filepath.Join(m.ws, "x.go") || !m.ex.cut {
+		t.Fatal("a move that failed keeps the cut for another try")
 	}
 }
