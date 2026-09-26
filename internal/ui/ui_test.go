@@ -1305,7 +1305,7 @@ func TestPreviewWrapAndGutter(t *testing.T) {
 	long := strings.Repeat("abcdefghij", 12) // 120 cells, wider than the main area
 
 	m := previewModel(t, "file", "short", long)
-	if gw := m.pv.gutter(); gw != 2 {
+	if gw := m.pv.gutter(); gw != 3 { // a blank, the digit, a blank
 		t.Fatalf("gutter = %d", gw)
 	}
 
