@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -498,5 +499,71 @@ func TestClickWithMotionDoesNotSelectTheNextLine(t *testing.T) {
 
 	if m.pv.cur.line != clicked {
 		t.Errorf("the cursor moved to line %d, want %d", m.pv.cur.line, clicked)
+	}
+}
+
+// TestRenderWhitespace is render_whitespace, VS Code's modes: a space drawn
+// as ·, a tab as → over the four cells it takes, in the whitespace color.
+func TestRenderWhitespace(t *testing.T) {
+	m, _ := editorModel(t, "w.txt", "\tif a  b c \n")
+	line := m.pv.plain[0] // "    if a  b c "
+
+	shown := func(mode string) string {
+		t.Helper()
+
+		m.pv.blanks = mode
+
+		marks := m.pv.blankMarks(0, line)
+		out := []rune(string(line))
+
+		for j, mk := range marks {
+			if mk != "" {
+				out[j], _ = utf8.DecodeRuneInString(mk)
+			}
+		}
+
+		return string(out)
+	}
+
+	for mode, want := range map[string]string{
+		"none":      "    if a  b c ",
+		"all":       "→   if·a··b·c·",
+		"boundary":  "→   if a··b c·",
+		"trailing":  "    if a  b c·",
+		"selection": "    if a  b c ",
+	} {
+		if got := shown(mode); got != want {
+			t.Errorf("%s: %q, want %q", mode, got, want)
+		}
+	}
+
+	m.pv.anchor, m.pv.cur = &pos{0, 6}, pos{0, 10}
+
+	if got := shown("selection"); got != "    if·a··b c " {
+		t.Errorf("selection: %q", got)
+	}
+
+	m.st.Settings.Blanks = "all"
+	m.pv.anchor = nil
+
+	out := checkWidths(t, m)
+	if !strings.Contains(out, "→   if·a··b·c·") {
+		t.Fatalf("the editor draws the markers:\n%s", out)
+	}
+
+	if !strings.Contains(m.View().Content, fgParams(pal.whitespace)) {
+		t.Fatal("markers are in the whitespace color")
+	}
+
+	m.st.Settings.Blanks = "selection"
+	m.pv.anchor, m.pv.cur = &pos{0, 6}, pos{0, 10}
+
+	if out := checkWidths(t, m); !strings.Contains(out, "if·a··b c") {
+		t.Fatalf("a selection shows its blanks:\n%s", out)
+	}
+
+	if !strings.Contains(m.View().Content, bgParams(pal.textSelBg)+";"+fgParams(pal.whitespace)) &&
+		!strings.Contains(m.View().Content, fgParams(pal.whitespace)+";"+bgParams(pal.textSelBg)) {
+		t.Fatal("selected markers keep the whitespace color over the selection")
 	}
 }
