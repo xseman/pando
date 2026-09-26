@@ -176,6 +176,9 @@ back with its text and its cursor.
 - **Word wrap** is off: a long line scrolls sideways under a horizontal
   scrollbar. `word_wrap = true`, Settings (`ctrl+,`), `alt+z` or the header's
   wrap toggle wraps every editor.
+- **Whitespace** is drawn as VS Code draws it, `·` for a space and `→` for a
+  tab: `render_whitespace = "selection"` (the default) inside the selection,
+  `"boundary"`, `"trailing"`, `"all"` or `"none"`; Settings cycles it.
 - **Vim mode** (`vim_mode = true`) opens every editor in normal mode: motions
   with counts, `d c y` over a motion, visual mode. It is a key layer, not a
   second editor — no ex commands, macros or text objects.

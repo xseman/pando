@@ -40,6 +40,7 @@ type palette struct {
 	sliderBg, sliderActiveBg, rulerBorder                                                                      color.Color // VS Code's scrollbarSlider over the editor, and editorOverviewRuler.border
 	tabBg, tabBorder                                                                                           color.Color // tab.inactiveBackground and tab.border, a shade stronger for a terminal
 	sashHover                                                                                                  color.Color // VS Code's sash.hoverBorder: a divider under a resting pointer, a shade off the accent it drags in
+	whitespace                                                                                                 color.Color // VS Code's editorWhitespace.foreground: the · and → of render_whitespace
 	lineNumber, lineNumberActive                                                                               color.Color // a file's line numbers and the cursor's, Dark and Light Modern's (subtler than 2026's); nil is the terminal's text color
 }
 
@@ -70,7 +71,8 @@ var (
 		blockedSoftBg: hex("#35272a"), doneSoftBg: hex("#2b2733"),
 		sliderBg: hex("#606162"), sliderActiveBg: hex("#6e6f70"), rulerBorder: hex("#2a2b2c"),
 		tabBg: hex("#26272a"), tabBorder: hex("#3c3d40"),
-		sashHover: hex("#2c7092"), lineNumber: hex("#6e7681"), lineNumberActive: hex("#cccccc"),
+		sashHover: hex("#2c7092"), whitespace: hex("#3e3f40"),
+		lineNumber: hex("#6e7681"), lineNumberActive: hex("#cccccc"),
 	}
 	vscodeLight = palette{
 		light:    true,
@@ -94,7 +96,8 @@ var (
 		blockedSoftBg: hex("#f6e8e8"), doneSoftBg: hex("#efeaf3"),
 		sliderBg: hex("#8a8a8a"), sliderActiveBg: hex("#777777"), rulerBorder: hex("#f0f1f2"),
 		tabBg: hex("#e8e8ec"), tabBorder: hex("#d0d0d6"),
-		sashHover: hex("#5c9fe0"), lineNumber: hex("#6e7681"), lineNumberActive: hex("#171184"),
+		sashHover: hex("#5c9fe0"), whitespace: hex("#d0d0d4"),
+		lineNumber: hex("#6e7681"), lineNumberActive: hex("#171184"),
 	}
 	// terminalPal inherits the terminal profile's ANSI colors. Diff tints stay
 	// RGB: an ANSI background would collide with remapped syntax colors.
@@ -120,7 +123,8 @@ var (
 		blockedSoftBg: vscodeDark.blockedSoftBg, doneSoftBg: vscodeDark.doneSoftBg,
 		sliderBg: ansi16(8), sliderActiveBg: ansi16(7), rulerBorder: ansi16(8),
 		tabBg: ansi16(0), tabBorder: ansi16(8),
-		sashHover: ansi16(12), lineNumber: ansi16(8),
+		sashHover: ansi16(12), whitespace: ansi16(8),
+		lineNumber: ansi16(8),
 	}
 
 	// themeNames is the Settings cycle order; "vscode" follows the terminal background.
@@ -132,6 +136,9 @@ var (
 	// iconSets is the Settings cycle order: Nerd Font glyphs, herdr-sidebar's
 	// emoji, or plain text labels.
 	iconSets = []string{"nerd", "emoji", "ascii"}
+
+	// blankModes is the Settings cycle order of render_whitespace, VS Code's.
+	blankModes = []string{"none", "boundary", "selection", "trailing", "all"}
 
 	pal        = vscodeDark
 	iconsNerd  bool // glyphs from a Nerd Font
@@ -163,7 +170,7 @@ func (p *palette) colorKeys() map[string]*color.Color {
 		"ok": &p.ok, "warn": &p.warn, "error": &p.errc, "attention": &p.attention,
 		"blocked_bg": &p.blockedBg, "done_bg": &p.doneBg, "blocked_soft_bg": &p.blockedSoftBg, "done_soft_bg": &p.doneSoftBg,
 		"scrollbar_slider": &p.sliderBg, "scrollbar_slider_active": &p.sliderActiveBg, "overview_ruler_border": &p.rulerBorder,
-		"tab_bg": &p.tabBg, "tab_border": &p.tabBorder, "sash_hover": &p.sashHover,
+		"tab_bg": &p.tabBg, "tab_border": &p.tabBorder, "sash_hover": &p.sashHover, "whitespace": &p.whitespace,
 		"line_number": &p.lineNumber, "line_number_active": &p.lineNumberActive,
 	}
 }

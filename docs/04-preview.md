@@ -41,6 +41,13 @@ raw ──render()──▶ lines[]   styled, one per source line
 lines ──rows(w)──▶ vrow{line, from, to}  screen rows (wrapping when `wrap` is on)
 ```
 
+`render_whitespace` is VS Code's `editor.renderWhitespace`. The display
+holds four spaces for a tab, so `blankMarks` finds tabs in the buffer's line
+and puts `→` on the first of the four; `markBlanks` draws the markers over the
+styled line in the `whitespace` color, leaving the syntax colors around them
+(`ansi.Cut` carries them across), and a selection keeps the color on its
+markers. Diffs and rendered Markdown show none.
+
 Word wrap is the `word_wrap` setting, off by default: Settings, `alt+z`, `w`
 in a read-only view and the header's toggle (lit while on) all flip it through
 the daemon, as `s` flips `diff_view`, and `syncWrap` puts it on the open

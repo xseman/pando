@@ -67,6 +67,7 @@ type preview struct {
 	numW   int        // digits of the line-number gutter
 	ready  bool
 	wrap   bool
+	blanks string // render_whitespace, put on as the editor draws
 	top    int    // first visible screen row
 	hl     []rune // the word under the cursor, painted wherever else it stands
 	comp   completion
@@ -1358,6 +1359,131 @@ func (p *preview) wordSpans(line []rune) [][2]int {
 	return spans
 }
 
+// Whitespace markers, VS Code's editor.renderWhitespace: a space shows as ·,
+// a tab as → on the first of the four cells it takes.
+const spaceMark, tabMark = "·", "→"
+
+// blankMarks is what render_whitespace draws over display line i: per rune
+// of line, a marker, or "" to leave the rune alone. nil when nothing shows.
+func (p *preview) blankMarks(i int, line []rune) []string {
+	if p.blanks == "" || p.blanks == "none" || p.kind != pvFile || p.md == 1 {
+		return nil
+	}
+
+	marks, seen := make([]string, len(line)), false
+
+	for j, r := range line {
+		if r == ' ' {
+			marks[j], seen = spaceMark, true
+		}
+	}
+
+	if !seen {
+		return nil
+	}
+
+	// The display holds four spaces for a tab; the buffer still has the tab.
+	if p.buf != nil && i < len(p.buf.lines) {
+		d := 0
+
+		for _, r := range p.buf.line(i) {
+			if d >= len(marks) {
+				break
+			}
+
+			if r != '\t' {
+				d++
+				continue
+			}
+
+			marks[d] = tabMark
+			for k := d + 1; k < min(d+4, len(marks)); k++ {
+				marks[k] = " "
+			}
+
+			d += 4
+		}
+	}
+
+	first, last := 0, len(line) // the text between the leading and trailing blanks
+	for first < len(line) && line[first] == ' ' {
+		first++
+	}
+
+	for last > first && line[last-1] == ' ' {
+		last--
+	}
+
+	a, z, sel := p.selection()
+
+	for j := range marks {
+		keep := true
+
+		switch p.blanks {
+		case "trailing":
+			keep = j >= last
+		case "boundary": // all but a single space between words
+			keep = marks[j] != spaceMark || j < first || j >= last || line[j-1] == ' ' || line[j+1] == ' '
+		case "selection":
+			keep = sel && (i > a.line || i == a.line && j >= a.col) && (i < z.line || i == z.line && j < z.col)
+		}
+
+		if !keep {
+			marks[j] = ""
+		}
+	}
+
+	return marks
+}
+
+// markBlanks draws marks over a styled line's blanks in st; the text around
+// keeps its own style.
+func markBlanks(styled string, line []rune, marks []string, st lipgloss.Style) string {
+	if marks == nil {
+		return styled
+	}
+
+	var (
+		b       strings.Builder
+		run     strings.Builder
+		at, c   int // cells written, and where rune j starts
+		runFrom = -1
+	)
+
+	flush := func() {
+		if runFrom < 0 {
+			return
+		}
+
+		b.WriteString(ansi.Cut(styled, at, runFrom))
+		b.WriteString("\x1b[m")
+		b.WriteString(st.Render(run.String()))
+
+		at, runFrom = c, -1
+
+		run.Reset()
+	}
+
+	for j, r := range line {
+		if marks[j] == "" {
+			flush()
+		} else {
+			if runFrom < 0 {
+				runFrom = c
+			}
+
+			run.WriteString(marks[j])
+		}
+
+		c += runeCells(r)
+	}
+
+	flush()
+	b.WriteString(ansi.Cut(styled, at, c))
+
+	return b.String()
+}
+
 // paintSpans gives cell ranges of a styled line a background, clipped to the
 // visible window.
 // ponytail: the painted text loses its syntax colors, the same trade the
@@ -1391,6 +1517,8 @@ func paintSpans(styled string, spans []cellSpan, start, end int) string {
 func (p *preview) renderRow(vr vrow, w int) string {
 	tw := max(w-p.gutter(), 1)
 	line, styled := p.plain[vr.line], p.lines[vr.line]
+	marks := p.blankMarks(vr.line, line)
+	styled = markBlanks(styled, line, marks, fg(pal.whitespace))
 	start := cellsOf(line[:vr.from])
 
 	end := start + cellsOf(line[vr.from:vr.to])
@@ -1448,7 +1576,8 @@ func (p *preview) renderRow(vr vrow, w int) string {
 		c1 := max(start, min(cellsOf(line[:s1]), end))
 		b.WriteString(ansi.Cut(styled, start, c0))
 		b.WriteString("\x1b[m")
-		b.WriteString(sel.Render(ansi.Strip(ansi.Cut(styled, c0, c1))))
+		// Selected text drops its colors, the whitespace markers keep theirs.
+		b.WriteString(ansi.Cut(markBlanks(sel.Render(string(line)), line, marks, sel.Foreground(pal.whitespace)), c0, c1))
 		b.WriteString(ansi.Cut(styled, c1, end))
 		// A selected line break shows as one selected cell after the text.
 		if lineCells := cellsOf(line); vr.line < z.line && vr.to == len(line) && lineCells >= start && lineCells-start < tw {
@@ -2025,7 +2154,7 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 		return header, withBar(body, w, vbar{p.scrollRows(m), h, p.top}, active), footer
 	}
 
-	p.hl = p.hlWord()
+	p.hl, p.blanks = p.hlWord(), m.st.Settings.Blanks
 	vis, hb := p.rows(tw), p.hbar(m, tw)
 
 	p.top = max(0, min(p.top, len(vis)-h))

@@ -4,6 +4,7 @@
 package ui
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"image/color"
@@ -4070,6 +4071,10 @@ func settingsItems(m *Model) []item {
 			return m.setSettings(map[string]any{"vim_mode": !m.st.Settings.Vim})
 		}},
 		{label: "Word wrap", hint: onOff(s.Wrap), run: func(m *Model) tea.Cmd { return m.toggleWrap() }},
+		{label: "Render whitespace", hint: cmp.Or(s.Blanks, "none"), run: func(m *Model) tea.Cmd {
+			next := blankModes[(slices.Index(blankModes, cmp.Or(m.st.Settings.Blanks, "none"))+1)%len(blankModes)]
+			return m.setSettings(map[string]any{"render_whitespace": next})
+		}},
 		{label: "Activity bar", hint: map[bool]string{true: "side", false: "top"}[m.sideBar()], run: func(m *Model) tea.Cmd {
 			next := "side"
 			if m.sideBar() {
