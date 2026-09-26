@@ -910,11 +910,15 @@ func (p *preview) lineLen(i int) int {
 // at is the cursor with its column clamped to the line.
 func (p *preview) at() pos { return pos{p.cur.line, min(p.cur.col, p.lineLen(p.cur.line))} }
 
-// gutter is the width of the line-number column: `n ` for files, `old new ± ` for diffs.
+// numPad is the blank before a file's line numbers, VS Code's margin left of
+// them, so the numbers do not sit against the sidebar.
+const numPad = 1
+
+// gutter is the width of the line-number column: ` n ` for files, `old new ± ` for diffs.
 func (p *preview) gutter() int {
 	switch {
 	case p.kind == pvFile && p.md != 1:
-		return p.numW + 1
+		return numPad + p.numW + 1
 	case p.meta != nil:
 		return 2*p.numW + 4
 	}
@@ -945,7 +949,7 @@ func (p *preview) gutterText(line int, first bool) string {
 	case !first:
 		return st.Render(blank(gw))
 	case p.meta == nil:
-		return st.Render(fmt.Sprintf("%*d ", p.numW, line+1))
+		return st.Render(blank(numPad) + fmt.Sprintf("%*d ", p.numW, line+1))
 	}
 
 	return diffGutter(p.meta[line], p.numW, bg)
@@ -1765,14 +1769,14 @@ func (p *preview) sideBody(m *Model, w, h int) []string {
 	styled, _ := p.markdown(m, rw-1)
 	n := max(len(p.src), len(styled))
 	p.top = max(0, min(p.top, n-h))
-	gw := p.numW + 1
+	gw := numPad + p.numW + 1
 
 	var body []string
 
 	for i := p.top; i < min(p.top+h, n); i++ {
 		left, right := "", ""
 		if i < len(p.src) {
-			left = dim.Render(fmt.Sprintf("%*d ", p.numW, i+1)) + ansi.Cut(p.src[i], p.left, p.left+lw-gw)
+			left = dim.Render(blank(numPad)+fmt.Sprintf("%*d ", p.numW, i+1)) + ansi.Cut(p.src[i], p.left, p.left+lw-gw)
 		}
 
 		if i < len(styled) {
