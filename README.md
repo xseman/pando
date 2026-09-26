@@ -64,6 +64,13 @@ icons (without one it falls back to emoji, or `icons = "ascii"`), `rg` for
 search, language servers such as `gopls`, and the `claude` CLI for commit
 messages.
 
+The icons need only the terminal to draw Nerd Font glyphs, not a patched
+main font. WezTerm, Ghostty and recent kitty ship them; on Linux most
+terminals fall back to any installed font that has them, so the small
+_Symbols Nerd Font Mono_ in `~/.local/share/fonts` (then `fc-cache -f`) is
+enough. On macOS set it in the terminal (iTerm2: the non-ASCII font).
+`pando doctor` shows which installed font draws each icon.
+
 ## How it works
 
 ```
