@@ -910,6 +910,21 @@ func (p *preview) lineLen(i int) int {
 // at is the cursor with its column clamped to the line.
 func (p *preview) at() pos { return pos{p.cur.line, min(p.cur.col, p.lineLen(p.cur.line))} }
 
+// lineNumSt is a file's line number: faint gray, the cursor's line in the
+// active color.
+func lineNumSt(active bool) lipgloss.Style {
+	c := pal.lineNumber
+	if active {
+		c = pal.lineNumberActive
+	}
+
+	if c == nil {
+		return plain
+	}
+
+	return fg(c)
+}
+
 // numPad is the blank before a file's line numbers, VS Code's margin left of
 // them, so the numbers do not sit against the sidebar.
 const numPad = 1
@@ -939,6 +954,10 @@ func (p *preview) gutterText(line int, first bool) string {
 	gw, bg := p.gutter(), p.rowBg(line)
 
 	st := dim
+	if p.meta == nil { // VS Code's editorLineNumber colors, the cursor's line lit
+		st = lineNumSt(line == p.cur.line)
+	}
+
 	if bg != nil {
 		st = st.Background(bg)
 	}
@@ -1776,7 +1795,7 @@ func (p *preview) sideBody(m *Model, w, h int) []string {
 	for i := p.top; i < min(p.top+h, n); i++ {
 		left, right := "", ""
 		if i < len(p.src) {
-			left = dim.Render(blank(numPad)+fmt.Sprintf("%*d ", p.numW, i+1)) + ansi.Cut(p.src[i], p.left, p.left+lw-gw)
+			left = lineNumSt(false).Render(blank(numPad)+fmt.Sprintf("%*d ", p.numW, i+1)) + ansi.Cut(p.src[i], p.left, p.left+lw-gw)
 		}
 
 		if i < len(styled) {

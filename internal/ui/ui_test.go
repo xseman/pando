@@ -1332,6 +1332,7 @@ func TestPreviewWrapAndGutter(t *testing.T) {
 
 // TestPreviewClickSelect is VS Code's double click, which selects the word
 // under the mouse, and triple click, the whole line; a fourth starts over.
+// The cursor's line number is lit, the others gray.
 func TestPreviewClickSelect(t *testing.T) {
 	m := previewModel(t, "file", "hello world", "  x := y.z", "last")
 	x, y := m.mainX()+m.pv.gutter(), 1+m.stripH()
@@ -1368,6 +1369,10 @@ func TestPreviewClickSelect(t *testing.T) {
 
 	if got := m.pv.selectedText(); got != "." {
 		t.Fatalf("double click on punctuation = %q", got)
+	}
+
+	if !strings.Contains(m.pv.gutterText(1, true), fgParams(pal.lineNumberActive)) || !strings.Contains(m.pv.gutterText(0, true), fgParams(pal.lineNumber)) {
+		t.Fatalf("the cursor's line number is lit: %q, others gray: %q", m.pv.gutterText(1, true), m.pv.gutterText(0, true))
 	}
 
 	checkWidths(t, m)
