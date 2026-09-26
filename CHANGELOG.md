@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.3.0](https://github.com/xseman/pando/compare/v0.2.0...v0.3.0) (2026-09-26)
+
+
+### Features
+
+* **config:** word_wrap setting ([fba3d7d](https://github.com/xseman/pando/commit/fba3d7dc282af9ff79a4dd28978806686b3a6e23))
+* **ui:** a margin left of a file's line numbers ([d17300a](https://github.com/xseman/pando/commit/d17300abfe1cc4bc5597b56aa77ec2f2df571b76))
+* **ui:** cut, copy and paste files in Explorer ([867df4f](https://github.com/xseman/pando/commit/867df4f5bf2a3733a46e1aa7bab4bf0fac1d0b6c))
+* **ui:** double click selects a word, triple click the line ([b40ec20](https://github.com/xseman/pando/commit/b40ec20569b2510f7454f8b381b24a2d434a2169))
+* **ui:** drag a session within its worktree ([ff20cde](https://github.com/xseman/pando/commit/ff20cdee6976815ef37ddceea1500d8a041b69d9))
+* **ui:** drag a worktree within its project ([a1e5701](https://github.com/xseman/pando/commit/a1e570143a34aa198e4554f05246b6c5d96bc03c))
+* **ui:** find in a session's or the Terminal's scrollback ([2c45c10](https://github.com/xseman/pando/commit/2c45c10f504df3040da11cf608760e4566d14adf))
+* **ui:** horizontal scrollbar and a word wrap toggle in the editor ([f7a0e12](https://github.com/xseman/pando/commit/f7a0e12e7c39d163754353dd491a343af95e343b))
+* **ui:** light a divider under a resting pointer ([3c96500](https://github.com/xseman/pando/commit/3c965009fb0aa24811e7bfa1657123ad8f00744b))
+* **ui:** render_whitespace draws spaces and tabs ([69652bc](https://github.com/xseman/pando/commit/69652bc0151efee3cf1bcf5f95b466e2005b85f4))
+* **ui:** subtler line numbers, the cursor's line lit ([25e239d](https://github.com/xseman/pando/commit/25e239d05cfbd22315bf3a07a1cd0c9b368362e8))
+* **ui:** text effects for names, counts and busy labels ([cc329a7](https://github.com/xseman/pando/commit/cc329a70c6d6d79b0ea1fd53aa43444e690b4c81))
+* **ui:** VS Code's context menu in Explorer ([46cda74](https://github.com/xseman/pando/commit/46cda7498f65287356a9ecbb1374079769bbdf96))
+
+
+### Bug Fixes
+
+* **ui:** keep a terminal selection on its text as it scrolls ([cd374f4](https://github.com/xseman/pando/commit/cd374f437546ddfa392825c52a17a4f99ebc199c))
+* **ui:** keep the Terminal panel open or shut per worktree ([047e683](https://github.com/xseman/pando/commit/047e683bbd54ba19b9b86074e3800fec9b497cf6))
+* **ui:** leave ctrl+j to a session or a shell ([dbcb503](https://github.com/xseman/pando/commit/dbcb50316dd1fdcc52bb154b6a5a2ed7ad9c71d6))
+
+
+### Documentation
+
+* the icons need only Nerd Font glyphs, not a patched font ([e1e34cd](https://github.com/xseman/pando/commit/e1e34cd56e3125ed48b1ad01ce6df271a5497aa2))
+
+
+### Testing
+
+* **daemon:** give waitFor 15 s on a slow runner ([526f94b](https://github.com/xseman/pando/commit/526f94be5618085c97626952a1356b74224e4ec1))
+
 ## [0.2.0](https://github.com/xseman/pando/compare/v0.1.0...v0.2.0) (2026-09-23)
 
 
