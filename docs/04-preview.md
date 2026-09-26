@@ -61,7 +61,9 @@ view by a line and leave the cursor alone, as the wheel does.
 
 The cursor is a `pos{line, col}` into `plain`; `shift`+arrows or a mouse drag
 set an anchor, so selection, `y` copy and "Ln x, Col y" all read the same
-model. A file's gutter has a blank before the numbers (`numPad`). Styles never
+model. `clicks.count` tells a double click, which selects `wordAt` (a run of
+one `runeClass`), from a triple, which selects the line with the cursor at its
+end. A file's gutter has a blank before the numbers (`numPad`). Styles never
 enter the text model, so a selection copies code, not ANSI.
 `alt+shift+→`/`←` (or `ctrl+shift`) grow and shrink the selection through the
 chain VS Code's smart select uses — word, trimmed line, line, inside each
