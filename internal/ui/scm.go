@@ -9,7 +9,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"charm.land/bubbles/v2/textarea"
@@ -65,17 +64,10 @@ type scmView struct {
 	tops     map[string]int // scroll offset per pane, "" = changes
 	busy     string
 	busyRoot string
-	frame    int              // scramble frame of the message box while ✦ writes a message
+	frame    int              // frames the busy work has run: the scramble while ✦ writes a message, the shimmer of the button
 	last     *git.SuggestOpts // the last suggestion's request, for Regenerate
 	lastMsg  string           // and what it came back with
 	hovRow   int              // row under the mouse in the frame being drawn, -1 = none
-}
-
-// suggestTickMsg advances the message box's scramble while a suggestion runs.
-type suggestTickMsg struct{}
-
-func suggestTick() tea.Cmd {
-	return tea.Tick(60*time.Millisecond, func(time.Time) tea.Msg { return suggestTickMsg{} })
 }
 
 type scmMsg struct {
@@ -175,12 +167,23 @@ func (s *scmView) root() string {
 }
 
 // summary names the repository and branch for the view header.
-func (s *scmView) summary() string {
+func (s *scmView) summary(m *Model) string {
 	if len(s.repos) != 1 {
 		return ""
 	}
 
-	return filepath.Base(s.repos[0]) + " · " + headLabel(s.status[s.repos[0]])
+	return filepath.Base(s.repos[0]) + " · " + m.headLabel(s.repos[0], s.status[s.repos[0]])
+}
+
+// headLabel is headLabel with the branch morphing while it switches.
+func (m *Model) headLabel(root string, st git.Status) string {
+	return m.fx.text("branch:"+root, st.Branch) + strings.TrimPrefix(headLabel(st), st.Branch)
+}
+
+// aheadBehind fills format with the commits ahead and behind, rolling as
+// they change.
+func (m *Model) aheadBehind(root string, st git.Status, format string) string {
+	return fmt.Sprintf(format, m.fx.text("ahead:"+root, strconv.Itoa(st.Ahead)), m.fx.text("behind:"+root, strconv.Itoa(st.Behind)))
 }
 
 // headLabel is the branch with a * for any change and, as in VS Code, a !
@@ -968,15 +971,6 @@ func (s *scmView) onMsg(m *Model, msg tea.Msg) tea.Cmd {
 		m.modal = msg.menu
 	case stageMsg:
 		return msg.run(m)
-	case suggestTickMsg:
-		if s.busy != "suggesting" {
-			return nil
-		}
-
-		s.frame++
-
-		return suggestTick()
-
 	case scmMsg:
 		s.busy, s.busyRoot = "", ""
 
@@ -986,18 +980,32 @@ func (s *scmView) onMsg(m *Model, msg tea.Msg) tea.Cmd {
 			msg.text = "opened the worktree of " + filepath.Base(msg.worktree)
 		}
 
+		var box anim
+
 		if msg.message != "" && msg.root == s.root() {
 			s.lastMsg = msg.message
 			s.input.SetValue(msg.message)
 			s.input.CursorEnd()
+
+			box = anim{kind: fxMorph, to: msg.message}
 		}
 
 		if msg.clear && msg.root == s.root() {
+			first, _, _ := strings.Cut(s.input.View(), "\n") // what the box showed
+			box = anim{kind: fxMorph, from: strings.TrimRight(ansi.Strip(first), " ")}
+			box.dur = morphDur(box.from, "")
+
 			s.input.Reset()
 			s.last, s.lastMsg = nil, ""
 		}
 
 		s.fit(m)
+
+		if box.to != "" { // the last line starts two frames a line after the first
+			box.dur = fxNoise + fxSpread + fxJitter + 2*s.input.Height()
+		}
+
+		m.fx.run("box:"+msg.root, box)
 
 		switch {
 		case msg.err != nil:
@@ -1095,7 +1103,7 @@ func (s *scmView) renderRow(m *Model, i, w int, hovered bool) string {
 
 		edge := map[int]string{b - 1: "▁", b: "", b + 1: "▔"}[i]
 
-		return s.commitRow(r.root, w, s.hovRow >= 0 && s.buttonOf(s.hovRow) == b, s.mouseCol(m), edge)
+		return s.commitRow(m, r.root, w, s.hovRow >= 0 && s.buttonOf(s.hovRow) == b, s.mouseCol(m), edge)
 	}
 
 	bg, base := m.rowColors(viewGit, i == s.sel && !s.input.Focused(), hovered)
@@ -1110,9 +1118,9 @@ func (s *scmView) renderRow(m *Model, i, w int, hovered bool) string {
 			name = name.Faint(true)
 		}
 
-		branch := icBranch.s() + " " + headLabel(st)
+		branch := icBranch.s() + " " + m.headLabel(r.root, st)
 		if st.Ahead+st.Behind > 0 {
-			branch += fmt.Sprintf(" %d↑ %d↓", st.Ahead, st.Behind)
+			branch += " " + m.aheadBehind(r.root, st, "%s↑ %s↓")
 		}
 
 		return row(w, bg, []seg{sg(" "+chevron(!s.closed[r.root]), base.Bold(true)), iconSeg("", true, false), sg(filepath.Base(r.root), name)},
@@ -1128,7 +1136,7 @@ func (s *scmView) renderRow(m *Model, i, w int, hovered bool) string {
 			right = s.actionSegs(m, r, w)
 		}
 
-		right = append(right, badge(r.text), sg(" ", plain))
+		right = append(right, badge(m.fx.text(sectionFx(r.root, r.title), r.text)), sg(" ", plain))
 
 		return row(w, bg, []seg{sg(" "+chevron(!s.closed[sectionKey(r.root, r.title)]), base.Bold(true)), sg(r.title, base.Bold(true))}, right...)
 
@@ -1257,6 +1265,8 @@ func (s *scmView) messageRow(m *Model, root string, line, w int, hovered bool) s
 	var text string
 
 	switch {
+	case suggesting && line == 0 && !m.fx.on:
+		text = fg(pal.accent).Background(pal.inputBg).Bold(true).Render(suggestPhrase(field))
 	case suggesting && line == 0:
 		text = scramble(suggestPhrase(field), s.frame, box)
 	case suggesting:
@@ -1265,8 +1275,13 @@ func (s *scmView) messageRow(m *Model, root string, line, w int, hovered bool) s
 		s.input.Placeholder = commitPlaceholder(st, field)
 		s.input.SetWidth(field)
 
-		if lines := strings.Split(s.input.View(), "\n"); line < len(lines) {
+		lines := strings.Split(s.input.View(), "\n")
+		if line < len(lines) {
 			text = lines[line]
+		}
+
+		if fx := s.boxFx(m, root, line, lines, box); fx != "" {
+			text = fx
 		}
 
 	case m.st.Drafts[root] != "":
@@ -1302,6 +1317,30 @@ func (s *scmView) messageRow(m *Model, root string, line, w int, hovered bool) s
 	return " " + edge.Render("▏") + box.Render(" ") + text + box.Render(" ") + bar + btn.Render(sparkle) + end.Render("▕") + " "
 }
 
+// boxFx is line of root's message box while an effect runs on it: a
+// suggestion decoding out of noise a line after another, as the box wraps
+// it, or the committed message dissolving from its first line. "" when none
+// runs.
+func (s *scmView) boxFx(m *Model, root string, line int, lines []string, box lipgloss.Style) string {
+	a, t, ok := m.fx.at("box:" + root)
+	if !ok {
+		return ""
+	}
+
+	var from, to string
+
+	switch {
+	case a.to != "" && line < len(lines):
+		to, t = strings.TrimRight(ansi.Strip(lines[line]), " "), t-2*line
+	case a.to == "" && line == 0:
+		from = a.from
+	default:
+		return ""
+	}
+
+	return paintSegs(m.fx.cellSegs(morphCells(from, to, t), box, lit(box)))
+}
+
 // suggestPhrase is what the scramble settles on, the longest that fits.
 func suggestPhrase(width int) string {
 	for _, t := range []string{"Generating commit message", "Generating message", "Generating", "…"} {
@@ -1330,33 +1369,22 @@ func scramble(phrase string, frame int, box lipgloss.Style) string {
 	p := frame % period
 	dissolve := n + jitter + hold
 
-	// hash is a stable pseudo-random number per character and frame, so a
-	// frame renders the same twice and tests can pin it.
-	hash := func(i, f int) int {
-		h := uint32(i)*2654435761 ^ uint32(f)*40503 //nolint:gosec // wraparound is the point
-		h ^= h >> 13
-		h *= 0x5bd1e995
-		h ^= h >> 15
-
-		return int(h >> 1)
-	}
-
 	on := fg(pal.accent).Background(pal.inputBg).Bold(true)
 	off := dim.Background(pal.inputBg)
 
 	var b strings.Builder
 
 	for i, r := range rs {
-		at := i + hash(i, 0)%jitter
+		at := i + fxHash(i, 0)%jitter
 		settled := p >= at && p < dissolve+at
 
 		switch {
 		case settled:
 			b.WriteString(on.Render(string(r)))
-		case r == ' ' && hash(i, p)%3 == 0: // gaps keep the noise from reading as one word
+		case r == ' ' && fxHash(i, p)%3 == 0: // gaps keep the noise from reading as one word
 			b.WriteString(box.Render(" "))
 		default:
-			b.WriteString(off.Render(string(scrambleGlyphs[hash(i, p)%len(scrambleGlyphs)])))
+			b.WriteString(off.Render(string(scrambleGlyphs[fxHash(i, p)%len(scrambleGlyphs)])))
 		}
 	}
 
@@ -1403,7 +1431,7 @@ func (s *scmView) action(root string) string {
 // button, or a Commit with nothing to commit, is muted. A non-empty edge
 // draws the blank row above (▁) or below (▔) the button as a sliver of its
 // colors, so it stands a few pixels taller than one cell.
-func (s *scmView) commitRow(root string, w int, hovered bool, mx int, edge string) string {
+func (s *scmView) commitRow(m *Model, root string, w int, hovered bool, mx int, edge string) string {
 	st, act, busy := s.status[root], s.action(root), s.busyRoot == root && s.busy != ""
 
 	var text string
@@ -1418,11 +1446,11 @@ func (s *scmView) commitRow(root string, w int, hovered bool, mx int, edge strin
 	case act == actSync:
 		text = icSync.s() + " Sync Changes"
 		if st.Behind > 0 {
-			text += fmt.Sprintf(" %d↓", st.Behind)
+			text += " " + m.fx.text("behind:"+root, strconv.Itoa(st.Behind)) + "↓"
 		}
 
 		if st.Ahead > 0 {
-			text += fmt.Sprintf(" %d↑", st.Ahead)
+			text += " " + m.fx.text("ahead:"+root, strconv.Itoa(st.Ahead)) + "↑"
 		}
 
 	case st.Op != "" && busy:
@@ -1465,12 +1493,24 @@ func (s *scmView) commitRow(root string, w int, hovered bool, mx int, edge strin
 		return st.Render(str)
 	}
 
+	// face is the label centred in n cells, shimmering while its work runs.
+	face := func(n int) string {
+		tw := ansi.StringWidth(text)
+		if edge != "" || !busy || tw >= n {
+			return part(label, n, center(text, n))
+		}
+
+		l := (n - tw) / 2
+
+		return label.Render(blank(l)) + paintSegs(m.shimmer(text, label.Faint(true), label.Bold(true))) + label.Render(blank(n-tw-l))
+	}
+
 	if w < 12 {
-		return part(label, w, center(text, w))
+		return face(w)
 	}
 
 	if act != actCommit { // Publish and Sync have no menu, as in VS Code
-		return " " + part(label, w-2, center(text, w-2)) + " "
+		return " " + face(w-2) + " "
 	}
 
 	bar := menu.Foreground(sep).Render("▏") // on the ∨'s left edge, where its hover starts
@@ -1478,7 +1518,7 @@ func (s *scmView) commitRow(root string, w int, hovered bool, mx int, edge strin
 		bar = part(menu, 1, "")
 	}
 
-	return " " + part(label, w-5, center(text, w-5)) + bar + part(menu, 2, icChevron.s()+" ") + " "
+	return " " + face(w-5) + bar + part(menu, 2, icChevron.s()+" ") + " "
 }
 
 // press runs the action button of the active repository.
@@ -1516,7 +1556,7 @@ func (s *scmView) run(root, label string, fn func(root string) scmMsg) tea.Cmd {
 		return nil
 	}
 
-	s.busy, s.busyRoot = label, root
+	s.busy, s.busyRoot, s.frame = label, root, 0
 
 	return func() tea.Msg { msg := fn(root); msg.root = root; return msg }
 }
@@ -1642,9 +1682,9 @@ func (s *scmView) suggestWith(o git.SuggestOpts) tea.Cmd {
 	}
 
 	o.Avoid = "" // Regenerate sets its own
-	s.frame, s.last, s.lastMsg = 0, &o, ""
+	s.last, s.lastMsg = &o, ""
 
-	return tea.Batch(cmd, suggestTick())
+	return cmd
 }
 
 // sync pulls and pushes; a branch without an upstream is published instead,
@@ -1782,6 +1822,8 @@ func (s *scmView) selected() *scmRow {
 }
 
 func (s *scmView) inputKey(m *Model, k tea.KeyPressMsg) tea.Cmd {
+	m.fx.stop("box:" + s.root()) // what is typed shows at once
+
 	switch k.String() {
 	case "enter":
 		return s.commit(m)

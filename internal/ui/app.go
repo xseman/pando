@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -142,6 +143,7 @@ type Model struct {
 	seen        map[string]string // session to the state it was last clicked or shown in
 	blinkOn     bool              // a pulsing tint is at its full shade
 	blinking    bool              // its ticker runs
+	fx          effects           // text effects running, and what they compare against
 	events      <-chan proto.Event
 	inputs      chan proto.InputParams
 	gitBusy     bool
@@ -1957,7 +1959,15 @@ func (m *Model) showsSession() bool { return m.sess != "" && !m.preview && !m.se
 
 // Update owns every message: keys and mouse, the daemon's events, and what
 // the commands it started send back.
+// Update handles msg, then starts a text effect on whatever it changed.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	_, cmd := m.update(msg)
+	m.noteFx()
+
+	return m, tea.Batch(cmd, m.animate())
+}
+
+func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.w, m.termH = msg.Width, msg.Height
@@ -1991,6 +2001,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.blinkOn = !m.blinkOn
 
 		return m, blinkTick()
+
+	case fxTickMsg:
+		return m, m.onFxTick()
 
 	case tickMsg:
 		m.ex.rebuild(m)
@@ -2148,7 +2161,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.onActions(msg)
 	case appliedMsg:
 		return m, m.onApplied(msg)
-	case scmMsg, drawerMsg, modalMsg, stageMsg, suggestTickMsg:
+	case scmMsg, drawerMsg, modalMsg, stageMsg:
 		return m, m.scm.onMsg(m, msg)
 	case previewMsg:
 		m.pv.onLoad(m, msg)
@@ -3327,7 +3340,7 @@ func (m *Model) sashStyle(s sash) (lipgloss.Style, bool) {
 func (m *Model) sideTitle(s int) string {
 	v, _ := m.viewOn(s)
 	if s := m.session(m.sess); v == viewSession && s != nil {
-		return sessionName(*s)
+		return m.fx.text("sess:"+s.ID, sessionName(*s))
 	}
 
 	return viewTitles[v]
@@ -3337,7 +3350,7 @@ func (m *Model) mainTitle() string {
 	switch {
 	case m.showsSession():
 		if s := m.session(m.sess); s != nil {
-			return sessionName(*s)
+			return m.fx.text("sess:"+s.ID, sessionName(*s))
 		}
 
 	case m.pv.kind != "":
@@ -3622,7 +3635,7 @@ func (m *Model) rail(s, w int) []string {
 func (m *Model) viewHeader(s int, v view, w int) string {
 	session := "SESSION"
 	if s := m.session(m.sess); s != nil {
-		session = sessionName(*s)
+		session = m.fx.text("sess:"+s.ID, sessionName(*s))
 	}
 
 	title := []string{strings.ToUpper(filepath.Base(m.ws)), "SOURCE CONTROL", "SPACES", "SEARCH", "TERMINAL", session}[v]
@@ -3638,7 +3651,7 @@ func (m *Model) viewHeader(s int, v view, w int) string {
 
 			right = append(right, sg(a.label, st))
 		}
-	} else if sum := m.scm.summary(); v == viewGit && sum != "" {
+	} else if sum := m.scm.summary(m); v == viewGit && sum != "" {
 		right = []seg{sg(ansi.Truncate(sum, max(w-ansi.StringWidth(title)-3, 0), "…")+" ", dim)}
 	}
 
@@ -3711,9 +3724,9 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 	if root := m.scm.root(); root != "" {
 		st := m.scm.status[root]
 
-		branch := " " + icBranch.s() + " " + headLabel(st)
+		branch := " " + icBranch.s() + " " + m.headLabel(root, st)
 		if st.Ahead+st.Behind > 0 {
-			branch += fmt.Sprintf(" ↑%d ↓%d", st.Ahead, st.Behind)
+			branch += " " + m.aheadBehind(root, st, "↑%s ↓%s")
 		}
 
 		button(branch+" ", fg(pal.headerAccent), func(m *Model) tea.Cmd { return m.scm.branchPicker(m) })
@@ -3729,44 +3742,56 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 			st = fg(pal.errc)
 		}
 
-		left = append(left, sg(" "+m.msg, st))
+		left = append(left, sg(" ", st))
+		left = append(left, m.fx.segs("flash", m.msg, st)...)
 	}
 	// Each right-hand item carries the action its click runs; they are laid
 	// out from the edge inwards once the list is complete.
 	var runs []func(m *Model) tea.Cmd
 
-	add := func(text string, st lipgloss.Style, run func(m *Model) tea.Cmd) {
-		right = append(right, sg(text, st))
+	// An item is one or more segments: a shimmering label is several.
+	var items [][]seg
+
+	addSegs := func(run func(m *Model) tea.Cmd, ss ...seg) {
+		items = append(items, ss)
 		runs = append(runs, run)
 	}
+	add := func(text string, st lipgloss.Style, run func(m *Model) tea.Cmd) { addSegs(run, sg(text, st)) }
 
 	searchRun := func(m *Model) tea.Cmd { return tea.Batch(m.showView(viewSearch), m.sr.focus()) }
 	if n := m.attentionCount(); n > 0 {
-		add(fmt.Sprintf(" ! %d ", n), fg(pal.attention), func(m *Model) tea.Cmd { return m.agentNavigator() })
+		add(" ! "+m.fx.text("attention", strconv.Itoa(n))+" ", fg(pal.attention), func(m *Model) tea.Cmd { return m.agentNavigator() })
 	}
 
 	switch n := m.sr.matches(); {
 	case m.sr.busy:
-		add(" searching… ", dim, searchRun)
+		addSegs(searchRun, m.shimmer(" searching… ", dim, bold)...)
 	case n > 0:
-		add(" "+plural(n, "result")+" ", dim, searchRun)
+		add(" "+m.fx.text("results", strconv.Itoa(n))+strings.TrimPrefix(plural(n, "result"), strconv.Itoa(n))+" ", dim, searchRun)
 	}
 
 	add(" ^⇧p ", dim, func(m *Model) tea.Cmd { return m.commandPalette() })
 
-	if text, st, run := m.updateChip(); text != "" {
-		add(text, st, run)
+	if chip, run := m.updateChip(); chip != nil {
+		addSegs(run, chip...)
 	}
 
 	x := w
 
-	for i := len(right) - 1; i >= 0; i-- {
-		rw := ansi.StringWidth(right[i].s)
+	for i := len(items) - 1; i >= 0; i-- {
+		rw := 0
+		for _, s := range items[i] {
+			rw += ansi.StringWidth(s.s)
+		}
 
 		x -= rw
 		if runs[i] != nil {
 			zones = append(zones, rowAction{x: x, w: rw, run: runs[i]})
 		}
+	}
+
+	for _, it := range items {
+		right = append(right, it...)
 	}
 
 	return row(w, pal.sectionBg, left, right...), zones

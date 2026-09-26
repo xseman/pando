@@ -48,23 +48,29 @@ func (m *Model) onUpdate(u proto.Update) tea.Cmd {
 // updateChip is the status bar's rightmost item: a release to install, the
 // download running, or the restart that puts it to use. It is empty the rest
 // of the time, which is nearly always.
-func (m *Model) updateChip() (text string, st lipgloss.Style, run func(m *Model) tea.Cmd) {
-	switch m.upd.State {
-	case "available":
-		return " " + icUp.s() + " v" + m.upd.Latest + " ", fg(pal.headerAccent), (*Model).startUpdate
-	case "downloading":
-		body := "downloading…"
-		if m.upd.Total > 0 {
-			body = meter(m.upd.Percent(), barCells) + " " + strconv.Itoa(m.upd.Percent()) + "%"
-		}
-
-		return " " + icDown.s() + " " + body + " ", fg(pal.headerAccent), nil
-
-	case "ready":
-		return " " + icRefresh.s() + " restart to update ", fg(pal.ok), (*Model).finishUpdate
+func (m *Model) updateChip() ([]seg, func(m *Model) tea.Cmd) {
+	// chip is icon and body in st, padded a cell either side.
+	chip := func(icon glyph, st lipgloss.Style, body ...seg) []seg {
+		return append(append([]seg{sg(" "+icon.s()+" ", st)}, body...), sg(" ", st))
 	}
 
-	return "", dim, nil
+	accent := fg(pal.headerAccent)
+
+	switch m.upd.State {
+	case "available":
+		return chip(icUp, accent, m.fx.segs("update", "v"+m.upd.Latest, accent)...), (*Model).startUpdate
+	case "downloading":
+		if m.upd.Total == 0 {
+			return chip(icDown, accent, m.shimmer("downloading…", accent.Faint(true), accent.Bold(true))...), nil
+		}
+
+		return chip(icDown, accent, sg(meter(m.upd.Percent(), barCells)+" "+strconv.Itoa(m.upd.Percent())+"%", accent)), nil
+
+	case "ready":
+		return chip(icRefresh, fg(pal.ok), m.fx.segs("update", "restart to update", fg(pal.ok))...), (*Model).finishUpdate
+	}
+
+	return nil, nil
 }
 
 // meter draws a filled bar w cells wide.

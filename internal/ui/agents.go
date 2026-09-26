@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -513,11 +514,6 @@ func (a *agents) lines(m *Model, w, h int) []string {
 				nameSt = base.Foreground(pal.headerAccent).Bold(true)
 			}
 
-			name := r.ws.Branch
-			if name == "" {
-				name = filepath.Base(r.ws.Path)
-			}
-
 			n := 0
 
 			for _, s := range all {
@@ -528,10 +524,12 @@ func (a *agents) lines(m *Model, w, h int) []string {
 
 			var right []seg
 			if n > 0 {
-				right = append(right, sg(fmt.Sprintf("%d ", n), dim))
+				right = append(right, sg(m.fx.text("wsn:"+r.ws.Path, strconv.Itoa(n))+" ", dim))
 			}
 
-			return row(rw, bg, []seg{sg("   ", plain), sg(wtGlyph(r.ws).s()+" ", glyphSt), sg(name, nameSt)}, right...)
+			left := []seg{sg("   ", plain), sg(wtGlyph(r.ws).s()+" ", glyphSt)}
+
+			return row(rw, bg, append(left, m.fx.segs("ws:"+r.ws.Path, wsName(r.ws), nameSt)...), right...)
 		}
 		// herdr's tree: sessions hang off their branch, the last one on └─.
 		conn := "   ├─ "
@@ -543,7 +541,6 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		// workspace does its panes'.
 		tabs := m.tabsOf(r.s.ID)
 		glyph, c := groupGlyph(tabs)
-		label := sessionName(r.s) + titleAfter(r.s)
 
 		for _, t := range tabs {
 			if bg == nil {
@@ -570,7 +567,9 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			status = where + " · " + status
 		}
 
-		return row(rw, bg, []seg{sg(conn, dim), sg(glyph, fg(c)), sg(label, nameSt)}, sg(" "+status+" ", dim))
+		left := append([]seg{sg(conn, dim), sg(glyph, fg(c))}, m.fx.segs("sess:"+r.s.ID, sessionName(r.s), nameSt)...)
+
+		return row(rw, bg, append(left, sg(titleAfter(r.s), nameSt)), sg(" "+status+" ", dim))
 	})
 }
 
@@ -816,11 +815,53 @@ func (a *agents) remove(m *Model, r *agRow) tea.Cmd {
 		return nil
 	}
 
+	names := map[string]string{}
+
+	switch r.kind {
+	case agSession:
+		names["sess:"+r.s.ID] = sessionName(r.s)
+	case agWorkspace:
+		names["ws:"+r.ws.Path] = wsName(r.ws)
+	}
+
+	for _, id := range kill {
+		if s := m.session(id); s != nil {
+			names["sess:"+id] = sessionName(*s)
+		}
+	}
+
 	m.modal = newMenu(title, -1, 0,
-		item{label: label, run: func(*Model) tea.Cmd { return killThen(kill, method, params) }},
+		item{label: label, run: func(m *Model) tea.Cmd { return m.dissolve(names, killThen(kill, method, params)) }},
 		cancelItem())
 
 	return nil
+}
+
+// dissolve runs cmd once names, the keys and text of what it removes, have
+// dissolved into noise on screen. The names stay blank a while after, until
+// the daemon's list drops their rows.
+func (m *Model) dissolve(names map[string]string, cmd tea.Cmd) tea.Cmd {
+	if !m.fx.on || len(names) == 0 {
+		return cmd
+	}
+
+	const hold = 30 // frames
+
+	d := 0
+
+	for key, name := range names {
+		a := anim{kind: fxMorph, from: name, dur: morphDur(name, "")}
+		d = max(d, a.dur)
+		a.dur += hold
+		m.fx.run(key, a)
+	}
+
+	// ponytail: quitting pando within the dissolve leaves what it removes in
+	// place; run these on quit if that bites.
+	return func() tea.Msg {
+		time.Sleep(time.Duration(d) * fxFrame)
+		return cmd()
+	}
 }
 
 // wtGlyph marks a project's own checkout apart from its linked worktrees.
@@ -1838,7 +1879,7 @@ func (m *Model) tabsFor(w int, sessions []proto.Session, active string) []sessTa
 	for i, s := range sessions {
 		glyph, _ := sessionGlyph(s)
 
-		name, end := sessionName(s), " "+tabClose(s.ID == active)
+		name, end := m.fx.text("sess:"+s.ID, sessionName(s)), " "+tabClose(s.ID == active)
 		if s.ID == active {
 			at = i
 		}
@@ -1990,9 +2031,9 @@ func (t *term) view(m *Model, w, _ int) (string, []string) {
 
 	glyph, c := sessionGlyph(*s)
 
-	ws := filepath.Base(s.Workspace)
+	ws := []seg{sg(filepath.Base(s.Workspace), dim)}
 	if wsp := m.workspace(s.Workspace); wsp != nil && wsp.Branch != "" {
-		ws = wsp.Branch
+		ws = m.fx.segs("ws:"+wsp.Path, wsName(*wsp), dim)
 	}
 
 	st := accent
@@ -2000,7 +2041,9 @@ func (t *term) view(m *Model, w, _ int) (string, []string) {
 		st = bold
 	}
 
-	left := []seg{sg(" "+glyph, fg(c)), sg(sessionName(*s), st), sg(" · "+ws, dim)}
+	left := append([]seg{sg(" "+glyph, fg(c))}, m.fx.segs("sess:"+s.ID, sessionName(*s), st)...)
+
+	left = append(append(left, sg(" · ", dim)), ws...)
 	if t := titleAfter(*s); t != "" {
 		left = append(left, sg(t, dim))
 	}

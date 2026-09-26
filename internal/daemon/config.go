@@ -49,7 +49,7 @@ func defaultConfig() config {
 			Theme: "vscode", DiffView: "inline", Borders: true, FmtSave: true,
 			ActBar: "top", TermPos: "bottom", TermH: 12, SessPos: "right", SessHi: "tint",
 			SpSort: "created", SpGroup: "workspace",
-			Sounds: true, SoundDone: done, SoundReq: req, Updates: true,
+			Sounds: true, SoundDone: done, SoundReq: req, Updates: true, Anim: true,
 			Drawers: []string{"Commits", "Graph", "Branches", "Stashes", "Remotes"},
 		},
 		Agents: map[string][]string{
@@ -199,6 +199,8 @@ func (c *config) encode() []byte {
 	kv("", "sound_done", s.SoundDone)
 	kv("", "sound_request", s.SoundReq)
 	kv("Check GitHub once a day for a newer pando and offer it in the status bar.\nThe update replaces the pando binary; restart pando to run it.", "update_check", s.Updates)
+	kv("Text effects: a renamed session or a switched branch morphs through noise, a new one\n"+
+		"decodes in, counts roll and busy labels shimmer.", "animations", s.Anim)
 	kv("Terminal panel: \"bottom\" (under the editor), \"left\" or \"right\" (a sidebar column\nof its own), its height in rows, and whether it is open.", "terminal_position", s.TermPos)
 	kv("", "terminal_height", s.TermH)
 	kv("", "terminal_open", s.TermOpen)
