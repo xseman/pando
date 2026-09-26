@@ -87,10 +87,11 @@ box) and Regenerate (after a suggestion, until a commit or a repository
 switch), each a `git.SuggestOpts`; under the mouse
 it is raised (`keycapHot`) up to the border, whose ▕ cell takes the same
 background so no gap shows. While a suggestion waits on `claude`, the box
-draws `scramble` instead of the input: a 60 ms `suggestTickMsg` loop settles
+draws `scramble` instead of the input: the effects ticker (below) settles
 ASCII noise into "Generating commit message" (shorter when narrow), holds it,
 dissolves it, and stops when `busy` clears; typing into the box is dropped
-until the suggestion replaces it. The button is VS Code's SCM action button
+until the suggestion replaces it, which then decodes into the box a wrapped
+line after another. A commit dissolves the message out of it. The button is VS Code's SCM action button
 (`scmView.action`): Commit while anything is staged, changed or conflicted or
 an operation waits; else _Publish Branch_ (`push -u`) on a branch without an
 upstream; else _Sync Changes_ when ahead or behind; else a muted Commit that
@@ -335,3 +336,32 @@ items() ──┬── newMenu(…)        context menu at the cursor
 
 The palette only lists what applies now (editor commands need an open preview)
 and puts the last command used on top.
+
+## Text effects
+
+`fx.go`. `noteFx` runs after every `Update` and compares what the model shows
+(session and worktree names, branches, counts, the flash, the update state)
+with what it showed; a difference starts an effect keyed by what it is on
+(`sess:ID`, `ws:PATH`, `branch:ROOT`, …), and every place that draws that
+text asks `fx.text` or `fx.segs` for its frame. One 60 ms `fxTickMsg` ticker
+drives them all while an effect runs or work shimmers, and stops itself.
+`animations = false` turns every one off.
+
+| Effect   | On                                                                                                |
+| -------- | ------------------------------------------------------------------------------------------------- |
+| morph    | a session renamed (or retitled by its program), a branch switched, the update chip's version      |
+| decode   | a new session or worktree, a flash, a suggestion landing in the message box                       |
+| dissolve | a session killed or worktree deleted from Spaces (the call waits for it), a committed message     |
+| sweep    | a session that starts waiting or finishes: a band of light crosses its name once                  |
+| roll     | Source Control section counts, ahead/behind, search results, `!` attention, sessions per worktree |
+| shimmer  | Syncing…, Publishing…, Committing…, Searching…, downloading…                                      |
+
+The band of a sweep or shimmer is seven cells, its color blended in CIELAB
+(`lipgloss.Blend1D`) from the text's up to the accent in the middle and back;
+text styled without a color blends from the terminal's own foreground, faint
+text from halfway to its background. The `terminal` theme's ANSI colors do
+not blend, so there only the middle three cells light.
+
+A morph keeps the characters both texts share, so `claude` → `claude · fix`
+only scrambles the tail; keys first seen at startup or on a workspace switch
+are taken as they are.

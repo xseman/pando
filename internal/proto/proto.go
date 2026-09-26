@@ -72,6 +72,7 @@ type Settings struct {
 	Shell     string              `json:"shell" toml:"shell"`                         // the shell a terminal opens, "zsh -l"; "" for the [agents] shell preset, else the login shell
 	Sounds    bool                `json:"sounds" toml:"sounds"`                       // play a sound when a background session finishes or blocks
 	Updates   bool                `json:"update_check" toml:"update_check"`           // ask GitHub once a day whether a newer pando was released
+	Anim      bool                `json:"animations" toml:"animations"`               // text effects: names morph, counts roll, busy labels shimmer
 	SoundDone string              `json:"sound_done" toml:"sound_done"`               // the files played, "" for the terminal bell
 	SoundReq  string              `json:"sound_request" toml:"sound_request"`
 	SpSort    string              `json:"spaces_sort" toml:"spaces_sort"`   // Spaces sessions by "created" or "updated"

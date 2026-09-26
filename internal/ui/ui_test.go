@@ -875,11 +875,12 @@ func TestSuggestHover(t *testing.T) {
 }
 
 // TestSuggestScramble is the message box while ✦ writes a message: ASCII
-// noise that settles into "Generating…", typing held off, and
-// the ticker stopping once the suggestion lands in the box.
+// noise that settles into "Generating…", typing held off, the suggestion
+// decoding into the box, and the ticker stopping once it has.
 func TestSuggestScramble(t *testing.T) {
 	m := gitModel(t)
 	root := m.ws
+	m.st.Settings.Anim = true
 	press(m, "c")
 
 	m.scm.busy, m.scm.busyRoot, m.scm.frame = "suggesting", root, 0
@@ -890,7 +891,7 @@ func TestSuggestScramble(t *testing.T) {
 	}
 
 	for m.scm.frame < 31 { // every phrase holds settled at frame 31
-		m.Update(suggestTickMsg{})
+		m.Update(fxTickMsg{})
 	}
 
 	if out := ansi.Strip(checkWidths(t, m)); !strings.Contains(out, "Generating") {
@@ -905,8 +906,18 @@ func TestSuggestScramble(t *testing.T) {
 
 	m.Update(scmMsg{root: root, message: "feat: add z"})
 
-	if _, cmd := m.Update(suggestTickMsg{}); cmd != nil || m.scm.input.Value() != "feat: add z" {
-		t.Fatalf("after the suggestion: value %q, ticking %v", m.scm.input.Value(), cmd != nil)
+	if out := ansi.Strip(checkWidths(t, m)); strings.Contains(out, "feat: add z") || m.scm.input.Value() != "feat: add z" {
+		t.Fatalf("the suggestion decodes in, value %q:\n%s", m.scm.input.Value(), out)
+	}
+
+	for i := 0; ; i++ {
+		if _, cmd := m.Update(fxTickMsg{}); cmd == nil {
+			break
+		}
+
+		if i == 100 {
+			t.Fatal("the ticker runs on after the suggestion landed")
+		}
 	}
 
 	if out := ansi.Strip(checkWidths(t, m)); !strings.Contains(out, "feat: add z") {

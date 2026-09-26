@@ -619,7 +619,7 @@ func (s *searchView) lines(m *Model, w, h int) []string {
 			row(w, nil, []seg{sg("   files to exclude", dim)}), s.inputRow(m, &s.exclude, w))
 	}
 
-	out = append(out, s.summary(w))
+	out = append(out, s.summary(m, w))
 	rows := s.rows()
 	bh := max(h-len(out), 0)
 	s.l.clamp(len(rows), bh)
@@ -703,23 +703,32 @@ func (s *searchView) matches() int {
 	return n
 }
 
-func (s *searchView) summary(w int) string {
+func (s *searchView) summary(m *Model, w int) string {
 	n := s.matches()
 	text, st := "", dim
+
+	// count is plural(k, word) with its number rolling as it changes.
+	count := func(key string, k int, word string) string {
+		return m.fx.text(key, strconv.Itoa(k)) + strings.TrimPrefix(plural(k, word), strconv.Itoa(k))
+	}
 
 	switch {
 	case s.err != "":
 		text, st = s.err, fg(pal.errc)
 	case s.busy:
-		text = "Searching…"
 	case s.query.Value() == "":
 	case n == 0:
 		text = "No results found."
 	default:
-		text = fmt.Sprintf("%s in %s", plural(n, "result"), plural(len(s.files), "file"))
+		text = count("results", n, "result") + " in " + count("files", len(s.files), "file")
 		if s.truncated {
 			text += " (limit reached)"
 		}
+	}
+
+	left := []seg{sg("  "+text, st)}
+	if s.busy && s.err == "" {
+		left = append([]seg{sg("  ", st)}, m.shimmer("Searching…", st, bold)...)
 	}
 
 	mode := icTree
@@ -727,7 +736,7 @@ func (s *searchView) summary(w int) string {
 		mode = icList
 	}
 
-	return row(w, nil, []seg{sg("  "+text, st)}, sg(" "+mode.s()+" ", dim), sg(icEllipsis.s()+" ", dim))
+	return row(w, nil, left, sg(" "+mode.s()+" ", dim), sg(icEllipsis.s()+" ", dim))
 }
 
 func plural(n int, word string) string {

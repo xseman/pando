@@ -38,6 +38,7 @@ error, uses the last good values and refuses to save until it is fixed.
 | `diff_view`                                                          | `inline`, `split`                                                                                           |
 | `hidden`, `git_deco`, `git_tree`, `quick_open_tree`, `panel_borders` | booleans                                                                                                    |
 | `sounds`, `sound_done`, `sound_request`                              | play a sound for sessions out of view; the files, `""` for the terminal bell                                |
+| `animations`                                                         | text effects: names morph and decode, counts roll, busy labels shimmer (docs/03-views.md)                    |
 | `update_check`                                                       | ask GitHub once a day whether a newer pando was released                                                    |
 | `spaces_sort`, `spaces_group`, `spaces_hide`                         | Spaces: `created`/`updated`, `workspace`/`time`, states left out                                            |
 | `width`, `width_right`                                               | default column widths                                                                                       |

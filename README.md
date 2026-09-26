@@ -100,6 +100,10 @@ else inside it.
   `○` idles. A session out of view can play a sound, and one that waits,
   finished unseen or failed is tinted in its symbol's color and pulses until
   you click it (`session_highlight = "tint"`, `"steady"` or `"off"`).
+- Names move: a renamed session or switched branch morphs through ASCII
+  noise, a new session decodes in and a killed one dissolves, a session that
+  starts waiting has light sweep its name, counts roll and busy labels
+  shimmer (`animations = false` stills them).
 - Drag over a session to select text; letting go copies it.
 - Switching a session re-roots Files and Source Control to its worktree.
 - The header's view options (`o`) are VS Code's: _Filter_ by state, _Sort
@@ -143,7 +147,8 @@ stashes, tags).
 - The message box's ∨ has `claude` write the message: a subject (also `A`),
   one with a description, one in the repository's style, a rewrite of what
   is in the box, or another take on the last one. The box scrambles ASCII
-  noise into "Generating commit message" until it lands.
+  noise into "Generating commit message" until it lands, then decodes into
+  the message; a commit dissolves it.
 - Diffs show old and new line numbers, row tints and word-level highlights,
   inline or side by side. Selected lines can be staged, unstaged or reverted
   from either view.
