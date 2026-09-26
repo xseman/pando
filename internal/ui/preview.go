@@ -2900,6 +2900,33 @@ func runeClass(r rune) int {
 	return 2
 }
 
+// wordAt is the run of one kind of character under c, as VS Code's double
+// click selects it: a word, a run of punctuation or of blanks. At a line's
+// end it is the run before; an empty line has none.
+func (p *preview) wordAt(c pos) (a, b pos) {
+	l := p.plain[c.line]
+
+	i := min(c.col, len(l))
+	if i == len(l) {
+		if i == 0 {
+			return c, c
+		}
+
+		i--
+	}
+
+	cls, j, k := runeClass(l[i]), i, i+1
+	for j > 0 && runeClass(l[j-1]) == cls {
+		j--
+	}
+
+	for k < len(l) && runeClass(l[k]) == cls {
+		k++
+	}
+
+	return pos{c.line, j}, pos{c.line, k}
+}
+
 // wordLeft is the start of the word before c, past the blanks between; at a
 // line's start it is the end of the line above.
 func (p *preview) wordLeft(c pos) pos {
@@ -3298,12 +3325,27 @@ func (p *preview) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 		}
 
 		np := p.posAt(w, x, y)
-		if mo.Mod&tea.ModShift != 0 {
+
+		switch n := m.clicks.count(mo.X, mo.Y); {
+		case mo.Mod&tea.ModShift != 0:
 			if p.anchor == nil {
 				a := p.at()
 				p.anchor = &a
 			}
-		} else {
+
+		case n == 2: // VS Code's double click selects the word, the triple the line
+			a, b := p.wordAt(np)
+			p.anchor, p.cur = &a, b
+
+			return nil
+
+		case n == 3: // the cursor at the line's end, not on the next line
+			a, b := pos{np.line, 0}, pos{np.line, p.lineLen(np.line)}
+			p.anchor, p.cur = &a, b
+
+			return nil
+
+		default:
 			p.anchor = nil
 		}
 

@@ -72,6 +72,7 @@ matches still shown; `esc` closes the widget.
 | In a file                         | Action                                                                    |
 | --------------------------------- | ------------------------------------------------------------------------- |
 | arrows, `shift`+arrows, drag      | move the cursor, select                                                   |
+| double click, triple click        | select the word (or run of punctuation or blanks), the whole line         |
 | `ctrl+←` `ctrl+→`                 | a word back, a word on (`shift` selects), past blanks and punctuation     |
 | `ctrl+↑` `ctrl+↓`                 | scroll the view, the cursor stays where it is (the wheel does the same)   |
 | `ctrl+a`, `ctrl+c`, `ctrl+v`      | select all, copy the selection (or the whole file), paste                 |

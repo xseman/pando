@@ -1330,6 +1330,49 @@ func TestPreviewWrapAndGutter(t *testing.T) {
 	checkWidths(t, m)
 }
 
+// TestPreviewClickSelect is VS Code's double click, which selects the word
+// under the mouse, and triple click, the whole line; a fourth starts over.
+func TestPreviewClickSelect(t *testing.T) {
+	m := previewModel(t, "file", "hello world", "  x := y.z", "last")
+	x, y := m.mainX()+m.pv.gutter(), 1+m.stripH()
+
+	click(m, x+7, y, tea.MouseLeft)
+	click(m, x+7, y, tea.MouseLeft)
+
+	if got := m.pv.selectedText(); got != "world" {
+		t.Fatalf("double click = %q", got)
+	}
+
+	click(m, x+7, y, tea.MouseLeft)
+
+	if got := m.pv.selectedText(); got != "hello world" || m.pv.at() != (pos{0, 11}) {
+		t.Fatalf("triple click = %q, cursor %v", got, m.pv.at())
+	}
+
+	click(m, x+7, y, tea.MouseLeft)
+
+	if m.pv.anchor != nil || m.pv.at() != (pos{0, 7}) {
+		t.Fatalf("a fourth click only moves the cursor: anchor %v, cursor %v", m.pv.anchor, m.pv.at())
+	}
+
+	click(m, x+3, y+2, tea.MouseLeft)
+	click(m, x+3, y+2, tea.MouseLeft)
+	click(m, x+3, y+2, tea.MouseLeft)
+
+	if got := m.pv.selectedText(); got != "last" {
+		t.Fatalf("triple click on the last line = %q", got)
+	}
+
+	click(m, x+8, y+1, tea.MouseLeft)
+	click(m, x+8, y+1, tea.MouseLeft)
+
+	if got := m.pv.selectedText(); got != "." {
+		t.Fatalf("double click on punctuation = %q", got)
+	}
+
+	checkWidths(t, m)
+}
+
 func TestDiffPreview(t *testing.T) {
 	m := diffModel(t, 100, 20)
 	out := checkWidths(t, m)

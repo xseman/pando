@@ -1109,19 +1109,23 @@ func openExternal(path string) error {
 	return exec.ErrNotFound
 }
 
-// clicks detects double clicks on the same cell.
+// clicks counts clicks in a row on the same cell: double and triple clicks.
 type clicks struct {
-	x, y int
-	at   time.Time
+	x, y, n int
+	at      time.Time
 }
 
-func (c *clicks) double(x, y int) bool {
-	d := c.x == x && c.y == y && time.Since(c.at) < 400*time.Millisecond
-
-	c.x, c.y, c.at = x, y, time.Now()
-	if d {
-		c.at = time.Time{}
+// count is which click in a row this one is: 1, 2, 3, then 1 again.
+func (c *clicks) count(x, y int) int {
+	if c.x == x && c.y == y && time.Since(c.at) < 400*time.Millisecond && c.n < 3 {
+		c.n++
+	} else {
+		c.n = 1
 	}
 
-	return d
+	c.x, c.y, c.at = x, y, time.Now()
+
+	return c.n
 }
+
+func (c *clicks) double(x, y int) bool { return c.count(x, y) == 2 }
