@@ -1,5 +1,56 @@
 # Changelog
 
+## [0.3.0](https://github.com/xseman/pando/compare/v0.2.0...v0.3.0) (2026-09-27)
+
+
+### Features
+
+* claude resumes as a background session, in its own config dir ([569d3cd](https://github.com/xseman/pando/commit/569d3cd8390805ee9f5d697a2a28ac0bae5f8225))
+* **config:** word_wrap setting ([fba3d7d](https://github.com/xseman/pando/commit/fba3d7dc282af9ff79a4dd28978806686b3a6e23))
+* **daemon:** icons default to ascii ([2079022](https://github.com/xseman/pando/commit/2079022e88ed54d5fdb51abbc4d08907d21292ca))
+* every worktree keeps its own session column ([cff757b](https://github.com/xseman/pando/commit/cff757ba21d9993398965f2eb56b26be8a272bd3))
+* **ui:** a margin left of a file's line numbers ([d17300a](https://github.com/xseman/pando/commit/d17300abfe1cc4bc5597b56aa77ec2f2df571b76))
+* **ui:** a session column dragged nearly off the screen closes ([f4a50ce](https://github.com/xseman/pando/commit/f4a50ce05b6f0d9ed3d40704daaeeb028fe0ec56))
+* **ui:** cut, copy and paste files in Explorer ([867df4f](https://github.com/xseman/pando/commit/867df4f5bf2a3733a46e1aa7bab4bf0fac1d0b6c))
+* **ui:** double click selects a word, triple click the line ([b40ec20](https://github.com/xseman/pando/commit/b40ec20569b2510f7454f8b381b24a2d434a2169))
+* **ui:** drag a session within its worktree ([ff20cde](https://github.com/xseman/pando/commit/ff20cdee6976815ef37ddceea1500d8a041b69d9))
+* **ui:** drag a worktree within its project ([a1e5701](https://github.com/xseman/pando/commit/a1e570143a34aa198e4554f05246b6c5d96bc03c))
+* **ui:** editor_limit closes the least recently used tab ([a2b469b](https://github.com/xseman/pando/commit/a2b469b005132268ebf3e7aea05886269d59f0a8))
+* **ui:** editor.changeIndentation opens the Tab Size menu ([76ab8d8](https://github.com/xseman/pando/commit/76ab8d8bb814d29f1bbeae99f545f88b7bedf838))
+* **ui:** find in a session's or the Terminal's scrollback ([2c45c10](https://github.com/xseman/pando/commit/2c45c10f504df3040da11cf608760e4566d14adf))
+* **ui:** horizontal scrollbar and a word wrap toggle in the editor ([f7a0e12](https://github.com/xseman/pando/commit/f7a0e12e7c39d163754353dd491a343af95e343b))
+* **ui:** light a divider under a resting pointer ([3c96500](https://github.com/xseman/pando/commit/3c965009fb0aa24811e7bfa1657123ad8f00744b))
+* **ui:** markdown_width caps rendered Markdown at 80 cells ([a470d5e](https://github.com/xseman/pando/commit/a470d5e14741eda4601e0eef26b39c7fb5140066))
+* **ui:** render_whitespace draws spaces and tabs ([69652bc](https://github.com/xseman/pando/commit/69652bc0151efee3cf1bcf5f95b466e2005b85f4))
+* **ui:** rendered Markdown in glow's layout ([95c6bec](https://github.com/xseman/pando/commit/95c6bec2924d1c50821729bac421ee5e8249b07b))
+* **ui:** sidebar list scrollbars drag as the editor's does ([28e25af](https://github.com/xseman/pando/commit/28e25af1382144fc8bef0df16b4c81ba186aea1c))
+* **ui:** source control tints only the status letter, folders get a dot ([cdd322b](https://github.com/xseman/pando/commit/cdd322b239ce4847fb1d17c101fb2691fd58019a))
+* **ui:** subtler line numbers, the cursor's line lit ([25e239d](https://github.com/xseman/pando/commit/25e239d05cfbd22315bf3a07a1cd0c9b368362e8))
+* **ui:** text effects for names, counts and busy labels ([cc329a7](https://github.com/xseman/pando/commit/cc329a70c6d6d79b0ea1fd53aa43444e690b4c81))
+* **ui:** the status bar shows Ln, Col and sets the tab size ([7e62ba3](https://github.com/xseman/pando/commit/7e62ba366b89676e135001a9065d58df4711aae5))
+* **ui:** VS Code's context menu in Explorer ([46cda74](https://github.com/xseman/pando/commit/46cda7498f65287356a9ecbb1374079769bbdf96))
+
+
+### Bug Fixes
+
+* **daemon:** a restart attaches to a background job it read half written ([03cf08c](https://github.com/xseman/pando/commit/03cf08c8476ce281bc503949b20a7dba5716ca7a))
+* **daemon:** an attached session is named after its conversation ([a6a0c77](https://github.com/xseman/pando/commit/a6a0c7724aa977114c5c517d139c939356abbb28))
+* **ui:** a Commit button with nothing to do is grey, not tinted ([ef4cc79](https://github.com/xseman/pando/commit/ef4cc7934cd2aaf62fa80e99668524cf873690a9))
+* **ui:** keep a terminal selection on its text as it scrolls ([cd374f4](https://github.com/xseman/pando/commit/cd374f437546ddfa392825c52a17a4f99ebc199c))
+* **ui:** keep the Terminal panel open or shut per worktree ([047e683](https://github.com/xseman/pando/commit/047e683bbd54ba19b9b86074e3800fec9b497cf6))
+* **ui:** leave ctrl+j to a session or a shell ([dbcb503](https://github.com/xseman/pando/commit/dbcb50316dd1fdcc52bb154b6a5a2ed7ad9c71d6))
+
+
+### Documentation
+
+* re-record the markdown, edit, vim and tui demos ([bec15ef](https://github.com/xseman/pando/commit/bec15efd8f4e018d5d704dd70eb74c89e2871e95))
+* the icons need only Nerd Font glyphs, not a patched font ([e1e34cd](https://github.com/xseman/pando/commit/e1e34cd56e3125ed48b1ad01ce6df271a5497aa2))
+
+
+### Testing
+
+* **daemon:** give waitFor 15 s on a slow runner ([526f94b](https://github.com/xseman/pando/commit/526f94be5618085c97626952a1356b74224e4ec1))
+
 ## [0.2.0](https://github.com/xseman/pando/compare/v0.1.0...v0.2.0) (2026-09-23)
 
 
