@@ -52,12 +52,14 @@ error, uses the last good values and refuses to save until it is fixed.
 | `render_whitespace`                                                  | `·` spaces and `→` tabs in editors: `none`, `boundary`, `selection` (default), `trailing`, `all`            |
 | `word_wrap`                                                          | editors wrap long lines; off (default), they scroll under a horizontal scrollbar                            |
 | `editor_limit`                                                       | most editor tabs open, the least recently used closing first; `0` (default): no limit                       |
+| `claude_background`                                                  | a claude pando resumes by id comes back as a background session, `pando claude`                             |
 | `git_drawers`                                                        | which Source Control drawers show                                                                           |
 | `[colors]`                                                           | palette overrides                                                                                           |
 | `[agents]`                                                           | `name = ["command", "args"]`                                                                                |
 | `[resume]`                                                           | program to the command that continues its last conversation                                                 |
 | `[resume_id]`                                                        | program to the command that continues conversation `{id}`, when the program says which                      |
 | `[resume_job]`                                                       | program to the command that attaches to background job `{id}` again while it runs                           |
+| `[resume_env]`                                                       | program to the variables picking its config (`CLAUDE_CONFIG_DIR`), put before its resume                    |
 
 ## Shell
 

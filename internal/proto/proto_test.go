@@ -302,6 +302,7 @@ func fullSettings() Settings {
 		Format:    map[string][]string{"go": {"gofmt"}},
 		FmtSave:   true,
 		EdLimit:   10,
+		ClaudeBg:  true,
 		Keys:      map[string]string{"ctrl+g": "view.showSearch"},
 		Colors:    map[string]string{"selBg": "#264f78"},
 		Sounds:    true,

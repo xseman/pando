@@ -69,6 +69,7 @@ type Settings struct {
 	Wrap      bool                `json:"word_wrap" toml:"word_wrap"`                 // editors wrap long lines instead of scrolling them sideways
 	Blanks    string              `json:"render_whitespace" toml:"render_whitespace"` // spaces and tabs drawn as · and →: "none" | "boundary" | "selection" | "trailing" | "all"
 	EdLimit   int                 `json:"editor_limit" toml:"editor_limit"`           // most editor tabs open, the least recently used closing first; 0 = no limit
+	ClaudeBg  bool                `json:"claude_background" toml:"claude_background"` // a claude pando resumes runs as a background session, which outlives a restart
 	Keys      map[string]string   `json:"keys" toml:"keys"`                           // key to command id, "" unbinds; see pando doctor
 	Colors    map[string]string   `json:"colors" toml:"colors"`                       // palette overrides for the active theme, keys in pando doctor
 	Shell     string              `json:"shell" toml:"shell"`                         // the shell a terminal opens, "zsh -l"; "" for the [agents] shell preset, else the login shell
@@ -140,6 +141,7 @@ type State struct {
 	Resume    map[string][]string `json:"resume"`     // agent to the command that continues its last conversation
 	ResumeID  map[string][]string `json:"resume_id"`  // agent to the command that continues conversation {id}
 	ResumeJob map[string][]string `json:"resume_job"` // agent to the command that attaches to background job {id}
+	ResumeEnv map[string][]string `json:"resume_env"` // agent to the variables that pick its config, carried into the command that continues it
 	Drafts    map[string]string   `json:"drafts"`
 	Editors   map[string]Editors  `json:"editors"` // per workspace: what its tab strip had open
 	// Terminals is per workspace: whether its Terminal panel was open, and

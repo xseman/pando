@@ -113,7 +113,7 @@ func New(configDir, dataDir string) (*Daemon, error) {
 
 	c, err := loadConfig(d.cfgPath)
 
-	d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID, d.state.ResumeJob = c.Settings, c.Agents, c.Resume, c.ResumeID, c.ResumeJob
+	d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID, d.state.ResumeJob, d.state.ResumeEnv = c.Settings, c.Agents, c.Resume, c.ResumeID, c.ResumeJob, c.ResumeEnv
 	if errors.Is(err, os.ErrNotExist) {
 		if err := d.saveConfig(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -160,11 +160,13 @@ func New(configDir, dataDir string) (*Daemon, error) {
 // records the job, to attach to again. It reports a change worth saving;
 // d.mu is held.
 func (d *Daemon) remember(s *session, pid int, prog string) bool {
+	env := s.ownEnv(agentEnv(pid, d.state.ResumeEnv[prog])) // the config it runs in, which the shell does not set
+
 	if src, t := conversations[prog], d.state.ResumeID[prog]; src != nil && len(t) > 0 && pid > 0 {
 		if id, job := src.open(pid); id != "" {
-			c := &proto.Conversation{Agent: prog, ID: id, Job: job, Env: s.ownEnv(src.env(pid))}
+			c := &proto.Conversation{Agent: prog, ID: id, Job: job, Env: env}
 
-			argv := withID(t, id)
+			argv := d.byID(prog, id)
 			if jt := d.state.ResumeJob[prog]; job != "" && len(jt) > 0 {
 				argv = withID(jt, job)
 			}
@@ -173,7 +175,24 @@ func (d *Daemon) remember(s *session, pid int, prog string) bool {
 		}
 	}
 
-	return s.setResume(d.state.Resume[prog], nil)
+	return s.setResume(withEnv(env, d.state.Resume[prog]), nil)
+}
+
+// byID is the command that continues conversation id of prog, [resume_id].
+// With claude_background on, claude continues it as a background session
+// (`pando claude`), which the next restart leaves running.
+func (d *Daemon) byID(prog, id string) []string {
+	argv := withID(d.state.ResumeID[prog], id)
+	if prog != "claude" || !d.state.Settings.ClaudeBg || len(argv) == 0 || argv[0] != "claude" {
+		return argv
+	}
+
+	exe, err := os.Executable()
+	if err != nil {
+		return argv
+	}
+
+	return append([]string{shellWord(exe)}, argv...)
 }
 
 // resume brings a respawned session's agent back, each conversation once:
@@ -230,7 +249,7 @@ func (d *Daemon) resume(s *session, by map[string]string) {
 	}
 
 	if t := d.state.ResumeID[c.Agent]; c.Job != "" && len(t) > 0 { // the job it was attached to ended
-		argv = withEnv(c.Env, withID(t, c.ID))
+		argv = withEnv(c.Env, d.byID(c.Agent, c.ID))
 	}
 
 	if !src.saved(*c) {
@@ -692,7 +711,7 @@ func (d *Daemon) saveConfig() error {
 		return fmt.Errorf("not saved, fix it first: %w", d.cfgErr)
 	}
 
-	c := config{d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID, d.state.ResumeJob}
+	c := config{d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID, d.state.ResumeJob, d.state.ResumeEnv}
 	if err := writeFile(d.cfgPath, c.encode()); err != nil {
 		return err
 	}
@@ -721,7 +740,7 @@ func (d *Daemon) reloadConfig() {
 		return
 	}
 
-	d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID, d.state.ResumeJob = c.Settings, c.Agents, c.Resume, c.ResumeID, c.ResumeJob
+	d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID, d.state.ResumeJob, d.state.ResumeEnv = c.Settings, c.Agents, c.Resume, c.ResumeID, c.ResumeJob, c.ResumeEnv
 	d.mu.Unlock()
 	d.broadcast(proto.Event{Kind: "state"})
 }

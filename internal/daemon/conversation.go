@@ -22,9 +22,6 @@ type conversationSource interface {
 	// open is the conversation process pid has open, "" when it does not
 	// say; job is the background job it runs in when pid only attaches to it.
 	open(pid int) (id, job string)
-	// env are the variables of process pid that pick the agent's setup, as
-	// KEY=VALUE: a conversation lives in one config and resumes only there.
-	env(pid int) []string
 	// holder is a live process that has conversation c open, 0 when none;
 	// job is set when that process is a background job, which outlives pando
 	// and is attached to again rather than resumed.
@@ -158,14 +155,6 @@ func (claudeSource) open(pid int) (id, job string) {
 	return found[0].SessionID, found[0].JobID
 }
 
-func (claudeSource) env(pid int) []string {
-	if v := envOf(pid, "CLAUDE_CONFIG_DIR"); v != "" {
-		return []string{"CLAUDE_CONFIG_DIR=" + v}
-	}
-
-	return nil
-}
-
 // holder prefers a background job to any other process with c open: the
 // job is what outlives pando, and a process left of a session before the
 // restart that still shows c must not turn the attach into a resume.
@@ -269,6 +258,21 @@ func envOf(pid int, key string) string {
 	}
 
 	return ""
+}
+
+// agentEnv are keys as process pid has them set, KEY=VALUE: the variables
+// that pick where an agent keeps its config and conversations ([resume_env]),
+// which it resumes from only there.
+func agentEnv(pid int, keys []string) []string {
+	var out []string
+
+	for _, k := range keys {
+		if v := envOf(pid, k); v != "" {
+			out = append(out, k+"="+v)
+		}
+	}
+
+	return out
 }
 
 // withEnv puts env's KEY=VALUE before argv, as a shell line sets them for the

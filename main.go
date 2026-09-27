@@ -37,6 +37,7 @@ const usage = `pando — terminal sidebar with agent sessions
   pando update                  install the latest release over this binary
   pando call METHOD [JSON]      raw API call, prints the JSON result
   pando skill                   print the guide to driving pando from an agent
+  pando claude [ARGS...]        claude as a background session, attached here: it outlives a pando restart
 
   pando project add|rm [DIR] | move DIR INDEX | ls
   pando ws ls | new [BRANCH] [--project DIR] | rm PATH | switch PATH | move PATH INDEX
@@ -109,6 +110,9 @@ func run(args []string) error {
 	case "skill":
 		fmt.Print(skill)
 		return nil
+
+	case "claude":
+		return claudeBackground(rest)
 	}
 
 	if err := proto.EnsureDaemon(); err != nil {

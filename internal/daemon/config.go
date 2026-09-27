@@ -22,6 +22,10 @@ type config struct {
 	// ResumeJob attaches to the background job a session was attached to,
 	// while it still runs; {id} becomes the job's id.
 	ResumeJob map[string][]string `toml:"resume_job"`
+	// ResumeEnv names, per program, the variables that pick where it keeps
+	// its config and conversations: they go before the command that
+	// continues it, so it looks where it was started to.
+	ResumeEnv map[string][]string `toml:"resume_env"`
 }
 
 func defaultConfig() config {
@@ -41,7 +45,7 @@ func defaultConfig() config {
 			Theme: "vscode", DiffView: "inline", Borders: true, FmtSave: true,
 			ActBar: "top", TermPos: "bottom", TermH: 12, SessPos: "right", SessHi: "tint",
 			SpSort: "created", SpGroup: "workspace",
-			Sounds: true, SoundDone: done, SoundReq: req, Updates: true, Anim: true, Blanks: "selection",
+			Sounds: true, SoundDone: done, SoundReq: req, Updates: true, Anim: true, Blanks: "selection", ClaudeBg: true,
 			Drawers: []string{"Commits", "Graph", "Branches", "Stashes", "Remotes"},
 		},
 		Agents: map[string][]string{
@@ -54,6 +58,10 @@ func defaultConfig() config {
 		},
 		ResumeID:  map[string][]string{"claude": {"claude", "--resume", "{id}"}},
 		ResumeJob: map[string][]string{"claude": {"claude", "attach", "{id}"}},
+		ResumeEnv: map[string][]string{
+			"claude": {"CLAUDE_CONFIG_DIR"}, "codex": {"CODEX_HOME"},
+			"opencode": {"OPENCODE_CONFIG_DIR", "OPENCODE_DATA_DIR"},
+		},
 	}
 }
 
@@ -61,8 +69,8 @@ func defaultConfig() config {
 // default presets, so a preset can be removed by leaving it out.
 func loadConfig(path string) (config, error) {
 	c := defaultConfig()
-	agents, resume, resumeID, resumeJob := c.Agents, c.Resume, c.ResumeID, c.ResumeJob
-	c.Agents, c.Resume, c.ResumeID, c.ResumeJob = nil, nil, nil, nil
+	agents, resume, resumeID, resumeJob, resumeEnv := c.Agents, c.Resume, c.ResumeID, c.ResumeJob, c.ResumeEnv
+	c.Agents, c.Resume, c.ResumeID, c.ResumeJob, c.ResumeEnv = nil, nil, nil, nil, nil
 
 	md, err := toml.DecodeFile(path, &c)
 	if err != nil {
@@ -87,6 +95,10 @@ func loadConfig(path string) (config, error) {
 
 	if c.ResumeJob == nil {
 		c.ResumeJob = resumeJob
+	}
+
+	if c.ResumeEnv == nil {
+		c.ResumeEnv = resumeEnv
 	}
 
 	if c.Icons == "" {
@@ -180,6 +192,9 @@ func (c *config) encode() []byte {
 		"\"trailing\" (at line ends) or \"all\".", "render_whitespace", s.Blanks)
 	kv("Most editor tabs open at once, as VS Code's workbench.editor.limit: opening one more\n"+
 		"closes the least recently used. Unsaved editors count but are never closed. 0: no limit.", "editor_limit", s.EdLimit)
+	kv("Resume claude as a background session (`pando claude`, claude --bg): Claude Code runs\n"+
+		"it, not pando's terminal, so a pando restart does not stop it or its subagents, and\n"+
+		"pando attaches to it again. Type `pando claude` in a shell to start one that way.", "claude_background", s.ClaudeBg)
 	kv("Editors wrap long lines at the edge; off, they scroll sideways under a horizontal\nscrollbar. alt+z toggles it.", "word_wrap", s.Wrap)
 	kv("Play a sound when a session out of view finishes a run or waits for an answer:\nthe files played by paplay, pw-play, afplay, ffplay or mpv; \"\" rings the terminal bell.", "sounds", s.Sounds)
 	kv("", "sound_done", s.SoundDone)
@@ -238,6 +253,10 @@ func (c *config) encode() []byte {
 	b.WriteString("\n# Attaching again to the background job a session was attached to (claude attach),\n" +
 		"# which outlives pando; {id} becomes the job's id. A job that ended is resumed instead.\n[resume_job]\n")
 	table(&b, c.ResumeJob)
+	b.WriteString("\n# The variables that pick where a program keeps its config and conversations,\n" +
+		"# e.g. CLAUDE_CONFIG_DIR: set on the program when pando saw it, they go before the\n" +
+		"# command that continues it, so it resumes from the same place.\n[resume_env]\n")
+	table(&b, c.ResumeEnv)
 
 	return []byte(b.String())
 }

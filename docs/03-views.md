@@ -258,6 +258,19 @@ bash, zsh and fish all read). On respawn (`Daemon.resume`):
 | not open anywhere                                     | resumes                                                       |
 | empty: no transcript yet, `--resume` would fail       | starts the agent afresh, its `[agents]` preset                |
 
+`[resume_env]` generalises the config directory to any program: the variables
+it names (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `OPENCODE_CONFIG_DIR`,
+`OPENCODE_DATA_DIR`), as the agent's process has them and its shell does not,
+go before whichever command brings it back (`agentEnv`), by id or not.
+
+A restart stops the processes in its ptys, and a claude takes its subagents
+with it. `pando claude ARGS` runs `claude --bg ARGS`, reads the short id it
+prints (`backgroundID`) and execs `claude attach ID`, so Claude Code's daemon
+holds the conversation and pando only the attach. With `claude_background` on,
+`byID` continues a claude conversation that way (`pando claude --resume ID`):
+one killed by a restart comes back as a background session, which the next
+restart attaches to. A claude without `--bg` runs as it is.
+
 Stopping a session signals the foreground job's process group as well as the
 shell's and waits for both, and the ticker leaves specs alone while the daemon
 closes, so what a restart finds is what was running.

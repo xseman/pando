@@ -136,8 +136,16 @@ aider = ["aider", "--restore-chat-history"]
 Claude sessions come back with their own conversation, by id, not the latest
 in the directory, and a conversation that is still open elsewhere is not opened
 twice: the session stays a shell and says where it is. A session attached to a
-Claude background job (`claude attach`) attaches to it again while it runs, and
-a claude started as `CLAUDE_CONFIG_DIR=… claude` comes back in that config.
+Claude background job (`claude attach`) attaches to it again while it runs.
+An agent started in a config of its own (`CLAUDE_CONFIG_DIR=… claude`,
+`CODEX_HOME=… codex`) comes back in that config: `[resume_env]` names the
+variables per program.
+
+A restart stops what runs in pando's terminals, a claude's subagents included.
+A Claude background session outlives it: `pando claude` starts one (`claude
+--bg`) attached to the terminal, and with `claude_background` on (the default)
+a claude that pando resumes by id comes back as one, so the next restart
+leaves it running.
 
 ### Source Control and diffs
 

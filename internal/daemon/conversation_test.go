@@ -5,7 +5,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -114,5 +116,69 @@ func TestClaudeProcessesSkipsTheGone(t *testing.T) {
 
 	if ps := claudeProcesses(claudeDir()); len(ps) != 0 {
 		t.Fatalf("a gone process listed: %+v", ps)
+	}
+}
+
+// An agent started in a config of its own (CLAUDE_CONFIG_DIR, CODEX_HOME…)
+// resumes in it, whether or not pando can tell its conversation: the
+// variables [resume_env] names go before the command.
+func TestResumeCarriesAgentEnv(t *testing.T) {
+	boot := start(t)
+
+	d := boot()
+	defer d.Close()
+
+	ws := t.TempDir()
+	agent := filepath.Join(ws, "myagent")
+	mustWrite(t, agent, "#!/bin/sh\necho AGENT UP\nsleep 300\n")
+
+	if err := os.Chmod(agent, 0o755); err != nil { // the test runs it
+		t.Fatalf("chmod %s: %v", agent, err)
+	}
+
+	d.mu.Lock()
+	d.state.Resume = map[string][]string{"myagent": {"myagent", "--last"}}
+	d.state.ResumeEnv = map[string][]string{"myagent": {"MYAGENT_HOME", "MYAGENT_UNSET"}}
+	d.mu.Unlock()
+
+	var s proto.Session
+	call(t, "session.new", map[string]any{"workspace": ws, "cmd": []string{"sh"}}, &s)
+	call(t, "session.input", proto.InputParams{ID: s.ID, Text: "MYAGENT_HOME='/tmp/my home' ./myagent\r"}, nil)
+
+	sess := d.sessions[s.ID]
+
+	var got proto.SessionSpec
+
+	waitFor(t, "the agent to be recognised", func() bool { got = remembered(d, sess); return got.Resume != nil })
+
+	if want := []string{"MYAGENT_HOME='/tmp/my home'", "myagent", "--last"}; !reflect.DeepEqual(got.Resume, want) {
+		t.Fatalf("resume %q, want %q", got.Resume, want)
+	}
+}
+
+// claude_background continues a claude conversation as a background session
+// through pando itself; other programs, and claude with it off, as they are.
+func TestByIDInBackground(t *testing.T) {
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	d := &Daemon{}
+	d.state.ResumeID = map[string][]string{"claude": {"claude", "--resume", "{id}"}, "other": {"other", "{id}"}}
+	d.state.Settings.ClaudeBg = true
+
+	if got := d.byID("claude", "c1"); !reflect.DeepEqual(got, []string{shellWord(exe), "claude", "--resume", "c1"}) {
+		t.Fatalf("in the background: %q", got)
+	}
+
+	if got := d.byID("other", "c1"); !reflect.DeepEqual(got, []string{"other", "c1"}) {
+		t.Fatalf("another program: %q", got)
+	}
+
+	d.state.Settings.ClaudeBg = false
+
+	if got := d.byID("claude", "c1"); strings.Join(got, " ") != "claude --resume c1" {
+		t.Fatalf("off: %q", got)
 	}
 }

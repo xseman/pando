@@ -538,6 +538,7 @@ func TestConfig(t *testing.T) {
 		Resume:    map[string][]string{"my agent": {"x", "--continue"}},
 		ResumeID:  map[string][]string{"my agent": {"x", "--resume", "{id}"}},
 		ResumeJob: map[string][]string{"my agent": {"x", "attach", "{id}"}},
+		ResumeEnv: map[string][]string{"my agent": {"MY_AGENT_HOME"}},
 	}
 	round := filepath.Join(t.TempDir(), "config.toml")
 	mustWrite(t, round, string(c.encode()))
@@ -1157,6 +1158,7 @@ func TestResumeKeepsConfigDir(t *testing.T) {
 
 	d.mu.Lock()
 	d.state.ResumeID = map[string][]string{"myagent": {"sh", "-c", "'echo RESUMED IN $CLAUDE_CONFIG_DIR'"}}
+	d.state.ResumeEnv = map[string][]string{"myagent": {"CLAUDE_CONFIG_DIR"}}
 	d.state.Agents["myagent"] = []string{"echo", "FRESH"}
 	cfgErr := d.saveConfig()
 	d.mu.Unlock()

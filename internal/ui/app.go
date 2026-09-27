@@ -4178,6 +4178,9 @@ func settingsItems(m *Model) []item {
 			return m.setSettings(map[string]any{"vim_mode": !m.st.Settings.Vim})
 		}},
 		{label: "Word wrap", hint: onOff(s.Wrap), run: func(m *Model) tea.Cmd { return m.toggleWrap() }},
+		{label: "Claude in background", hint: onOff(s.ClaudeBg), run: func(m *Model) tea.Cmd {
+			return m.setSettings(map[string]any{"claude_background": !m.st.Settings.ClaudeBg})
+		}},
 		{label: "Editor limit", hint: edLimitHint(s.EdLimit), run: func(m *Model) tea.Cmd {
 			next := edLimits[(slices.Index(edLimits, m.st.Settings.EdLimit)+1)%len(edLimits)]
 			return m.setSettings(map[string]any{"editor_limit": next})
@@ -4448,7 +4451,7 @@ func (m *Model) toggleDiffView() tea.Cmd {
 
 func staleModal(sessions int) *modal {
 	return newMenu("The pando daemon runs an older build", -1, 0,
-		item{label: fmt.Sprintf("Restart it now (%d sessions restart, their scrollback is lost)", sessions), run: func(*Model) tea.Cmd {
+		item{label: fmt.Sprintf("Restart it now (%d sessions restart: their programs are stopped and resumed, scrollback and work in flight are lost)", sessions), run: func(*Model) tea.Cmd {
 			return func() tea.Msg {
 				if err := proto.RestartDaemon(); err != nil {
 					return flashMsg{"restart: " + err.Error(), true}
