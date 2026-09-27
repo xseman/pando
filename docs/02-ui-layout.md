@@ -125,7 +125,10 @@ reports none (`Screen.AltScreen`), the bar stays empty, and the wheel goes to
 the app, as mouse events when it asked for them, else as three arrows (xterm's
 alternate scroll). A click on the slider grabs it, one on the track jumps it there first,
 and the drag (`dragScroll`) follows the mouse. Sidebar lists keep their thin
-`┃`.
+`┃`, drawn from the same geometry and handled the same way (`listBar`): the
+slider drags, lit while held, a click on the track jumps it, the wheel over it
+scrolls the list, and the pointer over it lights no row. Source Control has
+one per pane, beside the changes below their pinned rows and in each drawer.
 
 With word wrap off (the default) the editor has a horizontal bar too: the
 same `vbar` geometry on its side (`hbar`, the widest line against the text

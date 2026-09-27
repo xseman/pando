@@ -624,6 +624,7 @@ func (s *searchView) lines(m *Model, w, h int) []string {
 	bh := max(h-len(out), 0)
 	s.l.clamp(len(rows), bh)
 	hover := m.hoverRow(viewSearch) - len(out)
+	s.l.held = m.barActive("list:search")
 
 	return append(out, s.l.render(w, bh, len(rows), func(i, rw int) string {
 		return s.renderRow(m, rows[i], rw, i == s.l.sel, i-s.l.top == hover)

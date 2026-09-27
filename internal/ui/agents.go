@@ -452,6 +452,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 	a.l.clamp(len(rows), h)
 
 	hover := m.hoverRow(viewAgents)
+	a.l.held = m.barActive("list:agents")
 	all, every := m.agentSessions(), m.mainSessions() // every: their tabs too, which roll up
 
 	return a.l.render(w, h, len(rows), func(i, rw int) string {

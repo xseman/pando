@@ -123,7 +123,11 @@ func chevron(open bool) string {
 
 // list is a windowed selection: the wheel scrolls the view only, keys move
 // the selection and snap the view to it. sel -1 = nothing selected yet.
-type list struct{ sel, top int }
+// held draws its scrollbar's slider as the mouse holds it.
+type list struct {
+	sel, top int
+	held     bool
+}
 
 func (l *list) clamp(n, h int) {
 	if l.sel >= n {
@@ -180,11 +184,15 @@ func (l *list) renderBar(w, h, n, skip int, rowFn func(i, w int) string) []strin
 	rw := w
 	thumb, thumbH := 0, 0
 
-	if bar {
+	if bar { // the geometry a click on it reads back (listBar)
 		rw = w - 1
-		bh, bn := h-skip, n-skip
-		thumbH = max(1, bh*bh/bn)
-		thumb = skip + l.top*(bh-thumbH)/max(bn-bh, 1)
+		thumb, thumbH = vbar{n - skip, h - skip, l.top}.thumb()
+		thumb += skip
+	}
+
+	slider := dim
+	if l.held {
+		slider = plain
 	}
 
 	for y := range out {
@@ -200,7 +208,7 @@ func (l *list) renderBar(w, h, n, skip int, rowFn func(i, w int) string) []strin
 
 		if bar && y >= skip {
 			if y >= thumb && y < thumb+thumbH {
-				line += dim.Render("┃")
+				line += slider.Render("┃")
 			} else {
 				line += " "
 			}

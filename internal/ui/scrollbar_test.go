@@ -3,12 +3,14 @@ package ui
 import (
 	"fmt"
 	"image/color"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/xseman/pando/internal/git"
 	"github.com/xseman/pando/internal/proto"
 )
 
@@ -269,4 +271,109 @@ func TestSessionAltScreen(t *testing.T) {
 	if in := sent(t, m); in.Mouse == nil || in.Mouse.Kind != "wheel" {
 		t.Fatalf("the wheel on an app with the mouse: %+v", in)
 	}
+}
+
+// A sidebar list's scrollbar is the editor's to the mouse: the slider drags,
+// a click on the track jumps it there, and the pointer over it lights no row.
+func TestSourceControlScrollbar(t *testing.T) {
+	m := testModelSized(t, 100, 24)
+	root := m.ws
+
+	var changes []git.Entry
+	for i := range 60 {
+		changes = append(changes, git.Entry{Path: fmt.Sprintf("f%02d.go", i), Letter: 'M'})
+	}
+
+	m.scm.onGit(m, gitMsg{ws: root, repos: []string{root}, status: map[string]git.Status{root: {Branch: "main", Changes: changes}}})
+	press(m, "2")
+	checkWidths(t, m)
+
+	i := m.colOf(viewGit)
+	x := m.colRect(i).x + m.colRect(i).w - 1 // the bar's column
+	top := m.bodyTop(viewGit)
+
+	ch, _ := m.scm.geometry(m, m.scm.paneH(m))
+	b, ok := m.listBar(viewGit, ch-1)
+
+	if !ok {
+		t.Fatalf("no bar beside the last row of %d changes in %d rows", m.scm.changesEnd(), ch)
+	}
+
+	y0 := top + ch - 1 - b.row // the bar's first row on screen
+	// The pointer over it: no row takes the hover.
+	m.Update(tea.MouseMotionMsg{X: x, Y: y0 + 2})
+	checkWidths(t, m)
+
+	if m.hoverRow(viewGit) != -1 || m.scm.hovRow != -1 {
+		t.Fatalf("hover over the scrollbar lit row %d (%d)", m.hoverRow(viewGit), m.scm.hovRow)
+	}
+
+	m.Update(tea.MouseMotionMsg{X: x - 3, Y: y0 + 2})
+	checkWidths(t, m)
+
+	if m.scm.hovRow < 0 {
+		t.Fatal("beside the bar the row lights again")
+	}
+	// A click low on the track jumps the slider there and holds it.
+	bar := b.geo()
+	m.Update(tea.MouseClickMsg{X: x, Y: y0 + bar.h - 1, Button: tea.MouseLeft})
+
+	if m.scm.tops[""] == 0 || !m.barActive(b.id) {
+		t.Fatalf("track click: top %d, held %v", m.scm.tops[""], m.barActive(b.id))
+	}
+
+	if out := checkWidths(t, m); !strings.Contains(out, plain.Render("┃")) {
+		t.Fatal("the held slider does not light")
+	}
+	// Dragged to the top and let go.
+	m.Update(tea.MouseMotionMsg{X: x, Y: y0 - 5, Button: tea.MouseLeft})
+	m.Update(tea.MouseReleaseMsg{X: x, Y: y0 - 5, Button: tea.MouseLeft})
+
+	if m.scm.tops[""] != 0 || m.drag != nil {
+		t.Fatalf("dragged up: top %d, drag %+v", m.scm.tops[""], m.drag)
+	}
+	// The wheel over the bar still scrolls the list.
+	m.Update(tea.MouseWheelMsg{X: x, Y: y0 + 2, Button: tea.MouseWheelDown})
+
+	if m.scm.tops[""] == 0 {
+		t.Fatal("the wheel over the bar does not scroll")
+	}
+}
+
+// Explorer's bar drags the same way, and a click on a row beside it still
+// selects the row.
+func TestExplorerScrollbar(t *testing.T) {
+	m := testModelSized(t, 100, 20)
+	for i := range 40 {
+		mustWrite(t, filepath.Join(m.ws, fmt.Sprintf("f%02d.txt", i)), "x\n")
+	}
+
+	m.ex.setRoot(m, m.ws)
+	press(m, "1")
+
+	i := m.colOf(viewFiles)
+	x := m.colRect(i).x + m.colRect(i).w - 1
+	y0 := m.bodyTop(viewFiles)
+
+	b, ok := m.listBar(viewFiles, 0)
+	if !ok {
+		t.Fatalf("no bar over %d files in %d rows", len(m.ex.nodes), m.bodyH(viewFiles))
+	}
+
+	m.Update(tea.MouseClickMsg{X: x, Y: y0, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: x, Y: y0 + b.geo().h, Button: tea.MouseLeft})
+	m.Update(tea.MouseReleaseMsg{X: x, Y: y0 + b.geo().h, Button: tea.MouseLeft})
+
+	if bar := b.geo(); m.ex.l.top != bar.n-bar.h {
+		t.Fatalf("dragged to the bottom: top %d of %d", m.ex.l.top, bar.n-bar.h)
+	}
+
+	sel := m.ex.l.sel
+	m.Update(tea.MouseClickMsg{X: x - 5, Y: y0 + 1, Button: tea.MouseLeft})
+
+	if m.ex.l.sel == sel || m.ex.l.sel != m.ex.l.top+1 {
+		t.Fatalf("a click beside the bar selects row %d, got %d", m.ex.l.top+1, m.ex.l.sel)
+	}
+
+	checkWidths(t, m)
 }

@@ -1042,11 +1042,52 @@ func (m *Model) hoverRow(v view) int {
 		return -1
 	}
 
-	if y := m.mouseY - m.bodyTop(v); y >= 0 && y < m.bodyH(v) {
-		return y
+	y := m.mouseY - m.bodyTop(v)
+	if y < 0 || y >= m.bodyH(v) {
+		return -1
 	}
 
-	return -1
+	if _, ok := m.listBar(v, y); ok && m.mouseX == x1-1 { // the scrollbar is not the row
+		return -1
+	}
+
+	return y
+}
+
+// listBar is a sidebar list's scrollbar, draggable as the editor's is: the id
+// its drag goes by, the bar row a view row is, its geometry as it is now, and
+// how it scrolls. The rows it covers are drawn by list.renderBar.
+type listBar struct {
+	id  string
+	row int
+	geo func() vbar
+	to  func(top int) tea.Cmd
+}
+
+// listBar is the scrollbar beside row y of view v's body, counted as
+// hoverRow counts; false where the list has none, or not beside that row.
+func (m *Model) listBar(v view, y int) (listBar, bool) {
+	var b listBar
+
+	switch v {
+	case viewFiles:
+		b = listBar{geo: func() vbar { return vbar{len(m.ex.nodes), m.bodyH(viewFiles), m.ex.l.top} }, to: func(top int) tea.Cmd { m.ex.l.top = top; return nil }}
+	case viewAgents:
+		b = listBar{geo: func() vbar { return vbar{len(m.ag.rows(m)), m.bodyH(viewAgents), m.ag.l.top} }, to: func(top int) tea.Cmd { m.ag.l.top = top; return nil }}
+	case viewSearch:
+		hh := m.sr.headH()
+		b = listBar{row: -hh, geo: func() vbar { return vbar{len(m.sr.rows()), max(m.bodyH(viewSearch)-hh, 0), m.sr.l.top} }, to: func(top int) tea.Cmd { m.sr.l.top = top; return nil }}
+
+	case viewGit:
+		return m.scm.bar(m, y)
+	default:
+		return b, false
+	}
+
+	b.id, b.row = "list:"+viewKeys[v], b.row+y
+	g := b.geo()
+
+	return b, g.on() && b.row >= 0 && b.row < g.h
 }
 
 // rowColors are a list row's background and default text style.
@@ -3067,6 +3108,14 @@ func (m *Model) sideMouse(s int, rc rect, msg tea.MouseMsg) tea.Cmd {
 
 	if v != viewGit && click {
 		m.scm.input.Blur()
+	}
+
+	if b, ok := m.listBar(v, y); ok && click && x == rc.w-m.barW(s)-1 { // the wheel over it scrolls the list, below
+		if mo.Button != tea.MouseLeft {
+			return nil
+		}
+
+		return m.barClick(b.id, b.row, mo.Y-b.row, b.geo, b.to)
 	}
 
 	return m.viewMouse(v, msg, x, y)

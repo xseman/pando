@@ -1057,13 +1057,57 @@ func (s *scmView) lines(m *Model, w, h int) []string {
 	return out
 }
 
+// bar is the scrollbar beside row y of the view: the changes' below their
+// pinned rows, or a drawer's. Each is sized as renderPane draws it.
+func (s *scmView) bar(m *Model, y int) (listBar, bool) {
+	if len(s.repos) == 0 {
+		return listBar{}, false
+	}
+
+	ch, ds := s.geometry(m, s.paneH(m))
+
+	var b listBar
+
+	switch {
+	case y < ch:
+		skip := func(ch int) int { return len(s.pinned(max(s.tops[""], 1), ch)) }
+		b = listBar{row: y - skip(ch), geo: func() vbar {
+			ch, _ := s.geometry(m, s.paneH(m))
+			k := skip(ch)
+
+			return vbar{s.changesEnd() - k, ch - k, s.tops[""]}
+		}, to: func(top int) tea.Cmd { s.tops[""] = top; return nil }}
+
+	default:
+		j := slices.IndexFunc(ds, func(d drawerGeom) bool { return y >= d.body && y < d.body+d.h })
+		if j < 0 || j >= len(s.heads) {
+			return b, false
+		}
+
+		title := m.drawers()[j].Title
+		b = listBar{id: title, row: y - ds[j].body, geo: func() vbar {
+			_, ds := s.geometry(m, s.paneH(m))
+			if j >= len(ds) || j >= len(s.heads) {
+				return vbar{}
+			}
+
+			return vbar{s.drawerEnd(j) - s.heads[j] - 1, ds[j].h, s.tops[title]}
+		}, to: func(top int) tea.Cmd { s.tops[title] = top; return nil }}
+	}
+
+	b.id = "list:git:" + b.id
+	g := b.geo()
+
+	return b, g.on() && b.row >= 0 && b.row < g.h
+}
+
 func (s *scmView) renderPane(m *Model, w, h int, key string, start, end, hover int) []string {
 	if h <= 0 {
 		return nil
 	}
 
 	n := end - start
-	l := list{sel: s.sel - start, top: s.tops[key]}
+	l := list{sel: s.sel - start, top: s.tops[key], held: m.barActive("list:git:" + key)}
 	l.clamp(n, h)
 	s.tops[key] = l.top
 
