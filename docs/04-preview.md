@@ -123,6 +123,15 @@ side by side. goldmark parses (CommonMark + GFM), the renderer is pando's own:
 headings, lists, quotes, tables, task lists and fenced code through chroma,
 wrapped to the panel width. Images become `[image: alt]`, HTML stays source.
 
+The layout is glow's, in pando's colors rather than through glamour, which
+would bring 3 MB and a palette of its own: `mdMargin` cells of air either
+side (dropped under 26 cells), the title as a chip on the accent, the other
+headings with their `#`s, inline code as a chip in `md_code` (`padL`/`padR`
+put the pad cells on the run's first and last word, so a pad wraps with its
+word), and table cells that wrap within their column, the row as tall as its
+tallest cell, instead of being cut. Inline code and code blocks sit on
+`md_code_bg`, a soft grey on the light theme.
+
 ## Find and replace
 
 `ctrl+f` finds in the open file with VS Code's find widget, floating over the

@@ -29,11 +29,15 @@ func mdt(s string, st lipgloss.Style) mdText {
 
 func (a mdText) add(b mdText) mdText { return mdText{a.s + b.s, a.p + b.p} }
 
-// mdTok is an inline run in one style; hard is a hard line break.
+// mdTok is an inline run in one style; hard is a hard line break. padL and
+// padR put a cell of the run's own background before its first word and
+// after its last, so inline code and the title read as chips, as glow draws
+// them; the pad wraps with its word.
 type mdTok struct {
-	text string
-	st   lipgloss.Style
-	hard bool
+	text       string
+	st         lipgloss.Style
+	hard       bool
+	padL, padR bool
 }
 
 type mdRenderer struct {
@@ -44,14 +48,23 @@ type mdRenderer struct {
 }
 
 // renderMarkdown lays Markdown out w cells wide like an editor's rendered
-// preview: styled lines and the same lines as plain text. ponytail: images
-// show their alt text and HTML stays source.
+// preview, in glow's layout: styled lines and the same lines as plain text,
+// mdMargin cells of air on either side. ponytail: images show their alt text
+// and HTML stays source.
 func renderMarkdown(src string, w int, dark bool) (styled, plain []string) {
+	margin := mdText{}
+	if w >= 3*mdMargin+20 {
+		margin, w = mdText{blank(mdMargin), blank(mdMargin)}, w-mdMargin // the right margin; the prefix takes the left
+	}
+
 	r := &mdRenderer{src: []byte(src), w: max(w, 10), dark: dark}
-	r.children(mdParser.Parse(text.NewReader(r.src)), mdText{}, mdText{}, false)
+	r.children(mdParser.Parse(text.NewReader(r.src)), margin, margin, false)
 
 	return r.styled, r.plain
 }
+
+// mdMargin is the air left and right of rendered Markdown, glow's margin.
+const mdMargin = 2
 
 func (r *mdRenderer) line(prefix, content mdText) {
 	r.styled = append(r.styled, prefix.s+content.s)
@@ -79,16 +92,20 @@ func (r *mdRenderer) block(n ast.Node, first, rest mdText) {
 
 	switch n := n.(type) {
 	case *ast.Heading:
-		st := bold
-		if n.Level <= 2 {
-			st = accent
+		// glow's: the title a chip in the accent, the others marked by their #s.
+		if n.Level == 1 {
+			toks := r.inline(n, lipgloss.NewStyle().Background(pal.accent).Foreground(pal.buttonFg).Bold(true))
+			if len(toks) > 0 {
+				toks[0].padL, toks[len(toks)-1].padR = true, true
+			}
+
+			r.wrap(toks, first, rest, width)
+
+			break
 		}
 
-		r.wrap(r.inline(n, st), first, rest, width)
-
-		if n.Level <= 2 {
-			r.line(rest, rule())
-		}
+		marks := mdTok{text: strings.Repeat("#", n.Level) + " ", st: accent}
+		r.wrap(append([]mdTok{marks}, r.inline(n, accent)...), first, rest, width)
 
 	case *ast.Paragraph, *ast.TextBlock:
 		r.wrap(r.inline(n, plain), first, rest, width)
@@ -182,7 +199,7 @@ func (r *mdRenderer) inline(n ast.Node, st lipgloss.Style) []mdTok {
 					}
 				}
 
-				out = append(out, mdTok{text: b.String(), st: st.Background(pal.inputBg)})
+				out = append(out, mdTok{text: b.String(), st: st.Background(pal.mdCodeBg).Foreground(pal.mdCode), padL: true, padR: true})
 
 			case *ast.Emphasis:
 				if c.Level >= 2 {
@@ -256,6 +273,14 @@ func (r *mdRenderer) wrap(toks []mdTok, first, rest mdText, width int) {
 		}
 
 		fields := strings.Fields(s)
+		if len(fields) > 0 && t.padL {
+			fields[0] = " " + fields[0]
+		}
+
+		if len(fields) > 0 && t.padR {
+			fields[len(fields)-1] += " "
+		}
+
 		for i, word := range fields {
 			ww := ansi.StringWidth(word)
 
@@ -267,7 +292,12 @@ func (r *mdRenderer) wrap(toks []mdTok, first, rest mdText, width int) {
 			}
 
 			if sp == 1 {
-				cur, used = cur.add(mdt(" ", t.st)), used+1
+				gap := t.st
+				if i == 0 && t.padL { // the space before a chip is not the chip's
+					gap = plain
+				}
+
+				cur, used = cur.add(mdt(" ", gap)), used+1
 			}
 
 			for used+ww > width {
@@ -312,9 +342,9 @@ func (r *mdRenderer) code(lines *text.Segments, lang string, first, rest mdText,
 
 	toks := tokenLines(lexer, src, r.dark)
 
-	bg := lipgloss.NewStyle().Background(pal.inputBg)
+	bg := lipgloss.NewStyle().Background(pal.mdCodeBg)
 	for i, l := range src {
-		body, used := paint(toks[i], pal.inputBg, nil, [2]int{}, false), ansi.StringWidth(l)+1
+		body, used := paint(toks[i], pal.mdCodeBg, nil, [2]int{}, false), ansi.StringWidth(l)+1
 		if used > width {
 			body, l, used = ansi.Truncate(body, width-1, ""), ansi.Truncate(l, width-1, ""), width
 		}
@@ -324,7 +354,8 @@ func (r *mdRenderer) code(lines *text.Segments, lang string, first, rest mdText,
 	}
 }
 
-// table aligns cells in columns, shrinking the widest ones to fit.
+// table aligns cells in columns, shrinking the widest ones to fit; a cell
+// wider than its column wraps onto more lines of its row, as glow's do.
 func (r *mdRenderer) table(t *east.Table, first, rest mdText, width int) {
 	var rows [][][]mdTok
 
@@ -344,18 +375,12 @@ func (r *mdRenderer) table(t *east.Table, first, rest mdText, width int) {
 	}
 
 	widths := make([]int, cols)
-	cellText := func(toks []mdTok) mdText {
-		var c mdText
-		for _, tk := range toks {
-			c = c.add(mdt(tk.text, tk.st))
-		}
-
-		return c
-	}
 
 	for _, row := range rows {
 		for i, c := range row {
-			widths[i] = max(widths[i], ansi.StringWidth(cellText(c).p))
+			for _, l := range r.cell(c, 1<<20).plain { // on one line, as wide as it wants
+				widths[i] = max(widths[i], ansi.StringWidth(l))
+			}
 		}
 	}
 
@@ -378,38 +403,47 @@ func (r *mdRenderer) table(t *east.Table, first, rest mdText, width int) {
 	sep := mdt(" │ ", fg(pal.inputBorder))
 
 	for ri, row := range rows {
-		var line mdText
-
+		cells, h := make([]*mdRenderer, len(widths)), 1
 		for i, w := range widths {
-			if i > 0 {
-				line = line.add(sep)
-			}
-
-			var cell mdText
+			var toks []mdTok
 			if i < len(row) {
-				cell = cellText(row[i])
+				toks = row[i]
 			}
 
-			if ansi.StringWidth(cell.p) > w {
-				cell = mdText{ansi.Truncate(cell.s, w, "…"), ansi.Truncate(cell.p, w, "…")}
-			}
-
-			pad, left := w-ansi.StringWidth(cell.p), 0
-
-			if i < len(t.Alignments) {
-				switch t.Alignments[i] {
-				case east.AlignRight:
-					left = pad
-				case east.AlignCenter:
-					left = pad / 2
-				}
-			}
-
-			line = line.add(mdText{blank(left), blank(left)}).add(cell).add(mdText{blank(pad - left), blank(pad - left)})
+			cells[i] = r.cell(toks, max(w, 1))
+			h = max(h, len(cells[i].plain))
 		}
 
-		r.line(first, line)
-		first = rest
+		for y := range h {
+			var line mdText
+
+			for i, w := range widths {
+				if i > 0 {
+					line = line.add(sep)
+				}
+
+				var cell mdText
+				if y < len(cells[i].plain) {
+					cell = mdText{cells[i].styled[y], cells[i].plain[y]}
+				}
+
+				pad, left := max(w-ansi.StringWidth(cell.p), 0), 0
+
+				if i < len(t.Alignments) {
+					switch t.Alignments[i] {
+					case east.AlignRight:
+						left = pad
+					case east.AlignCenter:
+						left = pad / 2
+					}
+				}
+
+				line = line.add(mdText{blank(left), blank(left)}).add(cell).add(mdText{blank(pad - left), blank(pad - left)})
+			}
+
+			r.line(first, line)
+			first = rest
+		}
 
 		if ri == 0 {
 			parts := make([]string, len(widths))
@@ -420,4 +454,12 @@ func (r *mdRenderer) table(t *east.Table, first, rest mdText, width int) {
 			r.line(rest, mdt(strings.Join(parts, "─┼─"), fg(pal.inputBorder)))
 		}
 	}
+}
+
+// cell lays a table cell's runs out w cells wide.
+func (r *mdRenderer) cell(toks []mdTok, w int) *mdRenderer {
+	c := &mdRenderer{src: r.src, w: w, dark: r.dark}
+	c.wrap(toks, mdText{}, mdText{}, w)
+
+	return c
 }

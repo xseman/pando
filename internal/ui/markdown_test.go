@@ -18,10 +18,14 @@ func TestMarkdownRender(t *testing.T) {
 	styled, plainLines := renderMarkdown(sampleMD, 40, true)
 
 	want := []string{
-		"Title", strings.Repeat("─", 40), "", "Some em and bold text with code and a", "link.", "",
+		" Title ", "", "Some em and bold text with  code ", "and a link.", "",
 		"• one", "• two", "  ◦ nested", "", "1. first", "2. second", "", "▎ quote", "", " func main() {}", "",
-		"a │ bb", "──┼───", "1 │ 22", "", strings.Repeat("─", 40),
+		"a │ bb", "──┼───", "1 │ 22", "", strings.Repeat("─", 36),
 	}
+	for i, l := range want { // glow's margin, two cells either side
+		want[i] = "  " + l
+	}
+
 	if !slices.Equal(plainLines, want) {
 		t.Fatalf("rendered:\n%s\nwant:\n%s", strings.Join(plainLines, "\n"), strings.Join(want, "\n"))
 	}
@@ -35,13 +39,68 @@ func TestMarkdownRender(t *testing.T) {
 			t.Errorf("line %d: %q vs %q", i, ansi.Strip(l), plainLines[i])
 		}
 	}
+	// The title and inline code are chips: their pads take their background.
+	if !strings.Contains(styled[0], bgParams(pal.accent)) || !strings.Contains(styled[2], bgParams(pal.mdCodeBg)) ||
+		!strings.Contains(styled[2], fgParams(pal.mdCode)) {
+		t.Errorf("chips: %q / %q", styled[0], styled[2])
+	}
 
-	long := strings.Repeat("word ", 30) + strings.Repeat("x", 50)
+	if !strings.Contains(styled[2], "with \x1b[") { // the space after "with" is plain, the chip starts after it
+		t.Errorf("the space before a chip is the chip's: %q", styled[2])
+	}
 
-	for _, l := range func() []string { s, _ := renderMarkdown(long, 20, true); return s }() {
-		if ansi.StringWidth(l) > 20 {
-			t.Fatalf("wrapped line %q is wider than 20", ansi.Strip(l))
+	long := strings.Repeat("word ", 30) + strings.Repeat("x", 50) + " `a long code span` # not a heading"
+
+	for _, w := range []int{12, 20, 40} {
+		for _, l := range func() []string { s, _ := renderMarkdown("# "+long+"\n\n"+long, w, true); return s }() {
+			if ansi.StringWidth(l) > w {
+				t.Fatalf("wrapped line %q is wider than %d", ansi.Strip(l), w)
+			}
 		}
+	}
+	// A narrow panel has no room to spare for margins.
+	if _, p := renderMarkdown("hello", 20, true); p[0] != "hello" {
+		t.Errorf("margins at 20 cells: %q", p[0])
+	}
+}
+
+// Headings below the title keep their #s, as glow shows them.
+func TestMarkdownHeadings(t *testing.T) {
+	_, p := renderMarkdown("## Two\n\n### Three *em*\n", 60, true)
+
+	if want := []string{"  ## Two", "  ", "  ### Three em"}; !slices.Equal(p, want) {
+		t.Fatalf("headings %q, want %q", p, want)
+	}
+}
+
+// A cell too wide for its column wraps within it instead of being cut, the
+// row growing to its tallest cell.
+func TestMarkdownTableWraps(t *testing.T) {
+	src := "| k | text |\n|---|---|\n| a | the quick brown fox jumps over the lazy dog |\n| b | short |\n"
+	styled, p := renderMarkdown(src, 30, true)
+
+	want := []string{
+		"  k │ text", "  ─" + "─┼─" + strings.Repeat("─", 22), // the text column takes what the key leaves
+		"  a │ the quick brown fox", "    │ jumps over the lazy", "    │ dog",
+		"  b │ short",
+	}
+
+	for i := range p {
+		p[i] = strings.TrimRight(p[i], " ")
+	}
+
+	if !slices.Equal(p, want) {
+		t.Fatalf("table:\n%s\nwant:\n%s", strings.Join(p, "\n"), strings.Join(want, "\n"))
+	}
+
+	for _, l := range styled {
+		if ansi.StringWidth(l) > 30 {
+			t.Fatalf("row %q wider than 30", ansi.Strip(l))
+		}
+	}
+
+	if strings.Contains(strings.Join(p, ""), "…") {
+		t.Fatal("a cell is cut instead of wrapped")
 	}
 }
 
@@ -60,7 +119,7 @@ func TestMarkdownPreview(t *testing.T) {
 	press(m, "ctrl+shift+v") // a source file types letters now; ⌃⇧v renders it
 
 	out := strings.Split(checkWidths(t, m), "\n")
-	if m.pv.gutter() != 0 || !strings.HasPrefix(ansi.Cut(out[1], m.mainX(), m.w), "Title") || !strings.Contains(out[len(out)-2], "p source") {
+	if m.pv.gutter() != 0 || !strings.HasPrefix(ansi.Cut(out[1], m.mainX(), m.w), "   Title ") || !strings.Contains(out[len(out)-2], "p source") {
 		t.Fatalf("rendered:\n%s", strings.Join(out, "\n"))
 	}
 
@@ -68,7 +127,7 @@ func TestMarkdownPreview(t *testing.T) {
 	out = strings.Split(checkWidths(t, m), "\n")
 
 	c, lw := m.mainX(), (m.pvW()-1)/2
-	if l, r := ansi.Cut(out[1], c, c+lw), ansi.Cut(out[1], c+lw+1, m.w); !strings.Contains(l, "# Title") || !strings.HasPrefix(r, " Title") || m.View().Cursor != nil {
+	if l, r := ansi.Cut(out[1], c, c+lw), ansi.Cut(out[1], c+lw+1, m.w); !strings.Contains(l, "# Title") || !strings.HasPrefix(r, "    Title ") || m.View().Cursor != nil {
 		t.Fatalf("side by side:\n%q\n%q", l, r)
 	}
 
@@ -121,5 +180,23 @@ func TestFileRevisions(t *testing.T) {
 
 	if m.pv.kind != pvFile || m.pv.path != f {
 		t.Fatalf("newer than the newest is the file: %+v", m.pv.kind)
+	}
+}
+
+// Code in rendered Markdown, blocks and inline alike, sits on md_code_bg: a
+// soft grey on the light theme, where the input background is all but white.
+func TestMarkdownCodeBackground(t *testing.T) {
+	t.Cleanup(func() { applyLook("vscode", true, "ascii", nil) })
+	applyLook("vscode-light", false, "ascii", nil)
+
+	styled, _ := renderMarkdown("Run `go test` now.\n\n```go\nfunc main() {}\n```\n", 60, false)
+
+	grey := bgParams(pal.mdCodeBg)
+	if !strings.Contains(styled[0], grey) || !strings.Contains(styled[2], grey) {
+		t.Fatalf("inline code %q, block %q: want the grey %s", styled[0], styled[2], grey)
+	}
+
+	if r, g, b, _ := pal.mdCodeBg.RGBA(); r>>8 > 0xf0 || r>>8 < 0xe0 || r != g || b < g {
+		t.Fatalf("md_code_bg %s is not a soft grey", hexColor(pal.mdCodeBg))
 	}
 }
