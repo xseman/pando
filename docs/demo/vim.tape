@@ -1,6 +1,6 @@
 # Vim mode: the editor opens in normal mode, letters are commands again, and
-# i / a / o put the text back under the keyboard. The mode sits in the header
-# next to Ln, Col.
+# i / a / o put the text back under the keyboard. The mode sits in the editor's
+# header, Ln and Col in the status bar.
 # VHS cannot send ctrl+s: the demo binds Save File to ctrl+k in its config.
 # Record with: make demo   (needs vhs v0.10 or v0.11, ttyd, ffmpeg and a Chrome)
 Output docs/demo/vim.gif

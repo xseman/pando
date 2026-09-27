@@ -26,8 +26,9 @@ Show
 # A README opens as source.
 Sleep 1800ms
 
-# ctrl+shift+v (ctrl+n here) renders it in place: code through the highlighter,
-# tables, task lists.
+# ctrl+shift+v (ctrl+n here) renders it in place, in glow's layout: the title
+# as a chip, headings with their #s, inline code as chips, code through the
+# highlighter, tables whose long cells wrap, task lists.
 Ctrl+n
 Sleep 2500ms
 

@@ -1,8 +1,9 @@
 # Editing a file in place: find, go to line, typing, save through gofmt,
-# selecting lines and copying them, and a new file typed before it is named.
-# VHS cannot send ctrl+s, shift+down or alt+shift+down: the demo binds the
-# commands to ctrl letters in its config and types shift+down as its escape
-# sequence.
+# selecting lines and copying them, the tab size from the status bar, and a new
+# file typed before it is named.
+# VHS cannot send ctrl+s, shift+down or alt+shift+down, nor click the status
+# bar: the demo binds the commands to ctrl letters in its config and types
+# shift+down as its escape sequence.
 # Record with: make demo   (needs vhs v0.10 or v0.11, ttyd, ffmpeg and a Chrome)
 Output docs/demo/edit.gif
 
@@ -11,7 +12,7 @@ Require ttyd
 
 Source docs/demo/settings.tape
 Source docs/demo/setup.tape
-Type `cfg 26 ctrl+k=editor.saveFile ctrl+e=editor.copyLineDown` Enter
+Type `cfg 26 ctrl+k=editor.saveFile ctrl+e=editor.copyLineDown ctrl+o=editor.changeIndentation` Enter
 Type "clear" Enter
 Type "pando" Enter
 Sleep 1500ms
@@ -92,6 +93,20 @@ Sleep 2s
 Ctrl+g
 Sleep 300ms
 Type "4:8"
+Enter
+Sleep 2500ms
+
+# The status bar keeps Ln, Col and the indentation, VS Code's. A click on Tab
+# Size (ctrl+o here) picks tabs or spaces, then the width: at 2 the tabs draw
+# narrower, and the cursor stays on the character it was on.
+Ctrl+o
+Sleep 900ms
+Down
+Sleep 400ms
+Enter
+Sleep 700ms
+Type "2"
+Sleep 600ms
 Enter
 Sleep 2500ms
 

@@ -13,11 +13,11 @@ fmt.Println(s.Total(), "cents") // 550 cents
 
 ## Prices
 
-| Item       | Cents | Size   |
-| ---------- | ----: | ------ |
-| espresso   | 250   | 30 ml  |
-| cortado    | 300   | 90 ml  |
-| flat white | 350   | 160 ml |
+| Item       | Cents | Size   | Notes                                             |
+| ---------- | ----: | ------ | ------------------------------------------------- |
+| espresso   | 250   | 30 ml  | a single shot, pulled short and served on its own |
+| cortado    | 300   | 90 ml  | espresso cut with as much warm milk               |
+| flat white | 350   | 160 ml | a double shot under a thin layer of microfoam     |
 
 ## Roadmap
 
