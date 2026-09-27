@@ -129,6 +129,7 @@ type Model struct {
 	savedWs     string            // the workspace the daemon was last told about
 	savedEds    proto.Editors     // the open editors the daemon was last told about
 	savedTerm   proto.Terminal    // the workspace's Terminal panel, as this TUI last told the daemon
+	savedSess   proto.SessionView // the workspace's session place and width, as this TUI last told the daemon
 	savedDrafts map[string]string // per draft key: the unsaved text the daemon was last told about
 	branchSeen  string            // the open worktree's branch the worktree list was last reloaded for
 	ticks       int
@@ -608,6 +609,24 @@ func (m *Model) cols() []col {
 		out[i].views = append(out[i].views, view(v))
 	}
 
+	if v, ok := m.st.SessionViews[m.ws]; ok && m.sess != "" && m.sessPos() != "editor" {
+		// The workspace's own column: at its width where the settings list
+		// the last one set, or beside the editor when that is the other side.
+		right, i := m.sessPos() == "right", colWith(out, viewSession)
+		switch {
+		case i >= 0 && out[i].right == right:
+			out[i].width = cmp.Or(v.Width, out[i].width)
+		default:
+			w := v.Width
+			if w == 0 && i >= 0 {
+				w = out[i].width
+			}
+
+			out = removeView(out, viewSession)
+			out = slices.Insert(out, leftCount(out), col{views: []view{viewSession}, right: right, width: w})
+		}
+	}
+
 	return out
 }
 
@@ -813,11 +832,68 @@ func (m *Model) panelH() int { return max(m.h-1, 1) }
 // sessPos is where a session opens: a column of its own on that side, or
 // "editor", over the editor area.
 func (m *Model) sessPos() string {
-	if m.st.Settings.SessPos == "editor" || m.st.Settings.SessPos == "left" {
-		return m.st.Settings.SessPos
+	pos := m.st.Settings.SessPos
+	if v, ok := m.st.SessionViews[m.ws]; ok {
+		pos = v.Position // the workspace's own, over the last one set anywhere
+	}
+
+	if pos == "editor" || pos == "left" {
+		return pos
 	}
 
 	return "right"
+}
+
+// sessView is where the workspace's session shows and how wide: its own, or
+// while it has none session_position and the session's column in the settings.
+func (m *Model) sessView() proto.SessionView {
+	v, ok := m.st.SessionViews[m.ws]
+	if !ok {
+		for _, c := range slices.Concat(m.st.Settings.Left, m.st.Settings.Right) {
+			if slices.Contains(c.Views, viewKeys[viewSession]) {
+				v.Width = c.Width
+			}
+		}
+	}
+
+	v.Position = m.sessPos()
+
+	return v
+}
+
+// setSessView makes v the workspace's session view, returned as the state.set
+// key that saves it.
+func (m *Model) setSessView(v proto.SessionView) map[string]any {
+	m.keepSessView(v)
+	m.savedSess = v
+
+	return map[string]any{"session_views": map[string]proto.SessionView{m.ws: v}}
+}
+
+// keepSessView records v as the workspace's session view ahead of a save.
+func (m *Model) keepSessView(v proto.SessionView) {
+	if m.st.SessionViews == nil {
+		m.st.SessionViews = map[string]proto.SessionView{}
+	}
+
+	m.st.SessionViews[m.ws] = v
+}
+
+// saveSessView tells the daemon where the workspace's session shows and how
+// wide when that changed since the last save, or when the workspace has none
+// saved yet: left behind, it keeps its own rather than following the default,
+// as saveTerm does for the Terminal panel.
+func (m *Model) saveSessView() tea.Cmd {
+	if m.ws == "" {
+		return nil
+	}
+
+	v := m.sessView()
+	if _, ok := m.st.SessionViews[m.ws]; ok && v == m.savedSess {
+		return nil
+	}
+
+	return do("state.set", m.setSessView(v))
 }
 
 // termPos is where the Terminal lives: a panel under the editor, or a sidebar.
@@ -1092,6 +1168,10 @@ func (m *Model) setColWidth(i, w int) {
 	cs[i].width = w
 	sides := colSettings(cs)
 	m.st.Settings.Left, m.st.Settings.Right = sides[0], sides[1]
+
+	if slices.Contains(cs[i].views, viewSession) { // this workspace's, saved with saveSessView
+		m.keepSessView(proto.SessionView{Position: []string{"left", "right"}[b2i(cs[i].right)], Width: w})
+	}
 }
 
 func (m *Model) saveCols() tea.Cmd {
@@ -1120,11 +1200,16 @@ func (m *Model) dock(cs []col, v view) tea.Cmd {
 	sides := colSettings(cs)
 
 	patch := map[string]any{"left": sides[0], "right": sides[1]}
-	if i := colWith(cs, viewSession); i >= 0 { // the side a session opens on from now on
-		patch["session_position"] = []string{"left", "right"}[b2i(cs[i].right)]
+
+	var more map[string]any
+
+	if i := colWith(cs, viewSession); i >= 0 { // this workspace's place, and where a session of one without opens
+		pos := []string{"left", "right"}[b2i(cs[i].right)]
+		patch["session_position"] = pos
+		more = m.setSessView(proto.SessionView{Position: pos, Width: cs[i].width})
 	}
 
-	cmd := m.setSettings(patch)
+	cmd := m.setSettingsWith(patch, more)
 
 	return tea.Batch(cmd, m.showView(v), m.scm.loadDrawers(m))
 }
@@ -1449,7 +1534,9 @@ func (m *Model) sessDocked() bool { return m.colOf(viewSession) >= 0 }
 // undockSession puts the docked session back over the whole editor area. Its
 // column stays in the settings: it is where the session docks again.
 func (m *Model) undockSession() tea.Cmd {
-	cmd := m.setSettings(map[string]any{"session_position": "editor"})
+	v := m.sessView()
+	v.Position = "editor"
+	cmd := m.setSettingsWith(map[string]any{"session_position": "editor"}, m.setSessView(v))
 	m.preview, m.focus = false, onMain
 
 	return tea.Batch(cmd, m.fetchScreen())
@@ -1839,7 +1926,7 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 		return nil
 	}
 
-	saved := tea.Batch(m.saveEditors(), m.saveTerm(), m.saveDrafts())
+	saved := tea.Batch(m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts())
 	m.savedDrafts = nil
 	open := m.termOpen()
 	m.ws = path
@@ -1865,8 +1952,11 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 
 	restored := m.restoreEditors()
 	m.preview = m.preview && (m.sess == "" || m.sessDocked()) // a session over the editor is what shows; the tabs wait in the strip
-	// The panel as this workspace left it: open or shut, on the shell it showed.
+	// The panel as this workspace left it: open or shut, on the shell it
+	// showed; its session's column too.
 	m.savedTerm, m.tv.id, m.tv.term = m.st.Terminals[path], "", term{}
+	m.savedSess = m.st.SessionViews[path]
+
 	if open != m.termOpen() && m.w > 0 { // New switches before the window has a size
 		m.termMax = false
 		m.resize()
@@ -2011,7 +2101,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		m.ex.rebuild(m)
 		m.scm.fit(m) // the box learns its width when drawn: a resize rewraps it
-		cmds := []tea.Cmd{tick(), m.blink(), m.refreshGit(), m.pv.reloadIfLive(m), m.scm.saveDraft(m), m.scm.loadDrawers(m), m.saveWorkspace(), m.saveEditors(), m.saveTerm(), m.saveDrafts()}
+		cmds := []tea.Cmd{tick(), m.blink(), m.refreshGit(), m.pv.reloadIfLive(m), m.scm.saveDraft(m), m.scm.loadDrawers(m), m.saveWorkspace(), m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts()}
 		// ponytail: other projects' branches come back every 30 s, one git call
 		// per project; watch their HEADs if that lags.
 		m.ticks++
@@ -2449,7 +2539,7 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 			break
 		}
 
-		return tea.Sequence(m.saveEditors(), m.saveTerm(), m.saveDrafts(), tea.Quit)
+		return tea.Sequence(m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts(), tea.Quit)
 
 	case "1", "2", "3", "4":
 		cmd := m.showView(view(s[0] - '1'))
@@ -3074,7 +3164,7 @@ func (m *Model) dragMouse(msg tea.MouseMsg) tea.Cmd {
 				m.drag = nil
 				m.setColWidth(d.col, d.w0)
 
-				return tea.Batch(m.hideSession(), m.saveCols())
+				return tea.Batch(m.hideSession(), m.saveCols(), m.saveSessView())
 			}
 		}
 
@@ -3090,7 +3180,7 @@ func (m *Model) dragMouse(msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 
-	return tea.Batch(m.saveCols(), m.fetchScreen())
+	return tea.Batch(m.saveCols(), m.saveSessView(), m.fetchScreen())
 }
 
 // dragTerm resizes the bottom panel by its title row, as VS Code's sash does;
@@ -4322,11 +4412,11 @@ func (m *Model) confirmQuit() tea.Cmd {
 
 	m.modal = newMenu(title, -1, 0,
 		item{label: "Close", hint: "unsaved text is kept", run: func(m *Model) tea.Cmd {
-			return tea.Sequence(m.saveEditors(), m.saveTerm(), m.saveDrafts(), tea.Quit)
+			return tea.Sequence(m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts(), tea.Quit)
 		}},
 		item{label: "Save all and close", hint: "", run: func(m *Model) tea.Cmd {
 			m.saveAll()
-			return tea.Sequence(m.saveEditors(), m.saveTerm(), m.saveDrafts(), tea.Quit)
+			return tea.Sequence(m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts(), tea.Quit)
 		}},
 		cancelItem())
 

@@ -145,7 +145,9 @@ type State struct {
 	// Terminals is per workspace: whether its Terminal panel was open, and
 	// the shell it showed.
 	Terminals map[string]Terminal `json:"terminals"`
-	Sessions  []SessionSpec       `json:"sessions"`
+	// SessionViews is per workspace: where its session shows and how wide.
+	SessionViews map[string]SessionView `json:"session_views"`
+	Sessions     []SessionSpec          `json:"sessions"`
 	// Worktrees is each project's worktree paths in the order workspace.move
 	// left them; git's order for any it does not name, after these.
 	Worktrees map[string][]string `json:"worktrees,omitempty"`
@@ -166,6 +168,15 @@ type Editors struct {
 type Terminal struct {
 	Open bool   `json:"open"`
 	Tab  string `json:"tab,omitempty"` // the shell it showed
+}
+
+// SessionView is a workspace's session as state.json keeps it, so every
+// workspace places and sizes its own: in a column beside the editor or over
+// the editor area. One without it takes session_position and the session's
+// column in left/right, the last ones set anywhere.
+type SessionView struct {
+	Position string `json:"position"`        // "left" | "right" | "editor"
+	Width    int    `json:"width,omitempty"` // the column's cells; 0 = half the editor area
 }
 
 // Editor is one open file with its cursor (0-based) and scroll. An untitled

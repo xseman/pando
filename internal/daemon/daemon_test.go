@@ -247,6 +247,25 @@ func TestDaemon(t *testing.T) {
 	if len(terms.Terminals) != 0 {
 		t.Fatalf("forgotten terminals = %+v", terms.Terminals)
 	}
+	// And the session's place and width, beside the settings' default.
+	view := proto.SessionView{Position: "editor", Width: 48}
+	call(t, "state.set", map[string]any{"settings": map[string]any{"session_position": "left"}, "session_views": map[string]proto.SessionView{root: view}}, nil)
+
+	var views proto.State
+	call(t, "state.get", nil, &views)
+
+	if views.SessionViews[root] != view || views.Settings.SessPos != "left" {
+		t.Fatalf("session views = %+v, default %q", views.SessionViews, views.Settings.SessPos)
+	}
+
+	call(t, "state.set", map[string]any{"session_views": map[string]any{root: nil}}, nil)
+
+	views = proto.State{}
+	call(t, "state.get", nil, &views)
+
+	if len(views.SessionViews) != 0 {
+		t.Fatalf("forgotten session views = %+v", views.SessionViews)
+	}
 
 	pane := func(title string, h int) map[string]any {
 		return map[string]any{"settings": map[string]any{"git_panes": map[string]any{title: map[string]any{"open": true, "h": h}}}}

@@ -2187,6 +2187,56 @@ func TestSessionDraggedShutCloses(t *testing.T) {
 	checkWidths(t, m)
 }
 
+// Every workspace keeps its session's place and width: one over the editor
+// area, another in a column of its own size. One that has none yet takes the
+// last set anywhere.
+func TestSessionViewPerWorkspace(t *testing.T) {
+	m := testModelSized(t, 140, 30)
+	m.st.Settings.SessPos, m.sess = "", ""
+	first, other := m.ws, t.TempDir()
+	m.wss = append(m.wss, proto.Workspace{Path: other, Project: first, Branch: "feat"})
+	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: other, Agent: "shell"}, Status: "idle"})
+
+	m.openSession("s1")
+	m.setColWidth(m.colOf(viewSession), 30)
+
+	if cmd := m.saveSessView(); cmd == nil || m.st.SessionViews[first] != (proto.SessionView{Position: "right", Width: 30}) {
+		t.Fatalf("resized: %+v", m.st.SessionViews)
+	}
+
+	m.openSession("s2")
+
+	if m.ws != other || m.colRect(m.colOf(viewSession)).w != 30 {
+		t.Fatalf("a workspace without its own takes the last set: ws %q, width %d", m.ws, m.colRect(m.colOf(viewSession)).w)
+	}
+
+	m.undockSession()
+
+	if !m.showsSession() || m.st.SessionViews[other].Position != "editor" {
+		t.Fatalf("over the editor here: %+v", m.st.SessionViews)
+	}
+
+	m.openSession("s1")
+
+	if m.ws != first || !m.sessDocked() || m.colRect(m.colOf(viewSession)).w != 30 {
+		t.Fatalf("the first keeps its column: ws %q, docked %v", m.ws, m.sessDocked())
+	}
+
+	checkWidths(t, m)
+	m.openSession("s2")
+
+	if m.sessDocked() || !m.showsSession() {
+		t.Fatalf("the other keeps the editor area: docked %v", m.sessDocked())
+	}
+	// Moved to the left there, it stays right in the first.
+	m.splitTo(viewSession, 0)
+	m.openSession("s1")
+
+	if m.side(m.colOf(viewSession)) != 1 {
+		t.Fatal("docking one workspace's session moved another's")
+	}
+}
+
 // The empty main area names what is missing there. A session docked to a side
 // column is on screen, so claiming the workspace has none would be a lie.
 func TestWelcomeNamesWhatIsMissing(t *testing.T) {

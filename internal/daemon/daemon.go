@@ -107,6 +107,10 @@ func New(configDir, dataDir string) (*Daemon, error) {
 		d.state.Terminals = map[string]proto.Terminal{}
 	}
 
+	if d.state.SessionViews == nil {
+		d.state.SessionViews = map[string]proto.SessionView{}
+	}
+
 	c, err := loadConfig(d.cfgPath)
 
 	d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID, d.state.ResumeJob = c.Settings, c.Agents, c.Resume, c.ResumeID, c.ResumeJob
@@ -666,14 +670,15 @@ func (d *Daemon) save() error {
 	d.state.Sessions = d.specs()
 
 	b, err := json.MarshalIndent(struct {
-		Projects  []string                  `json:"projects"`
-		Drafts    map[string]string         `json:"drafts"`
-		Editors   map[string]proto.Editors  `json:"editors"`
-		Terminals map[string]proto.Terminal `json:"terminals"`
-		Sessions  []proto.SessionSpec       `json:"sessions"`
-		Worktrees map[string][]string       `json:"worktrees,omitempty"`
-		Last      string                    `json:"last_workspace,omitempty"`
-	}{d.state.Projects, d.state.Drafts, d.state.Editors, d.state.Terminals, d.state.Sessions, d.state.Worktrees, d.state.LastWorkspace}, "", "  ")
+		Projects  []string                     `json:"projects"`
+		Drafts    map[string]string            `json:"drafts"`
+		Editors   map[string]proto.Editors     `json:"editors"`
+		Terminals map[string]proto.Terminal    `json:"terminals"`
+		SessViews map[string]proto.SessionView `json:"session_views"`
+		Sessions  []proto.SessionSpec          `json:"sessions"`
+		Worktrees map[string][]string          `json:"worktrees,omitempty"`
+		Last      string                       `json:"last_workspace,omitempty"`
+	}{d.state.Projects, d.state.Drafts, d.state.Editors, d.state.Terminals, d.state.SessionViews, d.state.Sessions, d.state.Worktrees, d.state.LastWorkspace}, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -744,12 +749,13 @@ func writeFile(path string, b []byte) error {
 
 func (d *Daemon) setState(raw json.RawMessage) (any, error) {
 	var p struct {
-		Settings  json.RawMessage            `json:"settings"`
-		Agents    map[string][]string        `json:"agents"`
-		Drafts    map[string]string          `json:"drafts"`
-		Editors   map[string]*proto.Editors  `json:"editors"`   // null or no open files forgets the workspace
-		Terminals map[string]*proto.Terminal `json:"terminals"` // null forgets the workspace
-		Last      *string                    `json:"last_workspace"`
+		Settings  json.RawMessage               `json:"settings"`
+		Agents    map[string][]string           `json:"agents"`
+		Drafts    map[string]string             `json:"drafts"`
+		Editors   map[string]*proto.Editors     `json:"editors"`       // null or no open files forgets the workspace
+		Terminals map[string]*proto.Terminal    `json:"terminals"`     // null forgets the workspace
+		SessViews map[string]*proto.SessionView `json:"session_views"` // null forgets the workspace
+		Last      *string                       `json:"last_workspace"`
 	}
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, err
@@ -817,6 +823,14 @@ func (d *Daemon) setState(raw json.RawMessage) (any, error) {
 		}
 	}
 
+	for k, v := range p.SessViews {
+		if v == nil {
+			delete(d.state.SessionViews, k)
+		} else {
+			d.state.SessionViews[k] = *v
+		}
+	}
+
 	if p.Settings != nil || p.Agents != nil {
 		err = d.saveConfig()
 	}
@@ -825,7 +839,7 @@ func (d *Daemon) setState(raw json.RawMessage) (any, error) {
 		d.state.LastWorkspace = *p.Last
 	}
 
-	if p.Drafts != nil || p.Editors != nil || p.Terminals != nil || p.Last != nil {
+	if p.Drafts != nil || p.Editors != nil || p.Terminals != nil || p.SessViews != nil || p.Last != nil {
 		err = errors.Join(err, d.save())
 	}
 	d.mu.Unlock()

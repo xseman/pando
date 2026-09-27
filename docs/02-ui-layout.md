@@ -42,7 +42,10 @@ terminal cells.
   Opening a file then docks it back on that side (`sessSide`), so the file has
   somewhere to go. Narrowed below `snapHide` cells it closes instead, as a VS
   Code sidebar dragged shut does (`hideSession`, the session runs on), at the
-  width it was picked up at. Its column exists only while a session is on screen, and
+  width it was picked up at. Each worktree keeps its own place and width
+  (`sessView`, `session_views` in `state.json`): `cols()` sizes the column
+  where `left`/`right` list it, or puts it beside the editor when the worktree
+  keeps it on the other side. Its column exists only while a session is on screen, and
   follows Spaces when that view is docked on the other side (`sessionFollows`).
 - A **column** holds tabs (views); `left`/`right` in `config.toml` define them.
   A column with one tab draws no activity bar and puts ⚙ in its header.

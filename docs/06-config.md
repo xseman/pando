@@ -5,7 +5,7 @@ with `PANDO_CONFIG_DIR`:
 
 ```
 config.toml   what you configure : settings, colors, agent presets
-state.json    what pando remembers: projects and their worktree order, commit drafts, open editors, terminal panels, session specs
+state.json    what pando remembers: projects and their worktree order, commit drafts, open editors, terminal panels, session columns, session specs
 ```
 
 Unsaved editor text lives beside them, in the data directory: see Drafts below.
@@ -186,6 +186,21 @@ shell it showed:
 the workspace and quitting send it too, the way `editors` goes. A worktree
 without an entry takes `terminal_open`, the last state set anywhere. `null`
 forgets one. Where the panel sits and its height stay global.
+
+## Session column
+
+Each worktree places and sizes its own session: a column on the left or the
+right, or over the editor area.
+
+```json
+"session_views": { "/home/me/app": { "position": "right", "width": 48 } }
+```
+
+Docking, moving to the editor area and a drag of the column's divider send it
+with `session_position` and `left`/`right` in one `state.set`, so those stay
+the last set anywhere: a worktree without an entry takes them, and the tick
+saves one for it as it does `terminals`. `width` 0 is half the editor area;
+`null` forgets one.
 
 ## Drafts
 
