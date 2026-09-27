@@ -18,7 +18,8 @@ terminal cells.
 ```
 
 - A **status bar** spans the bottom: branch and sync state, flash messages,
-  agents waiting for you, search results. The branch and the project name are
+  agents waiting for you, search results, and with an editor open its cursor
+  (`Ln, Col`) and indentation (`Tab Size`). The branch and the project name are
   buttons, lit under the mouse: the branch opens the branch picker, the project
   a switcher over every project with _Add Project…_ on top; the agent count
   opens the navigator.

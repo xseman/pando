@@ -67,6 +67,8 @@ type Settings struct {
 	FmtSave   bool                `json:"format_on_save" toml:"format_on_save"`       // run that formatter when a file is saved
 	Vim       bool                `json:"vim_mode" toml:"vim_mode"`                   // an editor opens in vim's normal mode
 	Wrap      bool                `json:"word_wrap" toml:"word_wrap"`                 // editors wrap long lines instead of scrolling them sideways
+	TabSize   int                 `json:"tab_size" toml:"tab_size"`                   // cells a tab takes in editors, and the spaces one indent is with insert_spaces
+	Spaces    bool                `json:"insert_spaces" toml:"insert_spaces"`         // tab indents with tab_size spaces instead of a tab
 	Blanks    string              `json:"render_whitespace" toml:"render_whitespace"` // spaces and tabs drawn as · and →: "none" | "boundary" | "selection" | "trailing" | "all"
 	EdLimit   int                 `json:"editor_limit" toml:"editor_limit"`           // most editor tabs open, the least recently used closing first; 0 = no limit
 	ClaudeBg  bool                `json:"claude_background" toml:"claude_background"` // a claude pando resumes runs as a background session, which outlives a restart

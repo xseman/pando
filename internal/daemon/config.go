@@ -45,7 +45,7 @@ func defaultConfig() config {
 			Theme: "vscode", DiffView: "inline", Borders: true, FmtSave: true,
 			ActBar: "top", TermPos: "bottom", TermH: 12, SessPos: "right", SessHi: "tint",
 			SpSort: "created", SpGroup: "workspace",
-			Sounds: true, SoundDone: done, SoundReq: req, Updates: true, Anim: true, Blanks: "selection", ClaudeBg: true,
+			Sounds: true, SoundDone: done, SoundReq: req, Updates: true, Anim: true, Blanks: "selection", ClaudeBg: true, TabSize: 4,
 			Drawers: []string{"Commits", "Graph", "Branches", "Stashes", "Remotes"},
 		},
 		Agents: map[string][]string{
@@ -196,6 +196,9 @@ func (c *config) encode() []byte {
 		"it, not pando's terminal, so a pando restart does not stop it or its subagents, and\n"+
 		"pando attaches to it again. Type `pando claude` in a shell to start one that way.", "claude_background", s.ClaudeBg)
 	kv("Editors wrap long lines at the edge; off, they scroll sideways under a horizontal\nscrollbar. alt+z toggles it.", "word_wrap", s.Wrap)
+	kv("A tab's width in editors, VS Code's editor.tabSize, and whether the tab key indents\n"+
+		"with that many spaces instead (editor.insertSpaces). The status bar's Tab Size sets both.", "tab_size", s.TabSize)
+	kv("", "insert_spaces", s.Spaces)
 	kv("Play a sound when a session out of view finishes a run or waits for an answer:\nthe files played by paplay, pw-play, afplay, ffplay or mpv; \"\" rings the terminal bell.", "sounds", s.Sounds)
 	kv("", "sound_done", s.SoundDone)
 	kv("", "sound_request", s.SoundReq)

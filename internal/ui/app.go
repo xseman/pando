@@ -357,6 +357,7 @@ func New(st proto.State, wss []proto.Workspace, ss []proto.Session, ws string, e
 	}
 
 	m.look()
+	tabW = tabSize(m.st.Settings.TabSize)
 	m.ag.l.sel = -1
 	m.scm.init()
 	m.sr.init()
@@ -466,6 +467,8 @@ func (m *Model) setSettingsWith(patch, more map[string]any) tea.Cmd {
 		m.pv.raw = "" // re-render the tints in the new palette
 		cmds = append(cmds, m.pv.load(m))
 	}
+
+	cmds = append(cmds, m.syncTabs())
 
 	return tea.Batch(cmds...)
 }
@@ -2186,7 +2189,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.scm.build(m)
 		m.fixFocus()
 
-		return m, nil
+		return m, m.syncTabs()
 
 	case updateMsg:
 		return m, m.onUpdate(proto.Update(msg))
@@ -3927,6 +3930,23 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 		add(" "+m.fx.text("results", strconv.Itoa(n))+strings.TrimPrefix(plural(n, "result"), strconv.Itoa(n))+" ", dim, searchRun)
 	}
 
+	if m.showsPreview() && m.pv.md != 1 && !m.pv.scrollOnly(m) {
+		// VS Code's editor items: the cursor, going to a line; a file's
+		// indentation, changing it. A rendering has no cursor to show.
+		c := m.pv.at()
+
+		pos := fmt.Sprintf(" Ln %d, Col %d ", c.line+1, c.col+1)
+		if n := m.pv.selCount(); n > 0 {
+			pos = fmt.Sprintf(" Ln %d, Col %d (%d selected) ", c.line+1, c.col+1, n)
+		}
+
+		add(pos, dim, func(m *Model) tea.Cmd { return m.gotoLineQuery(":") })
+
+		if m.pv.kind == pvFile || m.pv.kind == pvRev {
+			add(" "+indentLabel(m.st.Settings)+" ", dim, func(m *Model) tea.Cmd { return m.indentPicker() })
+		}
+	}
+
 	add(" ^⇧p ", dim, func(m *Model) tea.Cmd { return m.commandPalette() })
 
 	if chip, run := m.updateChip(); chip != nil {
@@ -4528,4 +4548,90 @@ func helpModal() *modal {
 	items = append(items, item{}, item{label: dim.Render("drag a tab or a title to either side to dock it · right click it for more · drag │ to resize"), styled: true})
 
 	return newMenu("Keys", -1, 0, items...)
+}
+
+// indentLabel is the status bar's indentation item, VS Code's: the width a
+// tab takes, or the spaces an indent is.
+func indentLabel(s proto.Settings) string {
+	if s.Spaces {
+		return fmt.Sprintf("Spaces: %d", tabSize(s.TabSize))
+	}
+
+	return fmt.Sprintf("Tab Size: %d", tabSize(s.TabSize))
+}
+
+// indentPicker is VS Code's indentation menu: indent with spaces or with
+// tabs, then how wide.
+func (m *Model) indentPicker() tea.Cmd {
+	size := func(spaces bool) func(m *Model) tea.Cmd {
+		return func(m *Model) tea.Cmd {
+			items := make([]item, 8)
+			for i := range items {
+				n := i + 1
+
+				hint := ""
+				if n == tabSize(m.st.Settings.TabSize) {
+					hint = "current"
+				}
+
+				items[i] = item{label: strconv.Itoa(n), hint: hint, run: func(m *Model) tea.Cmd {
+					return m.setSettings(map[string]any{"tab_size": n, "insert_spaces": spaces})
+				}}
+			}
+
+			m.modal = newPicker("Select Tab Size", items)
+
+			return nil
+		}
+	}
+
+	using := func(spaces bool) string {
+		if spaces == m.st.Settings.Spaces {
+			return "current"
+		}
+
+		return ""
+	}
+
+	m.modal = newPicker("Select Action", []item{
+		{label: "Indent Using Spaces", hint: using(true), run: size(true)},
+		{label: "Indent Using Tabs", hint: using(false), run: size(false)},
+	})
+
+	return nil
+}
+
+// syncTabs makes tab_size the width of a tab, redrawing the editor with the
+// cursor and the selection on the characters they were on.
+func (m *Model) syncTabs() tea.Cmd {
+	n := tabSize(m.st.Settings.TabSize)
+	if n == tabW {
+		return nil
+	}
+
+	p := &m.pv
+	if p.buf == nil { // a diff or a file too big to edit: drawn again from its source
+		tabW = n
+		p.raw = ""
+
+		return p.load(m)
+	}
+
+	cur, anchor := p.rawPos(p.cur), p.anchor
+	if anchor != nil {
+		a := p.rawPos(*anchor)
+		anchor = &a
+	}
+
+	tabW = n
+
+	p.refreshAll(m)
+
+	p.cur = p.dispPos(cur)
+	if anchor != nil {
+		a := p.dispPos(*anchor)
+		p.anchor = &a
+	}
+
+	return nil
 }

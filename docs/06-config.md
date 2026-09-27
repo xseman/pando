@@ -51,6 +51,7 @@ error, uses the last good values and refuses to save until it is fixed.
 | `vim_mode`                                                           | editors open in vim's normal mode                                                                           |
 | `render_whitespace`                                                  | `·` spaces and `→` tabs in editors: `none`, `boundary`, `selection` (default), `trailing`, `all`            |
 | `word_wrap`                                                          | editors wrap long lines; off (default), they scroll under a horizontal scrollbar                            |
+| `tab_size`, `insert_spaces`                                          | cells a tab draws (4); the tab key indents with that many spaces instead                                    |
 | `editor_limit`                                                       | most editor tabs open, the least recently used closing first; `0` (default): no limit                       |
 | `claude_background`                                                  | a claude pando resumes by id comes back as a background session, `pando claude`                             |
 | `git_drawers`                                                        | which Source Control drawers show                                                                           |

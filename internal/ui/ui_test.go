@@ -1286,9 +1286,9 @@ func TestPreviewCursorAndSelection(t *testing.T) {
 		t.Fatalf("keyboard selection = %q", got)
 	}
 
-	out := checkWidths(t, m)
-	if !strings.Contains(out, "13 selected") || !strings.Contains(out, "Ln 2, Col 3") {
-		t.Fatalf("header:\n%s", strings.Split(out, "\n")[0])
+	out := strings.Split(checkWidths(t, m), "\n")
+	if status := out[len(out)-1]; !strings.Contains(status, "(13 selected)") || !strings.Contains(status, "Ln 2, Col 3") {
+		t.Fatalf("status bar:\n%s", status)
 	}
 
 	if v := m.View(); v.Cursor == nil || v.Cursor.X != m.mainX()+2 || v.Cursor.Y != 2 {

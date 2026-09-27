@@ -1159,6 +1159,35 @@ func (p *preview) selection() (a, b pos, ok bool) {
 	return a, b, a != b
 }
 
+// selCount is the characters selected, as VS Code's status bar counts them:
+// a tab is one, and so is each line break.
+func (p *preview) selCount() int {
+	a, b, ok := p.selection()
+	if !ok {
+		return 0
+	}
+
+	a, b = p.rawPos(a), p.rawPos(b)
+	line := func(i int) int {
+		if p.buf != nil {
+			return len(p.buf.line(i))
+		}
+
+		return len(p.plain[i])
+	}
+
+	if a.line == b.line {
+		return b.col - a.col
+	}
+
+	n := line(a.line) - a.col + 1
+	for i := a.line + 1; i < b.line; i++ {
+		n += line(i) + 1
+	}
+
+	return n + b.col
+}
+
 func (p *preview) selectedText() string {
 	a, b, ok := p.selection()
 	if !ok {
@@ -1413,7 +1442,7 @@ func (p *preview) blankMarks(i int, line []rune) []string {
 		return nil
 	}
 
-	// The display holds four spaces for a tab; the buffer still has the tab.
+	// The display holds tabW spaces for a tab; the buffer still has the tab.
 	if p.buf != nil && i < len(p.buf.lines) {
 		d := 0
 
@@ -1428,11 +1457,11 @@ func (p *preview) blankMarks(i int, line []rune) []string {
 			}
 
 			marks[d] = tabMark
-			for k := d + 1; k < min(d+4, len(marks)); k++ {
+			for k := d + 1; k < min(d+tabW, len(marks)); k++ {
 				marks[k] = " "
 			}
 
-			d += 4
+			d += tabW
 		}
 	}
 
@@ -2122,20 +2151,12 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 	}
 
 	left = append(left, sg(name, nameSt), sg("  "+context, dim))
-	c := p.at()
 
-	info := fmt.Sprintf(" Ln %d, Col %d ", c.line+1, c.col+1)
-	if p.vimOn(m) {
-		info = " " + p.vimLabel() + info
-	}
-	// Longest status that still leaves room for the name; a narrow area drops details.
-	candidates := []string{info}
-	if _, _, ok := p.selection(); ok {
-		candidates = []string{fmt.Sprintf(" (%d selected)", utf8.RuneCountInString(p.selectedText())) + info, info}
-	}
-
-	if p.scrollOnly(m) {
-		candidates = nil
+	// The cursor and the selection are the status bar's, as VS Code shows
+	// them; the header keeps vim's mode, while it leaves room for the name.
+	var candidates []string
+	if p.vimOn(m) && !p.scrollOnly(m) {
+		candidates = []string{" " + p.vimLabel() + " "}
 	}
 
 	right := []seg{{}}

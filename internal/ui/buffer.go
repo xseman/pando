@@ -209,7 +209,7 @@ func (b *buffer) save(path string, force bool) error {
 	return nil
 }
 
-// The preview shows a tab as four spaces, the buffer keeps the tab: docCol
+// The preview shows a tab as tabW spaces, the buffer keeps the tab: docCol
 // and displayCol translate, as they do for a language server.
 
 // rawPos is a cursor of the preview in buffer coordinates.
@@ -407,6 +407,10 @@ func (p *preview) editKey(m *Model, k tea.KeyPressMsg) (tea.Cmd, bool) {
 	case "tab":
 		if !hasSel {
 			a, z = c, c
+		}
+
+		if m.st.Settings.Spaces { // insert_spaces: to the next tab stop
+			return p.edit(m, a, z, strings.Repeat(" ", tabW-a.col%tabW)), true
 		}
 
 		return p.edit(m, a, z, "\t"), true

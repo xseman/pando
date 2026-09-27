@@ -46,9 +46,19 @@ raw ──render()──▶ lines[]   styled, one per source line
 lines ──rows(w)──▶ vrow{line, from, to}  screen rows (wrapping when `wrap` is on)
 ```
 
+A tab draws as `tab_size` spaces (`tabW`, VS Code's `editor.tabSize`, 4 by
+default); the buffer keeps the tab, and `docCol`/`displayCol` translate
+between the two. `syncTabs` redraws the editor when the size changes, mapping
+the cursor and the selection through buffer columns so they stay on their
+characters. With `insert_spaces` the tab key inserts spaces to the next stop
+instead of a tab. The status bar shows VS Code's `Ln, Col` (with the
+characters selected, a tab and a line break one each), which opens Go to
+Line, and `Tab Size: N` or `Spaces: N`, which opens _Indent Using Spaces /
+Tabs_ and then the size; a rendered Markdown file has neither.
+
 `render_whitespace` is VS Code's `editor.renderWhitespace`. The display
-holds four spaces for a tab, so `blankMarks` finds tabs in the buffer's line
-and puts `→` on the first of the four; `markBlanks` draws the markers over the
+holds `tabW` spaces for a tab, so `blankMarks` finds tabs in the buffer's line
+and puts `→` on the first of them; `markBlanks` draws the markers over the
 styled line in the `whitespace` color, leaving the syntax colors around them
 (`ansi.Cut` carries them across), and a selection keeps the color on its
 markers. Diffs and rendered Markdown show none.
@@ -339,7 +349,7 @@ F12 ─▶ lspPool.get(workspace, language, binary) ─▶ gopls / typescript-la
 
 ↑↓ walks the locations and the source follows, ←→ folds a file, ⏎ opens and
 closes, `o` opens and keeps the list, `esc` closes. A file's columns and the
-preview's differ (a tab shows as four spaces), so pando translates both ways.
+preview's differ (a tab shows as `tab_size` spaces), so pando translates both ways.
 
 ## Staging selected lines
 

@@ -196,6 +196,9 @@ back with its text and its cursor.
 - **Whitespace** is drawn as VS Code draws it, `·` for a space and `→` for a
   tab: `render_whitespace = "selection"` (the default) inside the selection,
   `"boundary"`, `"trailing"`, `"all"` or `"none"`; Settings cycles it.
+- **Status bar**: `Ln, Col` (and what is selected) opens Go to Line; `Tab
+  Size: 4` sets `tab_size`, how wide a tab draws, and `insert_spaces`, whether
+  the tab key indents with spaces, as VS Code's does.
 - **Editor limit**: `editor_limit = 10` keeps at most ten tabs, closing the
   least recently used as another opens, VS Code's `workbench.editor.limit`.
   Unsaved ones count but are never closed. `0` (the default) keeps them all;

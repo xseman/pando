@@ -512,10 +512,22 @@ func (m *Model) openLocation(l lsp.Location) tea.Cmd {
 	return m.openFileAt(l.Path, l.Line, col, max(end-col, 0))
 }
 
-// A file's columns and the preview's differ: the preview shows a tab as four
-// spaces, a language server counts it as one character.
+// A file's columns and the preview's differ: the preview shows a tab as
+// tabW spaces, a language server counts it as one character.
 
-func expandTabs(s string) string { return strings.ReplaceAll(s, "\t", "    ") }
+// tabW is the cells a tab takes in the editor, tab_size; syncTabs sets it.
+var tabW = 4
+
+// tabSize is setting n as a tab width: 4 when unset, at most 16.
+func tabSize(n int) int {
+	if n < 1 {
+		return 4
+	}
+
+	return min(n, 16)
+}
+
+func expandTabs(s string) string { return strings.ReplaceAll(s, "\t", strings.Repeat(" ", tabW)) }
 
 // docCol is the file's rune column for a column shown in the preview.
 func docCol(raw string, display int) int {
@@ -525,7 +537,7 @@ func docCol(raw string, display int) int {
 			return i
 		}
 
-		at += 1 + 3*b2i(r == '\t')
+		at += 1 + (tabW-1)*b2i(r == '\t')
 	}
 
 	return len([]rune(raw))
@@ -540,7 +552,7 @@ func displayCol(raw string, doc int) int {
 			break
 		}
 
-		at += 1 + 3*b2i(r == '\t')
+		at += 1 + (tabW-1)*b2i(r == '\t')
 	}
 
 	return at

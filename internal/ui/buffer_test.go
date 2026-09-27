@@ -9,6 +9,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/charmbracelet/x/ansi"
+
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -565,5 +567,123 @@ func TestRenderWhitespace(t *testing.T) {
 	if !strings.Contains(m.View().Content, bgParams(pal.textSelBg)+";"+fgParams(pal.whitespace)) &&
 		!strings.Contains(m.View().Content, fgParams(pal.whitespace)+";"+bgParams(pal.textSelBg)) {
 		t.Fatal("selected markers keep the whitespace color over the selection")
+	}
+}
+
+// tab_size is how wide a tab draws: the editor redraws with the cursor and
+// the selection on the characters they were on, and the columns a language
+// server counts stay the file's own.
+func TestTabSize(t *testing.T) {
+	t.Cleanup(func() { tabW = 4 })
+
+	m, _ := editorModel(t, "a.go", "\tx := 1\n\t\ty\n")
+	if got := string(m.pv.plain[0]); got != "    x := 1" {
+		t.Fatalf("a tab draws four wide by default: %q", got)
+	}
+
+	m.pv.gotoLine(m, 0, 4)   // on x
+	m.pv.anchor = &pos{1, 8} // after the second line's two tabs
+	st := m.st
+	st.Settings.TabSize = 2
+	m.Update(stateMsg(st))
+
+	if got := string(m.pv.plain[0]); got != "  x := 1" {
+		t.Fatalf("tab_size 2: %q", got)
+	}
+
+	if m.pv.cur != (pos{0, 2}) || *m.pv.anchor != (pos{1, 4}) {
+		t.Fatalf("cursor %+v, anchor %+v: not on the characters they were on", m.pv.cur, *m.pv.anchor)
+	}
+
+	if docCol("\tx", 2) != 1 || displayCol("\t\ty", 2) != 4 {
+		t.Fatal("the file's columns and the drawn ones disagree at tab_size 2")
+	}
+
+	checkWidths(t, m)
+}
+
+// insert_spaces: the tab key indents to the next tab stop with spaces.
+func TestInsertSpaces(t *testing.T) {
+	t.Cleanup(func() { tabW = 4 })
+
+	m, _ := editorModel(t, "a.go", "ab\n")
+	m.setSettings(map[string]any{"tab_size": 4, "insert_spaces": true})
+	m.pv.gotoLine(m, 0, 1)
+	press(m, "tab")
+
+	if got := string(m.pv.buf.line(0)); got != "a   b" {
+		t.Fatalf("tab at column 1: %q", got)
+	}
+
+	m.setSettings(map[string]any{"insert_spaces": false})
+	press(m, "tab")
+
+	if got := string(m.pv.buf.line(0)); got != "a   \tb" {
+		t.Fatalf("tabs again: %q", got)
+	}
+}
+
+// The status bar carries VS Code's editor items: Ln and Col, with what is
+// selected, going to a line; the indentation, changing it.
+func TestStatusBarEditorItems(t *testing.T) {
+	t.Cleanup(func() { tabW = 4 })
+
+	m, _ := editorModel(t, "a.go", "\tfunc A() {}\nx\n")
+	m.pv.gotoLine(m, 0, 9) // after "func "
+
+	status := func() string { s, _ := m.statusLine(m.w); return ansi.Strip(s) }
+	click := func(label string) {
+		t.Helper()
+
+		s := status()
+
+		i := strings.Index(s, label)
+		if i < 0 {
+			t.Fatalf("status bar lacks %q: %q", label, s)
+		}
+
+		m.modal = nil
+		m.statusMouse(ansi.StringWidth(s[:i]) + 1)
+
+		if m.modal == nil {
+			t.Fatalf("a click on %q opened nothing", label)
+		}
+	}
+
+	if s := status(); !strings.Contains(s, "Ln 1, Col 10") || !strings.Contains(s, "Tab Size: 4") {
+		t.Fatalf("status %q", s)
+	}
+	// A selection over the tab and the line break counts them once each.
+	m.pv.anchor = &pos{0, 0}
+	m.pv.cur = pos{1, 1}
+
+	if s := status(); !strings.Contains(s, "Ln 2, Col 2 (14 selected)") {
+		t.Fatalf("with a selection: %q", s)
+	}
+
+	m.pv.anchor = nil
+
+	click("Ln 2")
+
+	if m.modal.title != "Go to Line" {
+		t.Fatalf("Ln and Col open %q", m.modal.title)
+	}
+
+	click("Tab Size")
+	choose(t, m, "Indent Using Spaces")
+	choose(t, m, "2")
+
+	if !m.st.Settings.Spaces || m.st.Settings.TabSize != 2 || tabW != 2 {
+		t.Fatalf("settings %+v, tab width %d", m.st.Settings, tabW)
+	}
+
+	if s := status(); !strings.Contains(s, "Spaces: 2") {
+		t.Fatalf("after the picker: %q", s)
+	}
+	// Over a session or with no editor there is none.
+	m.pv.md = 1
+
+	if s := status(); strings.Contains(s, "Ln ") || strings.Contains(s, "Spaces") {
+		t.Fatalf("a rendering has no cursor: %q", s)
 	}
 }
