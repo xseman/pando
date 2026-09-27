@@ -585,6 +585,38 @@ func rowIndex(s *scmView, kind int, root string) int {
 	return -1
 }
 
+func TestGitTreeColoursOnlyLettersAndDots(t *testing.T) {
+	m := gitModel(t)
+	press(m, "t")
+
+	row := func(text string) string {
+		t.Helper()
+
+		i := slices.IndexFunc(m.scm.rows, func(r scmRow) bool {
+			return r.text == text || r.kind == rowFile && filepath.Base(r.entry.Path) == text
+		})
+		if i < 0 {
+			t.Fatalf("no row %q in %v", text, rowTexts(&m.scm))
+		}
+
+		return m.scm.renderRow(m, i, 40, false)
+	}
+
+	// The name keeps the text colour; only the letter is tinted.
+	if got := row("b.go"); strings.Count(got, fgParams(pal.modified)) != 1 || !strings.HasSuffix(ansi.Strip(got), " M ") {
+		t.Fatalf("b.go row %q", got)
+	}
+	// A directory's dot takes its first file's colour, as VS Code's does.
+	if got := row("x/y"); !strings.Contains(got, fgParams(pal.modified)) || !strings.HasSuffix(ansi.Strip(got), " ● ") {
+		t.Fatalf("x/y row %q", got)
+	}
+
+	rows := treeRows("r", "Changes", []git.Entry{{Path: "c/index.tsx", Letter: 'M'}, {Path: "c/build.tsx", Letter: 'A'}, {Path: "c/d/e.go", Letter: 'D'}}, nil)
+	if rows[0].kind != rowDir || rows[0].entry.Letter != 'A' || rows[1].kind != rowDir || rows[1].entry.Letter != 'D' {
+		t.Fatalf("dir letters %+v", rows[:2])
+	}
+}
+
 func TestGitLayoutTreeAndPanes(t *testing.T) {
 	m := gitModel(t)
 	out := checkWidths(t, m)

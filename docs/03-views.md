@@ -104,7 +104,10 @@ to at once, several open a picker of them (push URL underneath) with _Add a
 new remote…_ that asks for the URL, then the name; none offers _Publish to
 GitHub_ when `gh` is installed, a picker whose text is the repository name
 (prefilled with the folder's, sanitized like VS Code) and whose two items pick
-private or public, or flashes a warning otherwise. Scrolled, the
+private or public, or flashes a warning otherwise. A file row keeps the
+text colour; only its status letter is tinted, and in tree mode a folder
+shows a ● in the colour of its first file in path order (`treeRows`), as
+VS Code's bubbled decoration does. Scrolled, the
 changes pane draws its sticky rows over the top (`scmView.pinned`): the
 repository's head (message box, button and the gaps) and the header of the
 section the first shown row is in, VS Code's tree sticky scroll. They are

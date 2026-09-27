@@ -468,9 +468,7 @@ func (s *scmView) actions(r scmRow, w int) []rowAction {
 			add(icAdd, s.stageUntracked(root))
 		}
 
-	case rowDir:
-		tail = 1
-
+	case rowDir: // " ● ", the same column as a file's letter
 		dir := git.Entry{Path: r.path}
 		switch r.title {
 		case "Merge Changes":
@@ -648,13 +646,25 @@ func (s *scmView) stageUntracked(root string) func(*Model) tea.Cmd {
 }
 
 // treeRows groups entries by directory like VS Code's tree view, compacting
-// single-child directory chains ("src/pkg") into one row.
+// single-child directory chains ("src/pkg") into one row. A directory row
+// carries the letter of its first file in path order, which colours its dot
+// as VS Code's bubbled decoration does.
 func treeRows(root, section string, entries []git.Entry, closed map[string]bool) []scmRow {
 	byPath := make(map[string]git.Entry, len(entries))
 
 	paths := make([]string, len(entries))
 	for i, e := range entries {
 		byPath[e.Path], paths[i] = e, e.Path
+	}
+
+	sorted := slices.Sorted(slices.Values(paths))
+	first := func(dir string) byte {
+		i, _ := slices.BinarySearch(sorted, dir+"/")
+		if i == len(sorted) || !strings.HasPrefix(sorted[i], dir+"/") {
+			return 0
+		}
+
+		return byPath[sorted[i]].Letter
 	}
 
 	var (
@@ -671,7 +681,7 @@ func treeRows(root, section string, entries []git.Entry, closed map[string]bool)
 				}
 			}
 
-			out = append(out, scmRow{kind: rowDir, root: root, title: section, text: label, path: p, depth: depth})
+			out = append(out, scmRow{kind: rowDir, root: root, title: section, entry: git.Entry{Letter: first(p)}, text: label, path: p, depth: depth})
 			if !closed[sectionKey(root, section)+"/"+p] {
 				walk(child, p, depth+1)
 			}
@@ -1145,8 +1155,10 @@ func (s *scmView) renderRow(m *Model, i, w int, hovered bool) string {
 
 		var right []seg
 		if hovered {
-			right = append(s.actionSegs(m, r, w), sg(" ", plain))
+			right = s.actionSegs(m, r, w)
 		}
+
+		right = append(right, sg(" ● ", base.Foreground(statusColor(r.entry.Letter))))
 
 		return row(w, bg, []seg{sg("   "+indent+chevron(open), dim), iconSeg(path.Base(r.path), true, open), sg(r.text, base)}, right...)
 
@@ -1157,7 +1169,7 @@ func (s *scmView) renderRow(m *Model, i, w int, hovered bool) string {
 		}
 
 		c := statusColor(r.entry.Letter)
-		nameSt := base.Foreground(c)
+		nameSt := base // only the letter carries the status colour, as in VS Code
 
 		switch r.entry.XY {
 		case "", "UU", "AA", "AU", "UA":
