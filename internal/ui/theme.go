@@ -58,7 +58,7 @@ var (
 		selBg: hex("#383839"), selUnfocusedBg: hex("#2c2d2e"), hoverBg: hex("#2b2c2d"),
 		accent: hex("#3994bc"), headerAccent: hex("#48a0c7"),
 		buttonBg: hex("#297aa0"), buttonFg: hex("#ffffff"), buttonHoverBg: hex("#3a8db5"), buttonSep: hex("#5aa9c9"),
-		mutedButtonBg: hex("#1e3a47"), mutedButtonFg: hex("#8fb3c4"),
+		mutedButtonBg: hex("#2c2d2e"), mutedButtonFg: hex("#8c8c8c"), // grey: nothing to do, or not the active repository
 		inputBorder: hex("#333536"), inputBg: hex("#242526"), sectionBg: hex("#202122"), badgeBg: hex("#307e9f"), badgeFg: hex("#ffffff"),
 		keycapBg: hex("#313233"), keycapFg: hex("#bfbfbf"),
 		textSelBg: hex("#245c73"), matchBg: hex("#1e4352"), wordHiBg: hex("#192d37"),
@@ -83,7 +83,7 @@ var (
 		accent: hex("#0069cc"), headerAccent: hex("#0069cc"),
 		// VS Code Light's solid button with RGB white text; ANSI white is grey on light profiles.
 		buttonBg: hex("#0069cc"), buttonFg: hex("#ffffff"), buttonHoverBg: hex("#0056a6"), buttonSep: hex("#5c9fe0"),
-		mutedButtonBg: hex("#e6f2fa"), mutedButtonFg: hex("#3b5b7a"),
+		mutedButtonBg: hex("#e4e4e7"), mutedButtonFg: hex("#6f6f73"),
 		inputBorder: hex("#d8d8d8"), inputBg: hex("#f7f7fa"), sectionBg: hex("#f0f0f3"), badgeBg: hex("#0069cc"), badgeFg: hex("#ffffff"),
 		keycapBg: hex("#eaeaea"), keycapFg: hex("#202020"),
 		textSelBg: hex("#bfd9f2"), matchBg: hex("#cce2f5"), wordHiBg: hex("#d9e9f7"),
