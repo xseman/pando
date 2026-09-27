@@ -1265,8 +1265,8 @@ func TestResumeBackgroundJob(t *testing.T) {
 	boot := start(t)
 	d := boot()
 	ws := t.TempDir()
-	agent := filepath.Join(ws, "myagent") // the attach client: no sessions/<pid>.json of its own
-	mustWrite(t, agent, "#!/bin/sh\necho ATTACHED TO \"$2\"\nsleep 300\n")
+	agent := filepath.Join(ws, "myagent") // the attach client: no sessions/<pid>.json of its own, and the shell's title, its command line
+	mustWrite(t, agent, "#!/bin/sh\nprintf '\\033]0;myagent attach %s ~/ws\\007' \"$2\"\necho ATTACHED TO \"$2\"\nsleep 300\n")
 
 	if err := os.Chmod(agent, 0o755); err != nil { // the test runs it
 		t.Fatalf("chmod %s: %v", agent, err)
@@ -1315,8 +1315,15 @@ func TestResumeBackgroundJob(t *testing.T) {
 		jobs[job], gone[job] = bg, make(chan struct{})
 		go func() { _ = bg.Wait(); close(gone[job]) }()
 
-		fakeClaudeProc(t, claudeProcess{PID: bg.Process.Pid, SessionID: "conv-" + job, Kind: "bg", JobID: job})
-		mustWrite(t, filepath.Join(claudeDir(), "projects", "-ws", "conv-"+job+".jsonl"), "{}\n")
+		// The first job has a name; the second goes by its id, as a job
+		// claude --bg --resume started does, and its transcript has the title.
+		name, transcript := "Job "+job, "{}\n"
+		if job == "bbbb2222" {
+			name, transcript = job, `{"type":"ai-title","aiTitle":"Generated title","sessionId":"x"}`+"\n{}\n"
+		}
+
+		fakeClaudeProc(t, claudeProcess{PID: bg.Process.Pid, SessionID: "conv-" + job, Kind: "bg", JobID: job, Name: name})
+		mustWrite(t, filepath.Join(claudeDir(), "projects", "-ws", "conv-"+job+".jsonl"), transcript)
 
 		call(t, "session.input", proto.InputParams{ID: s.ID, Text: "./myagent attach " + job[:4] + "\r"}, nil)
 		waitFor(t, "the client to attach", func() bool { return strings.Contains(screen(s.ID), "ATTACHED TO") })
@@ -1330,6 +1337,12 @@ func TestResumeBackgroundJob(t *testing.T) {
 		want := proto.Conversation{Agent: "myagent", ID: "conv-" + job, Job: job}
 		if !reflect.DeepEqual(*got.Conversation, want) || !reflect.DeepEqual(got.Resume, []string{"echo", "REATTACHED", job}) {
 			t.Fatalf("remembered %v %+v, want %+v", got.Resume, *got.Conversation, want)
+		}
+		// The attach sets no title of its own: the job's name stands in for
+		// the command line the shell put there.
+		wantTitle := map[string]string{"aaaa1111": "Job aaaa1111", "bbbb2222": "Generated title"}[job]
+		if title := sess.info().Title; title != wantTitle {
+			t.Fatalf("title %q, want %q", title, wantTitle)
 		}
 	}
 

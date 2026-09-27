@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -20,14 +21,18 @@ import (
 // from what the agent itself publishes about its running processes.
 type conversationSource interface {
 	// open is the conversation process pid has open, "" when it does not
-	// say; job is the background job it runs in when pid only attaches to it.
-	open(pid int) (id, job string)
+	// say; job is the background job it runs in when pid only attaches to
+	// it, and name the conversation's name, as the agent shows it.
+	open(pid int) (id, job, name string)
 	// holder is a live process that has conversation c open, 0 when none;
 	// job is set when that process is a background job, which outlives pando
 	// and is attached to again rather than resumed.
 	holder(c proto.Conversation) (pid int, job string)
 	// saved reports whether conversation c has anything to continue.
 	saved(c proto.Conversation) bool
+	// title is conversation c's title as the agent keeps it, "" when it has
+	// none: what names a session attached to a job that has no name.
+	title(c proto.Conversation) string
 }
 
 // conversations are the agents whose open conversation pando can tell, by
@@ -68,6 +73,7 @@ type claudeProcess struct {
 	ProcStart string `json:"procStart"` // /proc/<pid>/stat starttime, so a reused pid does not count
 	Kind      string `json:"kind"`      // "interactive", or "bg" for a background session its daemon runs
 	JobID     string `json:"jobId"`     // a background session's job, what `claude attach` takes
+	Name      string `json:"name"`      // the conversation's name, the one claude puts in its terminal title
 }
 
 // bgJob is the background job p runs, "" for a process in a terminal.
@@ -123,21 +129,21 @@ const (
 // open reads the conversation of a claude in the terminal from its own
 // sessions/<pid>.json. `claude attach JOB` writes none: its conversation is
 // the background session whose job id JOB begins.
-func (claudeSource) open(pid int) (id, job string) {
+func (claudeSource) open(pid int) (id, job, name string) {
 	dir := envOf(pid, "CLAUDE_CONFIG_DIR")
 	if dir == "" {
 		dir = claudeDir()
 	}
 
 	if p, ok := readClaude(filepath.Join(dir, "sessions", strconv.Itoa(pid)+".json")); ok && p.PID == pid {
-		return p.SessionID, p.bgJob()
+		return p.SessionID, p.bgJob(), p.Name
 	}
 
 	argv := cmdline(pid)
 
 	i := slices.Index(argv, "attach")
 	if i < 1 || i+1 >= len(argv) || argv[i+1] == "" {
-		return "", ""
+		return "", "", ""
 	}
 
 	var found []claudeProcess
@@ -149,10 +155,10 @@ func (claudeSource) open(pid int) (id, job string) {
 	}
 
 	if len(found) != 1 { // none, or a prefix too short to say which
-		return "", ""
+		return "", "", ""
 	}
 
-	return found[0].SessionID, found[0].JobID
+	return found[0].SessionID, found[0].JobID, found[0].Name
 }
 
 // holder prefers a background job to any other process with c open: the
@@ -200,6 +206,104 @@ func (claudeSource) saved(c proto.Conversation) bool {
 	m, _ := filepath.Glob(filepath.Join(claudeDirIn(c.Env), "projects", "*", c.ID+".jsonl"))
 
 	return len(m) > 0
+}
+
+// title reads the transcript's titles: the last one set by hand
+// (custom-title), else the last claude generated (ai-title), which is what an
+// interactive claude puts in its terminal title. Only what claude appended
+// since the last read is read: the ticker asks every half second, and a
+// transcript runs to megabytes.
+func (claudeSource) title(c proto.Conversation) string {
+	titles.Lock()
+	defer titles.Unlock()
+
+	t := titles.m[c.ID]
+	if t == nil {
+		m, _ := filepath.Glob(filepath.Join(claudeDirIn(c.Env), "projects", "*", c.ID+".jsonl"))
+		if len(m) == 0 {
+			return ""
+		}
+
+		t = &titleScan{path: m[0]}
+		titles.m[c.ID] = t
+	}
+
+	t.read()
+
+	return cmp.Or(t.custom, t.ai)
+}
+
+// titles are the transcripts title has read, by conversation.
+var titles = struct {
+	sync.Mutex
+	m map[string]*titleScan
+}{m: map[string]*titleScan{}}
+
+// titleScan is how far a transcript was read and the titles found in it.
+type titleScan struct {
+	path       string
+	off        int64
+	custom, ai string
+}
+
+// read takes in the whole lines appended since the last read; a file that
+// shrank was rewritten and is read again from the start.
+func (t *titleScan) read() {
+	f, err := os.Open(t.path)
+	if err != nil {
+		return
+	}
+	defer func() { _ = f.Close() }() // read only: nothing to lose
+
+	st, err := f.Stat()
+	if err != nil {
+		return
+	}
+
+	if st.Size() < t.off {
+		*t = titleScan{path: t.path}
+	}
+
+	if st.Size() == t.off {
+		return
+	}
+
+	b := make([]byte, st.Size()-t.off)
+	n, _ := f.ReadAt(b, t.off)
+
+	end := bytes.LastIndexByte(b[:n], '\n')
+	if end < 0 { // a line still being written: it is read whole next time
+		return
+	}
+
+	custom, ai := transcriptTitles(b[:end+1])
+	t.custom, t.ai, t.off = cmp.Or(custom, t.custom), cmp.Or(ai, t.ai), t.off+int64(end+1)
+}
+
+// transcriptTitles are the last custom-title and ai-title in transcript lines.
+// Only lines that start as one are decoded: the others hold whole tool
+// results and run to hundreds of kilobytes.
+func transcriptTitles(b []byte) (custom, ai string) {
+	for line := range bytes.SplitSeq(b, []byte{'\n'}) {
+		var v struct {
+			Custom string `json:"customTitle"`
+			AI     string `json:"aiTitle"`
+		}
+
+		switch {
+		case bytes.HasPrefix(line, []byte(`{"type":"custom-title"`)):
+			if json.Unmarshal(line, &v) == nil && strings.TrimSpace(v.Custom) != "" {
+				custom = strings.TrimSpace(v.Custom)
+			}
+
+		case bytes.HasPrefix(line, []byte(`{"type":"ai-title"`)):
+			if json.Unmarshal(line, &v) == nil && strings.TrimSpace(v.AI) != "" {
+				ai = strings.TrimSpace(v.AI)
+			}
+		}
+	}
+
+	return custom, ai
 }
 
 // startTime is field 22 of /proc/<pid>/stat, when the process started in

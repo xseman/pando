@@ -163,7 +163,14 @@ func (d *Daemon) remember(s *session, pid int, prog string) bool {
 	env := s.ownEnv(agentEnv(pid, d.state.ResumeEnv[prog])) // the config it runs in, which the shell does not set
 
 	if src, t := conversations[prog], d.state.ResumeID[prog]; src != nil && len(t) > 0 && pid > 0 {
-		if id, job := src.open(pid); id != "" {
+		id, job, name := src.open(pid)
+		if job != "" && (name == "" || name == job || strings.HasPrefix(id, name)) { // a job without a name goes by its id
+			name = src.title(proto.Conversation{Agent: prog, ID: id, Env: env})
+		}
+
+		s.setJob(job != "", name) // an attach sets no title: the job's name stands in
+
+		if id != "" {
 			c := &proto.Conversation{Agent: prog, ID: id, Job: job, Env: env}
 
 			argv := d.byID(prog, id)
@@ -174,6 +181,8 @@ func (d *Daemon) remember(s *session, pid int, prog string) bool {
 			return s.setResume(withEnv(c.Env, argv), c)
 		}
 	}
+
+	s.setJob(false, "")
 
 	return s.setResume(withEnv(env, d.state.Resume[prog]), nil)
 }

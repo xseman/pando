@@ -38,17 +38,23 @@ type session struct {
 	pty  *os.File
 	done chan struct{}
 
-	mu            sync.Mutex
-	emu           *vt.Emulator
-	lastOutput    time.Time
-	busySince     time.Time
-	lastViewed    time.Time
-	exited        bool
-	exitCode      int
-	attention     bool
-	title         string
-	program       string // the foreground program, as last reported
-	sentTitle     string // the title as last reported, status glyphs aside
+	mu         sync.Mutex
+	emu        *vt.Emulator
+	lastOutput time.Time
+	busySince  time.Time
+	lastViewed time.Time
+	exited     bool
+	exitCode   int
+	attention  bool
+	title      string
+	program    string // the foreground program, as last reported
+	sentTitle  string // the title as last reported, status glyphs aside
+	// attached is set while the foreground attaches to a background job
+	// (claude attach), which sets no title of its own: the shell's, the
+	// command line, would stand in for it. jobName, the job's own name,
+	// is reported instead.
+	attached      bool
+	jobName       string
 	cursorVisible bool
 	mouse         map[int]bool
 	status        string
@@ -414,7 +420,26 @@ func (s *session) info() proto.Session {
 		updated = s.spec.Created
 	}
 
-	return proto.Session{SessionSpec: s.spec, Status: status, ExitCode: s.exitCode, Attention: s.attention, Title: s.title, Program: s.program, Updated: updated}
+	return proto.Session{SessionSpec: s.spec, Status: status, ExitCode: s.exitCode, Attention: s.attention, Title: s.shownTitle(), Program: s.program, Updated: updated}
+}
+
+// shownTitle is the title clients show: a background job's name while the
+// foreground only attaches to it, the terminal's title otherwise. s.mu is held.
+func (s *session) shownTitle() string {
+	if s.attached {
+		return s.jobName
+	}
+
+	return s.title
+}
+
+// setJob records whether the foreground attaches to a background job, and
+// the job's name.
+func (s *session) setJob(attached bool, name string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.attached, s.jobName = attached, strings.TrimSpace(name)
 }
 
 // setProgram records what runs in the foreground; it reports a change clients
@@ -424,7 +449,7 @@ func (s *session) setProgram(p string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	title := strings.TrimLeftFunc(s.title, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) })
+	title := strings.TrimLeftFunc(s.shownTitle(), func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) })
 	changed := p != s.program || title != s.sentTitle
 	s.program, s.sentTitle = p, title
 

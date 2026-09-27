@@ -235,7 +235,13 @@ it by id. Claude Code writes `~/.claude/sessions/<pid>.json` (`sessionId`,
 agents fall back to `[resume]`. `claude attach JOB` writes no file of its own:
 its conversation is the background session (`kind: "bg"`) whose `jobId`
 begins with JOB, run by Claude's own daemon, so it outlives pando and
-`[resume_job]` (`claude attach {id}`) goes back to it. Claude rewrites its
+`[resume_job]` (`claude attach {id}`) goes back to it. An attach sets no
+terminal title, so the shell's (the command line and the directory) would
+name the session: while the foreground attaches to a job, the session's title
+is the job's `name` from its file instead, the name claude itself shows. A
+job that goes by its id (one `claude --bg --resume` started) takes the
+transcript's title: the last `custom-title`, else the last `ai-title`, read
+only as far as claude has appended since (`titleScan`). Claude rewrites its
 `sessions/<pid>.json` in place, so a read that catches it half written is read
 again (`readClaude`) rather than taken for a job that ended, and a job holding
 the conversation wins over any other process that shows it (`holder`). A leftover is a process

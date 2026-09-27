@@ -1,6 +1,8 @@
 package daemon
 
 import (
+	"bytes"
+	"cmp"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -180,5 +182,87 @@ func TestByIDInBackground(t *testing.T) {
 
 	if got := d.byID("claude", "c1"); strings.Join(got, " ") != "claude --resume c1" {
 		t.Fatalf("off: %q", got)
+	}
+}
+
+// A transcript is read a piece at a time as claude appends to it: the titles
+// found in the pieces are those found in the whole, the later ones winning.
+func FuzzTranscriptTitles(f *testing.F) {
+	f.Add([]byte(`{"type":"ai-title","aiTitle":"A"}`+"\n"+`{"type":"custom-title","customTitle":"C"}`+"\n"+`{"type":"ai-title","aiTitle":"B"}`+"\n"), 1)
+	f.Add([]byte(`{"type":"ai-title","aiTitle":"  "}`+"\n{}\n"), 0)
+	f.Add([]byte(`{"type":"custom-title","customTitle":"\u00e1"}`+"\n"), 3)
+
+	f.Fuzz(func(t *testing.T, b []byte, at int) {
+		cuts := bytes.Count(b, []byte{'\n'})
+		if cuts == 0 {
+			return
+		}
+
+		// Split after the at'th line break, as a read that stopped there.
+		i, n := 0, (at%cuts+cuts)%cuts
+		for ; n >= 0; n-- {
+			i += bytes.IndexByte(b[i:], '\n') + 1
+		}
+
+		c1, a1 := transcriptTitles(b[:i])
+		c2, a2 := transcriptTitles(b[i:])
+		c, a := transcriptTitles(b)
+
+		if cmp.Or(c2, c1) != c || cmp.Or(a2, a1) != a {
+			t.Fatalf("in pieces %q/%q then %q/%q, whole %q/%q", c1, a1, c2, a2, c, a)
+		}
+
+		if c != strings.TrimSpace(c) || a != strings.TrimSpace(a) {
+			t.Fatalf("untrimmed %q %q", c, a)
+		}
+	})
+}
+
+// title reads only what claude appended since the last read, and a line
+// still being written waits for its line break.
+func TestTranscriptTitleAppends(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+
+	path := filepath.Join(claudeDir(), "projects", "-ws", "conv-t.jsonl")
+	mustWrite(t, path, `{"type":"ai-title","aiTitle":"First"}`+"\n")
+
+	c := proto.Conversation{Agent: "claude", ID: "conv-t"}
+	title := func() string { return claudeSource{}.title(c) }
+
+	if got := title(); got != "First" {
+		t.Fatalf("ai-title: %q", got)
+	}
+
+	appendTo := func(s string) {
+		f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o600)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err := f.WriteString(s); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	appendTo(`{"type":"custom-title","customTitle":"By hand"`)
+
+	if got := title(); got != "First" {
+		t.Fatalf("half a line counted: %q", got)
+	}
+
+	appendTo("}\n" + `{"type":"ai-title","aiTitle":"Later"}` + "\n")
+
+	if got := title(); got != "By hand" {
+		t.Fatalf("a title set by hand wins over a generated one: %q", got)
+	}
+	// Rewritten shorter, it is read again from the start.
+	mustWrite(t, path, `{"type":"ai-title","aiTitle":"New"}`+"\n")
+
+	if got := title(); got != "New" {
+		t.Fatalf("rewritten: %q", got)
 	}
 }
