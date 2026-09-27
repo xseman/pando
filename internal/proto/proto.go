@@ -69,6 +69,7 @@ type Settings struct {
 	Wrap      bool                `json:"word_wrap" toml:"word_wrap"`                 // editors wrap long lines instead of scrolling them sideways
 	TabSize   int                 `json:"tab_size" toml:"tab_size"`                   // cells a tab takes in editors, and the spaces one indent is with insert_spaces
 	Spaces    bool                `json:"insert_spaces" toml:"insert_spaces"`         // tab indents with tab_size spaces instead of a tab
+	MDWidth   int                 `json:"markdown_width" toml:"markdown_width"`       // most cells rendered Markdown lays out in, margins included; 0 = the panel's width
 	Blanks    string              `json:"render_whitespace" toml:"render_whitespace"` // spaces and tabs drawn as · and →: "none" | "boundary" | "selection" | "trailing" | "all"
 	EdLimit   int                 `json:"editor_limit" toml:"editor_limit"`           // most editor tabs open, the least recently used closing first; 0 = no limit
 	ClaudeBg  bool                `json:"claude_background" toml:"claude_background"` // a claude pando resumes runs as a background session, which outlives a restart

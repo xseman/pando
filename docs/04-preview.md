@@ -131,6 +131,11 @@ put the pad cells on the run's first and last word, so a pad wraps with its
 word), and table cells that wrap within their column, the row as tall as its
 tallest cell, instead of being cut. Inline code and code blocks sit on
 `md_code_bg`, a soft grey on the light theme.
+`markdown_width` (80, glow's `-w`) caps the width it lays out in, margins
+included (`mdWidth`); a wider panel leaves the rest blank, 0 fills it. Side
+by side takes its whole half uncapped, so the rendering's lines stay level
+with the source's. The rendering is cached per width, so a new setting lays it
+out again at once.
 
 ## Find and replace
 

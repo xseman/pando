@@ -305,6 +305,7 @@ func fullSettings() Settings {
 		ClaudeBg:  true,
 		TabSize:   2,
 		Spaces:    true,
+		MDWidth:   100,
 		Keys:      map[string]string{"ctrl+g": "view.showSearch"},
 		Colors:    map[string]string{"selBg": "#264f78"},
 		Sounds:    true,

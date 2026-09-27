@@ -4250,6 +4250,10 @@ func settingsItems(m *Model) []item {
 		{label: "Claude in background", hint: onOff(s.ClaudeBg), run: func(m *Model) tea.Cmd {
 			return m.setSettings(map[string]any{"claude_background": !m.st.Settings.ClaudeBg})
 		}},
+		{label: "Markdown width", hint: mdWidthHint(s.MDWidth), run: func(m *Model) tea.Cmd {
+			next := mdWidths[(slices.Index(mdWidths, m.st.Settings.MDWidth)+1)%len(mdWidths)]
+			return m.setSettings(map[string]any{"markdown_width": next})
+		}},
 		{label: "Editor limit", hint: edLimitHint(s.EdLimit), run: func(m *Model) tea.Cmd {
 			next := edLimits[(slices.Index(edLimits, m.st.Settings.EdLimit)+1)%len(edLimits)]
 			return m.setSettings(map[string]any{"editor_limit": next})
@@ -4634,4 +4638,16 @@ func (m *Model) syncTabs() tea.Cmd {
 	}
 
 	return nil
+}
+
+// mdWidths are the values Settings cycles markdown_width through; 0 fills
+// the panel.
+var mdWidths = []int{80, 100, 120, 0}
+
+func mdWidthHint(n int) string {
+	if n <= 0 {
+		return "panel"
+	}
+
+	return strconv.Itoa(n)
 }

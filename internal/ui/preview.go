@@ -1923,21 +1923,33 @@ func (p *preview) markdown(m *Model, w int) (styled, plain []string) {
 	return p.mdLines, p.mdPlain
 }
 
+// mdWidth is the width Markdown renders in on its own within w cells:
+// markdown_width, glow's -w, when the panel is wider; 0 fills the panel.
+// Beside its source it takes its whole half, so its lines stay level with the
+// source's rather than running longer.
+func mdWidth(m *Model, w int) int {
+	if n := m.st.Settings.MDWidth; n > 0 {
+		return min(w, n)
+	}
+
+	return w
+}
+
 // syncMarkdown puts the rendering, laid out for the current width, in place
 // of the source while md == 1.
 func (p *preview) syncMarkdown(m *Model) {
-	if p.md != 1 || !p.ready || p.mdShown == m.pvW() {
+	if p.md != 1 || !p.ready || p.mdShown == mdWidth(m, m.pvW()) {
 		return
 	}
 
-	styled, plainLines := p.markdown(m, m.pvW())
+	styled, plainLines := p.markdown(m, mdWidth(m, m.pvW()))
 
 	p.lines, p.plain = styled, make([][]rune, len(plainLines))
 	for i, l := range plainLines {
 		p.plain[i] = []rune(l)
 	}
 
-	p.mdShown, p.vis, p.anchor = m.pvW(), nil, nil
+	p.mdShown, p.vis, p.anchor = mdWidth(m, m.pvW()), nil, nil
 	p.cur.line = min(p.cur.line, p.lastLine())
 }
 

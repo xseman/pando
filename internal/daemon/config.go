@@ -45,7 +45,7 @@ func defaultConfig() config {
 			Theme: "vscode", DiffView: "inline", Borders: true, FmtSave: true,
 			ActBar: "top", TermPos: "bottom", TermH: 12, SessPos: "right", SessHi: "tint",
 			SpSort: "created", SpGroup: "workspace",
-			Sounds: true, SoundDone: done, SoundReq: req, Updates: true, Anim: true, Blanks: "selection", ClaudeBg: true, TabSize: 4,
+			Sounds: true, SoundDone: done, SoundReq: req, Updates: true, Anim: true, Blanks: "selection", ClaudeBg: true, TabSize: 4, MDWidth: 80,
 			Drawers: []string{"Commits", "Graph", "Branches", "Stashes", "Remotes"},
 		},
 		Agents: map[string][]string{
@@ -199,6 +199,8 @@ func (c *config) encode() []byte {
 	kv("A tab's width in editors, VS Code's editor.tabSize, and whether the tab key indents\n"+
 		"with that many spaces instead (editor.insertSpaces). The status bar's Tab Size sets both.", "tab_size", s.TabSize)
 	kv("", "insert_spaces", s.Spaces)
+	kv("Rendered Markdown lays out at most this many cells wide, its margins included, as glow's\n"+
+		"-w does; a wider panel leaves the rest blank. 0 fills the panel.", "markdown_width", s.MDWidth)
 	kv("Play a sound when a session out of view finishes a run or waits for an answer:\nthe files played by paplay, pw-play, afplay, ffplay or mpv; \"\" rings the terminal bell.", "sounds", s.Sounds)
 	kv("", "sound_done", s.SoundDone)
 	kv("", "sound_request", s.SoundReq)

@@ -183,6 +183,54 @@ func TestFileRevisions(t *testing.T) {
 	}
 }
 
+// markdown_width caps the rendering, glow's -w: a wide panel wraps it there
+// and leaves the rest blank, and a new width lays it out again at once.
+func TestMarkdownWidth(t *testing.T) {
+	m := testModelSized(t, 160, 20)
+	path := filepath.Join(m.ws, "README.md")
+	src := "# Title\n\n" + strings.Repeat("lorem ipsum dolor sit amet ", 20) + "\n"
+	m.pv = preview{kind: pvFile, path: path}
+	m.preview, m.focus = true, onMain
+	lines, plainLines, meta, numW := render(pvFile, path, src, true)
+	m.pv.onLoad(m, previewMsg{key: m.pv.id(), raw: src, lines: lines, plain: plainLines, meta: meta, numW: numW})
+	m.st.Settings.MDWidth = 60
+	press(m, "ctrl+shift+v")
+	checkWidths(t, m)
+
+	widest := func() int {
+		n := 0
+		for _, l := range m.pv.plain {
+			n = max(n, len([]rune(strings.TrimRight(string(l), " "))))
+		}
+
+		return n
+	}
+
+	if w := widest(); w > 60-mdMargin || w < 50 {
+		t.Fatalf("widest line %d cells, want it wrapped just inside 60", w)
+	}
+
+	st := m.st
+	st.Settings.MDWidth = 0
+	m.Update(stateMsg(st))
+	checkWidths(t, m)
+
+	if w := widest(); w <= 60 {
+		t.Fatalf("markdown_width 0 fills the %d-cell panel, widest line %d", m.pvW(), w)
+	}
+	// Beside its source the rendering takes its whole half, uncapped, so the
+	// two sides keep their lines level.
+	st.Settings.MDWidth = 40
+	m.Update(stateMsg(st))
+	press(m, "alt+v")
+	checkWidths(t, m)
+
+	half := m.pvW() - 1 - (m.pvW()-1)/2 - 1
+	if m.pv.mdW != half {
+		t.Fatalf("side by side lays out %d cells, want the half's %d", m.pv.mdW, half)
+	}
+}
+
 // Code in rendered Markdown, blocks and inline alike, sits on md_code_bg: a
 // soft grey on the light theme, where the input background is all but white.
 func TestMarkdownCodeBackground(t *testing.T) {

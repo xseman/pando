@@ -189,7 +189,9 @@ back with its text and its cursor.
 - **Suggestions** open as you type in code — the file's own words at once, the
   language server's completions when it answers. `ctrl+space` forces them.
 - **Markdown**: `ctrl+shift+v` renders a file in glow's layout, `alt+v` shows
-  it beside the source.
+  it beside the source. `markdown_width = 80` (the default) caps how wide it
+  lays out on its own, `0` fills the panel; Settings cycles it. Beside the
+  source it takes its whole half, so the lines stay level.
 - **Word wrap** is off: a long line scrolls sideways under a horizontal
   scrollbar. `word_wrap = true`, Settings (`ctrl+,`), `alt+z` or the header's
   wrap toggle wraps every editor.
