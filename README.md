@@ -186,6 +186,10 @@ back with its text and its cursor.
 - **Whitespace** is drawn as VS Code draws it, `·` for a space and `→` for a
   tab: `render_whitespace = "selection"` (the default) inside the selection,
   `"boundary"`, `"trailing"`, `"all"` or `"none"`; Settings cycles it.
+- **Editor limit**: `editor_limit = 10` keeps at most ten tabs, closing the
+  least recently used as another opens, VS Code's `workbench.editor.limit`.
+  Unsaved ones count but are never closed. `0` (the default) keeps them all;
+  Settings cycles off, 5, 10, 20.
 - **Vim mode** (`vim_mode = true`) opens every editor in normal mode: motions
   with counts, `d c y` over a motion, visual mode. It is a key layer, not a
   second editor — no ex commands, macros or text objects.

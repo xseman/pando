@@ -301,6 +301,7 @@ func fullSettings() Settings {
 		LSP:       map[string][]string{"go": {"gopls"}},
 		Format:    map[string][]string{"go": {"gofmt"}},
 		FmtSave:   true,
+		EdLimit:   10,
 		Keys:      map[string]string{"ctrl+g": "view.showSearch"},
 		Colors:    map[string]string{"selBg": "#264f78"},
 		Sounds:    true,

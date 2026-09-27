@@ -20,6 +20,11 @@ A revision of the open file stays in its tab; a diff gets its own.
      ▲ active, ✕ closes it            ctrl+w closes, ctrl+alt+- / ctrl+shift+- go back
 ```
 
+`editor_limit` is VS Code's `workbench.editor.limit`: past it, `limitEditors`
+closes the tab shown least recently (`preview.used`, stamped by `setPreview`),
+never the active one or one with unsaved text, which count all the same. A
+lowered limit applies on its `state` event. `0`, the default, is no limit.
+
 Every jump (search hit, quick open, `go to line`, a revision step) is a history
 entry that remembers the cursor and the scroll, so going back lands where you
 left. The strip itself outlives the TUI: `saveEditors` sends the files, cursors
@@ -226,8 +231,8 @@ built at once, so the `●` shows and the next tick does not mistake it for clea
 A draft goes when its editor is saved, or when a tab is closed without saving.
 Closing unsaved text always asks (`closeEditor`, `⌃w`, `esc`, a middle click);
 for an untitled buffer *Save and close* opens *Save as* first and drops the tab
-only once the file is written. *Close All Editors* and the strip's 20-tab LRU
-step over what is unsaved rather than take its draft with the tab, the rule
+only once the file is written. *Close All Editors* and `editor_limit` step
+over what is unsaved rather than take its draft with the tab, the rule
 *Close Other Editors* already followed.
 
 ## Merge conflicts

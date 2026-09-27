@@ -68,6 +68,7 @@ type Settings struct {
 	Vim       bool                `json:"vim_mode" toml:"vim_mode"`                   // an editor opens in vim's normal mode
 	Wrap      bool                `json:"word_wrap" toml:"word_wrap"`                 // editors wrap long lines instead of scrolling them sideways
 	Blanks    string              `json:"render_whitespace" toml:"render_whitespace"` // spaces and tabs drawn as · and →: "none" | "boundary" | "selection" | "trailing" | "all"
+	EdLimit   int                 `json:"editor_limit" toml:"editor_limit"`           // most editor tabs open, the least recently used closing first; 0 = no limit
 	Keys      map[string]string   `json:"keys" toml:"keys"`                           // key to command id, "" unbinds; see pando doctor
 	Colors    map[string]string   `json:"colors" toml:"colors"`                       // palette overrides for the active theme, keys in pando doctor
 	Shell     string              `json:"shell" toml:"shell"`                         // the shell a terminal opens, "zsh -l"; "" for the [agents] shell preset, else the login shell

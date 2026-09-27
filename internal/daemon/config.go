@@ -178,6 +178,8 @@ func (c *config) encode() []byte {
 	kv("Draw spaces as · and tabs as → in editors, as VS Code's editor.renderWhitespace: \"none\",\n"+
 		"\"boundary\" (all but single spaces between words), \"selection\" (inside the selection),\n"+
 		"\"trailing\" (at line ends) or \"all\".", "render_whitespace", s.Blanks)
+	kv("Most editor tabs open at once, as VS Code's workbench.editor.limit: opening one more\n"+
+		"closes the least recently used. Unsaved editors count but are never closed. 0: no limit.", "editor_limit", s.EdLimit)
 	kv("Editors wrap long lines at the edge; off, they scroll sideways under a horizontal\nscrollbar. alt+z toggles it.", "word_wrap", s.Wrap)
 	kv("Play a sound when a session out of view finishes a run or waits for an answer:\nthe files played by paplay, pw-play, afplay, ffplay or mpv; \"\" rings the terminal bell.", "sounds", s.Sounds)
 	kv("", "sound_done", s.SoundDone)

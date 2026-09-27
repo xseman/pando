@@ -76,6 +76,7 @@ type preview struct {
 	cur    pos
 	anchor *pos // selection start; nil = no selection
 	reveal bool // center the cursor once the content loads
+	used   int  // when the editor was last shown, Model.edUsed's count: editor_limit closes the lowest
 	// Markdown files: md is 0 for source, 1 rendered, 2 source and rendered
 	// side by side. While rendered, lines and plain hold the rendering and
 	// src and srcPlain the source.
@@ -200,7 +201,7 @@ func (p *preview) snapshot() preview {
 		kind: p.kind, path: p.path, name: p.name, draft: p.draft, draftM: p.draftM,
 		root: p.root, entry: p.entry, rev: p.rev,
 		repo: p.repo, revs: p.revs, revIdx: p.revIdx, md: p.md,
-		cur: p.cur, top: p.top, left: p.left, buf: p.buf, trunc: p.trunc,
+		cur: p.cur, top: p.top, left: p.left, buf: p.buf, trunc: p.trunc, used: p.used,
 	}
 }
 
@@ -208,6 +209,9 @@ func (p *preview) snapshot() preview {
 // the tab strip and the navigation history.
 func (m *Model) setPreview(p preview) tea.Cmd {
 	m.saveSpot()
+
+	m.edUsed++
+	p.used = m.edUsed
 
 	i := slices.IndexFunc(m.editors, func(e preview) bool { return e.id() == p.id() })
 	switch {
@@ -222,19 +226,9 @@ func (m *Model) setPreview(p preview) tea.Cmd {
 	case m.edIdx >= 0 && m.edIdx < len(m.editors) && sameFile(m.editors[m.edIdx], p):
 		m.editors[m.edIdx] = p.snapshot() // a revision of the open file stays in its tab
 	default:
-		// ponytail: 20 editors, oldest first out; VS Code closes by its own MRU.
-		// Unsaved text is skipped over: dropping the tab drops its draft too.
-		if len(m.editors) >= 20 {
-			if i := slices.IndexFunc(m.editors, func(e preview) bool { return !e.dirty() }); i >= 0 {
-				m.editors = slices.Delete(m.editors, i, i+1)
-				if m.edIdx > i {
-					m.edIdx--
-				}
-			}
-		}
-
 		m.editors = append(m.editors, p.snapshot())
 		m.edIdx = len(m.editors) - 1
+		m.limitEditors()
 	}
 
 	if !m.restoring {
@@ -257,6 +251,43 @@ func (m *Model) setPreview(p preview) tea.Cmd {
 	m.saveSpot() // an untitled buffer loads in place: the tab takes it now
 
 	return tea.Batch(dock, cmd)
+}
+
+// edLimits are the values Settings cycles editor_limit through; 0 is none.
+var edLimits = []int{0, 5, 10, 20}
+
+func edLimitHint(n int) string {
+	if n <= 0 {
+		return "off"
+	}
+
+	return strconv.Itoa(n)
+}
+
+// limitEditors closes the least recently shown editors while the strip holds
+// more than editor_limit, VS Code's workbench.editor.limit. An unsaved one
+// counts but stays — its tab going would take its draft along — and so does
+// the active one; with nothing else to close the strip stays over the limit.
+func (m *Model) limitEditors() {
+	limit := m.st.Settings.EdLimit
+
+	for limit > 0 && len(m.editors) > limit {
+		lru := -1
+		for i, e := range m.editors {
+			if i != m.edIdx && !e.dirty() && (lru < 0 || e.used < m.editors[lru].used) {
+				lru = i
+			}
+		}
+
+		if lru < 0 {
+			return
+		}
+
+		m.editors = slices.Delete(m.editors, lru, lru+1)
+		if m.edIdx > lru {
+			m.edIdx--
+		}
+	}
 }
 
 func (m *Model) openFile(path string) tea.Cmd {

@@ -183,6 +183,7 @@ type Model struct {
 	// Open editors: the tab strip in main, and where navigation has been.
 	editors   []preview
 	edIdx     int
+	edUsed    int // the last preview.used handed out
 	nav       []preview
 	navAt     int
 	restoring bool
@@ -2048,6 +2049,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.look()
 		m.resize()
 		m.syncWrap()
+		m.limitEditors() // a lowered editor_limit applies at once, as in VS Code
 		m.ex.rebuild(m)
 		m.scm.build(m)
 		m.fixFocus()
@@ -4071,6 +4073,10 @@ func settingsItems(m *Model) []item {
 			return m.setSettings(map[string]any{"vim_mode": !m.st.Settings.Vim})
 		}},
 		{label: "Word wrap", hint: onOff(s.Wrap), run: func(m *Model) tea.Cmd { return m.toggleWrap() }},
+		{label: "Editor limit", hint: edLimitHint(s.EdLimit), run: func(m *Model) tea.Cmd {
+			next := edLimits[(slices.Index(edLimits, m.st.Settings.EdLimit)+1)%len(edLimits)]
+			return m.setSettings(map[string]any{"editor_limit": next})
+		}},
 		{label: "Render whitespace", hint: cmp.Or(s.Blanks, "none"), run: func(m *Model) tea.Cmd {
 			next := blankModes[(slices.Index(blankModes, cmp.Or(m.st.Settings.Blanks, "none"))+1)%len(blankModes)]
 			return m.setSettings(map[string]any{"render_whitespace": next})

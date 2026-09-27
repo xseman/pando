@@ -354,11 +354,12 @@ func TestUnopenedDraftTabKeepsItsText(t *testing.T) {
 	}
 }
 
-// The tab strip caps at 20 and drops the oldest, which must never be one
+// editor_limit drops the least recently used tab, which must never be one
 // holding unsaved text: the tab going takes its draft with it.
 func TestStripLRUSkipsUnsavedEditors(t *testing.T) {
 	m := testModelSized(t, 100, 24)
 	m.sess, m.focus = "", onMain
+	m.st.Settings.EdLimit = 20
 	fire(m, m.newUntitled())
 	press(m, "k", "e", "e", "p")
 
@@ -451,5 +452,55 @@ func TestSaveAsFormatsWithTheNewName(t *testing.T) {
 
 	if m.pv.dirty() || m.pv.path != to {
 		t.Fatalf("after save: %q dirty %v", m.pv.path, m.pv.dirty())
+	}
+}
+
+// editor_limit closes the least recently shown editor, not the oldest tab,
+// and a lowered limit applies at once. 0 keeps every tab.
+func TestEditorLimit(t *testing.T) {
+	m := testModelSized(t, 100, 24)
+	m.sess, m.focus = "", onMain
+	open := func(name string) {
+		p := filepath.Join(m.ws, name)
+		mustWrite(t, p, "package f\n")
+		fire(m, m.openFile(p))
+	}
+	names := func() []string {
+		var out []string
+		for _, e := range m.editors {
+			out = append(out, filepath.Base(e.path))
+		}
+
+		return out
+	}
+
+	for _, n := range []string{"a.go", "b.go", "c.go", "d.go"} {
+		open(n)
+	}
+
+	if len(m.editors) != 4 {
+		t.Fatalf("no limit by default: %v", names())
+	}
+
+	m.st.Settings.EdLimit = 3
+	fire(m, m.showEditor(0)) // a.go is used again: b.go is now the least recent
+	m.limitEditors()
+
+	if got := names(); !slices.Equal(got, []string{"a.go", "c.go", "d.go"}) {
+		t.Fatalf("lowered to 3: %v", got)
+	}
+
+	open("e.go")
+
+	if got := names(); !slices.Equal(got, []string{"a.go", "d.go", "e.go"}) || m.editors[m.edIdx].id() != m.pv.id() {
+		t.Fatalf("opening a fourth: %v, active %d", got, m.edIdx)
+	}
+	// The limit reached, the setting's own state event trims the strip.
+	st := m.st
+	st.Settings.EdLimit = 1
+	m.Update(stateMsg(st))
+
+	if got := names(); !slices.Equal(got, []string{"e.go"}) {
+		t.Fatalf("a state event with limit 1: %v", got)
 	}
 }

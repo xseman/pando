@@ -51,6 +51,7 @@ error, uses the last good values and refuses to save until it is fixed.
 | `vim_mode`                                                           | editors open in vim's normal mode                                                                           |
 | `render_whitespace`                                                  | `·` spaces and `→` tabs in editors: `none`, `boundary`, `selection` (default), `trailing`, `all`            |
 | `word_wrap`                                                          | editors wrap long lines; off (default), they scroll under a horizontal scrollbar                            |
+| `editor_limit`                                                       | most editor tabs open, the least recently used closing first; `0` (default): no limit                       |
 | `git_drawers`                                                        | which Source Control drawers show                                                                           |
 | `[colors]`                                                           | palette overrides                                                                                           |
 | `[agents]`                                                           | `name = ["command", "args"]`                                                                                |

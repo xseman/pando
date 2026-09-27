@@ -317,9 +317,11 @@ func TestActivityBarHeaderFooter(t *testing.T) {
 	// The gear opens settings with hotkeys; « hides the sidebar.
 	click(m, l.w-2, 0, tea.MouseLeft)
 
-	if m.modal == nil || !strings.Contains(checkWidths(t, m), "Hotkeys") {
+	if m.modal == nil || m.modal.title != "Settings" || !slices.ContainsFunc(m.modal.items, func(it item) bool { return it.label == heading("Hotkeys").label }) {
 		t.Fatal("gear opens settings")
 	}
+
+	checkWidths(t, m)
 
 	m.modal = nil
 	hideAt := m.headerActions(0, viewFiles, l.w)
