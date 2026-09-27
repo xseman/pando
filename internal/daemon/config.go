@@ -3,10 +3,8 @@ package daemon
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"runtime"
 	"strings"
-	"sync"
 
 	"github.com/BurntSushi/toml"
 	"github.com/xseman/pando/internal/proto"
@@ -26,12 +24,6 @@ type config struct {
 	ResumeJob map[string][]string `toml:"resume_job"`
 }
 
-// nerdFont reports whether fontconfig knows a Nerd Font, once per process.
-var nerdFont = sync.OnceValue(func() bool {
-	out, err := exec.Command("fc-list", ":", "family").Output()
-	return err == nil && strings.Contains(strings.ToLower(string(out)), "nerd")
-})
-
 func defaultConfig() config {
 	shell := os.Getenv("SHELL")
 	if shell == "" {
@@ -45,7 +37,7 @@ func defaultConfig() config {
 
 	return config{
 		Settings: proto.Settings{
-			Hidden: true, Width: 40, WidthR: 32, GitDeco: true, GitTree: true,
+			Hidden: true, Icons: "ascii", Width: 40, WidthR: 32, GitDeco: true, GitTree: true,
 			Theme: "vscode", DiffView: "inline", Borders: true, FmtSave: true,
 			ActBar: "top", TermPos: "bottom", TermH: 12, SessPos: "right", SessHi: "tint",
 			SpSort: "created", SpGroup: "workspace",
@@ -65,16 +57,6 @@ func defaultConfig() config {
 	}
 }
 
-// resolve fills values that depend on the machine.
-func (c *config) resolve() {
-	if c.Icons == "" {
-		c.Icons = "emoji"
-		if nerdFont() {
-			c.Icons = "nerd"
-		}
-	}
-}
-
 // loadConfig reads path over the defaults. An [agents] table replaces the
 // default presets, so a preset can be removed by leaving it out.
 func loadConfig(path string) (config, error) {
@@ -84,10 +66,7 @@ func loadConfig(path string) (config, error) {
 
 	md, err := toml.DecodeFile(path, &c)
 	if err != nil {
-		c = defaultConfig()
-		c.resolve()
-
-		return c, err
+		return defaultConfig(), err
 	}
 
 	for _, k := range md.Undecoded() {
@@ -110,7 +89,9 @@ func loadConfig(path string) (config, error) {
 		c.ResumeJob = resumeJob
 	}
 
-	c.resolve()
+	if c.Icons == "" {
+		c.Icons = "ascii"
+	}
 
 	return c, nil
 }

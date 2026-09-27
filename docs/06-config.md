@@ -27,7 +27,7 @@ error, uses the last good values and refuses to save until it is fixed.
 | Key                                                                  | Values                                                                                                      |
 | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `color_theme`                                                        | `vscode` (2026 Dark or Light by the terminal background), `vscode-dark`, `vscode-light`, `terminal`         |
-| `icons`                                                              | `nerd` (needs a Nerd Font as the terminal font), `emoji` (herdr-sidebar's set), `ascii`                     |
+| `icons`                                                              | `ascii` (default), `nerd` (needs a Nerd Font as the terminal font), `emoji` (herdr-sidebar's set)           |
 | `activity_bar`                                                       | `top` (icons in a row above the view) or `side` (down the sidebar's outer edge)                             |
 | `terminal_position`                                                  | `bottom` (a panel under the editor), `left` or `right`                                                      |
 | `terminal_height`                                                    | rows of the bottom panel                                                                                    |

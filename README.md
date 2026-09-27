@@ -59,8 +59,8 @@ pando            # the project opened last, or the current directory
 pando ~/code/app # add a directory to the projects and open it
 ```
 
-pando needs git. Optional: a [Nerd Font](https://www.nerdfonts.com/) for the
-icons (without one it falls back to emoji, or `icons = "ascii"`), `rg` for
+pando needs git. Optional: a [Nerd Font](https://www.nerdfonts.com/) for
+`icons = "nerd"` (the default is `ascii`), `rg` for
 search, language servers such as `gopls`, and the `claude` CLI for commit
 messages.
 
@@ -246,7 +246,7 @@ apply live):
 | ---------- | ---------------------------------------------------------------------------------------------- |
 | theme      | `vscode` (dark or light by the terminal background), `vscode-dark`, `vscode-light`, `terminal` |
 | diff view  | `inline` or `split`                                                                            |
-| icons      | `nerd` (automatic when `fc-list` finds a Nerd Font), `emoji`, `ascii`                          |
+| icons      | `ascii` (default), `nerd` (needs Nerd Font glyphs), `emoji`                                    |
 | `[colors]` | palette overrides, keyed by the names `pando doctor` prints                                    |
 | `[keys]`   | remapped keys, by the command ids `pando doctor` prints                                        |
 
