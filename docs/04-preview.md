@@ -54,7 +54,8 @@ characters. With `insert_spaces` the tab key inserts spaces to the next stop
 instead of a tab. The status bar shows VS Code's `Ln, Col` (with the
 characters selected, a tab and a line break one each), which opens Go to
 Line, and `Tab Size: N` or `Spaces: N`, which opens _Indent Using Spaces /
-Tabs_ and then the size; a rendered Markdown file has neither.
+Tabs_ and then the size (`editor.changeIndentation`, for `[keys]` and the
+palette); a rendered Markdown file has neither.
 
 `render_whitespace` is VS Code's `editor.renderWhitespace`. The display
 holds `tabW` spaces for a tab, so `blankMarks` finds tabs in the buffer's line

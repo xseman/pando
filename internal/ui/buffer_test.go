@@ -680,6 +680,15 @@ func TestStatusBarEditorItems(t *testing.T) {
 	if s := status(); !strings.Contains(s, "Spaces: 2") {
 		t.Fatalf("after the picker: %q", s)
 	}
+	// The same menu is a command, for the palette and [keys].
+	m.modal = nil
+	runCommand(t, m, "editor.changeIndentation")
+
+	if m.modal == nil || m.modal.title != "Select Action" {
+		t.Fatalf("editor.changeIndentation opened %+v", m.modal)
+	}
+
+	m.modal = nil
 	// Over a session or with no editor there is none.
 	m.pv.md = 1
 

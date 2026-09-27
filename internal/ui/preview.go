@@ -2953,8 +2953,8 @@ func (p *preview) items(m *Model) []item {
 	return items
 }
 
-// keyItems are the editor's commands that have keys of their own: the palette
-// and [keys] list them, the context menu would only grow long with them.
+// keyItems are the editor's commands for the palette and [keys] alone, most
+// with keys of their own: the context menu would only grow long with them.
 func (p *preview) keyItems(_ *Model) []item {
 	chord := func(code rune, mod tea.KeyMod) func(*Model) tea.Cmd {
 		return func(m *Model) tea.Cmd {
@@ -2967,6 +2967,7 @@ func (p *preview) keyItems(_ *Model) []item {
 		{label: "Find", hint: "^f", run: chord('f', tea.ModCtrl)},
 		{label: "Select All", hint: "^a", run: chord('a', tea.ModCtrl)},
 		{label: "Toggle Word Wrap", hint: "M-z", run: chord('z', tea.ModAlt)},
+		{label: "Change Indentation…", run: func(m *Model) tea.Cmd { return m.indentPicker() }}, // the status bar's Tab Size
 		{label: "Expand Selection", hint: "M-⇧→", run: chord(tea.KeyRight, tea.ModAlt|tea.ModShift)},
 		{label: "Shrink Selection", hint: "M-⇧←", run: chord(tea.KeyLeft, tea.ModAlt|tea.ModShift)},
 	}
