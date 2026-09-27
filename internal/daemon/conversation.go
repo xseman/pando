@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"os"
@@ -82,16 +83,45 @@ func (p claudeProcess) bgJob() string {
 }
 
 // readClaude reads one sessions/<pid>.json; ok when its process still runs.
+// Claude rewrites the file in place rather than renaming a new one over it,
+// so a read can land between the truncate and the write: one that does not
+// parse is read again before the process counts as gone. Taken for gone, a
+// background job would be resumed by id, which claude refuses while the job
+// holds the conversation, rather than attached to.
 func readClaude(path string) (claudeProcess, bool) {
 	var p claudeProcess
 
-	b, err := os.ReadFile(path)
-	if err != nil || json.Unmarshal(b, &p) != nil || p.PID <= 0 || p.SessionID == "" {
+	for try := 0; ; try++ {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return p, false
+		}
+
+		p = claudeProcess{}
+		if json.Unmarshal(b, &p) == nil {
+			break
+		}
+
+		if try == tornRetries {
+			return p, false
+		}
+
+		time.Sleep(tornWait)
+	}
+
+	if p.PID <= 0 || p.SessionID == "" {
 		return p, false
 	}
 
 	return p, p.ProcStart == startTime(p.PID)
 }
+
+// tornRetries and tornWait bound the rereads of a sessions file caught half
+// written: claude writes a few hundred bytes, so one wait is plenty.
+const (
+	tornRetries = 5
+	tornWait    = 10 * time.Millisecond
+)
 
 // open reads the conversation of a claude in the terminal from its own
 // sessions/<pid>.json. `claude attach JOB` writes none: its conversation is
@@ -136,23 +166,37 @@ func (claudeSource) env(pid int) []string {
 	return nil
 }
 
+// holder prefers a background job to any other process with c open: the
+// job is what outlives pando, and a process left of a session before the
+// restart that still shows c must not turn the attach into a resume.
 func (claudeSource) holder(c proto.Conversation) (pid int, job string) {
 	for _, p := range claudeProcesses(claudeDirIn(c.Env)) {
-		if p.SessionID == c.ID {
-			return p.PID, p.bgJob()
+		if p.SessionID != c.ID {
+			continue
 		}
+
+		if j := p.bgJob(); j != "" {
+			return p.PID, j
+		}
+
+		pid = cmp.Or(pid, p.PID)
 	}
 
-	return 0, ""
+	return pid, ""
 }
 
-// claudeProcesses are the live processes dir/sessions describes.
+// claudeProcesses are the live processes dir/sessions describes. A file
+// named for a pid that is gone is skipped unread: claude leaves them behind.
 func claudeProcesses(dir string) []claudeProcess {
 	paths, _ := filepath.Glob(filepath.Join(dir, "sessions", "*.json"))
 
 	var out []claudeProcess
 
 	for _, path := range paths {
+		if pid, err := strconv.Atoi(strings.TrimSuffix(filepath.Base(path), ".json")); err == nil && startTime(pid) == "" {
+			continue
+		}
+
 		if p, ok := readClaude(path); ok {
 			out = append(out, p)
 		}
