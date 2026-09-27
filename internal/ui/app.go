@@ -83,6 +83,7 @@ type drag struct {
 	to     string // dragRow, sess or ws: the one whose place it takes, "" where it started
 	from   int    // dragRow: the index it was picked up from
 	x0     int    // dragTab: where it was picked up; dragMsgSel: the message text's screen origin, with y0
+	w0     int    // dragDivider: the column's configured width when picked up
 	drop   *dropTarget
 	y0, h0 int
 	moved  bool
@@ -2704,7 +2705,7 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 		case m.side(i) == 0 && mo.X >= r.x+r.w && mo.X < r.x+r.w+gap, m.side(i) == 1 && mo.X >= r.x-gap && mo.X < r.x:
 			// The divider on a column's main side resizes that column.
 			if click && mo.Button == tea.MouseLeft && !m.railed(i) {
-				m.drag = &drag{kind: dragDivider, col: i}
+				m.drag = &drag{kind: dragDivider, col: i, w0: m.cols()[i].width}
 			}
 
 			return nil
@@ -3061,9 +3062,20 @@ func (m *Model) dragMouse(msg tea.MouseMsg) tea.Cmd {
 			w = r.x + r.w - 1 - mo.X
 		}
 
-		if _, c := m.layout(); slices.Contains(m.colViews(d.col), viewSession) && c.w-(w-r.w) < snapMain {
-			m.drag = nil // stretched nearly over the editor: it takes the editor area
-			return m.undockSession()
+		if _, c := m.layout(); slices.Contains(m.colViews(d.col), viewSession) {
+			switch {
+			case c.w-(w-r.w) < snapMain:
+				m.drag = nil // stretched nearly over the editor: it takes the editor area
+				return m.undockSession()
+
+			case w < snapHide:
+				// Pushed nearly off the screen: it closes, as a VS Code sidebar
+				// does, and keeps running at the width it was picked up at.
+				m.drag = nil
+				m.setColWidth(d.col, d.w0)
+
+				return tea.Batch(m.hideSession(), m.saveCols())
+			}
 		}
 
 		m.setColWidth(d.col, max(20, min(w, m.w-21)))
@@ -3103,6 +3115,9 @@ func (m *Model) dragTerm(d *drag, y int, release bool) tea.Cmd {
 // snapMain is the editor width below which a widening session column takes
 // the whole editor area instead.
 const snapMain = 24
+
+// snapHide is the width below which a narrowing session column closes.
+const snapHide = 10
 
 // View draws the columns side by side into the panel rows, then the status
 // bar, the overlays and the cursor.

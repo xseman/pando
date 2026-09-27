@@ -2150,6 +2150,43 @@ func TestSessionFollowsSpaces(t *testing.T) {
 	}
 }
 
+// A session column pushed nearly off the screen closes, as a VS Code sidebar
+// does; the session runs on and comes back at the width it had.
+func TestSessionDraggedShutCloses(t *testing.T) {
+	m := testModelSized(t, 140, 30)
+	m.st.Settings.SessPos, m.sess = "", ""
+	m.openSession("s1")
+
+	i := m.colOf(viewSession)
+	rc := m.colRect(i)
+	// Narrow, but not that narrow: it stops at its minimum and stays.
+	m.Update(tea.MouseClickMsg{X: rc.x - 1, Y: 10, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: m.w - 16, Y: 10, Button: tea.MouseLeft})
+
+	if m.sess != "s1" || m.colRect(m.colOf(viewSession)).w != 20 {
+		t.Fatalf("held at its minimum: session %q, width %d", m.sess, m.colRect(m.colOf(viewSession)).w)
+	}
+
+	m.Update(tea.MouseMotionMsg{X: m.w - 4, Y: 10, Button: tea.MouseLeft})
+
+	if m.sess != "" || m.sessDocked() || m.drag != nil {
+		t.Fatalf("dragged shut: session %q, docked %v, drag %+v", m.sess, m.sessDocked(), m.drag)
+	}
+
+	if m.session("s1") == nil {
+		t.Fatal("closing the column kills nothing")
+	}
+
+	m.Update(tea.MouseReleaseMsg{X: m.w - 4, Y: 10, Button: tea.MouseLeft})
+	m.openSession("s1")
+
+	if got := m.colRect(m.colOf(viewSession)); got != rc {
+		t.Fatalf("reopened at %+v, was %+v", got, rc)
+	}
+
+	checkWidths(t, m)
+}
+
 // The empty main area names what is missing there. A session docked to a side
 // column is on screen, so claiming the workspace has none would be a lie.
 func TestWelcomeNamesWhatIsMissing(t *testing.T) {

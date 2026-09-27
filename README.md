@@ -102,7 +102,8 @@ else inside it.
   sessions, each showing its busiest tab's state; drag a session (or `alt+↑↓`)
   to reorder it under its worktree, or a worktree, sessions and all, under its
   project. A session opens in a column of its own beside the
-  editor — drag it to the other side or over the editor area.
+  editor — drag it to the other side or over the editor area, or its divider
+  nearly off the screen to close it (it keeps running).
 - Symbols follow herdr's: `×` waits for you, `◐` works, `✓` finished unseen,
   `○` idles. A session out of view can play a sound, and one that waits,
   finished unseen or failed is tinted in its symbol's color and pulses until
