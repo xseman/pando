@@ -1,6 +1,6 @@
 # Views
 
-Four tabs, each a struct in `internal/ui` with the same shape: build rows →
+Each view is a struct in `internal/ui` with the same shape: build rows →
 render into a windowed list → handle keys and mouse.
 
 | View           | File          | Rows                                                                  |

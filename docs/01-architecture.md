@@ -70,10 +70,14 @@ progress needs no call per frame.
 - Sessions: `creack/pty` + `charmbracelet/x/vt` emulator per session, each
   behind its own mutex. Keys go through vt's encoder, except a special key
   held with shift, ctrl or meta, which vt drops: `xtermKey` writes xterm's
-  `CSI 1;m D` / `CSI n;m ~` for those, so `ctrl+←` reaches readline. Output sets an "attention" flag on bell/OSC 777/long
-  quiet runs. A process that exits with code 0 closes its session; a failure
-  stays listed with its exit code.
-- Restart respawns sessions from `state.json` (scrollback is lost).
+  `CSI 1;m D` / `CSI n;m ~` for those, so `ctrl+←` reaches readline. Output
+  sets an "attention" flag on bell/OSC 777/long quiet runs. A process that
+  exits with code 0 closes its session; a failure stays listed with its exit
+  code.
+- Restart respawns sessions from `state.json` (scrollback is lost) and
+  resumes the agent each one held (`docs/03-views.md`, Spaces).
+- `pando claude` is not a daemon call: it runs `claude --bg` and execs
+  `claude attach`, so Claude Code's own daemon holds the conversation.
 - Updates: `pando serve` starts `WatchUpdates`, which asks GitHub for the
   latest release at startup and once a day after while `update_check` is on.
   `update.install` downloads it in the background and reports its progress as
@@ -83,8 +87,7 @@ progress needs no call per frame.
 
 Bubble Tea model in `internal/ui`. One `Model` holds every view; messages come
 from the daemon subscription, a 2 s tick (git status, preview reload, drafts,
-open editors),
-and the terminal (keys, mouse, resize).
+open editors), and the terminal (keys, mouse, resize).
 
 ```
 tea.Msg ─▶ Model.Update ─▶ view state ─▶ Model.View ─▶ lines[] ─▶ terminal
@@ -97,12 +100,13 @@ Everything expensive (git, ripgrep, daemon RPC) runs in a `tea.Cmd`, never in
 
 ## Packages
 
-| Path              | Contents                                                                                                        |
-| ----------------- | --------------------------------------------------------------------------------------------------------------- |
-| `main.go`         | CLI: `serve`, `stop`, `doctor`, `version`, `update`, `call`, `skill`, `project`, `ws`, `session`, `open`, `set` |
-| `internal/proto`  | wire types, client calls, socket paths, daemon autostart                                                        |
-| `internal/daemon` | state, config, sessions, PTY, event fan-out                                                                     |
-| `internal/git`    | every git call (`git -C root …`), no libgit2                                                                    |
-| `internal/lsp`    | language server client over stdio                                                                               |
-| `internal/update` | GitHub release check, verified download, replacing the binary                                                   |
-| `internal/ui`     | Bubble Tea model, views, preview, theme                                                                         |
+| Path              | Contents                                                      |
+| ----------------- | ------------------------------------------------------------- |
+| `main.go`         | the CLI: every command `pando help` lists                     |
+| `internal/proto`  | wire types, client calls, socket paths, daemon autostart      |
+| `internal/daemon` | state, config, sessions, PTY, event fan-out                   |
+| `internal/git`    | every git call (`git -C root …`), no libgit2                  |
+| `internal/lsp`    | language server client over stdio                             |
+| `internal/update` | GitHub release check, verified download, replacing the binary |
+| `internal/ui`     | Bubble Tea model, views, preview, theme                       |
+| `skills/pando`    | `SKILL.md`, printed by `pando skill`                          |

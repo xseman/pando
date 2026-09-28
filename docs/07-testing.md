@@ -11,15 +11,22 @@ Five layers, each catching a different class of bug:
 | Layer                         | Where                   | Catches                                                    |
 | ----------------------------- | ----------------------- | ---------------------------------------------------------- |
 | unit                          | `internal/{git,lsp,ui}` | parsing, geometry, rendering, fuzzy matching, LSP framing  |
-| fuzz                          | `internal/{git,proto}`  | parsers fed bytes no test would think to write             |
+| fuzz                          | every byte parser       | parsers fed bytes no test would think to write             |
 | daemon over a real socket     | `internal/daemon`       | protocol, settings merge, config reload, session lifecycle |
 | git against temp repositories | `internal/git`          | every command pando runs, on real git                      |
 | TUI in a PTY                  | `main_test.go`          | the whole binary: daemon autostart, keys, mouse, redraw    |
 
 ## Fuzzing
 
-The pure parsers are fuzzed: `parseStatus`, `pickLines` and `ConflictText` in
-`internal/git`, and the `Columns` JSON and TOML decoders in `internal/proto`.
+The pure parsers are fuzzed:
+
+| Package           | Targets                                                                          |
+| ----------------- | -------------------------------------------------------------------------------- |
+| `internal/git`    | `parseStatus`, `pickLines`, `ConflictText`, `parseSuggestion`, the merge message |
+| `internal/proto`  | the `Columns` JSON and TOML decoders                                             |
+| `internal/daemon` | transcript titles                                                                |
+| `internal/update` | `CHECKSUMS.txt`                                                                  |
+| `main`            | `backgroundID`, the id `claude --bg` prints                                      |
 
 ```
 go test -run xxx -fuzz FuzzParseStatus -fuzztime 30s ./internal/git
@@ -100,3 +107,35 @@ Gotchas learned the hard way:
   In a test the runtime directory has to be a `t.TempDir()`: a `defer
   os.RemoveAll` runs before every `t.Cleanup`, so it takes the socket away
   before the shutdown call can reach the daemon, and the daemon is orphaned.
+
+## Demo recordings
+
+Every GIF in `docs/demo` comes from its `*.tape`, replayed by
+[VHS](https://github.com/charmbracelet/vhs) against a throwaway repository in
+`/tmp/pando-demo`. Needs `vhs` v0.10 or v0.11 (v0.12 records but writes no
+GIF, [vhs#787](https://github.com/charmbracelet/vhs/issues/787)), `ttyd`,
+`ffmpeg`, a Chrome, `jq`, `gopls` and `claude`. Every tape sources
+`settings.tape` and `setup.tape`, so a tape names only what makes it different.
+
+```
+make demo          # PAR_TAPES in parallel (JOBS, 4), then SEQ_TAPES one at a time
+make demo-lsp      # one tape
+```
+
+A parallel tape gets a repository and a daemon of its own (`PANDO_DEMO_REPO`,
+`PANDO_DEMO_STATE`). A serial one shares `/tmp/pando-demo`: it runs claude,
+which must be trusted by hand in every new directory, or its path is on
+screen. What bites:
+
+- VHS cannot send `F12`, `ctrl+.`, `ctrl+s`, `ctrl+space` or `alt+shift`
+  chords: a tape binds those commands to `ctrl` letters in its own
+  `config.toml` (`cfg 26 ctrl+k=editor.saveFile`).
+- A `[keys]` binding never fires inside a session, so a tape that leaves the
+  focus there types every following key into the agent. `1`–`4` need a
+  focused sidebar for the same reason.
+- An editable file types `5` and `[` rather than toggling the terminal or
+  cycling tabs: reach them from a sidebar (`ctrl+]` from the Terminal).
+- Switching a project already shows its session, so `⏎` on its Spaces row
+  hides it again.
+- claude records in its classic renderer (`cfg.sh` passes `"tui": "default"`):
+  a fullscreen claude draws on the alternate screen and matches no wait.

@@ -23,16 +23,16 @@ BurntSushi/toml, creack/pty. No cgo, no libgit2: git is shelled out.
 
 ## Layout
 
-| Path              | Contents                                                                                                        |
-| ----------------- | --------------------------------------------------------------------------------------------------------------- |
-| `main.go`         | CLI: `serve`, `stop`, `doctor`, `version`, `update`, `call`, `skill`, `project`, `ws`, `session`, `open`, `set` |
-| `internal/proto`  | wire types, client calls, socket paths, daemon autostart                                                        |
-| `internal/daemon` | state, config.toml, sessions, PTY, event fan-out                                                                |
-| `internal/git`    | every `git -C root …` call, parsed once                                                                         |
-| `internal/lsp`    | language server client                                                                                          |
-| `internal/update` | release check, verified download, self-update                                                                   |
-| `internal/ui`     | Bubble Tea model (`app.go`), views, preview/editor, theme                                                       |
-| `skills/pando`    | `SKILL.md`, the agent-facing guide; `pando skill` embeds and prints it                                          |
+| Path              | Contents                                                  |
+| ----------------- | --------------------------------------------------------- |
+| `main.go`         | the CLI: every command `pando help` lists                 |
+| `internal/proto`  | wire types, client calls, socket paths, daemon autostart  |
+| `internal/daemon` | state, config.toml, sessions, PTY, event fan-out          |
+| `internal/git`    | every `git -C root …` call, parsed once                   |
+| `internal/lsp`    | language server client                                    |
+| `internal/update` | release check, verified download, self-update             |
+| `internal/ui`     | Bubble Tea model (`app.go`), views, preview/editor, theme |
+| `skills/pando`    | `SKILL.md`, the agent guide `pando skill` prints          |
 
 ## Docs (read on demand)
 
@@ -44,10 +44,9 @@ BurntSushi/toml, creack/pty. No cgo, no libgit2: git is shelled out.
 | diffs, editor, Markdown, LSP, suggestions, staging lines, revisions | `docs/04-preview.md`                     |
 | anything calling git                                                | `docs/05-git.md`                         |
 | config.toml, state.json, settings, keys, colors                     | `docs/06-config.md`                      |
-| writing tests, tmux checks, gotchas                                 | `docs/07-testing.md`                     |
+| writing tests, tmux checks, gotchas, GIFs / tapes                   | `docs/07-testing.md`                     |
 | driving pando from an agent, session lifecycle over the CLI         | `skills/pando/SKILL.md`                  |
 | every key, per view and in a file                                   | `docs/09-keys.md`                        |
-| GIFs / tapes                                                        | README "Development", `docs/demo/*.tape` |
 | releases, install script, self-update                               | `docs/08-release.md`                     |
 
 ## Conventions

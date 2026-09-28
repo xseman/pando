@@ -1,6 +1,7 @@
 // Package lsp speaks just enough of the Language Server Protocol over stdio
-// to jump to a definition, list references and run a code action: initialize,
-// didOpen and a handful of requests. No dependencies, no diagnostics.
+// for definitions, references, rename, symbols, completion and code actions:
+// initialize, didOpen and a handful of requests. No dependencies, no
+// diagnostics.
 package lsp
 
 import (

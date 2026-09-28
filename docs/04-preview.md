@@ -8,7 +8,7 @@ The main area shows either the active session's screen or the preview
 | `file` | a file, chroma-highlighted                 | Explorer ⏎, quick open, search hit |
 | `diff` | working tree or index diff of one file     | Source Control ⏎ / `o`             |
 | `show` | a whole commit                             | a drawer line (hash)               |
-| `rev`  | what one revision changed in the open file | `alt+←`                            |
+| `rev`  | what one revision changed in the open file | header `←` `→`, `H`                |
 
 ## Editors
 
@@ -119,8 +119,8 @@ additions paired with it — the order the changes are staged in.
 
 ## Markdown
 
-`.md` opens as source. `p` renders it in place, `s` puts source and rendering
-side by side. goldmark parses (CommonMark + GFM), the renderer is pando's own:
+`.md` opens as source. `ctrl+shift+v` renders it in place, `alt+v` puts
+source and rendering side by side. goldmark parses (CommonMark + GFM), the renderer is pando's own:
 headings, lists, quotes, tables, task lists and fenced code through chroma,
 wrapped to the panel width. Images become `[image: alt]`, HTML stays source.
 
@@ -156,8 +156,7 @@ mode. `replacement` reads the buffer's own line so a tab inside a match
 survives; `replaceAll` joins the rewritten lines into one `editRaw` splice.
 Read-only previews (diffs, revisions, rendered Markdown) have no chevron and no
 `ctrl+h`. While Go to Line's query holds a number, that line is highlighted
-across the editor until the picker closes. Revisions have no key of their own;
-the `←`/`→` header buttons step through them.
+across the editor until the picker closes.
 
 ## Editing
 
@@ -320,16 +319,16 @@ in a read-only file) lists the code actions for the selection, `F2` renames the
 symbol under the cursor (`textDocument/rename`; the box opens over the symbol
 at `lightbulb(back)`, the same placement the actions menu uses, and starts with
 the identifier around the cursor — no `prepareRename`). pando speaks the small
-part of LSP it needs (`internal/lsp`): initialize, didOpen, definition,
-references, codeAction with its resolve and executeCommand — no diagnostics, no
-completion.
+part of LSP it needs (`internal/lsp`): definition, references, rename,
+documentSymbol, completion, codeAction with its resolve and executeCommand —
+no diagnostics.
 
 The menu opens under the cursor's line, its actions grouped by kind. A picked
 action is applied by the client: the server's `WorkspaceEdit` (its own,
 one from `codeAction/resolve`, or one the command sends back as
-`workspace/applyEdit`) is spliced into the files on disk, last edit first, and
-the preview and the git status reload. Create, rename and delete operations are
-ignored, and there is no undo: git is the undo.
+`workspace/applyEdit`) is written to the files on disk — text edits last one
+first, file creates, renames and deletes in order — and the preview and the
+git status reload. There is no undo: git is the undo.
 
 `ctrl+shift+o` is Go to Symbol: `textDocument/documentSymbol` in a picker whose
 query starts with `@` (typing `@` in quick open lands there too). The tree a
@@ -384,11 +383,12 @@ offsets to get wrong; a file that changed underneath simply fails the diff.
 
 ## Revisions
 
-`alt+←` / `alt+→` walk the open file's history like GitLens; `H` picks one.
+The header's `←` / `→` buttons walk the open file's history like GitLens; `H`
+picks one.
 
 ```
-file ──alt+←──▶ [0] uncommitted changes ──▶ [1] abc1234 · 2 days ago · fix …
-     ◀──alt+→──                          ◀──
+file ──←──▶ [0] uncommitted changes ──▶ [1] abc1234 · 2 days ago · fix …
+     ◀──→──                          ◀──
 ```
 
 The list comes from `git log --follow` (plus an entry for uncommitted changes

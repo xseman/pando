@@ -38,7 +38,7 @@ error, uses the last good values and refuses to save until it is fixed.
 | `diff_view`                                                          | `inline`, `split`                                                                                           |
 | `hidden`, `git_deco`, `git_tree`, `quick_open_tree`, `panel_borders` | booleans                                                                                                    |
 | `sounds`, `sound_done`, `sound_request`                              | play a sound for sessions out of view; the files, `""` for the terminal bell                                |
-| `animations`                                                         | text effects: names morph and decode, counts roll, busy labels shimmer (docs/03-views.md)                    |
+| `animations`                                                         | text effects: names morph and decode, counts roll, busy labels shimmer (docs/03-views.md)                   |
 | `update_check`                                                       | ask GitHub once a day whether a newer pando was released                                                    |
 | `spaces_sort`, `spaces_group`, `spaces_hide`                         | Spaces: `created`/`updated`, `workspace`/`time`, states left out                                            |
 | `width`, `width_right`                                               | default column widths                                                                                       |
@@ -225,8 +225,3 @@ The tick sends what changed (`draft.set`; an empty `text` forgets it) and drops
 a draft as soon as its editor is saved or its tab is closed without saving.
 `PANDO_DATA_DIR` overrides the directory. `pando call draft.list '{"ws":"…"}'`
 lists them.
-
-## Upgrades
-
-An older daemon left running is detected by a build id in `ping`, and
-restarted (or kept, with a warning) by the TUI.
