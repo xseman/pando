@@ -2393,6 +2393,8 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Model) paste(msg tea.PasteMsg) tea.Cmd {
 	var cmd tea.Cmd
 
+	t, id := m.focusedTerm()
+
 	switch {
 	case m.modal != nil && m.modal.hasInput():
 		m.modal.input, cmd = m.modal.input.Update(msg)
@@ -2403,6 +2405,10 @@ func (m *Model) paste(msg tea.PasteMsg) tea.Cmd {
 		if m.modal.complete != nil {
 			m.modal.input.SetSuggestions(m.modal.complete(m.modal.input.Value()))
 		}
+
+	case t != nil && t.find.editing: // the terminal's find, not its shell, nor a file's find left open
+		t.find.input, cmd = t.find.input.Update(msg)
+		cmd = tea.Batch(cmd, t.search(m, id, 2))
 
 	case m.pv.find.editing && m.pv.repl.Focused():
 		m.pv.repl, cmd = m.pv.repl.Update(msg)

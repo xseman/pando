@@ -9,6 +9,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/xseman/pando/internal/proto"
 )
 
 // TestMain keeps the tests off the desktop's clipboard: a copy a test makes
@@ -145,5 +146,48 @@ func TestPasteIntoDockedSession(t *testing.T) {
 
 	if in := sent(t, m); in.ID != "s1" || in.Paste != "copied text" {
 		t.Fatalf("paste into the docked session sent %+v", in)
+	}
+}
+
+// TestPasteIntoFind: ctrl+v in a find box pastes the desktop's clipboard
+// into the query and searches, in a file and over a terminal, where the
+// shell never sees it.
+func TestPasteIntoFind(t *testing.T) {
+	board := fakeClipboard(t)
+	mustWrite(t, board, "needle")
+
+	paste := func(m *Model, keys ...string) {
+		for _, k := range keys {
+			_, cmd := m.Update(keyMsg(k))
+			for _, msg := range runAll(cmd) {
+				m.Update(msg)
+			}
+		}
+	}
+
+	m, _ := editorModel(t, "a.go", "package x\n\nvar needle = 1\n")
+	paste(m, "ctrl+f", "ctrl+v")
+
+	if got := m.pv.find.input.Value(); got != "needle" || len(m.pv.hits) != 1 {
+		t.Fatalf("ctrl+v in the file's find: query %q, %d hits", got, len(m.pv.hits))
+	}
+
+	// The Terminal's find has the keyboard while the file's stays open.
+	drainInputs(m)
+
+	m.tv.id = "t1"
+	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "t1", Workspace: m.ws, Agent: termAgent}, Status: "idle"})
+	m.st.Settings.TermOpen, m.st.Settings.TermPos, m.st.Settings.TermH = true, "bottom", 10
+	m.resize()
+	m.focus, m.tv.term.id = onPanel, "t1"
+	paste(m, "ctrl+f")
+
+	seq := m.tv.find.seq
+
+	mustWrite(t, board, "err")
+	paste(m, "ctrl+v")
+
+	if got := m.tv.find.input.Value(); got != "err" || m.pv.find.input.Value() != "needle" || m.tv.find.seq == seq {
+		t.Fatalf("ctrl+v in the Terminal's find: query %q, file's %q, searched %v", got, m.pv.find.input.Value(), m.tv.find.seq != seq)
 	}
 }

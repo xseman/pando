@@ -108,7 +108,8 @@ Every copy (a selection, a terminal's text, a path) goes to the desktop's
 clipboard through `wl-copy`, `xclip`, `xsel` or `pbcopy`, whichever the session
 has, and as OSC 52 too for a terminal that takes it, which is what reaches the
 desktop over ssh; VTE terminals (GNOME Terminal, Ptyxis) ignore OSC 52. `ctrl+v`
-in a file and the Terminal's _Paste_ read it back with the matching tool; the
+in a file or a text box (find, filter, Search, commit message) and the
+Terminal's _Paste_ read it back with the matching tool; the
 terminal's own paste (`ctrl+shift+v`) arrives as a bracketed paste anywhere.
 
 A tilt wheel or `shift`+wheel scrolls sideways; the plain wheel scrolls a

@@ -142,9 +142,12 @@ var keybindings = []keybinding{
 	{keys: []string{"ctrl+p"}, when: ctxPanels, run: func(m *Model, _ string) tea.Cmd { return m.loadIndex(true) }},
 	{keys: []string{"ctrl+g"}, when: ctxPanels, cond: (*Model).showsPreview, run: func(m *Model, _ string) tea.Cmd { return m.gotoLineQuery(":") }},
 	{keys: []string{"ctrl+n"}, when: ctxPanels, run: func(m *Model, _ string) tea.Cmd { return m.newUntitled() }},
-	// VS Code's paste in a file: the terminal's own paste (ctrl+shift+v) lands
-	// here too, as a bracketed paste. A shell keeps ctrl+v, claude its image paste.
-	{keys: []string{"ctrl+v"}, when: ctxText, run: func(*Model, string) tea.Cmd { return pasteClipboard }},
+	// VS Code's paste in a file or a text box: the terminal's own paste
+	// (ctrl+shift+v) lands there too, as a bracketed paste. A text box's own
+	// ctrl+v would read the clipboard with a tool of its own and hand the text
+	// back in a message only its Update knows. A shell keeps ctrl+v, claude
+	// its image paste.
+	{keys: []string{"ctrl+v"}, when: ctxText | ctxInput, run: func(*Model, string) tea.Cmd { return pasteClipboard }},
 	{keys: []string{"ctrl+w"}, when: ctxEditor | ctxText, run: func(m *Model, _ string) tea.Cmd { return m.closeEditor(m.edIdx) }},
 	// Go Back / Go Forward: VS Code's Linux ctrl+alt+- and ctrl+shift+-, its
 	// Mac ctrl+-, and alt+, alt+. ctrl+← ctrl+→ move by words in an editor and
