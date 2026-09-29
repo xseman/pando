@@ -267,8 +267,9 @@ func (a *agents) timeRows(m *Model, sessions []proto.Session, q string) []agRow 
 	return out
 }
 
-// timeKey is a time heading's key in collapsed, apart from every project path.
-func timeKey(bucket string) string { return "\x00" + bucket }
+// timeKey is a time heading's key in collapsed, apart from every project
+// path, which is absolute.
+func timeKey(bucket string) string { return "time:" + bucket }
 
 // foldKey is the collapsed key of a heading row.
 func foldKey(r agRow) string {
@@ -280,7 +281,7 @@ func foldKey(r agRow) string {
 }
 
 // collapseAll folds every heading the grouping shows: projects, or times.
-func (a *agents) collapseAll(m *Model) {
+func (a *agents) collapseAll(m *Model) tea.Cmd {
 	if a.collapsed == nil {
 		a.collapsed = map[string]bool{}
 	}
@@ -290,6 +291,24 @@ func (a *agents) collapseAll(m *Model) {
 			a.collapsed[foldKey(r)] = true
 		}
 	}
+
+	return a.saveFolds()
+}
+
+// saveFolds sends the folded headings to state.json, so a restart keeps
+// them shut.
+func (a *agents) saveFolds() tea.Cmd {
+	folded := []string{} // not nil: null would keep the list saved before
+
+	for k, v := range a.collapsed {
+		if v {
+			folded = append(folded, k)
+		}
+	}
+
+	slices.Sort(folded)
+
+	return do("state.set", map[string]any{"spaces_folded": folded})
 }
 
 func agLabel(r agRow) string {
@@ -577,13 +596,16 @@ func (a *agents) lines(m *Model, w, h int) []string {
 // reveal selects workspace path's row, its project unfolded, as a click on it
 // would: whatever switches the workspace shows where it went. A selection
 // already inside that workspace, a clicked session, stays.
-func (a *agents) reveal(m *Model, path string) {
+func (a *agents) reveal(m *Model, path string) tea.Cmd {
 	if r := a.selected(m); r != nil && r.kind != agProject && r.ws.Path == path {
-		return
+		return nil
 	}
+
+	var saved tea.Cmd
 
 	if w := m.workspace(path); w != nil && a.collapsed[w.Project] {
 		a.collapsed[w.Project] = false
+		saved = a.saveFolds()
 	}
 
 	rows := a.rows(m)
@@ -591,6 +613,8 @@ func (a *agents) reveal(m *Model, path string) {
 		a.l.sel = i
 		a.l.snap(m.bodyH(viewAgents))
 	}
+
+	return saved
 }
 
 // selected is the highlighted row, nil when nothing is selected.
@@ -688,6 +712,9 @@ func (a *agents) activate(m *Model, r *agRow) tea.Cmd {
 	switch r.kind {
 	case agProject, agTime:
 		a.collapsed[foldKey(*r)] = !a.collapsed[foldKey(*r)]
+
+		return a.saveFolds()
+
 	case agWorkspace:
 		return tea.Batch(m.switchWorkspace(r.ws.Path), m.refreshGit(), m.fetchScreen())
 	case agSession:
@@ -1032,7 +1059,7 @@ func (a *agents) viewMenu(m *Model, x, y int) tea.Cmd {
 		{label: checked(st.SpGroup != "time", "Group by Workspace"), run: set("spaces_group", "workspace")},
 		{label: checked(st.SpGroup == "time", "Group by Time"), run: set("spaces_group", "time")},
 		{},
-		{label: "  Collapse All Groups", run: func(m *Model) tea.Cmd { a.collapseAll(m); return nil }},
+		{label: "  Collapse All Groups", run: a.collapseAll},
 	}, x, y)
 }
 

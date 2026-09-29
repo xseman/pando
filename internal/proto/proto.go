@@ -159,6 +159,9 @@ type State struct {
 	// LastWorkspace is the workspace the TUI showed last; pando started
 	// outside a repository opens it again.
 	LastWorkspace string `json:"last_workspace,omitempty"`
+	// Folded is the Spaces headings folded: project paths, and "time:" plus
+	// a time heading, so a restart keeps them shut.
+	Folded []string `json:"spaces_folded,omitempty"`
 }
 
 // Editors is a workspace's tab strip as state.json keeps it, VS Code's

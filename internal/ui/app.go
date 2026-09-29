@@ -368,6 +368,13 @@ func New(st proto.State, wss []proto.Workspace, ss []proto.Session, ws string, e
 	m.sr.init()
 	m.switchWorkspace(ws) // attaches the Terminal panel too; Init starts a shell when it found none
 
+	m.ag.collapsed = map[string]bool{} // after the switch: its reveal must not unfold what was left folded
+	for _, k := range st.Folded {
+		m.ag.collapsed[k] = true
+	}
+
+	m.ag.l.sel = slices.IndexFunc(m.ag.rows(m), func(r agRow) bool { return r.kind == agWorkspace && r.ws.Path == ws })
+
 	return m
 }
 
@@ -1969,13 +1976,13 @@ func (m *Model) headerActions(s int, v view, w int) []titleAction {
 // editors it had open follow. The command saves the editors of the workspace
 // left behind and loads the one that was active in the new one.
 func (m *Model) switchWorkspace(path string) tea.Cmd {
-	m.ag.reveal(m, path)
+	unfolded := m.ag.reveal(m, path)
 
 	if path == m.ws {
-		return nil
+		return unfolded
 	}
 
-	saved := tea.Batch(m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts())
+	saved := tea.Batch(unfolded, m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts())
 	m.savedDrafts = nil
 	open := m.termOpen()
 	m.ws = path

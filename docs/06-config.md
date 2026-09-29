@@ -5,7 +5,7 @@ with `PANDO_CONFIG_DIR`:
 
 ```
 config.toml   what you configure : settings, colors, agent presets
-state.json    what pando remembers: projects and their worktree order, commit drafts, open editors, terminal panels, session columns, session specs
+state.json    what pando remembers: projects and their worktree order, commit drafts, open editors, terminal panels, session columns, session specs, folded Spaces headings
 ```
 
 Unsaved editor text lives beside them, in the data directory: see Drafts below.
@@ -205,6 +205,18 @@ with `session_position` and `left`/`right` in one `state.set`, so those stay
 the last set anywhere: a worktree without an entry takes them, and the tick
 saves one for it as it does `terminals`. `width` 0 is half the editor area;
 `null` forgets one.
+
+## Spaces folds
+
+The Spaces headings folded, project paths and `time:` time headings, so a
+restart keeps them shut:
+
+```json
+"spaces_folded": ["/home/me/app", "time:Older"]
+```
+
+A fold, *Collapse All Groups* and a reveal that unfolds send the whole list in
+one `state.set`; removing a project drops it.
 
 ## Drafts
 

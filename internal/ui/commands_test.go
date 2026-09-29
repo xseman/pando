@@ -582,6 +582,27 @@ func TestTimeBucket(t *testing.T) {
 // TestSpacesDragReorder drags a project down the Spaces list: the tree
 // reorders under the pointer, the release saves the order, and a press that
 // never moves is still the click that folds the project.
+// A project folded in Spaces stays folded when pando opens again, even the
+// one holding the workspace it opens on, and a fold is saved.
+func TestSpacesFoldsRestored(t *testing.T) {
+	root := t.TempDir()
+	st := proto.State{Settings: proto.Settings{Width: 30, Icons: "ascii"}, Projects: []string{root}, Folded: []string{root}}
+	m := New(st, []proto.Workspace{{Path: root, Project: root, Branch: "main", Main: true}}, nil, root, nil)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+
+	if !m.ag.collapsed[root] || slices.ContainsFunc(m.ag.rows(m), func(r agRow) bool { return r.kind == agWorkspace }) {
+		t.Fatalf("the project opens folded: %v", m.ag.collapsed)
+	}
+
+	if m.ag.l.sel != -1 {
+		t.Fatalf("no row of the folded project is selected: %d", m.ag.l.sel)
+	}
+
+	if cmd := m.ag.activate(m, &agRow{kind: agProject, project: root}); cmd == nil || m.ag.collapsed[root] {
+		t.Fatal("unfolding saves the folds")
+	}
+}
+
 func TestSpacesDragReorder(t *testing.T) {
 	m := testModel(t)
 	other := t.TempDir()

@@ -266,6 +266,22 @@ func TestDaemon(t *testing.T) {
 	if len(views.SessionViews) != 0 {
 		t.Fatalf("forgotten session views = %+v", views.SessionViews)
 	}
+	// The Spaces headings folded, a whole list each time.
+	call(t, "state.set", map[string]any{"spaces_folded": []string{root, "time:Today"}}, nil)
+	call(t, "state.get", nil, &views)
+
+	if !slices.Equal(views.Folded, []string{root, "time:Today"}) {
+		t.Fatalf("folded = %v", views.Folded)
+	}
+
+	call(t, "state.set", map[string]any{"spaces_folded": []string{}}, nil)
+
+	views = proto.State{}
+	call(t, "state.get", nil, &views)
+
+	if len(views.Folded) != 0 {
+		t.Fatalf("unfolded = %v", views.Folded)
+	}
 
 	pane := func(title string, h int) map[string]any {
 		return map[string]any{"settings": map[string]any{"git_panes": map[string]any{title: map[string]any{"open": true, "h": h}}}}

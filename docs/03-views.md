@@ -192,7 +192,7 @@ the TUI reads them in `listedSessions`, which every Spaces row comes from.
 | Sort by Updated     | newest output first (`Session.Updated`, the pty's last output, across the session's tabs)                     |
 | Group by Workspace  | the project → worktree → session tree above                                                                   |
 | Group by Time       | `agTime` headings Today, Yesterday, Last 7 Days, Last 30 Days, Older by calendar day; rows add the branch     |
-| Collapse All Groups | folds every project, or every time heading                                                                    |
+| Collapse All Groups | folds every project, or every time heading; folds are kept across restarts (`spaces_folded`)                  |
 
 A session from before `created` existed files under Older. `Updated` is not
 saved: a respawned session starts over at its first output. VS Code's _Show

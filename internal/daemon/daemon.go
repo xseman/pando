@@ -706,7 +706,8 @@ func (d *Daemon) save() error {
 		Sessions  []proto.SessionSpec          `json:"sessions"`
 		Worktrees map[string][]string          `json:"worktrees,omitempty"`
 		Last      string                       `json:"last_workspace,omitempty"`
-	}{d.state.Projects, d.state.Drafts, d.state.Editors, d.state.Terminals, d.state.SessionViews, d.state.Sessions, d.state.Worktrees, d.state.LastWorkspace}, "", "  ")
+		Folded    []string                     `json:"spaces_folded,omitempty"`
+	}{d.state.Projects, d.state.Drafts, d.state.Editors, d.state.Terminals, d.state.SessionViews, d.state.Sessions, d.state.Worktrees, d.state.LastWorkspace, d.state.Folded}, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -784,6 +785,7 @@ func (d *Daemon) setState(raw json.RawMessage) (any, error) {
 		Terminals map[string]*proto.Terminal    `json:"terminals"`     // null forgets the workspace
 		SessViews map[string]*proto.SessionView `json:"session_views"` // null forgets the workspace
 		Last      *string                       `json:"last_workspace"`
+		Folded    *[]string                     `json:"spaces_folded"` // the whole list, replacing the last
 	}
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, err
@@ -867,7 +869,11 @@ func (d *Daemon) setState(raw json.RawMessage) (any, error) {
 		d.state.LastWorkspace = *p.Last
 	}
 
-	if p.Drafts != nil || p.Editors != nil || p.Terminals != nil || p.SessViews != nil || p.Last != nil {
+	if p.Folded != nil {
+		d.state.Folded = *p.Folded
+	}
+
+	if p.Drafts != nil || p.Editors != nil || p.Terminals != nil || p.SessViews != nil || p.Last != nil || p.Folded != nil {
 		err = errors.Join(err, d.save())
 	}
 	d.mu.Unlock()
@@ -911,6 +917,7 @@ func (d *Daemon) removeProject(path string) error {
 	d.mu.Lock()
 	d.state.Projects = slices.DeleteFunc(d.state.Projects, func(p string) bool { return p == path })
 	delete(d.state.Worktrees, path)
+	d.state.Folded = slices.DeleteFunc(d.state.Folded, func(p string) bool { return p == path })
 	err := d.save()
 	d.mu.Unlock()
 	d.broadcast(proto.Event{Kind: "workspaces"})
