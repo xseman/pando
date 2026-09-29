@@ -150,6 +150,13 @@ column, so hit tests stay on the tabs and a click on the hairline does nothing.
 Every tab keeps room for the active one's `✕` (`tabClose`), so activating a
 tab changes neither its width nor where the ones after it sit.
 
+A left press on a tab shows it and picks it up (`grabTab`, `dragStrip` in
+`strip.go`). As in herdr, the strip stays put while it is held: an accent `│`
+in the hairline marks where it would land (`stripSlot`, herdr's
+`tab_drop_index_at`: a tab's left half drops before it, its right half after),
+and only the release moves it there, saved as a key move is. A release off the
+strip's row drops nothing; a session's own tab never picks up.
+
 `ctrl+shift+pgup` `ctrl+shift+pgdn` (_Move Tab Left / Right_, `moveTab` in
 `strip.go`) move the focused strip's tab (`focusedStrip`), wrapping at either
 end as herdr's `move_tab_previous` / `move_tab_next` do. The order is saved in

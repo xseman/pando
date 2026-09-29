@@ -58,6 +58,7 @@ const (
 	dragRow
 	dragScroll
 	dragMsgSel
+	dragStrip
 )
 
 // actH is the height of a sidebar's activity bar: the icons, then the row
@@ -82,6 +83,10 @@ type drag struct {
 	ws     string // dragRow: the worktree being moved under its project instead
 	to     string // dragRow, sess or ws: the one whose place it takes, "" where it started
 	from   int    // dragRow: the index it was picked up from
+	strip  int    // dragStrip: the tab strip, stripEditor and on
+	tab    string // dragStrip: the tab being moved, an editor's or a session's id
+	org    int    // dragStrip: the screen column of the strip's first cell
+	slot   int    // dragStrip: where the tab would land, an index in stripOrder; -1 nowhere
 	x0     int    // dragTab: where it was picked up; dragMsgSel: the message text's screen origin, with y0
 	w0     int    // dragDivider: the column's configured width when picked up
 	drop   *dropTarget
@@ -3185,6 +3190,8 @@ func (m *Model) dragMouse(msg tea.MouseMsg) tea.Cmd {
 		return m.ag.dragRowTo(m, d, mo.Y, release)
 	case dragScroll:
 		return m.barDragTo(d.bar, mo.X, mo.Y, release)
+	case dragStrip:
+		return m.dragStripTo(d, mo.X, mo.Y, release)
 	case dragMsgSel:
 		m.scm.input.ExtendSelection(mo.X-d.x0, mo.Y-d.y0)
 

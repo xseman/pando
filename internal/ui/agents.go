@@ -1985,7 +1985,9 @@ func (m *Model) renameSession(id string) tea.Cmd {
 	return nil
 }
 
-func (m *Model) sessionStrip(w int) string { return row(w, nil, tabSegs(m.sessionTabs(w))) }
+func (m *Model) sessionStrip(w int) string {
+	return m.stripMark(row(w, nil, tabSegs(m.sessionTabs(w))), stripSession, 0, nil)
+}
 
 func tabSegs(tabs []sessTab) []seg {
 	var segs []seg
@@ -2002,7 +2004,8 @@ func tabSegs(tabs []sessTab) []seg {
 	return segs
 }
 
-// sessionStripMouse switches, closes or opens a session from the strip.
+// sessionStripMouse switches, closes or opens a session from the strip; a
+// tab past the session's own drags along it.
 func (m *Model) sessionStripMouse(x int, button tea.MouseButton) tea.Cmd {
 	for _, t := range m.sessionTabs(m.sessW()) {
 		if x < t.x || x >= t.x+t.w {
@@ -2016,6 +2019,8 @@ func (m *Model) sessionStripMouse(x int, button tea.MouseButton) tea.Cmd {
 			return m.sessionMenu(t.id)
 		case button == tea.MouseMiddle || (t.active && x >= t.x+t.w-2):
 			return m.confirmKill(t.id)
+		case button == tea.MouseLeft && t.id != m.rootOf(m.sess):
+			m.grabTab(stripSession, t.id, x)
 		}
 
 		return m.switchSession(t.id)
@@ -2509,12 +2514,14 @@ func (m *Model) termPanelLines(w, h int) []string {
 		}
 	}
 
-	return append([]string{row(w, pal.sectionBg, left, closer)}, m.termScreen(w, h-1)...)
+	title := m.stripMark(row(w, pal.sectionBg, left, closer), stripTerm, 1, pal.sectionBg) // the tabs start past a space
+
+	return append([]string{title}, m.termScreen(w, h-1)...)
 }
 
 // termLines are the panel: its tab strip, then the terminal screen.
 func (m *Model) termLines(w, h int) []string {
-	return append([]string{row(w, nil, tabSegs(m.termTabs(w)))}, m.termScreen(w, h-1)...)
+	return append([]string{m.stripMark(row(w, nil, tabSegs(m.termTabs(w))), stripTerm, 0, nil)}, m.termScreen(w, h-1)...)
 }
 
 // termScreen is the shell's screen, padded to h rows.
@@ -2550,7 +2557,8 @@ func (m *Model) termStripW() int {
 	return m.colRect(m.colOf(viewTerm)).w
 }
 
-// termStripMouse switches, closes or opens a shell from the panel's strip.
+// termStripMouse switches, closes or opens a shell from the panel's strip,
+// and picks a shell's tab up to drag it along.
 func (m *Model) termStripMouse(x int, button tea.MouseButton) tea.Cmd {
 	for _, t := range m.termTabs(m.termStripW()) {
 		if x < t.x || x >= t.x+t.w {
@@ -2564,6 +2572,8 @@ func (m *Model) termStripMouse(x int, button tea.MouseButton) tea.Cmd {
 			return m.sessionMenu(t.id)
 		case button == tea.MouseMiddle || (t.active && x >= t.x+t.w-2):
 			return m.confirmKill(t.id)
+		case button == tea.MouseLeft:
+			m.grabTab(stripTerm, t.id, x)
 		}
 
 		m.tv.id, m.tv.scroll = t.id, 0

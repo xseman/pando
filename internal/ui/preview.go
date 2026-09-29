@@ -617,11 +617,12 @@ func (m *Model) editorStrip(w int) string {
 		segs = append(segs, tabChip(t.label, t.active, nil)...)
 	}
 
-	return row(w, nil, segs)
+	return m.stripMark(row(w, nil, segs), stripEditor, 0, nil)
 }
 
 // stripMouse handles a click on the editor strip: the middle button and the
-// active tab's ✕ close, anything else activates.
+// active tab's ✕ close, anything else activates, and the left button picks
+// the tab up to drag it along the strip.
 func (m *Model) stripMouse(x int, button tea.MouseButton) tea.Cmd {
 	for _, t := range m.editorTabs(m.mainW()) {
 		if x < t.x || x >= t.x+t.w {
@@ -630,6 +631,10 @@ func (m *Model) stripMouse(x int, button tea.MouseButton) tea.Cmd {
 
 		if button == tea.MouseMiddle || (t.active && x >= t.x+t.w-2) {
 			return m.closeEditor(t.i)
+		}
+
+		if button == tea.MouseLeft {
+			m.grabTab(stripEditor, m.editors[t.i].id(), x)
 		}
 
 		return m.showEditor(t.i)
