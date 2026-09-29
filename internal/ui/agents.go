@@ -2103,7 +2103,19 @@ func (m *Model) barMouse(t *term, id string, y, sy int) tea.Cmd {
 	})
 }
 
+// key sends a key to the terminal's app. pgup and pgdn (shift too, as VS
+// Code's) page the scrollback instead, as the wheel does, unless the app is on
+// the alternate screen, which has none and pages itself.
 func (t *term) key(m *Model, id string, k tea.KeyPressMsg) tea.Cmd {
+	if !t.scr.AltScreen {
+		switch k.String() {
+		case "pgup", "shift+pgup":
+			return t.scrollBy(m, len(t.scr.Lines))
+		case "pgdown", "shift+pgdown":
+			return t.scrollBy(m, -len(t.scr.Lines))
+		}
+	}
+
 	key := k.Key()
 	t.hasSel = false
 
@@ -2199,14 +2211,18 @@ func (t *term) wheel(m *Model, id string, up bool) tea.Cmd {
 		return nil
 	}
 
-	prev := t.scroll
 	if up {
-		t.scroll = min(t.scroll+3, t.scr.Scrollback)
-	} else {
-		t.scroll = max(t.scroll-3, 0)
+		return t.scrollBy(m, 3)
 	}
 
-	if t.scroll != prev {
+	return t.scrollBy(m, -3)
+}
+
+// scrollBy moves n lines up the scrollback, down for a negative n, held
+// between the live screen and the oldest line.
+func (t *term) scrollBy(m *Model, n int) tea.Cmd {
+	prev := t.scroll
+	if t.scroll = max(min(t.scroll+n, t.scr.Scrollback), 0); t.scroll != prev {
 		return m.fetchScreen()
 	}
 

@@ -122,9 +122,9 @@ shows once rows are out of view, over a track drawn as the overview ruler's
 border (`overview_ruler_border`); a terminal counts its scrollback as the rows
 above. An app on the alternate screen (vim, less, a claude with
 `"tui": "fullscreen"`) has no scrollback and scrolls itself: the daemon
-reports none (`Screen.AltScreen`), the bar stays empty, and the wheel goes to
-the app, as mouse events when it asked for them, else as three arrows (xterm's
-alternate scroll). A click on the slider grabs it, one on the track jumps it there first,
+reports none (`Screen.AltScreen`), the bar stays empty, and the wheel and
+`pgup` `pgdn` go to the app, the wheel as mouse events when it asked for them,
+else as three arrows (xterm's alternate scroll). A click on the slider grabs it, one on the track jumps it there first,
 and the drag (`dragScroll`) follows the mouse. Sidebar lists keep their thin
 `┃`, drawn from the same geometry and handled the same way (`listBar`): the
 slider drags, lit while held, a click on the track jumps it, the wheel over it

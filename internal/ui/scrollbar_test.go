@@ -242,6 +242,50 @@ func TestSessionScrollbar(t *testing.T) {
 	}
 }
 
+// TestSessionPageKeys pages a shell's scrollback with pgup and pgdn, shift
+// or not, as the wheel scrolls it; on the alternate screen the keys are the
+// app's, as a fullscreen claude pages its own history.
+func TestSessionPageKeys(t *testing.T) {
+	m := testModel(t)
+	m.switchSession("s1")
+	m.focus = onMain
+
+	h := m.sessH()
+	m.term.id = "s1"
+	m.term.scr = proto.Screen{Lines: make([]string, h), Scrollback: 2*h + 1}
+
+	press(m, "pgup")
+
+	if m.term.scroll != h {
+		t.Fatalf("pgup goes back a page: scroll %d, want %d", m.term.scroll, h)
+	}
+
+	press(m, "shift+pgup", "pgup")
+
+	if m.term.scroll != 2*h+1 {
+		t.Fatalf("paging back stops at the oldest line: scroll %d", m.term.scroll)
+	}
+
+	press(m, "pgdown", "shift+pgdown", "pgdown")
+
+	if m.term.scroll != 0 {
+		t.Fatalf("paging on stops at the live screen: scroll %d", m.term.scroll)
+	}
+
+	select {
+	case in := <-m.inputs:
+		t.Fatalf("a page key reached the shell: %+v", in)
+	default:
+	}
+
+	m.term.scr = proto.Screen{Lines: make([]string, h), AltScreen: true}
+	press(m, "pgup")
+
+	if in := sent(t, m); len(in.Keys) != 1 || in.Keys[0].Code != tea.KeyPgUp || m.term.scroll != 0 {
+		t.Fatalf("pgup on the alternate screen goes to the app: %+v, scroll %d", in, m.term.scroll)
+	}
+}
+
 // TestSessionAltScreen hides the bar over an app on the alternate screen,
 // which scrolls itself, and gives it the wheel: as mouse events when it asked
 // for them, as arrows (xterm's alternate scroll) when it did not.
