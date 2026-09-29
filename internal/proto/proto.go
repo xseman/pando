@@ -379,7 +379,8 @@ type MoveParams struct {
 
 // SessionMoveParams is session.move: session ID takes the place session To
 // holds now, in the order session.list and the Spaces tree list sessions.
-// Both are sessions of the same workspace, not tabs; ID's tabs move with it.
+// Both are sessions of the same workspace, and ID's tabs move with it; or
+// both are tabs of one session, reordering its tab strip.
 type SessionMoveParams struct {
 	ID string `json:"id"`
 	To string `json:"to"`

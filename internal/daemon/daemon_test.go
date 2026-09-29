@@ -991,8 +991,8 @@ func TestKillSessionKillsItsTerminals(t *testing.T) {
 }
 
 // TestMoveSession reorders a worktree's sessions: a session takes another's
-// place from either side, its tab goes with it, and one of another worktree
-// or a tab is refused.
+// place from either side, its tabs go with it, a tab moves among its
+// session's, and one of another worktree or a tab past its session is refused.
 func TestMoveSession(t *testing.T) {
 	d := start(t)()
 	defer d.Close()
@@ -1005,6 +1005,7 @@ func TestMoveSession(t *testing.T) {
 	}
 
 	call(t, "session.new", map[string]any{"workspace": ws, "agent": "tab", "parent": "a", "name": "a-tab", "cmd": stay}, nil)
+	call(t, "session.new", map[string]any{"workspace": ws, "agent": "tab", "parent": "a", "name": "a-tab2", "cmd": stay}, nil)
 	call(t, "session.new", map[string]any{"workspace": elsewhere, "name": "far", "cmd": stay}, nil)
 
 	order := func() string {
@@ -1021,20 +1022,26 @@ func TestMoveSession(t *testing.T) {
 
 	call(t, "session.move", proto.SessionMoveParams{ID: "a", To: "b"}, nil)
 
-	if got := order(); got != "b a a-tab c far" {
+	if got := order(); got != "b a a-tab a-tab2 c far" {
 		t.Fatalf("moved down past b = %q", got)
 	}
 
 	call(t, "session.move", proto.SessionMoveParams{ID: "c", To: "b"}, nil)
 
-	if got := order(); got != "c b a a-tab far" {
+	if got := order(); got != "c b a a-tab a-tab2 far" {
 		t.Fatalf("moved up to the top = %q", got)
 	}
 
 	call(t, "session.move", proto.SessionMoveParams{ID: "b", To: "a"}, nil)
 
-	if got := order(); got != "c a a-tab b far" {
-		t.Fatalf("moved past a and its tab = %q", got)
+	if got := order(); got != "c a a-tab a-tab2 b far" {
+		t.Fatalf("moved past a and its tabs = %q", got)
+	}
+
+	call(t, "session.move", proto.SessionMoveParams{ID: "a-tab2", To: "a-tab"}, nil)
+
+	if got := order(); got != "c a a-tab2 a-tab b far" {
+		t.Fatalf("a tab moved before its sibling = %q", got)
 	}
 
 	if err := proto.Call("session.move", proto.SessionMoveParams{ID: "far", To: "a"}, nil); err == nil {
@@ -1042,7 +1049,11 @@ func TestMoveSession(t *testing.T) {
 	}
 
 	if err := proto.Call("session.move", proto.SessionMoveParams{ID: "a-tab", To: "c"}, nil); err == nil {
-		t.Fatal("a tab is refused: it moves with its session")
+		t.Fatal("a tab past its session is refused: it moves with it")
+	}
+
+	if err := proto.Call("session.move", proto.SessionMoveParams{ID: "a-tab", To: "a"}, nil); err == nil {
+		t.Fatal("a tab before its own session is refused: the session stays in front")
 	}
 }
 

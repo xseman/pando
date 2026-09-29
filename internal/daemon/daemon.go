@@ -1135,7 +1135,8 @@ func (d *Daemon) renameSession(id, name string) error {
 
 // moveSession puts session id where session to sits now: after it when id
 // comes from above, before it otherwise. Its tabs and Terminal shells move
-// with it, so they keep following it in the order.
+// with it, so they keep following it in the order. A tab moves the same way
+// among the tabs of its own session, which stays in front of them.
 func (d *Daemon) moveSession(id, to string) error {
 	s, err := d.session(id)
 	if err != nil {
@@ -1151,9 +1152,9 @@ func (d *Daemon) moveSession(id, to string) error {
 
 	sid, tid := s.spec.ID, t.spec.ID
 	switch {
-	case s.spec.Parent != "" || t.spec.Parent != "":
+	case s.spec.Parent != t.spec.Parent:
 		d.mu.Unlock()
-		return errors.New("a tab moves with its session: move the session")
+		return errors.New("a tab moves among its session's tabs, a session among its worktree's")
 
 	case s.spec.Workspace != t.spec.Workspace:
 		d.mu.Unlock()

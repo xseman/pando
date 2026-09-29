@@ -47,7 +47,8 @@ them, or by an unambiguous prefix of either; a name is unique among live
 sessions. A `parent` on `session.new` (resolved the same way, stored as the id)
 makes a shell of that session's Terminal panel; `session.kill` on the parent
 kills them with it. `session.move` puts a session in the place of another in
-its workspace, in the order `session.list` returns, and its children go with it.
+its workspace, in the order `session.list` returns, and its children go with it;
+a child moves among its siblings, behind the parent that stays in front.
 `workspace.move` puts a worktree at an index among its project's, kept per
 project in `state.json`; worktrees it has not seen follow in git's order.
 `skills/pando/SKILL.md`, which `pando skill` prints, is the guide an agent

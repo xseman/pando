@@ -437,7 +437,7 @@ func session(rest []string) error {
 		return proto.Call("session.rename", map[string]string{"id": arg(pos, 0, ""), "name": strings.Join(pos[min(1, len(pos)):], " ")}, nil)
 	case "move", "mv":
 		if len(pos) != 2 {
-			return errors.New("session move ID OTHER (ID takes OTHER's place in its worktree)")
+			return errors.New("session move ID OTHER (ID takes OTHER's place in its worktree, or among its session's tabs)")
 		}
 
 		return proto.Call("session.move", proto.SessionMoveParams{ID: pos[0], To: pos[1]}, nil)
