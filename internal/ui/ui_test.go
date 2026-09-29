@@ -175,7 +175,7 @@ func checkWidths(t *testing.T, m *Model) string {
 var namedKeys = map[string]rune{
 	"enter": tea.KeyEnter, "esc": tea.KeyEscape, "up": tea.KeyUp, "down": tea.KeyDown,
 	"left": tea.KeyLeft, "right": tea.KeyRight, "home": tea.KeyHome, "end": tea.KeyEnd, "tab": tea.KeyTab, "space": tea.KeySpace,
-	"f2": tea.KeyF2, "f3": tea.KeyF3, "f12": tea.KeyF12,
+	"f2": tea.KeyF2, "f3": tea.KeyF3, "f12": tea.KeyF12, "pgup": tea.KeyPgUp, "pgdown": tea.KeyPgDown,
 }
 
 // keyMsg builds a key press from its string form, e.g. "shift+down", "ctrl+]", "x".
@@ -230,7 +230,7 @@ func click(m *Model, x, y int, b tea.MouseButton) {
 }
 
 func TestKeyMsgStrings(t *testing.T) {
-	for _, s := range []string{"shift+down", "ctrl+]", "ctrl+f", "enter", "x"} {
+	for _, s := range []string{"shift+down", "ctrl+]", "ctrl+f", "enter", "x", "ctrl+shift+pgup"} {
 		if got := keyMsg(s).String(); got != s {
 			t.Errorf("keyMsg(%q).String() = %q", s, got)
 		}

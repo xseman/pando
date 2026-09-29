@@ -4178,7 +4178,7 @@ var hotkeys = map[view][][2]string{
 	viewAgents: {{"↑↓", "move"}, {"M-↑↓", "reorder"}, {"⏎", "switch"}, {"n", "session"}, {"w", "worktree"}, {"a", "project"}, {"x", "kill"}, {"o", "view options"}, {"^f", "filter"}},
 }
 
-var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"M-t", "agents"}, {"^tab", "editors"}, {"^f", "find"}, {"^← ^→", "back/forward"}, {"[ ]", "sessions"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"esc q", "quit"}}
+var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"M-t", "agents"}, {"^tab", "editors"}, {"^⇧pgup ^⇧pgdn", "move tab"}, {"^f", "find"}, {"^← ^→", "back/forward"}, {"[ ]", "sessions"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"esc q", "quit"}}
 
 var previewKeys = [][2]string{{"↑↓", "move"}, {"⇧↑↓", "select"}, {"^a", "all"}, {"y", "copy"}, {"s", "split diff"}, {"m", "stage/revert lines"}, {"w", "wrap"}, {"^f", "find"}, {"^h", "replace"}, {"^g", "go to line"}, {"f12", "definition"}, {"⇧f12", "references"}, {"^.", "code action"}, {"e", "edit"}, {"q", "close"}}
 
@@ -4354,6 +4354,11 @@ func (m *Model) viewItems() []item {
 
 	if len(m.editors) > 1 {
 		items = append(items, item{label: "Close Other Editors", run: func(m *Model) tea.Cmd { return m.closeOtherEditors() }})
+	}
+
+	if s := m.focusedStrip(); len(m.stripOrder(s)) > 1 && m.stripActive(s) != "" {
+		items = append(items, item{label: "Move Tab Left", hint: "^⇧pgup", run: func(m *Model) tea.Cmd { return m.moveTab(-1) }},
+			item{label: "Move Tab Right", hint: "^⇧pgdn", run: func(m *Model) tea.Cmd { return m.moveTab(1) }})
 	}
 
 	return items

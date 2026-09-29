@@ -114,6 +114,9 @@ var keybindings = []keybinding{
 	{keys: []string{"alt+t"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.agentNavigator() }},
 	{keys: []string{"ctrl+pgdown"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.cycleEditor(1) }},
 	{keys: []string{"ctrl+pgup"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.cycleEditor(-1) }},
+	// VS Code's Move Editor Left/Right, for whichever strip has the keyboard.
+	{keys: []string{"ctrl+shift+pgup"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.moveTab(-1) }},
+	{keys: []string{"ctrl+shift+pgdown"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.moveTab(1) }},
 	{keys: []string{"alt+1", "alt+2", "alt+3", "alt+4", "alt+5", "alt+6", "alt+7", "alt+8", "alt+9"}, when: ctxAny, run: func(m *Model, s string) tea.Cmd {
 		return m.showEditor(int(s[4] - '1'))
 	}},

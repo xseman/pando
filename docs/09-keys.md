@@ -30,7 +30,8 @@ the editor's: `ctrl+a` all, `shift+←→↑↓` or a mouse drag, then `ctrl+c` 
 A terminal gives up `ctrl+]`, `ctrl+shift+p`, `ctrl+shift+f` `ctrl+shift+e`
 `ctrl+shift+g` `ctrl+shift+h`, ``ctrl+` `` `ctrl+space`,
 ``ctrl+shift+` ``, `ctrl+shift+↑↓`, `ctrl+b`, `ctrl+,`, `ctrl+0` `ctrl+1`,
-`alt+t`, `ctrl+pgup` `ctrl+pgdn`, `alt+1`…`alt+9` and `ctrl+f` (find), with
+`alt+t`, `ctrl+pgup` `ctrl+pgdn`, `ctrl+shift+pgup` `ctrl+shift+pgdn`,
+`alt+1`…`alt+9` and `ctrl+f` (find), with
 `F3` `shift+F3` and `esc` while the find widget shows; everything else,
 `ctrl+←` `ctrl+p` `ctrl+s` `ctrl+enter` `F1` included, is the shell's.
 
@@ -55,6 +56,7 @@ matches still shown; `esc` closes the widget.
 | `ctrl+n`                                                    | new untitled file (a double click on the empty editor area does the same)                    |
 | `ctrl+tab`, `ctrl+w`                                        | next editor, close editor (middle click closes a tab too); a workspace reopens its editors   |
 | `ctrl+pgup` `ctrl+pgdn`, `alt+1`…`alt+9`                    | previous / next editor, editor N                                                             |
+| `ctrl+shift+pgup` `ctrl+shift+pgdn`                         | move the tab left / right, wrapping: the Terminal's shell, a session's tab or an editor      |
 | `ctrl+alt+-` `ctrl+shift+-`, `alt+,` `alt+.`                | back and forward through visited editors (also `ctrl+-`, `super+←` `super+→`)                |
 | `ctrl+0` `ctrl+1`                                           | focus sidebar / editor                                                                       |
 | `ctrl+f`                                                    | in a panel: filter the list (`enter` keeps it, `esc` clears); in a file or a terminal: find  |

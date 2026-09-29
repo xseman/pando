@@ -88,6 +88,9 @@ anything in it. `w` adds a worktree, `x` kills a session, deletes a worktree
   Switching to it re-roots Files and Source Control to its worktree.
 - Each session has shell tabs (`+`, `[` `]`) and its own Terminal panel
   shells; drag sessions and worktrees (or `alt+↑↓`) to reorder.
+- `ctrl+shift+pgup` `ctrl+shift+pgdn` move the focused tab — an editor, a
+  session's tab, a Terminal shell — wrapping at either end. A session's own
+  tab stays first.
 - `×` waits for you, `◐` works, `✓` finished unseen, `○` idles. One that needs
   you pulses until clicked and can play a sound (`session_highlight`,
   `sounds`). `o` filters, sorts and groups the list.
