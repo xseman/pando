@@ -1124,6 +1124,10 @@ func (s *searchView) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 
 	case "down", "j":
 		s.l.move(1, n, h)
+	case "pgup":
+		s.l.move(-h, n, h)
+	case "pgdown":
+		s.l.move(h, n, h)
 	case "g", "home":
 		s.l.move(-n, n, h)
 	case "G", "end":

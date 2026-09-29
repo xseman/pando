@@ -200,3 +200,25 @@ func TestSearchTreeAndExclude(t *testing.T) {
 		t.Fatalf("tree view:\n%s", out)
 	}
 }
+
+// TestSearchPage pages the results with pgup pgdn, scrolling the list.
+func TestSearchPage(t *testing.T) {
+	m := testModelSized(t, 100, 12)
+	for i := range 20 {
+		m.sr.files = append(m.sr.files, searchFile{path: fmt.Sprintf("f%02d.go", i), count: 1, lines: []searchLine{{line: 1, text: "hello"}}})
+	}
+
+	m.sr.l.sel = 0
+	m.sr.key(m, tea.KeyPressMsg{Code: tea.KeyPgDown})
+
+	if m.sr.l.sel == 0 || m.sr.l.top == 0 {
+		t.Fatalf("pgdown: sel %d, top %d", m.sr.l.sel, m.sr.l.top)
+	}
+
+	m.sr.key(m, tea.KeyPressMsg{Code: tea.KeyPgUp})
+	m.sr.key(m, tea.KeyPressMsg{Code: tea.KeyPgUp})
+
+	if m.sr.l.sel != 0 || m.sr.l.top != 0 {
+		t.Fatalf("pgup back to the top: sel %d, top %d", m.sr.l.sel, m.sr.l.top)
+	}
+}

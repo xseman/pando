@@ -602,15 +602,15 @@ func (a *agents) selected(m *Model) *agRow {
 	return nil
 }
 
-// step moves the selection by d rows and walks on over the blank separators,
-// so ↑↓ never parks on one. A gap always sits between two rows, so the walk
-// ends inside the list.
+// step moves the selection by d rows and walks on over the blank separators
+// one row at a time, so ↑↓ and a page never park on one. A gap always sits
+// between two rows, so the walk ends inside the list.
 func (a *agents) step(rows []agRow, d, h int) {
-	n := len(rows)
+	n, s := len(rows), min(max(d, -1), 1)
 	a.l.move(d, n, h)
 
 	for a.l.sel >= 0 && a.l.sel < n && rows[a.l.sel].kind == agGap {
-		a.l.move(d, n, h)
+		a.l.move(s, n, h)
 	}
 }
 
@@ -628,6 +628,10 @@ func (a *agents) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		a.step(rows, -1, h)
 	case "down", "j":
 		a.step(rows, 1, h)
+	case "pgup":
+		a.step(rows, -h, h)
+	case "pgdown":
+		a.step(rows, h, h)
 	case "alt+up", "alt+down":
 		d := map[bool]int{true: -1, false: 1}[k.String() == "alt+up"]
 		if r != nil && r.kind == agSession {

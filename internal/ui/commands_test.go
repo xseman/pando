@@ -402,6 +402,19 @@ func TestAgentsTreeGaps(t *testing.T) {
 	if r := m.ag.selected(m); r == nil || r.kind == agGap {
 		t.Fatalf("the selection never rests on a gap: %+v", r)
 	}
+	// A longer step onto the gap walks one row past it, not another step.
+	if gap < 2 || gap+2 > len(rows)-1 {
+		t.Fatalf("the fixture needs two rows before the gap and two after: gap %d of %d", gap, len(rows))
+	}
+
+	m.ag.l.sel = gap - 2
+	m.ag.step(rows, 2, m.bodyH(viewAgents))
+
+	if m.ag.l.sel != gap+1 {
+		t.Fatalf("step 2 onto the gap: sel = %d, want %d", m.ag.l.sel, gap+1)
+	}
+
+	m.ag.l.sel = gap - 1
 	// A click on the blank row keeps the selection where it was.
 	cs, _ := m.layout()
 	click(m, cs[0].x+1, top+gap, tea.MouseLeft)
@@ -423,6 +436,34 @@ func TestAgentsTreeGaps(t *testing.T) {
 	last := mixed[len(mixed)-1]
 	if last.kind != agProject || mixed[len(mixed)-2].kind != agGap {
 		t.Fatalf("a gap follows an unfolded project: %+v", mixed)
+	}
+}
+
+// TestSpacesPage pages the Spaces tree with pgup pgdn, which scrolls it (and
+// so its scrollbar) and never parks on a gap.
+func TestSpacesPage(t *testing.T) {
+	m := testModelSized(t, 100, 8)
+	other := t.TempDir()
+	m.st.Projects = append(m.st.Projects, other)
+	m.wss = append(m.wss, proto.Workspace{Path: other, Project: other, Branch: "main", Main: true})
+	press(m, "3")
+
+	if n, h := len(m.ag.rows(m)), m.bodyH(viewAgents); n <= h {
+		t.Fatalf("the tree must be taller than the pane: %d rows, %d high", n, h)
+	}
+
+	m.ag.l.sel = 0
+	press(m, "pgdown")
+
+	if r := m.ag.selected(m); m.ag.l.sel == 0 || m.ag.l.top == 0 || r == nil {
+		t.Fatalf("pgdown: sel %d, top %d, row %+v", m.ag.l.sel, m.ag.l.top, r)
+	}
+
+	press(m, "pgup")
+	press(m, "pgup")
+
+	if m.ag.l.sel != 0 || m.ag.l.top != 0 {
+		t.Fatalf("pgup back to the top: sel %d, top %d", m.ag.l.sel, m.ag.l.top)
 	}
 }
 
