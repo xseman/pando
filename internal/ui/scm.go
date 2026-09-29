@@ -577,7 +577,7 @@ func (s *scmView) stageConflict(m *Model, root string, e git.Entry) tea.Cmd {
 			who, keep = "us and modified by them", "Keep Their Version"
 		}
 
-		m.modal = newMenu(`File "`+e.Path+`" was deleted by `+who+`. What would you like to do?`, -1, 0,
+		m.modal = newDialog(`File "`+e.Path+`" was deleted by `+who+`. What would you like to do?`,
 			item{label: keep, run: stage},
 			item{label: "Delete File", run: func(_ *Model) tea.Cmd {
 				return s.run(root, "staging", func(root string) scmMsg { return scmMsg{err: git.Remove(root, e)} })
@@ -591,7 +591,7 @@ func (s *scmView) stageConflict(m *Model, root string, e git.Entry) tea.Cmd {
 				return stageMsg{root: root, run: stage}
 			}
 
-			return modalMsg{newMenu("Stage "+path.Base(e.Path)+" with merge conflicts?", -1, 0, item{label: "Stage", run: stage}, cancel)}
+			return modalMsg{newDialog("Stage "+path.Base(e.Path)+" with merge conflicts?", item{label: "Stage", run: stage}, cancel)}
 		}
 	}
 
@@ -629,7 +629,7 @@ func (s *scmView) stageConflicts(_ *Model, root, dir string) tea.Cmd {
 			title = fmt.Sprintf("Stage %d files with merge conflicts?", len(unresolved))
 		}
 
-		return modalMsg{newMenu(title, -1, 0, item{label: "Stage", run: stage},
+		return modalMsg{newDialog(title, item{label: "Stage", run: stage},
 			cancelItem())}
 	}
 }
@@ -2257,7 +2257,7 @@ func (s *scmView) lineAction(m *Model, r *scmRow) tea.Cmd {
 		}
 
 		branch := name[0]
-		m.modal = newMenu("Switch to "+branch+"?", -1, 0,
+		m.modal = newDialog("Switch to "+branch+"?",
 			item{label: "git switch " + branch, run: func(_ *Model) tea.Cmd {
 				return s.run(root, "switching", func(root string) scmMsg {
 					_, err := git.Run(root, "switch", strings.TrimPrefix(branch, "origin/"))
@@ -2276,7 +2276,7 @@ func (s *scmView) lineAction(m *Model, r *scmRow) tea.Cmd {
 }
 
 func (s *scmView) confirmDiscard(m *Model, root string, e git.Entry) tea.Cmd {
-	m.modal = newMenu("Discard changes in "+e.Path+"?", -1, 0,
+	m.modal = newDialog("Discard changes in "+e.Path+"?",
 		item{label: "Discard", run: func(_ *Model) tea.Cmd {
 			return s.run(root, "discarding", func(root string) scmMsg {
 				return scmMsg{text: "discarded " + e.Path, err: git.Discard(root, e)}
@@ -2288,7 +2288,7 @@ func (s *scmView) confirmDiscard(m *Model, root string, e git.Entry) tea.Cmd {
 }
 
 func (s *scmView) confirmDiscardAll(m *Model, root string) tea.Cmd {
-	m.modal = newMenu("Discard all changes to tracked files in "+filepath.Base(root)+"?", -1, 0,
+	m.modal = newDialog("Discard all changes to tracked files in "+filepath.Base(root)+"?",
 		item{label: "Discard All Changes", run: func(_ *Model) tea.Cmd {
 			return s.run(root, "discarding", func(root string) scmMsg {
 				return scmMsg{text: "discarded changes", err: git.DiscardTracked(root)}

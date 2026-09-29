@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -883,10 +884,10 @@ func TestQuitConfirmation(t *testing.T) {
 		t.Fatalf("esc asks before closing: %+v", m.modal)
 	}
 	// Cancel goes back to work, Close quits.
-	press(m, "down", "enter")
+	press(m, "left")
 
-	if m.modal != nil {
-		t.Fatal("cancel closes the popup")
+	if _, cmd := m.Update(keyMsg("enter")); m.modal != nil || cmd != nil {
+		t.Fatal("cancel closes the popup and quits nothing")
 	}
 
 	press(m, "q")
@@ -899,9 +900,105 @@ func TestQuitConfirmation(t *testing.T) {
 		t.Fatalf("nothing unsaved, nothing to warn about: %q", m.modal.title)
 	}
 
-	if cmd := m.modal.items[0].run(m); cmd == nil || cmd() != tea.Quit() {
+	if !quits(m.modal.items[0].run(m)) {
 		t.Fatal("Close quits")
 	}
+}
+
+// quits is whether cmd ends in tea.Quit, last in a tea.Sequence (whose
+// message type bubbletea keeps to itself) or on its own.
+func quits(cmd tea.Cmd) bool {
+	if cmd == nil {
+		return false
+	}
+
+	msg := cmd()
+	if v := reflect.ValueOf(msg); v.Kind() == reflect.Slice && v.Len() > 0 {
+		last, _ := v.Index(v.Len() - 1).Interface().(tea.Cmd)
+		return quits(last)
+	}
+
+	_, ok := msg.(tea.QuitMsg)
+
+	return ok
+}
+
+// TestDialogButtons is VS Code's dialog on Linux: the buttons in one row,
+// the primary one rightmost with Cancel before it, ←→ and tab walking them,
+// the focused one's hint under the message, and a click running a button.
+func TestDialogButtons(t *testing.T) {
+	m := testModel(t)
+	// row is the button row's screen line and the column of each label on it.
+	row := func(labels ...string) (int, []int) {
+		t.Helper()
+
+		for y, l := range strings.Split(ansi.Strip(checkWidths(t, m)), "\n") {
+			if !strings.Contains(l, "│") || slices.ContainsFunc(labels, func(lb string) bool { return !strings.Contains(l, " "+lb+" ") }) {
+				continue
+			}
+
+			var xs []int
+
+			for _, lb := range labels {
+				i := strings.Index(l, " "+lb+" ")
+				if i < 0 || len(xs) > 0 && ansi.StringWidth(l[:i]) <= xs[len(xs)-1] {
+					t.Fatalf("buttons out of order in %q", l)
+				}
+
+				xs = append(xs, ansi.StringWidth(l[:i])+1)
+			}
+
+			return y, xs
+		}
+
+		t.Fatalf("no button row:\n%s", checkWidths(t, m))
+
+		return 0, nil
+	}
+
+	m.confirmQuit()
+	row("Save all and close", "Cancel", "Close")
+
+	if !strings.Contains(checkWidths(t, m), "unsaved text is kept") {
+		t.Fatal("the focused Close shows its hint")
+	}
+
+	press(m, "left")
+
+	if m.modal.l.sel != 2 || strings.Contains(checkWidths(t, m), "unsaved text is kept") {
+		t.Fatalf("← focuses Cancel, whose hint is none: sel %d", m.modal.l.sel)
+	}
+
+	press(m, "tab", "tab")
+
+	if m.modal.l.sel != 1 {
+		t.Fatalf("tab wraps from the rightmost to the leftmost: sel %d", m.modal.l.sel)
+	}
+
+	press(m, "down", "j", "ctrl+t")
+
+	if m.modal == nil || m.modal.l.sel != 1 {
+		t.Fatal("a dialog swallows the keys it does not use")
+	}
+
+	y, xs := row("Save all and close", "Cancel", "Close")
+	click(m, xs[1], y, tea.MouseLeft)
+
+	if m.modal != nil {
+		t.Fatal("a click on Cancel closes the dialog")
+	}
+
+	m.confirmQuit()
+
+	if _, cmd := m.Update(tea.MouseClickMsg{X: xs[2], Y: y, Button: tea.MouseLeft}); m.modal != nil || !quits(cmd) {
+		t.Fatal("a click on Close runs it")
+	}
+	// A long question wraps in a narrow terminal, its buttons still inside the box.
+	m = testModelSized(t, 40, 20)
+	m.modal = newDialog("Delete worktree feat/very-long-branch-name and its folder? Its session is killed.",
+		item{label: "Delete Worktree", run: func(*Model) tea.Cmd { return nil }}, cancelItem())
+
+	row("Cancel", "Delete Worktree")
 }
 
 func TestDragTabToOtherSide(t *testing.T) {

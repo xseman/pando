@@ -523,6 +523,7 @@ type modal struct {
 	cancel   func(m *Model)                   // closed without choosing
 	complete func(v string) []string          // a prompt's suggestions for what is typed: the rest shows dimmed, tab or → takes it
 	treeable bool                             // offer the list/tree toggle
+	dialog   bool                             // a question: the title as its message, the items as a row of buttons
 	l        list
 	x, y     int // anchor; x < 0 centers
 }
@@ -576,6 +577,85 @@ func newMenu(title string, x, y int, items ...item) *modal {
 	md.refilter()
 
 	return md
+}
+
+// newDialog is VS Code's dialog: msg in the body over a row of buttons,
+// items[0] the primary one, cancelItem last when there is one. Its items
+// carry no detail: refilter would add rows and shift what buttons returns.
+func newDialog(msg string, items ...item) *modal {
+	md := newMenu(msg, -1, 0, items...)
+	md.dialog = true
+
+	return md
+}
+
+// buttons are the dialog's item indices in the row's order, VS Code's on
+// Linux and macOS: Cancel moves next to the primary button, then the row
+// reverses, so the primary one is rightmost with Cancel before it.
+func (md *modal) buttons() []int {
+	order := make([]int, len(md.items))
+	for i := range order {
+		order[i] = i
+	}
+
+	if n := len(order); n > 2 && md.items[n-1].label == "Cancel" {
+		order = slices.Insert(order[:n-1], 1, n-1)
+	}
+
+	slices.Reverse(order)
+
+	return order
+}
+
+// buttonRow lays the buttons out right-aligned in iw cells: each one's item,
+// label and first column, in the row's order.
+func (md *modal) buttonRow(iw int) (order []int, labels []string, xs []int) {
+	order = md.buttons()
+	total := 2 * (len(order) - 1)
+
+	for _, i := range order {
+		labels = append(labels, md.items[i].label)
+		total += ansi.StringWidth(md.items[i].label) + 2
+	}
+	// ponytail: a row too wide cuts every label to an equal share; wrap the row if dialogs grow buttons.
+	if total > iw-1 {
+		each := max((iw-1-2*(len(order)-1))/len(order)-2, 1)
+		total = 2 * (len(order) - 1)
+
+		for k, l := range labels {
+			labels[k] = ansi.Truncate(l, each, "…")
+			total += ansi.StringWidth(labels[k]) + 2
+		}
+	}
+
+	x := max(iw-1-total, 0)
+	for _, l := range labels {
+		xs = append(xs, x)
+		x += ansi.StringWidth(l) + 4
+	}
+
+	return order, labels, xs
+}
+
+// dialogBody is the dialog's message and every item's hint, wrapped to the
+// box's inner width iw; hintH is the tallest hint, so the box keeps its
+// height while the focus moves.
+func (md *modal) dialogBody(iw int) (msg []string, hints [][]string, hintH int) {
+	wrap := func(s string) []string { return strings.Split(ansi.Wrap(s, max(iw-2, 1), ""), "\n") }
+
+	msg = wrap(md.title)
+
+	for _, it := range md.items {
+		var h []string
+		if it.hint != "" {
+			h = wrap(it.hint)
+		}
+
+		hints = append(hints, h)
+		hintH = max(hintH, len(h))
+	}
+
+	return msg, hints, hintH
 }
 
 func newPicker(title string, items []item) *modal {
@@ -740,6 +820,26 @@ func (md *modal) hasInput() bool { return md.filter || md.submit != nil }
 
 // rect returns the box position and size, and how many item rows fit.
 func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
+	if md.dialog {
+		_, labels, _ := md.buttonRow(1 << 16)
+		row := 2 * (len(labels) - 1)
+
+		for _, l := range labels {
+			row += ansi.StringWidth(l) + 2
+		}
+
+		w = ansi.StringWidth(md.title)
+		for _, it := range md.items {
+			w = max(w, ansi.StringWidth(it.hint))
+		}
+
+		w = min(max(min(w+4, 64), row+3), m.w-2)
+		msg, _, hintH := md.dialogBody(w - 2)
+		h = len(msg) + hintH + 4
+		// ponytail: taller than the terminal clips the bottom, buttons and all; scroll the message if one ever does.
+		return max((m.w-w)/2, 0), max((m.h-h)/3, 0), w, h, 0
+	}
+
 	w = ansi.StringWidth(md.title) + 6
 	for _, it := range md.items {
 		w = max(w, ansi.StringWidth(it.label)+ansi.StringWidth(it.inline)+ansi.StringWidth(it.hint)+6)
@@ -801,6 +901,10 @@ func (md *modal) toggle() (label string, width int) {
 func (md *modal) view(m *Model) (string, int, int) {
 	x, y, w, _, rows := md.rect(m)
 	iw := w - 2
+
+	if md.dialog {
+		return md.dialogView(iw), x, y
+	}
 
 	title := ""
 	if md.title != "" {
@@ -870,6 +974,72 @@ func (md *modal) view(m *Model) (string, int, int) {
 	return strings.Join(lines, "\n"), x, y
 }
 
+// dialogView draws the message, the focused button's hint and the buttons,
+// the focused one in the button color: what ⏎ runs.
+func (md *modal) dialogView(iw int) string {
+	msg, hints, hintH := md.dialogBody(iw)
+	side := dim.Render("│")
+	lines := []string{dim.Render("╭" + strings.Repeat("─", iw) + "╮")}
+
+	for _, l := range msg {
+		lines = append(lines, side+fit(" "+bold.Render(l), iw)+side)
+	}
+
+	var hint []string
+	if md.l.sel >= 0 && md.l.sel < len(hints) {
+		hint = hints[md.l.sel]
+	}
+
+	for i := range hintH {
+		l := ""
+		if i < len(hint) {
+			l = dim.Render(hint[i])
+		}
+
+		lines = append(lines, side+fit(" "+l, iw)+side)
+	}
+
+	var b strings.Builder
+
+	order, labels, xs := md.buttonRow(iw)
+	at := 0
+
+	for k, i := range order {
+		st := lipgloss.NewStyle().Background(pal.mutedButtonBg).Foreground(pal.mutedButtonFg)
+		if i == md.l.sel {
+			st = lipgloss.NewStyle().Background(pal.buttonBg).Foreground(pal.buttonFg)
+		}
+
+		b.WriteString(strings.Repeat(" ", max(xs[k]-at, 0)) + st.Render(" "+labels[k]+" "))
+		at = xs[k] + ansi.StringWidth(labels[k]) + 2
+	}
+
+	lines = append(lines, side+strings.Repeat(" ", iw)+side, side+fit(b.String(), iw)+side,
+		dim.Render("╰"+strings.Repeat("─", iw)+"╯"))
+
+	return strings.Join(lines, "\n")
+}
+
+// dialogKey takes every key while a dialog shows: ←→ and tab walk the
+// buttons, wrapping, ⏎ runs the focused one, esc cancels.
+func (md *modal) dialogKey(m *Model, k tea.KeyPressMsg) tea.Cmd {
+	order := md.buttons()
+	at := slices.Index(order, md.l.sel)
+
+	switch k.String() {
+	case "left", "h", "shift+tab":
+		md.l.sel = order[(at-1+len(order))%len(order)]
+	case "right", "l", "tab":
+		md.l.sel = order[(at+1)%len(order)]
+	case "enter", "space":
+		return md.choose(m, md.l.sel)
+	case "esc", "ctrl+c", "q":
+		md.dismiss(m)
+	}
+
+	return nil
+}
+
 func (md *modal) toggleTree(m *Model) tea.Cmd {
 	md.tree = !md.tree
 	md.refilter()
@@ -878,6 +1048,10 @@ func (md *modal) toggleTree(m *Model) tea.Cmd {
 }
 
 func (md *modal) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
+	if md.dialog {
+		return md.dialogKey(m, k)
+	}
+
 	_, _, _, _, rows := md.rect(m)
 	if md.complete != nil {
 		switch s := k.String(); {
@@ -1027,6 +1201,27 @@ func (md *modal) mouse(m *Model, msg tea.MouseMsg) tea.Cmd {
 	mo := msg.Mouse()
 	x, y, w, h, rows := md.rect(m)
 	inside := mo.X >= x && mo.X < x+w && mo.Y >= y && mo.Y < y+h
+
+	if md.dialog { // a click runs a button or, outside, cancels; hover leaves the focus, as VS Code's
+		if _, ok := msg.(tea.MouseClickMsg); !ok || mo.Y != y+h-2 && inside {
+			return nil
+		}
+
+		if !inside {
+			md.dismiss(m)
+			return nil
+		}
+
+		order, labels, xs := md.buttonRow(w - 2)
+		for k, i := range order {
+			if bx := x + 1 + xs[k]; mo.X >= bx && mo.X < bx+ansi.StringWidth(labels[k])+2 {
+				md.l.sel = i
+				return md.choose(m, i)
+			}
+		}
+
+		return nil
+	}
 
 	top := y + 1
 	if md.hasInput() {

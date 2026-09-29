@@ -1097,7 +1097,7 @@ func (s *searchView) confirmReplaceAll(m *Model) tea.Cmd {
 	}
 
 	n := s.matches()
-	m.modal = newMenu(fmt.Sprintf("Replace %s with %q?", plural(n, "match"), with), -1, 0,
+	m.modal = newDialog(fmt.Sprintf("Replace %s with %q?", plural(n, "match"), with),
 		item{label: "Replace All", run: func(m *Model) tea.Cmd { return s.replaceRows(m, srRow{}, true) }},
 		cancelItem())
 

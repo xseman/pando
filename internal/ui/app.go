@@ -4504,7 +4504,7 @@ func (m *Model) confirmQuit() tea.Cmd {
 		title = fmt.Sprintf("Close pando? %s unsaved", plural(n, "file"))
 	}
 
-	m.modal = newMenu(title, -1, 0,
+	m.modal = newDialog(title,
 		item{label: "Close", hint: "unsaved text is kept", run: func(m *Model) tea.Cmd {
 			return tea.Sequence(m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts(), tea.Quit)
 		}},
@@ -4541,8 +4541,8 @@ func (m *Model) toggleDiffView() tea.Cmd {
 }
 
 func staleModal(sessions int) *modal {
-	return newMenu("The pando daemon runs an older build", -1, 0,
-		item{label: fmt.Sprintf("Restart it now (%d sessions restart: their programs are stopped and resumed, scrollback and work in flight are lost)", sessions), run: func(*Model) tea.Cmd {
+	return newDialog("The pando daemon runs an older build",
+		item{label: "Restart it now", hint: fmt.Sprintf("%d sessions restart: their programs are stopped and resumed, scrollback and work in flight are lost", sessions), run: func(*Model) tea.Cmd {
 			return func() tea.Msg {
 				if err := proto.RestartDaemon(); err != nil {
 					return flashMsg{"restart: " + err.Error(), true}
@@ -4551,7 +4551,7 @@ func staleModal(sessions int) *modal {
 				return flashMsg{"daemon restarted", false}
 			}
 		}},
-		item{label: "Keep it (layout and tree settings will not be saved)", run: func(*Model) tea.Cmd {
+		item{label: "Keep it", hint: "layout and tree settings will not be saved", run: func(*Model) tea.Cmd {
 			return flash("old daemon kept · pando stop restarts it", true)
 		}})
 }

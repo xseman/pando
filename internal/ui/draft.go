@@ -234,7 +234,7 @@ func (m *Model) saveAsPrompt(i int, then func(m *Model) tea.Cmd) tea.Cmd {
 				return flash(v+" is a directory", true)
 			}
 
-			m.modal = newMenu(filepath.Base(to)+" already exists", -1, 0,
+			m.modal = newDialog(filepath.Base(to)+" already exists",
 				item{label: "Overwrite it", run: func(m *Model) tea.Cmd { return m.saveAs(i, to, then) }},
 				cancelItem())
 

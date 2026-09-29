@@ -170,7 +170,8 @@ the column (a terminal never reports "mouse left").
 ## Modals
 
 One overlay at a time (`Model.modal`): a menu (items at a position), a picker
-(filter + fuzzy ranking) or a prompt (single input).
+(filter + fuzzy ranking), a prompt (single input) or a dialog (`newDialog`, a
+question with a row of buttons).
 
 ```
 ╭ Select a branch or tag to checkout ─────────╮
@@ -188,3 +189,19 @@ while results change. Items can carry a `search` string (`@idle`, `!claude`
 tokens must match verbatim, the rest fuzzily), a `group` (browsing files the
 items under a heading, a query ranks across all of them), an `inline` note
 drawn dimmed right after the label and a right-aligned `hint`.
+
+```
+╭────────────────────────────────────────╮
+│ Close pando?                           │  message, wrapped
+│ unsaved text is kept                   │  the focused button's hint
+│                                        │
+│ Save all and close    Cancel    Close  │  focused button in the button color
+╰────────────────────────────────────────╯
+```
+
+A dialog's items are its buttons, `items[0]` the primary one and focused
+first, `cancelItem()` last. They show in VS Code's Linux order (Cancel moved
+next to the primary, then reversed): the primary rightmost, Cancel before it.
+The box keeps the height of the tallest hint, and it takes every key: `←→`
+`tab` walk the buttons, `⏎` runs the focused one, `esc` cancels; hover does
+not move the focus.

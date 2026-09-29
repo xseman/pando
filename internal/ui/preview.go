@@ -465,7 +465,7 @@ func (m *Model) cycleEditor(d int) tea.Cmd {
 func (m *Model) closeEditor(i int) tea.Cmd {
 	if i >= 0 && i < len(m.editors) && m.editors[i].dirty() {
 		name, _ := m.editors[i].label(m.ws)
-		m.modal = newMenu("Close "+name+" without saving?", -1, 0,
+		m.modal = newDialog("Close "+name+" without saving?",
 			item{label: "Save and close", run: func(m *Model) tea.Cmd {
 				// An untitled buffer has nowhere to go yet: ask where, and
 				// drop the tab only once that save went through.
@@ -3041,7 +3041,7 @@ func (p *preview) applyLines(m *Model, op git.LineOp) tea.Cmd {
 }
 
 func (p *preview) confirmRevert(m *Model) tea.Cmd {
-	m.modal = newMenu("Revert the selected changes in "+p.path+"?", -1, 0,
+	m.modal = newDialog("Revert the selected changes in "+p.path+"?",
 		item{label: "Revert", run: func(m *Model) tea.Cmd { return m.pv.applyLines(m, git.RevertLines) }},
 		cancelItem())
 

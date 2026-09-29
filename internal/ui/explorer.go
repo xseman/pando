@@ -438,7 +438,7 @@ func (e *explorer) action(key string) func(m *Model) tea.Cmd {
 
 	case "D", "delete":
 		return func(m *Model) tea.Cmd {
-			m.modal = newMenu("Delete "+filepath.Base(path)+"?", -1, 0,
+			m.modal = newDialog("Delete "+filepath.Base(path)+"?",
 				item{label: "Delete permanently", run: func(m *Model) tea.Cmd {
 					if err := os.RemoveAll(path); err != nil {
 						return flash(err.Error(), true)

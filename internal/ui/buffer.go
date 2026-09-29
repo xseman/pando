@@ -625,7 +625,7 @@ func (p *preview) save(m *Model, force bool) tea.Cmd {
 	switch err := p.buf.save(p.path, force); {
 	case errors.Is(err, errChangedOnDisk):
 		path := p.path
-		m.modal = newMenu(filepath.Base(path)+" changed on disk", -1, 0,
+		m.modal = newDialog(filepath.Base(path)+" changed on disk",
 			item{label: "Overwrite it", run: func(m *Model) tea.Cmd { return m.pv.save(m, true) }},
 			item{label: "Reload and lose my edits", run: func(m *Model) tea.Cmd {
 				m.pv.buf = nil

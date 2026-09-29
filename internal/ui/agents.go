@@ -835,7 +835,7 @@ func (a *agents) remove(m *Model, r *agRow) tea.Cmd {
 		}
 	}
 
-	m.modal = newMenu(title, -1, 0,
+	m.modal = newDialog(title,
 		item{label: label, run: func(m *Model) tea.Cmd { return m.dissolve(names, killThen(kill, method, params)) }},
 		cancelItem())
 

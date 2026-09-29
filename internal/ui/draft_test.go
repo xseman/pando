@@ -129,7 +129,7 @@ func TestUntitledCloseAsks(t *testing.T) {
 		t.Fatalf("items %v", got)
 	}
 
-	press(m, "down", "down")
+	press(m, "left")         // from the primary button, rightmost, to Cancel before it
 	send(m, keyMsg("enter")) // Cancel
 
 	if m.modal != nil || len(m.editors) != 1 || m.pv.buf.text() != "wip" {
@@ -162,7 +162,7 @@ func TestUntitledCloseAsks(t *testing.T) {
 	// Close anyway drops it.
 	m2 := untitledModel(t, "gone")
 	send(m2, keyMsg("ctrl+w"))
-	press(m2, "down")
+	press(m2, "tab") // from the rightmost button around to the leftmost
 	send(m2, keyMsg("enter"))
 
 	if m2.modal != nil || len(m2.editors) != 0 || m2.pv.kind != "" {

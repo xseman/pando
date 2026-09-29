@@ -65,6 +65,7 @@ matches still shown; `esc` closes the widget.
 | `m`, right click                                            | context menu                                                                                 |
 | `q`, `esc`                                                  | close the TUI once there is nothing left to close; it asks first (sessions keep running)     |
 | `↑↓` `j`/`k`, `pgup` `pgdn`, `g`/`G` `home` `end`            | in a view's list: move, a page, first / last row                                            |
+| `←→` `tab`, `⏎` `space`, `esc` `q`                          | in a question: the next button, run the focused one, cancel                                  |
 
 | View   | Keys                                                                                                                                                                                                                                                                               |
 | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

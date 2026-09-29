@@ -90,7 +90,7 @@ func (m *Model) startUpdate() tea.Cmd {
 // still runs the old one, so the update takes effect when pando is started
 // again.
 func (m *Model) finishUpdate() tea.Cmd {
-	m.modal = newMenu("pando v"+m.upd.Latest+" is installed", -1, 0,
+	m.modal = newDialog("pando v"+m.upd.Latest+" is installed",
 		item{label: "Quit pando", hint: "start it again to run v" + m.upd.Latest, run: func(m *Model) tea.Cmd {
 			return tea.Sequence(m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts(), tea.Quit)
 		}},
