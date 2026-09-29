@@ -575,9 +575,12 @@ func xtermKey(code rune, mod uv.KeyMod) (seq string, ok bool) {
 	return "", false
 }
 
+// input writes to the app. Text takes the emulator's pipe with the keys, the
+// paste and the mouse: written straight to the PTY it could overtake keys the
+// copier still held, as a ctrl+u landing after the next call's line.
 func (s *session) input(p proto.InputParams) error {
 	if p.Text != "" {
-		if _, err := s.pty.WriteString(p.Text); err != nil {
+		if _, err := io.WriteString(s.emu.InputPipe(), p.Text); err != nil {
 			return err
 		}
 	}
