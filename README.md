@@ -95,9 +95,10 @@ anything in it. `w` adds a worktree, `x` kills a session, deletes a worktree
   Terminal's shells: a `│` marks where it lands on release. `ctrl+shift+pgup`
   `ctrl+shift+pgdn` move the focused one, wrapping at either end. A session's
   own tab stays first.
-- `×` waits for you, `◐` works, `✓` finished unseen, `○` idles. One that needs
-  you pulses until clicked and can play a sound (`session_highlight`,
-  `sounds`). `o` filters, sorts and groups the list.
+- `×` waits for you, `◐` works (a shell command the agent runs, a background
+  one too, counts), `✓` finished unseen, `○` idles. One that needs you pulses
+  until clicked and can play a sound (`session_highlight`, `sounds`). `o`
+  filters, sorts and groups the list.
 - Drag over a terminal to select; the release copies. `ctrl+f` finds in its
   scrollback.
 

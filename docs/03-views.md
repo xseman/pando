@@ -184,6 +184,16 @@ claude at its prompt with a subagent or a workflow still listed under it
 (`◯ deep-task … 8m 33s`) is left to output timing too: the row's clock ticks
 while the work runs, so the session reads working until it stops.
 
+A shell command under the agent reads working short of a prompt that blocks,
+whatever the screen says: claude leaves a `run_in_background` shell at its idle
+`❯` (`· 1 shell`). Once a tick the daemon lists the foreground program's own
+children (`/proc/<pid>/task/*/children`) and counts a shell running a command
+line (`sh -c`, `bash -lc`), as claude, codex, gemini and opencode start their
+tools (`commandsUnder`). An MCP server is a child too but not a shell, and its
+`npm exec`'s `sh -c` is a grandchild; a status line or hook command is gone by
+the next tick, so only one seen on two ticks counts. A background dev server
+keeps its session working until it stops.
+
 View options (`o`, the header's sliders, or _View Options…_) are VS Code's
 agent sessions menu (`agents.viewMenu`). Filter, Sort and Group are settings
 (`spaces_hide`, `spaces_sort`, `spaces_group`), so every window lists alike;

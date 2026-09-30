@@ -61,6 +61,8 @@ type session struct {
 	screenAt      time.Time // lastOutput when the screen was last classified
 	screenProg    string    // the program it was classified for
 	seen          string    // screenState of it: blocked, running, idle or ""
+	commands      []int     // the shell commands under the foreground, as last seen
+	command       bool      // one of them was there the tick before too
 
 	started  time.Time  // set before the session is registered, read-only after
 	fallback [][]string // the shells left to try if this one fails at once
@@ -364,7 +366,8 @@ func (s *session) notice(lines ...string) {
 
 // tick recomputes status; returns true when anything a client shows changed.
 // An agent's screen decides when its rules recognise it (an approval prompt
-// waits in silence; a long tool call prints nothing), output timing otherwise.
+// waits in silence; a long tool call prints nothing), output timing otherwise;
+// a shell command under the agent keeps it running short of a prompt.
 func (s *session) tick(now time.Time) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -386,7 +389,7 @@ func (s *session) tick(now time.Time) bool {
 			s.attention = true
 		}
 
-	case s.seen == "running", s.seen != "idle" && now.Sub(s.lastOutput) < busyWindow:
+	case s.seen == "running", s.command, s.seen != "idle" && now.Sub(s.lastOutput) < busyWindow:
 		s.status = "running"
 	default:
 		s.status = "idle"
@@ -431,6 +434,18 @@ func (s *session) shownTitle() string {
 	}
 
 	return s.title
+}
+
+// setCommands records the shell commands running under the foreground
+// program. One seen on two ticks in a row keeps the session running whatever
+// its screen says: claude sits at its idle prompt while a background shell
+// works. A status line or hook command is gone by the next tick.
+func (s *session) setCommands(pids []int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.command = slices.ContainsFunc(pids, func(p int) bool { return slices.Contains(s.commands, p) })
+	s.commands = pids
 }
 
 // setJob records whether the foreground attaches to a background job, and

@@ -85,7 +85,9 @@ pando session get reviewer
 | `exited`  | the process is gone; `exit_code` says how         |
 
 pando reads the screen for the agents it recognizes (claude, codex, gemini,
-opencode) and falls back to output timing for everything else. A `blocked`
+opencode) and falls back to output timing for everything else. A shell command
+the agent runs keeps it `running`, a background one too: waiting for `idle`
+waits for the agent's background shells, a dev server included. A `blocked`
 screen is an approval or a question **that you must not answer on the user's
 behalf** — read it and ask, unless the user already told you how to answer.
 

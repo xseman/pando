@@ -1,6 +1,10 @@
 package daemon
 
 import (
+	"os"
+	"os/exec"
+	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -90,5 +94,98 @@ func TestBackgroundAgentRuns(t *testing.T) {
 
 	if s.status != "idle" {
 		t.Fatalf("a row gone quiet: %q, want idle", s.status)
+	}
+}
+
+func TestShellCommand(t *testing.T) {
+	cases := []struct {
+		argv []string
+		want bool
+	}{
+		{[]string{"/bin/bash", "-c", "source ~/.claude/shell-snapshots/snapshot-bash-1.sh && eval 'sleep 60'"}, true},
+		{[]string{"bash", "-lc", "cargo test"}, true},
+		{[]string{"/usr/bin/zsh", "-c", "ls"}, true},
+		{[]string{"-sh", "-c", "make"}, true},
+		{[]string{"sh", "-e", "-c", "make"}, true},
+		{[]string{"bash"}, false},                               // an interactive shell
+		{[]string{"bash", "script.sh", "-c"}, false},            // a script's own flag
+		{[]string{"bash", "--noprofile", "--norc"}, false},      // long flags only
+		{[]string{"npm", "exec", "figma-developer-mcp"}, false}, // an MCP server
+		{[]string{"node", "-c", "x"}, false},
+		{nil, false},
+	}
+	for _, c := range cases {
+		if got := shellCommand(c.argv); got != c.want {
+			t.Errorf("shellCommand(%q) = %v, want %v", c.argv, got, c.want)
+		}
+	}
+}
+
+// A background shell leaves claude at its idle prompt: the command under it
+// keeps the session running once it outlasts a tick, and idle after.
+func TestCommandKeepsRunning(t *testing.T) {
+	now := time.Now()
+	s := &session{status: "idle", seen: "idle", screenProg: "claude", program: "claude"}
+
+	s.setCommands([]int{42})
+	s.tick(now)
+
+	if s.status != "idle" {
+		t.Fatalf("a command seen once: %q, want idle", s.status)
+	}
+
+	s.setCommands([]int{42})
+	s.tick(now)
+
+	if s.status != "running" {
+		t.Fatalf("a command seen twice: %q, want running", s.status)
+	}
+
+	s.seen = "blocked"
+	s.tick(now)
+
+	if s.status != "blocked" {
+		t.Fatalf("a prompt over a running command: %q, want blocked", s.status)
+	}
+
+	s.seen = "idle"
+	s.setCommands(nil)
+	s.tick(now)
+
+	if s.status != "idle" {
+		t.Fatalf("the command done: %q, want idle", s.status)
+	}
+}
+
+func TestCommandsUnder(t *testing.T) {
+	self := strconv.Itoa(os.Getpid())
+	if _, err := os.Stat("/proc/" + self + "/task/" + self + "/children"); err != nil {
+		t.Skip("no /proc/<pid>/task/<tid>/children here")
+	}
+
+	sh := exec.Command("sh", "-c", "sleep 30; true") // the list keeps sh from exec'ing sleep
+	plain := exec.Command("sleep", "30")
+
+	for _, c := range []*exec.Cmd{sh, plain} {
+		if err := c.Start(); err != nil {
+			t.Fatal(err)
+		}
+
+		t.Cleanup(func() { _ = c.Process.Kill(); _ = c.Wait() })
+	}
+
+	var got []int
+
+	for range 100 { // until both have exec'd
+		got = commandsUnder(os.Getpid())
+		if slices.Contains(got, sh.Process.Pid) && len(cmdline(plain.Process.Pid)) > 0 && cmdline(plain.Process.Pid)[0] == "sleep" {
+			break
+		}
+
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	if !slices.Contains(got, sh.Process.Pid) || slices.Contains(got, plain.Process.Pid) {
+		t.Fatalf("commandsUnder = %v, want %d (sh -c) and not %d (sleep)", got, sh.Process.Pid, plain.Process.Pid)
 	}
 }

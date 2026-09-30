@@ -1,8 +1,11 @@
 package daemon
 
 import (
+	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -96,4 +99,64 @@ func screenState(program, title string, lines []string) string {
 	}
 
 	return ""
+}
+
+// shells are what agents run a tool's command line in: claude's Bash tool is
+// `bash -c source …/shell-snapshots/… && eval …`, codex's `bash -lc`,
+// gemini's and opencode's `bash -c`.
+var shells = []string{"sh", "bash", "zsh", "fish", "dash", "ksh"}
+
+// shellCommand reports an argv that runs a command line in a shell (`sh -c`,
+// `bash -lc`), not an interactive shell or some other program: an MCP server
+// is a child of the agent too, and runs for as long as it does.
+func shellCommand(argv []string) bool {
+	if len(argv) < 2 || !slices.Contains(shells, strings.TrimPrefix(filepath.Base(argv[0]), "-")) {
+		return false
+	}
+
+	for _, a := range argv[1:] {
+		if !strings.HasPrefix(a, "-") {
+			return false
+		}
+
+		if !strings.HasPrefix(a, "--") && strings.ContainsRune(a, 'c') {
+			return true
+		}
+	}
+
+	return false
+}
+
+// commandsUnder are the shell commands process pid runs as its own children,
+// over every thread's list: a runtime may fork from any of them. Grandchildren
+// do not count, as an MCP server's `npm exec` runs one of its own.
+// ponytail: Linux only, as foreground is; elsewhere nothing is found.
+func commandsUnder(pid int) []int {
+	if pid <= 0 {
+		return nil
+	}
+
+	dir := "/proc/" + strconv.Itoa(pid) + "/task/"
+
+	tasks, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+
+	var out []int
+
+	for _, t := range tasks {
+		b, err := os.ReadFile(dir + t.Name() + "/children")
+		if err != nil {
+			continue
+		}
+
+		for f := range strings.FieldsSeq(string(b)) {
+			if c, err := strconv.Atoi(f); err == nil && shellCommand(cmdline(c)) {
+				out = append(out, c)
+			}
+		}
+	}
+
+	return out
 }

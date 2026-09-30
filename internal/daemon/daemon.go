@@ -301,6 +301,7 @@ func (d *Daemon) Serve(ln net.Listener) error {
 				}
 
 				pid, prog := s.foreground()
+				s.setCommands(commandsUnder(pid))
 				changed = s.tick(now) || changed
 				changed = s.setProgram(prog) || changed
 				dirty = d.remember(s, pid, prog) || dirty
