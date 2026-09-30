@@ -2205,8 +2205,15 @@ func TestSessionDock(t *testing.T) {
 
 	m.ag.activate(m, &rows[k])
 
-	if m.sess != "" {
-		t.Fatal("a second click puts it away")
+	if m.sess != "" || m.ag.l.sel < 0 {
+		t.Fatal("a second ↵ puts it away, the row still selected for the keys")
+	}
+	// A second click leaves nothing selected: the row does not read as open.
+	m.ag.click(m, &rows[k])
+	m.ag.click(m, &rows[k])
+
+	if m.sess != "" || m.ag.selected(m) != nil {
+		t.Fatalf("a second click puts it away and clears the selection: sess %q, sel %d", m.sess, m.ag.l.sel)
 	}
 	// A framed layout carries the title on the frame's top edge.
 	m.st.Settings.Borders = true

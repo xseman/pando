@@ -748,6 +748,20 @@ func (a *agents) activate(m *Model, r *agRow) tea.Cmd {
 	return nil
 }
 
+// click is a left click's activate. A session it puts away leaves nothing
+// selected, so its row no longer reads as the one open; ↵ keeps the
+// selection for the keys that follow.
+func (a *agents) click(m *Model, r *agRow) tea.Cmd {
+	hides := r != nil && r.kind == agSession && m.rootOf(m.sess) == r.s.ID && m.inView(m.sess)
+
+	cmd := a.activate(m, r)
+	if hides {
+		a.l.sel = -1
+	}
+
+	return cmd
+}
+
 // workspaceFor picks the workspace a new session goes into.
 func (m *Model) workspaceFor(r *agRow) string {
 	if r == nil || r.kind == agGap || r.kind == agTime || (r.kind == agProject && r.project == "") {
@@ -1160,7 +1174,7 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, y int) tea.Cmd {
 			}
 		}
 
-		return a.activate(m, &rows[i])
+		return a.click(m, &rows[i])
 	}
 
 	return nil
@@ -1199,7 +1213,7 @@ func (a *agents) dragRowTo(m *Model, d *drag, y int, release bool) tea.Cmd {
 
 	m.drag = nil
 	if !d.moved {
-		return a.activate(m, a.selected(m))
+		return a.click(m, a.selected(m))
 	}
 
 	switch {

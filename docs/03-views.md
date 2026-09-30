@@ -194,6 +194,9 @@ tools (`commandsUnder`). An MCP server is a child too but not a shell, and its
 the next tick, so only one seen on two ticks counts. A background dev server
 keeps its session working until it stops.
 
+A second click on the session in view puts it away and leaves no row selected
+(`agents.click`), so nothing reads as open; `↵` keeps the selection.
+
 View options (`o`, the header's sliders, or _View Options…_) are VS Code's
 agent sessions menu (`agents.viewMenu`). Filter, Sort and Group are settings
 (`spaces_hide`, `spaces_sort`, `spaces_group`), so every window lists alike;
