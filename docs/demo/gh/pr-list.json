@@ -1,0 +1,8 @@
+[
+{"number":9,"title":"Round to the cent","author":{"login":"noor"},"url":"https://github.com/pando-demo/shop/pull/9","isDraft":false,"headRefName":"round","baseRefName":"main","headRefOid":"b41c09e","isCrossRepository":false,
+ "statusCheckRollup":[{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclusion":"FAILURE"},{"__typename":"CheckRun","name":"lint","status":"COMPLETED","conclusion":"SUCCESS"}]},
+{"number":8,"title":"Add Discount","author":{"login":"jun"},"url":"https://github.com/pando-demo/shop/pull/8","isDraft":false,"headRefName":"discount","baseRefName":"main","headRefOid":"7e2a5d3","isCrossRepository":false,
+ "statusCheckRollup":[{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclusion":"SUCCESS"},{"__typename":"CheckRun","name":"lint","status":"COMPLETED","conclusion":"SUCCESS"}]},
+{"number":6,"title":"Store: remove items","author":{"login":"mara"},"url":"https://github.com/pando-demo/shop/pull/6","isDraft":true,"headRefName":"remove","baseRefName":"main","headRefOid":"0c93f1a","isCrossRepository":false,
+ "statusCheckRollup":[{"__typename":"CheckRun","name":"test","status":"IN_PROGRESS","conclusion":""}]}
+]

@@ -126,7 +126,12 @@ make demo-lsp      # one tape
 A parallel tape gets a repository and a daemon of its own (`PANDO_DEMO_REPO`,
 `PANDO_DEMO_STATE`). A serial one shares `/tmp/pando-demo`: it runs claude,
 which must be trusted by hand in every new directory, or its path is on
-screen. What bites:
+screen. Each recipe stops its tape's daemon afterwards. A claude tape starts
+its agents from the CLI (`session new`, `session wait --until`, `send`),
+hidden except in `cli.tape`, and cuts the turn it waits for with
+`Hide`/`Show`, so no GIF idles on a spinner.
+`github.tape` puts `gh/gh`, a fake answering from the files beside it, on the
+PATH. What bites:
 
 - VHS cannot send `F12`, `ctrl+.`, `ctrl+s`, `ctrl+space` or `alt+shift`
   chords: a tape binds those commands to `ctrl` letters in its own
@@ -137,6 +142,22 @@ screen. What bites:
 - An editable file types `5` and `[` rather than toggling the terminal or
   cycling tabs: reach them from a sidebar (`ctrl+]` from the Terminal).
 - Switching a project already shows its session, so `⏎` on its Spaces row
-  hides it again.
+  hides it again. `⏎` on another session's row opens it and hands it the
+  keys; `ctrl+]` leads back to the tree. An open file keeps `ctrl+]` (it
+  indents).
+- `b` hides the focused column and the focus falls to main; `ctrl+b` brings
+  it back. `ctrl+0` takes the first open column, the session's when the
+  sidebar is hidden.
+- A tape reaches claude's permission prompt only with `cfg … claude-ask`,
+  agent `ask` (permission mode `default`), whatever the recording machine's
+  settings.json allows.
 - claude records in its classic renderer (`cfg.sh` passes `"tui": "default"`):
   a fullscreen claude draws on the alternate screen and matches no wait.
+- A tape waits on the CLI's output or on what claude answers (a word of it,
+  its `●` reply marker), never on the welcome screen, whose hints change
+  between claude versions. `Wait+Screen` matches the whole screen as one
+  string, so `^` is its start, not a line's.
+- A resume command is typed into a shell unquoted, so `cfg` hands claude its
+  settings as a file (`$PANDO_CONFIG_DIR/claude.json`), not inline JSON.
+- A screen that scrolls line by line costs a full GIF frame per line: page
+  instead (`PageDown`), and hold the result.

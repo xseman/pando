@@ -1,0 +1,4 @@
+[
+{"number":8,"title":"Add Discount","author":{"login":"jun"},"url":"https://github.com/pando-demo/shop/pull/8","isDraft":false,"headRefName":"discount","baseRefName":"main","headRefOid":"7e2a5d3","isCrossRepository":false,
+ "statusCheckRollup":[{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclusion":"SUCCESS"},{"__typename":"CheckRun","name":"lint","status":"COMPLETED","conclusion":"SUCCESS"}]}
+]

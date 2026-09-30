@@ -3,11 +3,13 @@
 # setup.tape, so a tape names only what makes it different:
 #
 #   cfg 26 ctrl+k=editor.saveFile        # width, then key bindings
-#   cfg 34 claude                        # the agent preset the session tapes run
+#   cfg 34 claude-edits                  # claude with edits and Bash allowed, no prompts (cli, tui)
+#   cfg 34 claude-edits claude-ask       # and agent ask: one that asks before every command, whatever settings.json says
 #   cfg 26 vim ctrl+k=editor.saveFile    # a setting of its own
+#   cfg 30 resume                        # claude resumed in the foreground, in the demo's palette
 #
 # VHS cannot send ctrl+s, F12 or a drag, so every tape binds what it needs to a
-# ctrl letter; keeping the presets here is what stops nine tapes from repeating
+# ctrl letter; keeping the presets here is what stops every tape from repeating
 # the same escaped printf.
 
 # The palette pando and the agent record in, "light" or "dark". Keep it in step
@@ -15,28 +17,38 @@
 mode=dark
 # mode=light
 
-# The command the session tapes start an agent with; projects.tape types it too.
-# "tui": "default" keeps claude in its classic renderer, the one the GIFs show,
-# whatever the recording machine's settings.json picked (a fullscreen claude
-# draws on the alternate screen and looks nothing like them).
-claude_cmd="claude --settings '{\"theme\": \"$mode\", \"tui\": \"default\"}'"
+# The command resume.tape types into its shell session, after cfg has written
+# claude.json. Its "tui": "default" keeps claude in its classic renderer, the
+# one the GIFs show, whatever the recording machine's settings.json picked (a
+# fullscreen claude draws on the alternate screen and looks nothing like them).
+claude_cmd="claude --settings $PANDO_CONFIG_DIR/claude.json"
 
 cfg() {
-	local width=$1 keys="" a
+	local width=$1 top="" agents="" rid="" keys="" a s
 	shift
+	# claude's settings as a file: a resume command is typed into a shell,
+	# where an argument holding JSON would not survive.
+	s='"--settings", "'$PANDO_CONFIG_DIR/claude.json'"'
+	for a in "$@"; do
+		case $a in
+		vim) top+=$'vim_mode = true\n' ;;
+		resume) # the resumed claude in the foreground, not a Claude Code background
+			# job that outlives the recording, and in the palette it started in
+			top+=$'claude_background = false\n'
+			rid+="claude = [\"claude\", $s, \"--resume\", \"{id}\"]"$'\n' ;;
+		claude-ask) agents+="ask = [\"claude\", \"--permission-mode\", \"default\", $s]"$'\n' ;;
+		claude-edits) agents+="claude = [\"claude\", \"--permission-mode\", \"acceptEdits\", \"--allowedTools\", \"Bash\", $s]"$'\n' ;;
+		*=*) keys+="\"${a%%=*}\" = \"${a#*=}\""$'\n' ;;
+		*) echo "cfg: unknown argument $a" >&2 ;;
+		esac
+	done
 	mkdir -p "$PANDO_CONFIG_DIR"
+	printf '{"theme": "%s", "tui": "default"}\n' "$mode" > "$PANDO_CONFIG_DIR/claude.json"
+	# Top-level keys first: after a [table] header they would belong to it.
 	{
-		printf 'icons = "nerd"\npanel_borders = false\ncolor_theme = "vscode-%s"\nwidth = %s\n' "$mode" "$width"
-		for a in "$@"; do
-			case $a in
-			vim) echo 'vim_mode = true' ;;
-			claude) printf '[agents]\nclaude = ["claude", "--settings", "{\\"theme\\": \\"%s\\", \\"tui\\": \\"default\\"}"]\n' "$mode" ;;
-			claude-edits) printf '[agents]\nclaude = ["claude", "--permission-mode", "acceptEdits", "--allowedTools", "Bash", "--settings", "{\\"theme\\": \\"%s\\", \\"tui\\": \\"default\\"}"]\n' "$mode" ;;
-			shell) printf '[agents]\nshell = ["bash"]\n' ;;
-			*=*) keys+=$(printf '"%s" = "%s"\n' "${a%%=*}" "${a#*=}")$'\n' ;;
-			*) echo "cfg: unknown argument $a" >&2 ;;
-			esac
-		done
+		printf 'icons = "nerd"\npanel_borders = false\ncolor_theme = "vscode-%s"\nwidth = %s\n%s' "$mode" "$width" "$top"
+		[ -n "$agents" ] && printf '[agents]\n%s' "$agents"
+		[ -n "$rid" ] && printf '[resume_id]\n%s' "$rid"
 		[ -n "$keys" ] && printf '[keys]\n%s' "$keys"
 	} > "$PANDO_CONFIG_DIR/config.toml"
 }

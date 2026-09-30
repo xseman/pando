@@ -1,0 +1,37 @@
+diff --git a/internal/store/store.go b/internal/store/store.go
+index 5d1c2e4..a93f0b7 100644
+--- a/internal/store/store.go
++++ b/internal/store/store.go
+@@ -22,3 +22,11 @@ func (s *Store) Total() int {
+ 	}
+ 	return sum
+ }
++
++// Discount takes percent off the total.
++func (s *Store) Discount(percent int) int {
++	if percent < 0 || percent > 100 {
++		return s.Total()
++	}
++	return s.Total() * (100 - percent) / 100
++}
+diff --git a/internal/store/store_test.go b/internal/store/store_test.go
+new file mode 100644
+index 0000000..3e8b2c1
+--- /dev/null
++++ b/internal/store/store_test.go
+@@ -0,0 +1,15 @@
++package store
++
++import "testing"
++
++func TestDiscount(t *testing.T) {
++	s := New()
++	s.Add("espresso", 250)
++	s.Add("cortado", 300)
++
++	for percent, want := range map[int]int{0: 550, 10: 495, 50: 275, 100: 0} {
++		if got := s.Discount(percent); got != want {
++			t.Errorf("Discount(%d) = %d, want %d", percent, got, want)
++		}
++	}
++}

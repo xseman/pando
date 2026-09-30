@@ -8,7 +8,7 @@
     changed with VS Code's diffs, all in one TUI.
 </p>
 
-![the TUI: explorer, a diff, search, the terminal, and a claude session in the Spaces tree beside a worktree](docs/demo/tui.gif)
+![three claude sessions, each in a worktree of its own, come to life; one finishes (✓), one waits for a yes (×, pulsing), and the finished one's diff is reviewed and committed without leaving pando](docs/demo/tui.gif)
 
 ## Why
 
@@ -101,8 +101,6 @@ anything in it. `w` adds a worktree, `x` kills a session, deletes a worktree
 - Drag over a terminal to select; the release copies. `ctrl+f` finds in its
   scrollback.
 
-![two claude sessions at once, the tree marking one working, then done and pulsing until clicked, and a shell tab of its own](docs/demo/sessions.gif)
-
 **Resume.** On a daemon restart each session comes back as its shell and pando
 types the command that continues the agent it held: `claude` (by conversation
 id), `codex resume --last` and `opencode --continue` out of the box, anything
@@ -113,6 +111,8 @@ a custom config dir (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`) comes back with it.
 [resume]
 aider = ["aider", "--restore-chat-history"]
 ```
+
+![a claude conversation, pando closed and its daemon stopped; the next pando brings the session back and claude continues the same conversation](docs/demo/resume.gif)
 
 A restart still stops what runs in the terminal, subagents included.
 `pando claude` starts claude as a Claude Code background session attached to
@@ -143,17 +143,19 @@ Assigned To Me, Created By Me, All Open) with their checks, Issues (My,
 Created, Recent) and unread Notifications. A folder asks `gh` when it is
 unfolded; `^r` asks again.
 
-| Key | On a pull request                          | On an issue                  | On a notification |
-| --- | ------------------------------------------ | ---------------------------- | ----------------- |
-| `⏎` | its description, rendered, in the editor   | the same                     | opens, marks read |
-| `d` | its changes, `gh pr diff`                  |                              |                   |
-| `w` | checks out in a worktree of its own        | a new worktree `issue/<n>-…` |                   |
-| `o` | on github.com; `y` copies the link         | the same                     | the same          |
-| `x` |                                            |                              | Mark as Done      |
+| Key | On a pull request                        | On an issue                  | On a notification |
+| --- | ---------------------------------------- | ---------------------------- | ----------------- |
+| `⏎` | its description, rendered, in the editor | the same                     | opens, marks read |
+| `d` | its changes, `gh pr diff`                |                              |                   |
+| `w` | checks out in a worktree of its own      | a new worktree `issue/<n>-…` |                   |
+| `o` | on github.com; `y` copies the link       | the same                     | the same          |
+| `x` |                                          |                              | Mark as Done      |
 
 Merge, in the `m` menu, asks how and merges only the head the list showed.
 Create Pull Request and Sign in run `gh` in a new Terminal tab, where it asks
 its own questions.
+
+![pull requests with their checks, one opened as its rendered description and as a diff, then checked out in a worktree of its own](docs/demo/github.gif)
 
 ### Editor
 
@@ -213,20 +215,19 @@ the status bar, and a click (or `pando update`) downloads and verifies it. It
 runs after a restart.
 
 More recordings: [editor](docs/demo/edit.gif) · [vim](docs/demo/vim.gif) ·
-[Markdown](docs/demo/markdown.gif) · [panels](docs/demo/panels.gif) ·
-[projects](docs/demo/projects.gif).
+[Markdown](docs/demo/markdown.gif).
 
 ## Keys
 
-| Key                   | Action                                                    |
-| --------------------- | --------------------------------------------------------- |
-| `ctrl+]`              | cycle focus; in a session every other key goes to the app |
-| `1`–`4`, `6`          | Files, Git, Spaces, Search, GitHub                        |
-| `ctrl+shift+p`, `F1`  | command palette                                           |
-| `ctrl+p`              | quick open (`:` line, `@` symbol)                         |
-| `alt+t`, `[` `]`      | go to a session, previous / next                          |
-| `m`, right click      | context menu                                              |
-| `?`                   | every key of every view                                   |
+| Key                  | Action                                                    |
+| -------------------- | --------------------------------------------------------- |
+| `ctrl+]`             | cycle focus; in a session every other key goes to the app |
+| `1`–`4`, `6`         | Files, Git, Spaces, Search, GitHub                        |
+| `ctrl+shift+p`, `F1` | command palette                                           |
+| `ctrl+p`             | quick open (`:` line, `@` symbol)                         |
+| `alt+t`, `[` `]`     | go to a session, previous / next                          |
+| `m`, right click     | context menu                                              |
+| `?`                  | every key of every view                                   |
 
 All of them: [docs/09-keys.md](docs/09-keys.md).
 
@@ -254,7 +255,7 @@ commits and search a script uses git. `pando skill` prints
 [skills/pando/SKILL.md](skills/pando/SKILL.md), the guide for an agent driving
 pando.
 
-![the CLI: a project, a worktree named at random, a session driven from the shell, and a setting](docs/demo/cli.gif)
+![the CLI: a worktree, claude started in it, a prompt that blocks until the turn is over, and the diff it left](docs/demo/cli.gif)
 
 ## Files
 

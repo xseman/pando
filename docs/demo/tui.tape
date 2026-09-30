@@ -1,89 +1,82 @@
-# The TUI: files, a diff, search, the terminal and an agent session.
-# Record with: make demo   (needs vhs v0.10 or v0.11, ttyd, ffmpeg, a Chrome and claude)
+# The TUI: three claude agents, each in a worktree of its own, come to life
+# as their prompts arrive, and the tree shows each one's state as it changes:
+# one finishes (✓), one waits for a yes (×, pulsing), one keeps working (◐).
+# The finished one's change is reviewed and committed without leaving pando.
+# Record with: make demo   (needs vhs v0.10 or v0.11, ttyd, ffmpeg, jq, a Chrome and claude)
 Output docs/demo/tui.gif
 
 Require pando
 Require ttyd
+Require jq
 Require claude
 
 Source docs/demo/settings.tape
 Set TypingSpeed 50ms
 Source docs/demo/setup.tape
-Type `cfg 34 claude` Enter
-# A worktree beside the checkout, named at random: Spaces marks the checkout
-# ⌂ and the worktree ⑂.
-Type "pando project add . >/dev/null && pando ws new >/dev/null" Enter
-Type "clear" Enter
+# claude-edits for two of them, agent ask (claude-ask) for the one that has to
+# wait for a yes. VHS cannot send ctrl+0: Focus Sidebar is ctrl+y here.
+Type `cfg 34 claude-edits claude-ask ctrl+y=view.focusSidebar` Enter
+Type "pando project add . >/dev/null; for b in count discount readme; do pando ws new $b >/dev/null; done" Enter
+Type "wt=/tmp/pando-state/data/worktrees/pando-demo" Enter
+Type "a=$(pando session new --agent claude --ws $wt/count --wait | jq -r .id)" Enter
+Type "b=$(pando session new --agent ask --ws $wt/discount --wait | jq -r .id)" Enter
+Type "c=$(pando session new --agent claude --ws $wt/readme --wait | jq -r .id)" Enter
+# The prompts go in from a background job once pando is up, one by one, so
+# the tree comes alive on screen.
+Type `(sleep 3; pando session send $a 'add a Count method to Store' --enter; sleep 1; pando session send $b 'run go vet ./... and go run .' --enter; sleep 1; pando session send $c 'document the store package in README.md, with an example' --enter) >/dev/null 2>&1 &` Enter
+Type "clear; pando" Enter
+Sleep 1500ms
+Type "3"
+Sleep 500ms
 Show
 
-Type "pando" Enter
+# Three worktrees, a claude in each, idle (○) until its prompt arrives: then
+# ◐, and each renames itself after its work.
+Wait+Screen@30s /running[\s\S]*running[\s\S]*running/
 Sleep 1500ms
 
-# Explorer, then quick open by name.
-Down 2
-Sleep 600ms
-Ctrl+p
-Sleep 600ms
-Type "store.go"
-Sleep 600ms
-Enter
+# One waits for a yes (× pulses), then one finishes (✓) while the third
+# works on. (The wait for it is cut.)
+Wait+Screen@90s /blocked/
 Sleep 1500ms
-
-# Source Control: the sections and one uncommitted change (diff.gif has the rest).
-Type "2"
-Sleep 1200ms
-Down 3
-Sleep 600ms
-Type "o"
+Hide
+Wait+Screen@90s /✓/
+Show
 Sleep 2s
 
-# Search across the workspace.
-Type "4"
-Sleep 600ms
-Type "Total"
-Sleep 1500ms
-Enter
+# ⏎ on the finished one opens it beside the editor: what it did.
+Type "g"
+Down 3
 Sleep 400ms
-Down
 Enter
-Sleep 1800ms
+Sleep 2500ms
 
-# The terminal panel under the editor (ctrl+` or 5), a plain shell.
-Type "5"
-Sleep 900ms
-Type "go run ."
-Enter
-Sleep 1800ms
+# ctrl+] goes back to the tree; Source Control (2) follows the session to its
+# worktree, and o opens the change it made.
 Ctrl+]
 Sleep 300ms
-Type "5"
-Sleep 600ms
+Type "2"
+Sleep 1000ms
+Down 3
+Sleep 400ms
+Type "o"
+Sleep 800ms
 
-# Spaces: the project's checkout (⌂) and its worktree (⑂), and a claude
-# session hanging off its branch; its symbol follows it - working while it
-# answers, idle after. (Claude asks its onboarding questions -
-# whether it trusts the folder, and the default permission mode - once; answer
-# them by hand before recording, they are remembered.)
-Type "3"
+# b hides the sidebar it was opened from, so the diff gets the room to be read.
+Type "b"
+Sleep 3s
+
+# ctrl+b brings the sidebar back and ctrl+0 (ctrl+y here) focuses it; a stages
+# it all, c writes the message, ⏎ commits on the worktree's branch.
+Ctrl+b
+Sleep 300ms
+Ctrl+y
+Sleep 300ms
+Type "a"
 Sleep 600ms
-Type "m"
-Sleep 600ms
-Down Down
+Type "c"
+Sleep 300ms
+Type "Add Store.Count"
 Sleep 400ms
 Enter
-Sleep 500ms
-Type "claude"
-Sleep 300ms
-Enter
-Wait+Screen@30s /Try "/
-Sleep 1500ms
-Type "hi"
-Enter
-Wait+Screen@15s /running/
-# The tree flickers back to idle between claude's own steps, so one idle ends
-# the recording on a spinner. Wait for it twice with a pause between: the
-# answer's own wording wraps in a 25-column panel and cannot be matched.
-Wait+Screen@60s /idle/
 Sleep 3s
-Wait+Screen@60s /idle/
-Sleep 2s

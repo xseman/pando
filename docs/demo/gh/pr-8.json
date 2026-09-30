@@ -1,0 +1,4 @@
+{"number":8,"title":"Add Discount","author":{"login":"jun"},"url":"https://github.com/pando-demo/shop/pull/8","state":"OPEN","isDraft":false,"headRefName":"discount","baseRefName":"main",
+ "body":"Takes a percentage off the basket, for #5.\n\n- `Discount(percent)`: the total, discounted\n- outside **0–100** the total stays as it is\n- table test for 0, 10, 50 and 100\n\n```go\ns.Discount(10) // 495 of 550 cents\n```",
+ "statusCheckRollup":[{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclusion":"SUCCESS"},{"__typename":"CheckRun","name":"lint","status":"COMPLETED","conclusion":"SUCCESS"}],
+ "comments":[{"author":{"login":"noor"},"body":"Rounds down, like Total. Looks good to me.","createdAt":"2026-09-29T17:02:00Z"}]}

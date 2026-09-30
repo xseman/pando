@@ -28,17 +28,18 @@ Sleep 1800ms
 
 # ctrl+shift+v (ctrl+n here) renders it in place, in glow's layout: the title
 # as a chip, headings with their #s, inline code as chips, code through the
-# highlighter, tables whose long cells wrap, task lists.
+# highlighter, tables, task lists.
 Ctrl+n
 Sleep 2500ms
 
 # Side by side wants a wide main area: fold the sidebar to a rail, then both
-# halves, scrolling together.
+# halves, scrolling together. A page at a time: every line scrolled repaints
+# the whole screen, a 120 KB GIF frame each.
 Ctrl+]
 Sleep 300ms
 Type "b"
 Sleep 500ms
 Ctrl+o
-Sleep 2s
-Down 14
-Sleep 2s
+Sleep 2500ms
+PageDown
+Sleep 3s

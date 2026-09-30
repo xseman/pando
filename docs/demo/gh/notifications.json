@@ -1,0 +1,8 @@
+[
+{"id":"301","unread":true,"reason":"review_requested","updated_at":"2026-09-30T09:12:00Z",
+ "subject":{"title":"Add Discount","url":"https://api.github.com/repos/pando-demo/shop/pulls/8","type":"PullRequest"},
+ "repository":{"full_name":"pando-demo/shop","html_url":"https://github.com/pando-demo/shop"}},
+{"id":"302","unread":true,"reason":"mention","updated_at":"2026-09-29T16:40:00Z",
+ "subject":{"title":"Show the currency","url":"https://api.github.com/repos/pando-demo/shop/issues/7","type":"Issue"},
+ "repository":{"full_name":"pando-demo/shop","html_url":"https://github.com/pando-demo/shop"}}
+]

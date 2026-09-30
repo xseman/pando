@@ -10,8 +10,8 @@ GOLANGCI ?= go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.
 # at once. A serial tape cannot: it either runs claude, and a second directory
 # would be a second one to trust by hand, or it shows the repository's path on
 # screen, where /tmp/pando-demo is what belongs in the GIF.
-PAR_TAPES ?= markdown edit lsp vim
-SEQ_TAPES ?= cli diff tui panels projects sessions
+PAR_TAPES ?= markdown lsp vim
+SEQ_TAPES ?= cli diff edit github tui resume
 JOBS ?= 4
 
 .PHONY: build install test lint fmt clean demo $(addprefix demo-,$(PAR_TAPES) $(SEQ_TAPES))
@@ -39,11 +39,14 @@ demo: install
 	$(MAKE) -j$(JOBS) $(addprefix demo-,$(PAR_TAPES))
 	$(MAKE) $(addprefix demo-,$(SEQ_TAPES))
 
+# A tape leaves its daemon running; each recipe stops it, pass or fail.
 $(addprefix demo-,$(PAR_TAPES)): demo-%: install
-	PANDO_DEMO_REPO=/tmp/pando-$*/pando-demo PANDO_DEMO_STATE=/tmp/pando-$*/state vhs docs/demo/$*.tape
+	PANDO_DEMO_REPO=/tmp/pando-$*/pando-demo PANDO_DEMO_STATE=/tmp/pando-$*/state vhs docs/demo/$*.tape; \
+	s=$$?; PANDO_RUNTIME_DIR=/tmp/pando-$*/state/run pando stop >/dev/null 2>&1; exit $$s
 
 $(addprefix demo-,$(SEQ_TAPES)): demo-%: install
-	vhs docs/demo/$*.tape
+	vhs docs/demo/$*.tape; \
+	s=$$?; PANDO_RUNTIME_DIR=/tmp/pando-state/run pando stop >/dev/null 2>&1; exit $$s
 
 clean:
 	rm -f pando

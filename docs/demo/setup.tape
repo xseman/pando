@@ -11,6 +11,9 @@
 Hide
 Type "export DEMO=$PWD/docs/demo REPO=${PANDO_DEMO_REPO:-/tmp/pando-demo} STATE=${PANDO_DEMO_STATE:-/tmp/pando-state}" Enter
 Type "export PANDO_RUNTIME_DIR=$STATE/run PANDO_CONFIG_DIR=$STATE/cfg PANDO_DATA_DIR=$STATE/data" Enter
-Type "unset ALACRITTY_SOCKET CLAUDE_CODE_CHILD_SESSION" Enter
+# Recorded from inside claude or a pando session, the demo's claude would take
+# that session's id, name and messaging socket; CLAUDE_CONFIG_DIR stays, it
+# holds the trusted folders.
+Type "unset ALACRITTY_SOCKET CLAUDECODE AI_AGENT PANDO_SESSION $(compgen -e | grep '^CLAUDE_' | grep -vx CLAUDE_CONFIG_DIR)" Enter
 Type "pando stop >/dev/null 2>&1; rm -rf $STATE; bash $DEMO/setup.sh $REPO >/dev/null && cd $REPO" Enter
 Type "source $DEMO/cfg.sh" Enter

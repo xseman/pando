@@ -1,6 +1,7 @@
 # shop
 
-A basket you can add coffee to. Everything is in cents.
+A basket you can add coffee to.
+Everything is in cents.
 
 ## Usage
 
@@ -8,27 +9,28 @@ A basket you can add coffee to. Everything is in cents.
 s := store.New()
 s.Add("espresso", 250)
 s.Add("cortado", 300)
-fmt.Println(s.Total(), "cents") // 550 cents
+fmt.Println(s.Total()) // 550
 ```
 
 ## Prices
 
-| Item       | Cents | Size   | Notes                                             |
-| ---------- | ----: | ------ | ------------------------------------------------- |
-| espresso   | 250   | 30 ml  | a single shot, pulled short and served on its own |
-| cortado    | 300   | 90 ml  | espresso cut with as much warm milk               |
-| flat white | 350   | 160 ml | a double shot under a thin layer of microfoam     |
+| Item       | Cents | Notes         |
+| ---------- | ----: | ------------- |
+| espresso   | 250   | a single shot |
+| cortado    | 300   | cut with milk |
+| flat white | 350   | a double shot |
 
 ## Roadmap
 
-- [x] `store.Add` puts something in the basket
+- [x] `store.Add` fills the basket
 - [x] `store.Total` counts the cents
-- [ ] `store.Discount` takes a percentage off
+- [ ] `store.Discount` in percent
 - [ ] a `Count` method
 
 > Prices change; the basket does not.
 
 ## Development
 
-Run the tests with `go test ./...`, and the program with `go run .`.
-Nothing talks to the network, so there is nothing to configure.
+Run the tests with `go test ./...`,
+the program with `go run .`. Nothing
+talks to the network.
