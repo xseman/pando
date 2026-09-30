@@ -461,7 +461,7 @@ func (m *Model) fxWants() bool {
 		return false
 	}
 
-	return len(m.fx.anims) > 0 || m.scm.busy != "" || m.sr.busy || m.upd.State == "downloading" && m.upd.Total == 0
+	return len(m.fx.anims) > 0 || m.scm.busy != "" || m.sr.busy || m.gh.loading() || m.upd.State == "downloading" && m.upd.Total == 0
 }
 
 // animate starts the ticker when something moves and none runs; the ticker

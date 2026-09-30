@@ -36,6 +36,9 @@ daemon keeps them all alive.
   unsaved drafts that survive a restart, language servers.
 - **Explorer and Search**: git decorations, VS Code's context menu, quick
   open, workspace search & replace.
+- **GitHub**: with `gh` installed, pull requests, issues and notifications as
+  VS Code's GitHub Pull Requests view lists them; a pull request opens in the
+  editor or checks out in a worktree of its own.
 - **Layout**: a terminal panel, draggable views and columns, VS Code's 2026
   themes, remappable keys.
 - **CLI and API**: JSON over a unix socket; self-update on Linux and macOS.
@@ -132,6 +135,26 @@ branches, worktrees, remotes, stashes and tags.
 
 ![a diff inline and side by side, staging part of it, then a conflicting merge continued with git's message](docs/demo/diff.gif)
 
+### GitHub
+
+Shown where `gh` is on the PATH (`6`), for the repository `gh` picks in the
+workspace: Pull Requests (Local Pull Request Branches, Waiting For My Review,
+Assigned To Me, Created By Me, All Open) with their checks, Issues (My,
+Created, Recent) and unread Notifications. A folder asks `gh` when it is
+unfolded; `^r` asks again.
+
+| Key | On a pull request                          | On an issue                  | On a notification |
+| --- | ------------------------------------------ | ---------------------------- | ----------------- |
+| `⏎` | its description, rendered, in the editor   | the same                     | opens, marks read |
+| `d` | its changes, `gh pr diff`                  |                              |                   |
+| `w` | checks out in a worktree of its own        | a new worktree `issue/<n>-…` |                   |
+| `o` | on github.com; `y` copies the link         | the same                     | the same          |
+| `x` |                                            |                              | Mark as Done      |
+
+Merge, in the `m` menu, asks how and merges only the head the list showed.
+Create Pull Request and Sign in run `gh` in a new Terminal tab, where it asks
+its own questions.
+
 ### Editor
 
 Undo, find & replace, go to line and symbol, merge-conflict _Accept_ actions,
@@ -198,7 +221,7 @@ More recordings: [editor](docs/demo/edit.gif) · [vim](docs/demo/vim.gif) ·
 | Key                   | Action                                                    |
 | --------------------- | --------------------------------------------------------- |
 | `ctrl+]`              | cycle focus; in a session every other key goes to the app |
-| `1`–`4`               | Files, Git, Spaces, Search                                |
+| `1`–`4`, `6`          | Files, Git, Spaces, Search, GitHub                        |
 | `ctrl+shift+p`, `F1`  | command palette                                           |
 | `ctrl+p`              | quick open (`:` line, `@` symbol)                         |
 | `alt+t`, `[` `]`      | go to a session, previous / next                          |
@@ -252,9 +275,9 @@ restart respawns sessions, not their scrollback.
 | ------------------------------------------ | ------------------------------------------------------------ |
 | [01 Architecture](docs/01-architecture.md) | daemon, socket protocol, sessions, packages                  |
 | [02 UI layout](docs/02-ui-layout.md)       | columns, rows, mouse geometry, modals                        |
-| [03 Views](docs/03-views.md)               | Explorer, Source Control, Spaces, resume, Terminal, Search   |
+| [03 Views](docs/03-views.md)               | Explorer, Git, Spaces, resume, Terminal, Search, GitHub      |
 | [04 Preview](docs/04-preview.md)           | diffs, editor, Markdown, find, LSP, staging lines, revisions |
-| [05 Git](docs/05-git.md)                   | status, worktrees, branches, writing to the index            |
+| [05 Git](docs/05-git.md)                   | status, worktrees, branches, the index, gh                   |
 | [06 Config](docs/06-config.md)             | config.toml, state.json, every setting, colors               |
 | [07 Testing](docs/07-testing.md)           | test layers, interactive checks, demo recordings             |
 | [08 Release](docs/08-release.md)           | release-please, artifacts, install script, self-update       |

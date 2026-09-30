@@ -10,6 +10,7 @@ render into a windowed list → handle keys and mouse.
 | Spaces         | `agents.go`   | project → worktree → session tree                                     |
 | Search         | `search.go`   | query box, summary, matches grouped by file                           |
 | Terminal       | `agents.go`   | shell panel under the editor (or a sidebar), opened by ⌃`             |
+| GitHub         | `github.go`   | pull request and issue queries, notifications; only where `gh` is     |
 
 ## Explorer
 
@@ -353,6 +354,84 @@ selected line or file, `R` everything after a confirmation. A file that changed
 since the search is refused rather than guessed at, and there is no undo — git
 is the safety net.
 
+## GitHub
+
+VS Code's GitHub Pull Requests view (the extension, not the built-in
+`extensions/github`) over `gh`, for the repository gh picks in the workspace.
+`hasGH` is read once at start: without gh the view is in no column, `6` does
+nothing and the palette leaves it out. `TestMain` turns it off, since CI's
+runners have gh.
+
+```
+ ▾ PULL REQUESTS                     open panes share the height
+   ▸ Local Pull Request Branches     All Open's, where a local branch has them
+   ▸ Waiting For My Review           --search review-requested:@me
+   ▸ Assigned To Me                  --assignee @me
+   ▸ Created By Me                   --author @me
+   ▾ All Open                    3   gh pr list --limit 50
+      PR release v0.4.0 #14 @ann ⑂ ✓ its worktree, its checks (✓ ⇅ ✕)
+                                     a pane scrolls on its own
+ ▾ NOTIFICATIONS                 1   drag its header: the edge with the pane above moves
+      feat: streets  review requested   api repos/{owner}/{repo}/notifications: unread
+ ▸ ISSUES                            folded: pinned at the bottom
+```
+
+The three sections are VS Code's panes (`panes`): every header keeps a row,
+the open ones share what is left, and folded ones are pinned under them at
+the bottom, in their order. An open pane is as tall as it was dragged (`ghView.h`), an even
+share until then, and the last one takes the rest. Dragging an open pane's
+header moves its edge with the open pane above, as Source Control's drawer
+headers do, and a press that does not move folds or unfolds it. Each pane
+scrolls and keeps its scrollbar on its own (`tops`); the selection is one row
+of them all, and a pane scrolls to it. Issues: `--assignee @me` for My,
+`--author` for Created, `sort:updated-desc` for Recent. ponytail: the
+heights and folds live as long as the TUI does; `github_panes` in the
+settings, as `git_panes` does for the drawers, if they should outlast it.
+
+A folder asks gh when it is unfolded and on screen (`ensure`), once; `^r`
+(`refresh`) asks again and keeps the old lists up until the answers land. No
+timer. Answers belong to the project (its worktrees share a repository): a
+switch to another one drops them, and `gen` drops answers still on the way.
+Local Pull Request Branches filters All Open's answer by `prBranch` against
+`for-each-ref refs/heads`: the head's name, `pr/<n>` for a fork, whose head
+(often `main`) would match the local `main`. The selection follows its row
+through a reload, as `agents.follow` does.
+
+gh gives one exit status to most failures, so `ghErrKind` reads stderr, first
+match wins:
+
+| stderr says                             | the view shows                     | ⏎                            |
+| --------------------------------------- | ---------------------------------- | ---------------------------- |
+| `point to a known GitHub host`          | Not a GitHub repository            | nothing                      |
+| `no git remotes`                        | No remote · Publish to GitHub…     | Source Control's Publish     |
+| `To get started with…`, `gh auth login` | Sign in to GitHub…                 | `gh auth login` in a new tab |
+| anything else                           | `gh:` and its first line, in place | refresh                      |
+
+The first three stand alone, as VS Code's welcome view: nothing else would
+load. The host message says `gh auth login` too, hence the order. With several
+remotes and no default, gh picks one (`upstream` before `origin`) without
+asking; `gh repo set-default` changes it.
+
+| Action                     | How                                                                                                                     |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Description (⏎)            | preview kind `gh`: `gh pr view --json` laid out as GitHub's page (`ghMarkdown`), rendered                               |
+| Changes (`d`)              | preview kind `ghdiff`: `gh pr diff`, the diff view's own parsing and split                                              |
+| Checkout in worktree (`w`) | a worktree on the branch: switch there; else `workspace.new` and `gh pr checkout n --branch b` in it (`git.CheckoutPR`) |
+| Start working (`w`, issue) | the New Worktree prompt, offering `issue/<n>-<slug>`                                                                    |
+| Merge…                     | a dialog of the three methods, `--match-head-commit`: a head pushed since the list came is refused                      |
+| Create PR, Sign in         | `gh pr create`, `gh auth login` typed into a new Terminal tab once `session.wait` sees it idle                          |
+| Notification ⏎, `x`        | opens it and marks it read (faint until the next fetch), Mark as Done                                                   |
+
+The checkout never passes `--force`, which resets a branch that exists. A
+local branch is checked out as it is and only fast-forwards; gh refuses one
+that has diverged. A missing one starts the worktree on the daemon's
+throwaway branch, gh creates the real one tracking the pull request's head,
+and the throwaway goes: gh sets the upstream only for a branch it creates.
+ponytail: the worktree's folder keeps the throwaway's name.
+
+Create PR and Sign in are typed rather than run as the tab's command: a
+restarted daemon respawns a session's command, which would run gh again.
+
 ## Commands
 
 Every view exposes `items()` — one list used by its context menu (`m`, right
@@ -384,7 +463,7 @@ drives them all while an effect runs or work shimmers, and stops itself.
 | dissolve | a session killed or worktree deleted from Spaces (the call waits for it), a committed message     |
 | sweep    | a session that starts waiting or finishes: a band of light crosses its name once                  |
 | roll     | Source Control section counts, ahead/behind, search results, `!` attention, sessions per worktree |
-| shimmer  | Syncing…, Publishing…, Committing…, Searching…, downloading…                                      |
+| shimmer  | Syncing…, Publishing…, Committing…, Searching…, downloading…, GitHub's Loading…                   |
 
 The band of a sweep or shimmer is seven cells, its color blended in CIELAB
 (`lipgloss.Blend1D`) from the text's up to the accent in the middle and back;

@@ -84,6 +84,30 @@ is there and who it is signed in as. Commit & Sync publishes instead of
 syncing while the branch has no upstream: to the only remote at once,
 otherwise it opens the Publish picker after the commit.
 
+## gh
+
+`github.go` holds every gh call. `GH` runs gh in a directory, where gh finds
+the repository by its remotes, with the 60 s timeout, `GH_PROMPT_DISABLED=1`
+(a question fails rather than hangs) and the same `*Error`. Its JSON goes
+through `encoding/json` straight into structs: no parser of ours to fuzz.
+
+| Func            | gh                                                                                                                                |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `PullRequests`  | `pr list --limit N --json number,title,author,url,isDraft,headRefName,baseRefName,headRefOid,isCrossRepository,statusCheckRollup` |
+| `Issues`        | `issue list --json number,title,author,url`                                                                                       |
+| `Notifications` | `api repos/{owner}/{repo}/notifications`, the unread threads                                                                      |
+| `CheckoutPR`    | `pr checkout N --branch B` in a worktree, then `branch -D` the throwaway branch it was made on                                    |
+
+`Item.Checks` sums the rollup as VS Code's list does: fail when a CheckRun
+concluded `FAILURE`, `TIMED_OUT`, `CANCELLED`, `ACTION_REQUIRED` or
+`STARTUP_FAILURE`, or a StatusContext is `FAILURE`/`ERROR`; else pending while
+a CheckRun is not `COMPLETED` or a StatusContext is `PENDING`/`EXPECTED`;
+else pass. A StatusContext has no status at all, so it goes by its state.
+
+`CheckoutPR` never passes `--force`: gh resets an existing branch with it. The
+tests run a fake gh from `PATH` that logs its arguments (`fakeGH`), and the
+checkout against real worktrees with a gh that does what gh does.
+
 ## Errors
 
 Every failure from this package is a `*git.Error` carrying the arguments, what

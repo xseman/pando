@@ -35,12 +35,16 @@ const (
 	viewSearch
 	viewTerm
 	viewSession // the agent session, docked beside the editor instead of over it
+	viewGitHub  // pull requests, issues and notifications through gh, where it is installed
 )
 
 var (
-	viewTitles = []string{"Explorer", "Source Control", "Spaces", "Search", "Terminal", "Session"}
-	viewKeys   = []string{"files", "git", "agents", "search", "terminal", "session"} // values of settings.left and settings.right
+	viewTitles = []string{"Explorer", "Source Control", "Spaces", "Search", "Terminal", "Session", "GitHub"}
+	viewKeys   = []string{"files", "git", "agents", "search", "terminal", "session", "github"} // values of settings.left and settings.right
 )
+
+// hasGH reports gh on the PATH, which the GitHub view needs; tests turn it off.
+var hasGH = git.HasGH
 
 // onMain is the focus of the main area, onPanel the terminal panel under it;
 // sidebar columns are focused by index.
@@ -76,8 +80,8 @@ const railW = 2
 type drag struct {
 	kind   int
 	col    int    // dragDivider: the column being resized
-	pane   string // dragPane: Git drawer title
-	v      view   // dragTab: the tab being dragged
+	pane   string // dragPane: Git drawer title, or GitHub section title with v viewGitHub
+	v      view   // dragTab: the tab being dragged; dragPane: viewGitHub for its sections
 	proj   string // dragRow: the project being moved in the Spaces list
 	sess   string // dragRow: the session being moved under its worktree instead
 	ws     string // dragRow: the worktree being moved under its project instead
@@ -162,10 +166,12 @@ type Model struct {
 	// have opened the terminal panel. saidCtrlJ keeps the hint to once.
 	ambiguous bool
 	saidCtrlJ bool
-	tv        termPanel // the Terminal panel's shell
-	termMax   bool      // the panel fills the editor area (⌃⇧↑)
-	filters   [6]filter // per view
-	mouseX    int       // last mouse position (content rows) for hover
+	tv        termPanel              // the Terminal panel's shell
+	termMax   bool                   // the panel fills the editor area (⌃⇧↑)
+	filters   [viewGitHub + 1]filter // per view
+	gh        ghView
+	hasGH     bool // gh is installed: the GitHub view shows
+	mouseX    int  // last mouse position (content rows) for hover
 	mouseY    int
 	sashAt    sash      // the divider under the mouse, noSash for none
 	sashSince time.Time // when the mouse came onto it
@@ -356,6 +362,7 @@ func New(st proto.State, wss []proto.Workspace, ss []proto.Session, ws string, e
 		st: st, wss: wss, sessions: ss, recent: make([]int, len(viewKeys)), dark: true, events: events,
 		inputs: make(chan proto.InputParams, 512), mouseY: -1, edIdx: -1, navAt: -1, sashAt: noSash,
 		ambiguous: true, // until the terminal answers that it disambiguates keys
+		hasGH:     hasGH(),
 	}
 	for i := range m.filters {
 		m.filters[i] = newFilter()
@@ -366,6 +373,7 @@ func New(st proto.State, wss []proto.Workspace, ss []proto.Session, ws string, e
 	m.ag.l.sel = -1
 	m.scm.init()
 	m.sr.init()
+	m.gh.init()
 	m.switchWorkspace(ws) // attaches the Terminal panel too; Init starts a shell when it found none
 
 	m.ag.collapsed = map[string]bool{} // after the switch: its reveal must not unfold what was left folded
@@ -387,7 +395,7 @@ func (m *Model) look() {
 func (m *Model) Init() tea.Cmd {
 	// m.pv is the editor New restored for the workspace; its content loads here.
 	return tea.Batch(waitEvent(m.events), tick(), tea.RequestBackgroundColor, tea.RequestForegroundColor,
-		m.refreshGit(), m.pv.load(m), m.loadDrafts(), loadUpdate(), m.ensureTerm())
+		m.refreshGit(), m.pv.load(m), m.loadDrafts(), loadUpdate(), m.ensureTerm(), m.gh.shown(m))
 }
 
 func hexColor(c color.Color) string {
@@ -589,7 +597,15 @@ func (m *Model) cols() []col {
 		}
 	}
 
+	if !m.hasGH { // no gh, no GitHub view
+		out = removeView(out, viewGitHub)
+	}
+
 	for v, ok := range seen {
+		if view(v) == viewGitHub && !m.hasGH {
+			continue
+		}
+
 		if view(v) == viewSession {
 			// Unlisted: a session opens in a column of its own beside the
 			// editor, unless session_position puts it over the editor area.
@@ -1089,6 +1105,8 @@ func (m *Model) listBar(v view, y int) (listBar, bool) {
 		b = listBar{geo: func() vbar { return vbar{len(m.ex.nodes), m.bodyH(viewFiles), m.ex.l.top} }, to: func(top int) tea.Cmd { m.ex.l.top = top; return nil }}
 	case viewAgents:
 		b = listBar{geo: func() vbar { return vbar{len(m.ag.rows(m)), m.bodyH(viewAgents), m.ag.l.top} }, to: func(top int) tea.Cmd { m.ag.l.top = top; return nil }}
+	case viewGitHub:
+		return m.gh.bar(m, y)
 	case viewSearch:
 		hh := m.sr.headH()
 		b = listBar{row: -hh, geo: func() vbar { return vbar{len(m.sr.rows()), max(m.bodyH(viewSearch)-hh, 0), m.sr.l.top} }, to: func(top int) tea.Cmd { m.sr.l.top = top; return nil }}
@@ -1186,11 +1204,14 @@ func (m *Model) showView(v view) tea.Cmd {
 	m.hidden[m.side(i)], m.focus = false, i
 	m.fixFocus()
 
-	if v == viewGit {
+	switch v {
+	case viewGit:
 		return tea.Batch(m.scm.loadDrawers(m), m.fetchScreen())
+	case viewGitHub:
+		return tea.Batch(m.gh.ensure(m), m.fetchScreen())
+	default:
+		return m.fetchScreen()
 	}
-
-	return m.fetchScreen()
 }
 
 // colSettings is the settings form of a column layout, without empty columns.
@@ -1937,6 +1958,11 @@ func (m *Model) headerActions(s int, v view, w int) []titleAction {
 		add(icClearAll, func(m *Model) tea.Cmd { m.sr.query.Reset(); m.sr.clear(); return nil })
 		add(icCollapse, func(m *Model) tea.Cmd { m.sr.collapseAll(); return nil })
 
+	case viewGitHub:
+		add(icPRNew, func(m *Model) tea.Cmd { return m.ghTerminal("gh pr create") })
+		add(icRefresh, m.gh.refresh)
+		add(icCollapse, func(m *Model) tea.Cmd { m.gh.collapseAll(); return nil })
+
 	case viewTerm:
 		add(icAdd, func(m *Model) tea.Cmd { return m.newTerm() })
 		add(icClose, func(m *Model) tea.Cmd { return m.confirmKill(m.tv.id) })
@@ -1990,6 +2016,8 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 	m.scm.reset()
 	m.sr.clear()
 	m.pk = nil
+	m.gh.sync(m) // another project's repository: its own lists
+	hub := m.gh.shown(m)
 	m.lsps.close()                                        // the servers belong to the workspace they indexed
 	m.editors, m.edIdx, m.nav, m.navAt = nil, -1, nil, -1 // editors of another worktree
 	m.pv.close(m)                                         // a preview from another worktree would be misleading
@@ -2019,7 +2047,7 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 		m.fixFocus()
 	}
 
-	return tea.Batch(saved, restored, m.loadDrafts(), m.ensureTerm())
+	return tea.Batch(saved, restored, m.loadDrafts(), m.ensureTerm(), hub)
 }
 
 // nextTab is the session a closed tab hands its focus to: the tab left of it,
@@ -2157,7 +2185,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		m.ex.rebuild(m)
 		m.scm.fit(m) // the box learns its width when drawn: a resize rewraps it
-		cmds := []tea.Cmd{tick(), m.blink(), m.refreshGit(), m.pv.reloadIfLive(m), m.scm.saveDraft(m), m.scm.loadDrawers(m), m.saveWorkspace(), m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts()}
+		cmds := []tea.Cmd{tick(), m.blink(), m.refreshGit(), m.pv.reloadIfLive(m), m.scm.saveDraft(m), m.scm.loadDrawers(m), m.gh.shown(m), m.saveWorkspace(), m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts()}
 		// ponytail: other projects' branches come back every 30 s, one git call
 		// per project; watch their HEADs if that lags.
 		m.ticks++
@@ -2295,6 +2323,15 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case searchMsg:
 		m.sr.onResult(msg)
 		return m, nil
+
+	case ghMsg:
+		m.gh.onMsg(m, msg)
+		return m, nil
+
+	case ghDoneMsg:
+		return m, m.gh.onDone(m, msg)
+	case ghCheckoutMsg:
+		return m, m.onGHCheckout(msg)
 
 	case refsMsg:
 		return m, m.scm.onRefs(m, msg)
@@ -2614,6 +2651,13 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 
 		return cmd
 
+	case "6": // 5 is the terminal's; the view numbers skip it
+		if !m.hasGH {
+			return nil
+		}
+
+		return m.showView(viewGitHub)
+
 	case "ctrl+f":
 		if v == viewSearch {
 			return m.sr.focus()
@@ -2628,7 +2672,7 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 		return nil
 
 	case "?":
-		m.modal = helpModal()
+		m.modal = helpModal(m.hasGH)
 		return nil
 
 	case "b":
@@ -2672,6 +2716,8 @@ func (m *Model) viewKey(v view, k tea.KeyPressMsg) tea.Cmd {
 		return m.scm.key(m, k)
 	case viewSearch:
 		return m.sr.key(m, k)
+	case viewGitHub:
+		return m.gh.key(m, k)
 	default: // Agents; the Terminal and the session are handled before here.
 		return m.ag.key(m, k)
 	}
@@ -2711,6 +2757,8 @@ func (m *Model) refilter(v view) {
 		m.scm.tops = map[string]int{}
 		m.scm.build(m)
 
+	case viewGitHub:
+		m.gh.l.top = 0
 	default:
 		m.ag.l.top = 0
 	}
@@ -3180,6 +3228,8 @@ func (m *Model) viewMouse(v view, msg tea.MouseMsg, x, y int) tea.Cmd {
 
 		return m.sessionMouse(msg, x, y-1, m.sessW())
 
+	case viewGitHub:
+		return m.gh.mouse(m, msg, y)
 	default: // Agents.
 		return m.ag.mouse(m, msg, y)
 	}
@@ -3195,7 +3245,12 @@ func (m *Model) dragMouse(msg tea.MouseMsg) tea.Cmd {
 
 	switch d.kind {
 	case dragPane:
+		if d.v == viewGitHub {
+			return m.gh.dragPane(m, d, mo.Y, release)
+		}
+
 		return m.scm.dragPane(m, d, mo.Y, release)
+
 	case dragSelect:
 		return m.pv.dragTo(m, mo.X, mo.Y, release)
 	case dragTab:
@@ -3591,6 +3646,8 @@ func (m *Model) sidebarBody(s, w int) []string {
 		out = append(out, m.termLines(w, h)...)
 	case viewSession:
 		out = append(out, m.sessionLines(w, h)...)
+	case viewGitHub:
+		out = append(out, m.gh.lines(m, w, h)...)
 	default:
 		out = append(out, m.ag.lines(m, w, h)...)
 	}
@@ -3821,7 +3878,7 @@ func (m *Model) viewHeader(s int, v view, w int) string {
 		session = m.fx.text("sess:"+s.ID, sessionName(*s))
 	}
 
-	title := []string{strings.ToUpper(filepath.Base(m.ws)), "SOURCE CONTROL", "SPACES", "SEARCH", "TERMINAL", session}[v]
+	title := []string{strings.ToUpper(filepath.Base(m.ws)), "SOURCE CONTROL", "SPACES", "SEARCH", "TERMINAL", session, "GITHUB"}[v]
 
 	var right []seg
 
@@ -4199,9 +4256,10 @@ var hotkeys = map[view][][2]string{
 	viewGit:    {{"↑↓", "move"}, {"⏎", "stage"}, {"o", "diff"}, {"t", "tree"}, {"c", "message"}, {"C", "commit"}, {"A", "suggest"}, {"S", "sync/publish"}, {"a u", "stage/unstage all"}, {"U", "stage untracked"}, {"O", "open file"}, {"B", "branch"}, {"d", "discard"}, {"^f", "filter"}},
 	viewSearch: {{"^f /", "query"}, {"^h", "replace"}, {"r R", "replace file/all"}, {"⏎", "open"}, {"↑↓", "move"}, {"←→", "fold"}, {"M-c", "case"}, {"M-w", "word"}, {"M-r", "regex"}, {"^r", "rerun"}, {"x", "clear"}, {"C", "collapse"}},
 	viewAgents: {{"↑↓", "move"}, {"M-↑↓", "reorder"}, {"⏎", "switch"}, {"n", "session"}, {"w", "worktree"}, {"a", "project"}, {"x", "kill"}, {"o", "view options"}, {"^f", "filter"}},
+	viewGitHub: {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"d", "changes"}, {"o", "on github.com"}, {"y", "copy link"}, {"w", "worktree"}, {"x", "done"}, {"^r", "refresh"}, {"C", "collapse"}, {"^f", "filter"}},
 }
 
-var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"M-t", "agents"}, {"^tab", "editors"}, {"^⇧pgup ^⇧pgdn", "move tab"}, {"^f", "find"}, {"^← ^→", "back/forward"}, {"[ ]", "sessions"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"esc q", "quit"}}
+var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4 6", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"M-t", "agents"}, {"^tab", "editors"}, {"^⇧pgup ^⇧pgdn", "move tab"}, {"^f", "find"}, {"^← ^→", "back/forward"}, {"[ ]", "sessions"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"esc q", "quit"}}
 
 var previewKeys = [][2]string{{"↑↓", "move"}, {"⇧↑↓", "select"}, {"^a", "all"}, {"y", "copy"}, {"s", "split diff"}, {"m", "stage/revert lines"}, {"w", "wrap"}, {"^f", "find"}, {"^h", "replace"}, {"^g", "go to line"}, {"f12", "definition"}, {"⇧f12", "references"}, {"^.", "code action"}, {"e", "edit"}, {"q", "close"}}
 
@@ -4337,6 +4395,10 @@ func (m *Model) viewItems() []item {
 		{label: "Show Search", hint: "4", run: show(viewSearch)},
 		{label: "Toggle Terminal", hint: "^`", run: func(m *Model) tea.Cmd { return m.toggleTerminal() }},
 	}
+	if m.hasGH {
+		items = append(items, item{label: "Show GitHub", hint: "6", run: show(viewGitHub)})
+	}
+
 	for _, it := range m.terminalItems() {
 		if it.label != "Close Terminal" {
 			items = append(items, it)
@@ -4358,7 +4420,7 @@ func (m *Model) viewItems() []item {
 		{label: "Focus Sidebar", hint: "^0", run: func(m *Model) tea.Cmd { return m.focusSidebar() }},
 		{label: "Toggle Sidebars", hint: "^b", run: func(m *Model) tea.Cmd { return m.toggleSidebars() }},
 		{label: "Open Settings", hint: "^,", run: func(m *Model) tea.Cmd { m.modal = settingsModal(m); return nil }},
-		{label: "Keyboard Shortcuts", hint: "?", run: func(m *Model) tea.Cmd { m.modal = helpModal(); return nil }},
+		{label: "Keyboard Shortcuts", hint: "?", run: func(m *Model) tea.Cmd { m.modal = helpModal(m.hasGH); return nil }},
 		{label: "Quit", hint: "q", run: func(m *Model) tea.Cmd { return m.confirmQuit() }},
 	}...)
 	if m.pv.kind != "" || m.sess != "" {
@@ -4409,6 +4471,10 @@ func (m *Model) commands() []item {
 	add("Git", m.scm.items(m))
 	add("Agents", m.ag.items(m))
 	add("Search", m.sr.items(m))
+
+	if m.hasGH {
+		add("GitHub", m.gh.items(m))
+	}
 
 	if m.showsPreview() {
 		add("Editor", append(m.pv.items(m), m.pv.keyItems(m)...))
@@ -4566,11 +4632,18 @@ func staleModal(sessions int) *modal {
 		}})
 }
 
-func helpModal() *modal {
+// helpModal is the keys of every view; the GitHub view's where gh is
+// installed.
+func helpModal(gh bool) *modal {
 	items := []item{heading("Everywhere")}
 
+	views := []view{viewFiles, viewGit, viewSearch, viewAgents}
+	if gh {
+		views = append(views, viewGitHub)
+	}
+
 	items = append(items, keyRows(globalKeys)...)
-	for _, v := range []view{viewFiles, viewGit, viewSearch, viewAgents} {
+	for _, v := range views {
 		items = append(items, item{}, heading(viewTitles[v]))
 		items = append(items, keyRows(hotkeys[v])...)
 	}

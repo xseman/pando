@@ -28,7 +28,7 @@ BurntSushi/toml, creack/pty. No cgo, no libgit2: git is shelled out.
 | `main.go`         | the CLI: every command `pando help` lists                 |
 | `internal/proto`  | wire types, client calls, socket paths, daemon autostart  |
 | `internal/daemon` | state, config.toml, sessions, PTY, event fan-out          |
-| `internal/git`    | every `git -C root …` call, parsed once                   |
+| `internal/git`    | every `git -C root …` and `gh` call, parsed once          |
 | `internal/lsp`    | language server client                                    |
 | `internal/update` | release check, verified download, self-update             |
 | `internal/ui`     | Bubble Tea model (`app.go`), views, preview/editor, theme |
@@ -40,7 +40,7 @@ BurntSushi/toml, creack/pty. No cgo, no libgit2: git is shelled out.
 | ------------------------------------------------------------------- | ---------------------------------------- |
 | daemon, socket protocol, sessions, resume                           | `docs/01-architecture.md`                |
 | columns, rows, mouse hit-testing, modals, drag                      | `docs/02-ui-layout.md`                   |
-| Explorer, Source Control, Spaces, Search, commands                  | `docs/03-views.md`                       |
+| Explorer, Source Control, Spaces, Search, GitHub, commands          | `docs/03-views.md`                       |
 | diffs, editor, Markdown, LSP, suggestions, staging lines, revisions | `docs/04-preview.md`                     |
 | anything calling git                                                | `docs/05-git.md`                         |
 | config.toml, state.json, settings, keys, colors                     | `docs/06-config.md`                      |

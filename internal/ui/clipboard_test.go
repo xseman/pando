@@ -13,11 +13,15 @@ import (
 )
 
 // TestMain keeps the tests off the desktop's clipboard: a copy a test makes
-// would otherwise land where the person running them pastes.
+// would otherwise land where the person running them pastes. It also takes
+// gh away, CI's runners have it: every layout would grow a GitHub view on a
+// machine with gh and not without; the GitHub tests put it back.
 func TestMain(m *testing.M) {
 	for _, k := range []string{"WAYLAND_DISPLAY", "DISPLAY"} {
 		_ = os.Unsetenv(k) // unset on a machine without them already
 	}
+
+	hasGH = func() bool { return false }
 
 	os.Exit(m.Run())
 }

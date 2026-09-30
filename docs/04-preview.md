@@ -1,14 +1,19 @@
 # Preview
 
 The main area shows either the active session's screen or the preview
-(`preview.go`). One struct serves four kinds:
+(`preview.go`). One struct serves six kinds:
 
-| kind   | Content                                    | Opened by                          |
-| ------ | ------------------------------------------ | ---------------------------------- |
-| `file` | a file, chroma-highlighted                 | Explorer ⏎, quick open, search hit |
-| `diff` | working tree or index diff of one file     | Source Control ⏎ / `o`             |
-| `show` | a whole commit                             | a drawer line (hash)               |
-| `rev`  | what one revision changed in the open file | header `←` `→`, `H`                |
+| kind     | Content                                                  | Opened by                          |
+| -------- | -------------------------------------------------------- | ---------------------------------- |
+| `file`   | a file, chroma-highlighted                               | Explorer ⏎, quick open, search hit |
+| `diff`   | working tree or index diff of one file                   | Source Control ⏎ / `o`             |
+| `show`   | a whole commit                                           | a drawer line (hash)               |
+| `rev`    | what one revision changed in the open file               | header `←` `→`, `H`                |
+| `gh`     | a pull request's or issue's page, rendered Markdown only | GitHub ⏎                           |
+| `ghdiff` | a pull request's changes, `gh pr diff`                   | GitHub `d`                         |
+
+The two `gh` kinds are never saved with the open editors, so a restart calls
+no `gh`. ponytail: going back to one of their tabs fetches it again.
 
 ## Editors
 

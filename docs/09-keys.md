@@ -44,7 +44,7 @@ matches still shown; `esc` closes the widget.
 | Key                                                         | Action                                                                                       |
 | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `ctrl+]`                                                    | cycle focus: left sidebar, main, right sidebar. In a session every other key goes to the app |
-| `1`–`4`                                                     | Files, Git, Spaces, Search                                                                   |
+| `1`–`4`, `6`                                                | Files, Git, Spaces, Search, GitHub                                                           |
 | `ctrl+shift+e` `ctrl+shift+g` `ctrl+shift+f` `ctrl+shift+h` | Explorer, Source Control, Search, Search with replace                                        |
 | `ctrl+j`, `5`, ``ctrl+` ``                                  | toggle the terminal panel; inside a terminal only ``ctrl+` `` (`ctrl+j` is its line feed)    |
 | ``ctrl+shift+` ``                                           | another shell in the terminal panel                                                          |
@@ -72,6 +72,7 @@ matches still shown; `esc` closes the widget.
 | Files  | `⏎` open, `h`/`l` fold, `n`/`N` new file/folder, `R` rename, `D` delete, `d` duplicate, `^x`/`^c`/`^v` cut/copy/paste, `s` stage, `e` edit, `o` open, `O` open containing folder, `F` find in folder, `c`/`y`/`Y` copy name/path/relative path, `.` hidden files, `C` collapse all |
 | Git    | `⏎` stage/unstage, `o` diff, `t` tree or list, `a`/`u` stage/unstage all, `U` stage untracked, `d` discard, `c` message, `C` commit, `A` suggest, `S` sync or publish, `O` open file, `B` switch branch or tag, `{` `}` switch repo                                                |
 | Spaces | `⏎` switch, `M-↑↓` move a project, worktree or session, `n` new shell session, `w` new worktree, `a` add project, `o` view options (filter, sort, group), `x` kill a session, delete a worktree, close a project                                                                   |
+| GitHub | `⏎` open in the editor, `d` a pull request's changes, `w` check out in a worktree (on an issue: start one), `o` on github.com, `y` copy link, `x` Mark as Done, `m` merge and the rest, `^r` refresh, `C` collapse all                                                             |
 
 | In a file                         | Action                                                                    |
 | --------------------------------- | ------------------------------------------------------------------------- |

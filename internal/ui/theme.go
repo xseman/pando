@@ -373,14 +373,25 @@ var (
 		icAdd, icRemove, icDiscard, icWorktree, icSparkle, icCheck, icChevron, icClose, icBranch, icPublish, icSync, icSplit, icInline,
 		icOpenLeft, icOpenRight, icSearch, icCase, icWord, icRegex, icEllipsis, icClearAll, icOptions, icPreview, icSource,
 		icPrevRev, icNextRev, icUp, icDown, icHistory, icTag, icDetach, icReplace, icPreserve, icReplaceAll, icTerminal, icDot,
-		icMainWt, icLinkedWt, icWrap,
+		icMainWt, icLinkedWt, icWrap, icGitHub, icPR, icPRDraft, icPRNew, icIssue, icBell, icCheckAll,
 	}
+)
+
+// The GitHub view's glyphs, VS Code's GitHub Pull Requests icons.
+var (
+	icGitHub   = glyph{"github", "\uea84", "GitHub", "🐙"}
+	icPR       = glyph{"git-pull-request", "\uea64", "PR", ""}
+	icPRDraft  = glyph{"git-pull-request-draft", "\uebdb", "PR", ""}
+	icPRNew    = glyph{"git-pull-request-create", "\uebbc", "+PR", ""}
+	icIssue    = glyph{"issues", "\ueb0c", "#", ""}
+	icBell     = glyph{"bell", "\ueaa2", "!", ""}
+	icCheckAll = glyph{"check-all", "\uebb1", "✓", ""}
 )
 
 // viewIcon is a view's tab and rail icon. Spaces gets the windows glyph, the
 // docked session the robot: one is where the work lives, the other an agent.
 func viewIcon(v view) glyph {
-	return []glyph{icFiles, icGit, icSpaces, icSearch, icTerminal, icAgents}[v]
+	return []glyph{icFiles, icGit, icSpaces, icSearch, icTerminal, icAgents, icGitHub}[v]
 }
 
 // Doctor lists every UI glyph with its codepoint and the installed font that

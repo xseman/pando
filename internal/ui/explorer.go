@@ -805,12 +805,13 @@ func (m *Model) sessionColors() (fg, bg string) {
 
 // newSession starts a session sized to the main area with the host's colors.
 func (m *Model) newSession(ws, agent string, cmd []string) tea.Cmd {
-	return m.spawn(ws, agent, "", cmd)
+	return m.spawn(ws, agent, "", cmd, "")
 }
 
 // spawn starts a session; parent is the agent session whose Terminal panel
-// a shell belongs to, "" for one of the workspace's own.
-func (m *Model) spawn(ws, agent, parent string, cmd []string) tea.Cmd {
+// a shell belongs to, "" for one of the workspace's own. typed, when set, is
+// a line typed into it once its shell settles at the prompt.
+func (m *Model) spawn(ws, agent, parent string, cmd []string, typed string) tea.Cmd {
 	fg, bg := m.sessionColors()
 	p := map[string]any{"workspace": ws, "agent": agent, "parent": parent, "cmd": cmd, "cols": max(m.mainW()-1, 1), "rows": m.sessH(), "fg": fg, "bg": bg}
 
@@ -820,7 +821,21 @@ func (m *Model) spawn(ws, agent, parent string, cmd []string) tea.Cmd {
 			return flashMsg{agent + ": " + err.Error(), true}
 		}
 
-		return newSessionMsg(s)
+		if typed == "" {
+			return newSessionMsg(s)
+		}
+
+		return tea.BatchMsg{
+			func() tea.Msg { return newSessionMsg(s) },
+			func() tea.Msg { // a shell may drop what arrives before its prompt
+				_ = proto.Call("session.wait", proto.WaitParams{ID: s.ID, Until: []string{"idle"}, Timeout: 5000}, nil) // typed anyway when it never settles
+				if err := proto.Call("session.input", proto.InputParams{ID: s.ID, Text: typed + "\r"}, nil); err != nil {
+					return flashMsg{agent + ": " + err.Error(), true}
+				}
+
+				return nil
+			},
+		}
 	}
 }
 

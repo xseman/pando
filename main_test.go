@@ -8,7 +8,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -166,8 +168,16 @@ func TestE2E(t *testing.T) {
 	send("echo E2E_$((40+2)) Upper\r")
 	wait("E2E_42 Upper")
 
-	// Right click the Spaces chip in the activity bar (row 1, columns 16-23) and move it right.
-	send("\x1b[<2;18;1M\x1b[<2;18;1m")
+	// Right click the Spaces chip, the activity bar's third, and move it
+	// right. Where it sits depends on the chips: with gh installed a GitHub
+	// one crowds the text labels down to their initials.
+	chips := regexp.MustCompile(`\S+`).FindAllStringIndex(strings.Split(screen(), "\n")[0], 3)
+	if len(chips) < 3 {
+		t.Fatalf("no activity bar:\n%s", screen())
+	}
+
+	x := strconv.Itoa(chips[2][0] + 1) // the bar is ASCII: a byte is a cell; SGR columns count from 1
+	send("\x1b[<2;" + x + ";1M\x1b[<2;" + x + ";1m")
 	wait("Move to Right Sidebar")
 	send("\r")
 

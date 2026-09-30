@@ -18,9 +18,9 @@ import (
 	"time"
 )
 
-// Error is a command that failed: the git call itself, or the gh call behind
-// PublishGitHub. Stderr is what it printed; Code is its exit status, or -1
-// when it never ran or a signal killed it.
+// Error is a command that failed: a git call, or a gh one (github.go).
+// Stderr is what it printed; Code is its exit status, or -1 when it never
+// ran or a signal killed it.
 type Error struct {
 	Args   []string // the arguments, without the leading -C dir
 	Stderr string
@@ -827,35 +827,6 @@ func Remotes(root string) ([]Remote, error) {
 	}
 
 	return rs, nil
-}
-
-// HasGH reports whether gh is installed: it stands in for VS Code's GitHub
-// extension, the publisher offered when a repository has no remote.
-func HasGH() bool { _, err := exec.LookPath("gh"); return err == nil }
-
-// GHLogin is the gh user, "" when it is not signed in.
-func GHLogin() string {
-	out, _ := exec.Command("gh", "api", "user", "--jq", ".login").Output()
-	return strings.TrimSpace(string(out))
-}
-
-// PublishGitHub creates the repository name on GitHub with gh, adds it as
-// origin and pushes the current branch, the GitHub extension's Publish to
-// GitHub.
-func PublishGitHub(root, name string, private bool) error {
-	vis := "--public"
-	if private {
-		vis = "--private"
-	}
-
-	args := []string{"repo", "create", name, vis, "--source", root, "--remote", "origin", "--push"}
-
-	out, err := exec.Command("gh", args...).CombinedOutput()
-	if err != nil {
-		return newError(args, string(out), nil, err)
-	}
-
-	return nil
 }
 
 // Diff returns the patch for one entry (untracked files diff against /dev/null).

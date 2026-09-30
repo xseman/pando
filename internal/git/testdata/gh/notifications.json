@@ -1,0 +1,46 @@
+[
+  {
+    "id": "101",
+    "last_read_at": null,
+    "reason": "review_requested",
+    "repository": { "full_name": "o/r", "html_url": "https://github.com/o/r" },
+    "subject": { "latest_comment_url": null, "title": "feat: streets by batch ids", "type": "PullRequest", "url": "https://api.github.com/repos/o/r/pulls/258" },
+    "subscription_url": "https://api.github.com/notifications/threads/101/subscription",
+    "unread": true,
+    "updated_at": "2026-09-30T10:00:00Z",
+    "url": "https://api.github.com/notifications/threads/101"
+  },
+  {
+    "id": "102",
+    "last_read_at": null,
+    "reason": "mention",
+    "repository": { "full_name": "o/r", "html_url": "https://github.com/o/r" },
+    "subject": { "latest_comment_url": null, "title": "crash on start", "type": "Issue", "url": "https://api.github.com/repos/o/r/issues/7" },
+    "subscription_url": "https://api.github.com/notifications/threads/102/subscription",
+    "unread": true,
+    "updated_at": "2026-09-29T10:00:00Z",
+    "url": "https://api.github.com/notifications/threads/102"
+  },
+  {
+    "id": "103",
+    "last_read_at": null,
+    "reason": "subscribed",
+    "repository": { "full_name": "o/r", "html_url": "https://github.com/o/r" },
+    "subject": { "latest_comment_url": null, "title": "v1.0", "type": "Release", "url": "https://api.github.com/repos/o/r/releases/99" },
+    "subscription_url": "https://api.github.com/notifications/threads/103/subscription",
+    "unread": true,
+    "updated_at": "2026-09-28T10:00:00Z",
+    "url": "https://api.github.com/notifications/threads/103"
+  },
+  {
+    "id": "104",
+    "last_read_at": null,
+    "reason": "subscribed",
+    "repository": { "full_name": "o/r", "html_url": "https://github.com/o/r" },
+    "subject": { "latest_comment_url": null, "title": "an idea", "type": "Discussion", "url": null },
+    "subscription_url": "https://api.github.com/notifications/threads/104/subscription",
+    "unread": true,
+    "updated_at": "2026-09-27T10:00:00Z",
+    "url": "https://api.github.com/notifications/threads/104"
+  }
+]

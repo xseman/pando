@@ -6,7 +6,7 @@ make lint               golangci-lint, config in .golangci.yml (also CI)
 go test -short ./...    skips the PTY end-to-end test
 ```
 
-Five layers, each catching a different class of bug:
+Six layers, each catching a different class of bug:
 
 | Layer                         | Where                   | Catches                                                    |
 | ----------------------------- | ----------------------- | ---------------------------------------------------------- |
@@ -14,6 +14,7 @@ Five layers, each catching a different class of bug:
 | fuzz                          | every byte parser       | parsers fed bytes no test would think to write             |
 | daemon over a real socket     | `internal/daemon`       | protocol, settings merge, config reload, session lifecycle |
 | git against temp repositories | `internal/git`          | every command pando runs, on real git                      |
+| gh through a fake gh on PATH  | `internal/{git,ui}`     | every gh call's arguments, answers and failures, offline   |
 | TUI in a PTY                  | `main_test.go`          | the whole binary: daemon autostart, keys, mouse, redraw    |
 
 ## Fuzzing

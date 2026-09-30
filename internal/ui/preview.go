@@ -46,6 +46,10 @@ const (
 	pvDiff = "diff" // one entry's working-tree or index diff
 	pvShow = "show" // a commit, as `git show` prints it
 	pvRev  = "rev"  // one revision of a file out of its history
+	// A pull request or an issue as gh shows it, rendered as Markdown; rev
+	// is "pr/12" or "issue/5".
+	pvGH     = "gh"
+	pvGHDiff = "ghdiff" // a pull request's changes, gh pr diff; rev is "pr/12"
 )
 
 // preview shows a file, a working-tree diff, or `git show` output with a
@@ -130,6 +134,9 @@ func (p *preview) id() string {
 // like any other, but ⌃s asks where to put it.
 func (p *preview) untitled() bool { return p.kind == pvFile && p.path == "" }
 
+// fromGH reports a pull request or an issue gh fetched: no file behind it.
+func (p *preview) fromGH() bool { return p.kind == pvGH || p.kind == pvGHDiff }
+
 // label is the header's name and dimmed context, VS Code style.
 func (p *preview) label(ws string) (name, context string) {
 	switch p.kind {
@@ -169,6 +176,13 @@ func (p *preview) label(ws string) (name, context string) {
 
 	case pvShow:
 		return "git show " + p.rev, filepath.Base(p.root)
+	case pvGH:
+		kind, n, _ := strings.Cut(p.rev, "/")
+		return map[string]string{"pr": "PR", "issue": "Issue"}[kind] + " #" + n, "description"
+
+	case pvGHDiff: // its own tab name: the description's tab is PR #n too
+		return "PR #" + strings.TrimPrefix(p.rev, "pr/") + " changes", "gh pr diff"
+
 	case pvRev:
 		if p.revIdx >= len(p.revs) {
 			return filepath.Base(p.path), "history"
@@ -804,6 +818,12 @@ func (p *preview) fetch() (string, error) {
 
 	case pvShow:
 		return git.Run(p.root, "show", "--stat", "--patch", p.rev)
+	case pvGH:
+		kind, n, _ := strings.Cut(p.rev, "/")
+		return ghDocument(p.root, kind, n)
+
+	case pvGHDiff:
+		return git.GH(p.root, "pr", "diff", strings.TrimPrefix(p.rev, "pr/"))
 	case pvRev:
 		if p.revIdx >= len(p.revs) {
 			return "", errors.New("no such revision")
@@ -824,7 +844,7 @@ func (p *preview) fetch() (string, error) {
 // diffs the per-row line numbers and change kinds.
 func render(kind, path, raw string, dark bool) (styled, plainLines []string, meta []lineMeta, numW int) {
 	raw = expandTabs(strings.ReplaceAll(raw, "\r", ""))
-	if kind != pvFile {
+	if kind != pvFile && kind != pvGH {
 		lines := parseDiff(raw)
 		if len(lines) > maxPreviewLines {
 			lines = lines[:maxPreviewLines]
@@ -2064,10 +2084,14 @@ func (p *preview) hints(m *Model) string {
 	switch {
 	case m.pk != nil:
 		return " ↑↓ move  ←→ fold  ⏎ open  o open and stay  esc close"
+	case p.split(m) && p.kind != pvDiff: // a commit's or a pull request's: nothing to stage
+		return " ↑↓ move  ⇧ select  s inline  q close"
 	case p.split(m):
 		return " ↑↓ move  ⇧ select  m stage/revert lines  O file  s inline  q close"
 	case p.side(m):
 		return " ↑↓ scroll  p rendered  s source only  q close"
+	case p.kind == pvGH: // rendered only: no source to toggle to
+		return " ↑↓ move  ⇧ select  y copy  q close"
 	case p.md == 1:
 		return " ↑↓ move  ⇧ select  y copy  p source  s side by side  q close"
 	case p.vimOn(m) && p.vim.mode != vimInsert:
@@ -2159,7 +2183,7 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 	}
 
 	left := []seg{sg(" "+icClose.s()+" ", dim)}
-	if p.kind != pvShow {
+	if p.kind != pvShow && !p.fromGH() {
 		left = append(left, iconSeg(name, false, false))
 	}
 
@@ -2951,7 +2975,7 @@ func (p *preview) items(m *Model) []item {
 		items = append(items, item{label: "Go to Symbol…", hint: "^⇧o", run: func(m *Model) tea.Cmd { return m.gotoSymbol("@") }})
 	}
 
-	if p.kind != pvShow && !p.untitled() {
+	if p.kind != pvShow && !p.fromGH() && !p.untitled() {
 		items = append(items, item{label: "Edit in $EDITOR", hint: "e", run: key('e')})
 	}
 

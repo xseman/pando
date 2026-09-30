@@ -811,7 +811,15 @@ func (a *agents) newWorktree(m *Model, r *agRow) tea.Cmd {
 		return flash("select a project first", true)
 	}
 
-	m.modal = newPrompt("New worktree branch in "+filepath.Base(project), git.RandomBranch(), func(_ *Model, branch string) tea.Cmd {
+	m.promptWorktree(project, git.RandomBranch())
+
+	return nil
+}
+
+// promptWorktree asks for the branch of a new worktree of project, offering
+// branch; ⏎ creates it and switches there.
+func (m *Model) promptWorktree(project, branch string) {
+	m.modal = newPrompt("New worktree branch in "+filepath.Base(project), branch, func(_ *Model, branch string) tea.Cmd {
 		return func() tea.Msg { // an emptied name gets a random one from the daemon
 			var w proto.Workspace
 			if err := proto.Call("workspace.new", map[string]string{"project": project, "branch": branch}, &w); err != nil {
@@ -821,8 +829,6 @@ func (a *agents) newWorktree(m *Model, r *agRow) tea.Cmd {
 			return newWorkspaceMsg(w)
 		}
 	})
-
-	return nil
 }
 
 type newWorkspaceMsg proto.Workspace
@@ -1871,7 +1877,7 @@ func (m *Model) newTab() tea.Cmd {
 		return m.ag.newSession(m, nil)
 	}
 
-	return m.spawn(root.Workspace, tabAgent, root.ID, nil) // the daemon picks the shell
+	return m.spawn(root.Workspace, tabAgent, root.ID, nil, "") // the daemon picks the shell
 }
 
 // termSessions are the shells of the Terminal panel: the shown session's own,
@@ -2679,7 +2685,7 @@ func (m *Model) cycleTerm(d int) tea.Cmd {
 }
 
 func (m *Model) newTerm() tea.Cmd {
-	return m.spawn(m.ws, termAgent, m.rootOf(m.sess), nil) // the daemon picks the shell
+	return m.spawn(m.ws, termAgent, m.rootOf(m.sess), nil, "") // the daemon picks the shell
 }
 
 // toggleTerminal is ⌃`: it opens the terminal where it is docked and focuses
@@ -2693,14 +2699,23 @@ func (m *Model) toggleTerminal() tea.Cmd {
 		return tea.Batch(cmd, m.fetchScreen())
 	}
 
+	return tea.Batch(m.showTerminal(), m.startTerm())
+}
+
+// showTerminal opens the panel where it is docked and focuses it, leaving
+// what it shows to the caller: startTerm's shell, or a new one.
+func (m *Model) showTerminal() tea.Cmd {
+	if m.termOpen() {
+		return nil
+	}
+
 	cmd := m.setTermOpen(true, nil)
 	if m.termPos() == "bottom" {
 		m.focus = onPanel
-	} else {
-		cmd = tea.Batch(cmd, m.showView(viewTerm))
+		return cmd
 	}
 
-	return tea.Batch(cmd, m.startTerm())
+	return tea.Batch(cmd, m.showView(viewTerm))
 }
 
 // moveTerminal parks the panel under the editor or in a sidebar of its own.

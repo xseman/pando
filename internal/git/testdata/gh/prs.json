@@ -1,0 +1,59 @@
+[
+  {
+    "author": { "id": "MDQ6VXNlcjE=", "is_bot": false, "login": "ann", "name": "Ann" },
+    "baseRefName": "main",
+    "headRefName": "release",
+    "headRefOid": "5299565f0c1e2d3b4a5968778695a4b3c2d1e0f1",
+    "isCrossRepository": false,
+    "isDraft": false,
+    "number": 14,
+    "statusCheckRollup": [
+      { "__typename": "CheckRun", "completedAt": "2026-09-30T11:11:58Z", "conclusion": "SUCCESS", "detailsUrl": "https://github.com/o/r/actions/runs/1/job/2", "name": "test", "startedAt": "2026-09-30T11:11:02Z", "status": "COMPLETED", "workflowName": "ci" },
+      { "__typename": "StatusContext", "context": "ci/jenkins", "startedAt": "2026-09-30T11:11:02Z", "state": "SUCCESS", "targetUrl": "https://ci.example/1" }
+    ],
+    "title": "release v0.4.0",
+    "url": "https://github.com/o/r/pull/14"
+  },
+  {
+    "author": { "id": "MDQ6VXNlcjI=", "is_bot": false, "login": "bob", "name": "Bob" },
+    "baseRefName": "main",
+    "headRefName": "main",
+    "headRefOid": "1111111111111111111111111111111111111111",
+    "isCrossRepository": true,
+    "isDraft": true,
+    "number": 13,
+    "statusCheckRollup": [
+      { "__typename": "CheckRun", "completedAt": "2026-09-30T11:11:58Z", "conclusion": "SUCCESS", "detailsUrl": "", "name": "lint", "startedAt": "2026-09-30T11:11:02Z", "status": "COMPLETED", "workflowName": "ci" },
+      { "__typename": "StatusContext", "context": "ci/jenkins", "startedAt": "2026-09-30T11:11:02Z", "state": "PENDING", "targetUrl": "https://ci.example/2" }
+    ],
+    "title": "fix: employees see suppliers",
+    "url": "https://github.com/o/r/pull/13"
+  },
+  {
+    "author": { "id": "MDQ6VXNlcjM=", "is_bot": false, "login": "eve", "name": "Eve" },
+    "baseRefName": "main",
+    "headRefName": "test/playwright",
+    "headRefOid": "2222222222222222222222222222222222222222",
+    "isCrossRepository": false,
+    "isDraft": false,
+    "number": 12,
+    "statusCheckRollup": [
+      { "__typename": "CheckRun", "completedAt": "0001-01-01T00:00:00Z", "conclusion": "", "detailsUrl": "", "name": "test", "startedAt": "2026-09-30T11:11:02Z", "status": "IN_PROGRESS", "workflowName": "ci" },
+      { "__typename": "CheckRun", "completedAt": "2026-09-30T11:11:58Z", "conclusion": "FAILURE", "detailsUrl": "", "name": "lint", "startedAt": "2026-09-30T11:11:02Z", "status": "COMPLETED", "workflowName": "ci" }
+    ],
+    "title": "test(ui-testing): Playwright and MCP",
+    "url": "https://github.com/o/r/pull/12"
+  },
+  {
+    "author": { "id": "MDQ6VXNlcjQ=", "is_bot": false, "login": "ann", "name": "Ann" },
+    "baseRefName": "main",
+    "headRefName": "docs",
+    "headRefOid": "3333333333333333333333333333333333333333",
+    "isCrossRepository": false,
+    "isDraft": false,
+    "number": 11,
+    "statusCheckRollup": [],
+    "title": "docs: readme",
+    "url": "https://github.com/o/r/pull/11"
+  }
+]
