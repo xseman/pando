@@ -195,7 +195,9 @@ the TUI reads them in `listedSessions`, which every Spaces row comes from.
 | Collapse All Groups | folds every project, or every time heading; folds are kept across restarts (`spaces_folded`)                  |
 
 A session from before `created` existed files under Older. `Updated` is not
-saved: a respawned session starts over at its first output. VS Code's _Show
+saved: a respawned session starts over at its first output. The selection
+is a row, not a row number: when a `sessions` event re-sorts the list, it
+moves with its session (`agents.follow`). VS Code's _Show
 Recent / All Sessions_ has no counterpart: every listed session is a live
 terminal, not a history entry.
 

@@ -738,6 +738,35 @@ func TestSpacesDragSession(t *testing.T) {
 	}
 }
 
+// TestSpacesSelectionFollowsSort clicks a session sorted by Updated whose
+// output then moves it to the top: the selection goes with it, not onto the
+// session that took its row.
+func TestSpacesSelectionFollowsSort(t *testing.T) {
+	m := testModel(t)
+	m.st.Settings.SpSort = "updated"
+	now := time.Now()
+	sess := func(id string, ago time.Duration) proto.Session {
+		return proto.Session{SessionSpec: proto.SessionSpec{ID: id, Workspace: m.ws, Agent: "shell"}, Status: "idle", Updated: now.Add(-ago)}
+	}
+	m.Update(sessionsMsg{sess("s1", time.Minute), sess("s2", time.Hour)})
+	press(m, "3")
+	checkWidths(t, m)
+	cs, _ := m.layout()
+	x, top := cs[m.colOf(viewAgents)].x+1, m.bodyTop(viewAgents)
+
+	click(m, x, top+3-m.ag.l.top, tea.MouseLeft) // project, worktree, s1, s2
+
+	if r := m.ag.selected(m); r == nil || r.s.ID != "s2" || m.sess != "s2" {
+		t.Fatalf("the click selects and opens s2: %+v, %q", r, m.sess)
+	}
+
+	m.Update(sessionsMsg{sess("s1", time.Minute), sess("s2", 0)})
+
+	if r := m.ag.selected(m); r == nil || r.s.ID != "s2" {
+		t.Fatalf("the selection stays on s2 as it moves up: %+v", r)
+	}
+}
+
 // TestSpacesDragWorktree drags a project's checkout below its linked
 // worktree: each takes its sessions along, a workspaces event mid-drag does
 // not undo it, and a press that never moves still switches to the worktree.

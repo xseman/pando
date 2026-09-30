@@ -2233,11 +2233,14 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		cmd := m.sound(m.soundFor(msg))
+		sel := m.ag.selected(m)
 
 		m.sessions = msg
 		if d := m.drag; d != nil && d.kind == dragRow && d.sess != "" && d.to != "" { // a session held mid-drag stays under the pointer
 			m.ag.moveSession(m, d.sess, d.to)
 		}
+
+		m.ag.follow(m, sel)
 
 		for _, s := range m.mainSessions() { // what is on screen is seen as it changes
 			if m.inView(s.ID) {

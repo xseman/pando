@@ -626,6 +626,26 @@ func (a *agents) selected(m *Model) *agRow {
 	return nil
 }
 
+// follow keeps the selection on row r, the one selected before the rows
+// changed: sorted by Updated, a session that prints moves up the list, and
+// the highlight goes with it rather than onto whatever took its place.
+func (a *agents) follow(m *Model, r *agRow) {
+	if r == nil {
+		return
+	}
+
+	same := func(o agRow) bool { // a session is itself under any heading, as Group by Time moves it
+		if r.kind == agSession {
+			return o.kind == agSession && o.s.ID == r.s.ID
+		}
+
+		return o.kind == r.kind && o.project == r.project && o.ws.Path == r.ws.Path && o.when == r.when
+	}
+	if i := slices.IndexFunc(a.rows(m), same); i >= 0 {
+		a.l.sel = i
+	}
+}
+
 // step moves the selection by d rows and walks on over the blank separators
 // one row at a time, so ↑↓ and a page never park on one. A gap always sits
 // between two rows, so the walk ends inside the list.
