@@ -55,7 +55,7 @@ func (a *agents) rows(m *Model) []agRow {
 	}
 
 	if q == "" {
-		return withGaps(out)
+		return a.pinFolded(m, withGaps(out))
 	}
 	// Keep matching rows plus the project and worktree they sit under.
 	keep := make([]bool, len(out))
@@ -94,14 +94,24 @@ func (a *agents) rows(m *Model) []agRow {
 	return withGaps(shown)
 }
 
-// treeRows are Group by Workspace's rows: project, worktree, session.
+// treeRows are Group by Workspace's rows: project, worktree, session. A
+// folded project sinks below the open ones and keeps its place among the
+// folded (shownProjects), so the spaces in use stay together at the top.
 func (a *agents) treeRows(m *Model, sessions []proto.Session, q string) []agRow {
-	var out []agRow
+	var open, folded []agRow
+
+	add := func(p string, rows []agRow) {
+		if a.collapsed[p] {
+			folded = append(folded, rows...)
+		} else {
+			open = append(open, rows...)
+		}
+	}
 
 	known := map[string]bool{}
 
 	for _, p := range m.st.Projects {
-		out = append(out, agRow{kind: agProject, project: p})
+		rows := []agRow{{kind: agProject, project: p}}
 		for _, w := range m.wss {
 			if w.Project != p {
 				continue
@@ -113,32 +123,44 @@ func (a *agents) treeRows(m *Model, sessions []proto.Session, q string) []agRow 
 				continue
 			}
 
-			out = append(out, agRow{kind: agWorkspace, project: p, ws: w})
+			rows = append(rows, agRow{kind: agWorkspace, project: p, ws: w})
 			for _, s := range sessions {
 				if s.Workspace == w.Path {
-					out = append(out, agRow{kind: agSession, project: p, ws: w, s: s})
+					rows = append(rows, agRow{kind: agSession, project: p, ws: w, s: s})
 				}
 			}
 		}
+
+		add(p, rows)
 	}
 
-	header := false
+	var other []agRow
 
 	for _, s := range sessions { // sessions outside every known worktree, under "other"
 		if known[s.Workspace] {
 			continue
 		}
 
-		if !header {
-			out, header = append(out, agRow{kind: agProject}), true
+		if other == nil {
+			other = []agRow{{kind: agProject}}
 		}
 
 		if !a.collapsed[""] || q != "" {
-			out = append(out, agRow{kind: agSession, ws: proto.Workspace{Path: s.Workspace}, s: s})
+			other = append(other, agRow{kind: agSession, ws: proto.Workspace{Path: s.Workspace}, s: s})
 		}
 	}
 
-	return out
+	add("", other)
+
+	return append(open, folded...)
+}
+
+// shownProjects are the projects in the order Spaces lists them: the open
+// ones, then the folded ones, each in their saved order.
+func (a *agents) shownProjects(m *Model) []string {
+	open := slices.DeleteFunc(slices.Clone(m.st.Projects), func(p string) bool { return a.collapsed[p] })
+
+	return append(open, slices.DeleteFunc(slices.Clone(m.st.Projects), func(p string) bool { return !a.collapsed[p] })...)
 }
 
 // withGaps puts a blank row before a project, herdr's gap between two spaces,
@@ -155,6 +177,25 @@ func withGaps(rows []agRow) []agRow {
 	}
 
 	return out
+}
+
+// pinFolded pads the tree with blank rows before its first folded project, so
+// the folded sit on the panel's bottom edge as VS Code's collapsed views do. A
+// tree taller than the panel scrolls as it is; all folded, they all sink.
+func (a *agents) pinFolded(m *Model, rows []agRow) []agRow {
+	k := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agProject && a.collapsed[r.project] })
+
+	pad := m.bodyH(viewAgents) - len(rows)
+	if m.st.Settings.SpGroup == "time" || k < 0 || pad <= 0 {
+		return rows
+	}
+
+	gaps := make([]agRow, pad)
+	for i := range gaps {
+		gaps[i].kind = agGap
+	}
+
+	return slices.Insert(rows, k, gaps...)
 }
 
 // listedSessions are the sessions Spaces shows: the Filter's states left out,
@@ -647,13 +688,18 @@ func (a *agents) follow(m *Model, r *agRow) {
 }
 
 // step moves the selection by d rows and walks on over the blank separators
-// one row at a time, so ↑↓ and a page never park on one. A gap always sits
-// between two rows, so the walk ends inside the list.
+// one row at a time, so ↑↓ and a page never park on one. A walk that meets the
+// end of the list turns back: with every project folded, the padding that
+// pins them down opens the list.
 func (a *agents) step(rows []agRow, d, h int) {
 	n, s := len(rows), min(max(d, -1), 1)
 	a.l.move(d, n, h)
 
 	for a.l.sel >= 0 && a.l.sel < n && rows[a.l.sel].kind == agGap {
+		if (s < 0 && a.l.sel == 0) || (s > 0 && a.l.sel == n-1) {
+			s = -s
+		}
+
 		a.l.move(s, n, h)
 	}
 }
@@ -691,9 +737,9 @@ func (a *agents) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		}
 
 	case "g", "home":
-		a.l.move(-n, n, h)
+		a.step(rows, -n, h)
 	case "G", "end":
-		a.l.move(n, n, h)
+		a.step(rows, n, h)
 	case "enter", "space", "l":
 		return a.activate(m, r)
 	case "n":
@@ -732,6 +778,8 @@ func (a *agents) activate(m *Model, r *agRow) tea.Cmd {
 	switch r.kind {
 	case agProject, agTime:
 		a.collapsed[foldKey(*r)] = !a.collapsed[foldKey(*r)]
+		a.follow(m, r) // a folded project sinks below the open ones
+		a.l.snap(m.bodyH(viewAgents))
 
 		return a.saveFolds()
 
@@ -1202,7 +1250,7 @@ func (a *agents) dragRowTo(m *Model, d *drag, y int, release bool) tea.Cmd {
 		}
 
 	case d.moved:
-		if over := a.projectAt(m, m.hoverRow(viewAgents)); over != "" && over != d.proj {
+		if over := a.projectAt(m, m.hoverRow(viewAgents)); over != "" && over != d.proj && a.collapsed[over] == a.collapsed[d.proj] {
 			a.moveProject(m, d.proj, over)
 		}
 	}
@@ -1236,16 +1284,17 @@ func (a *agents) dragRowTo(m *Model, d *drag, y int, release bool) tea.Cmd {
 // shiftProject moves a project d places and saves it at once: the menu's and
 // alt+↑↓'s half of the drag.
 func (a *agents) shiftProject(m *Model, path string, d int) tea.Cmd {
-	i := slices.Index(m.st.Projects, path)
+	order := a.shownProjects(m)
+	i := slices.Index(order, path)
 
-	to := i + d
-	if i < 0 || to < 0 || to >= len(m.st.Projects) {
+	j := i + d
+	if i < 0 || j < 0 || j >= len(order) || a.collapsed[order[j]] != a.collapsed[path] { // nothing crosses into the folded
 		return nil
 	}
 
-	a.moveProject(m, path, m.st.Projects[to])
+	a.moveProject(m, path, order[j])
 
-	return do("project.move", proto.MoveParams{Path: path, To: to})
+	return do("project.move", proto.MoveParams{Path: path, To: slices.Index(m.st.Projects, path)})
 }
 
 // projectAt is the project the list row at screen row y belongs to, "" off

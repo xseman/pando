@@ -98,7 +98,8 @@ anything in it. `w` adds a worktree, `x` kills a session, deletes a worktree
 - `×` waits for you, `◐` works (a shell command the agent runs, a background
   one too, counts), `✓` finished unseen, `○` idles. One that needs you pulses
   until clicked and can play a sound (`session_highlight`, `sounds`). `o`
-  filters, sorts and groups the list.
+  filters, sorts and groups the list; a folded project sinks to the panel's
+  bottom edge.
 - Drag over a terminal to select; the release copies. `ctrl+f` finds in its
   scrollback.
 

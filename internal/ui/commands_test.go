@@ -295,7 +295,7 @@ func TestSessionHighlight(t *testing.T) {
 	m.st.Projects = append(m.st.Projects, other)
 	m.wss = append(m.wss, proto.Workspace{Path: other, Project: other, Branch: "main", Main: true})
 	m.ag.collapsed = map[string]bool{m.ws: true}
-	m.ag.l.sel = len(m.ag.rows(m)) - 1
+	m.ag.l.sel = 0 // other's row: the folded project sank below it
 
 	if f, s := shades(); !f && !s {
 		t.Fatal("a folded project hides its failed session's tint")
@@ -423,12 +423,21 @@ func TestAgentsTreeGaps(t *testing.T) {
 	if m.ag.l.sel != gap-1 {
 		t.Fatalf("click on the gap moved the selection to %d", m.ag.l.sel)
 	}
-	// Two folded projects are two rows, no gap between them.
+	// Two folded projects are two rows, no gap between them, pinned to the
+	// panel's bottom edge by the blank rows above them.
 	m.ag.collapsed = map[string]bool{m.ws: true, other: true}
 
 	folded := m.ag.rows(m)
-	if len(folded) != 2 || folded[0].kind != agProject || folded[1].kind != agProject {
-		t.Fatalf("folded projects stack without a gap: %+v", folded)
+	if n := len(folded); n != m.bodyH(viewAgents) || folded[n-2].kind != agProject || folded[n-1].kind != agProject ||
+		slices.ContainsFunc(folded[:n-2], func(r agRow) bool { return r.kind != agGap }) {
+		t.Fatalf("folded projects stack without a gap at the bottom: %+v", folded)
+	}
+	// ↑ and home off the bottom walk the padding back to a project.
+	m.ag.l.sel = len(folded) - 1
+	press(m, "home")
+
+	if r := m.ag.selected(m); r == nil || r.kind != agProject {
+		t.Fatalf("home over the padding: sel %d", m.ag.l.sel)
 	}
 	// Unfolding the first one puts the gap back before the second.
 	m.ag.collapsed[m.ws] = false
@@ -614,6 +623,7 @@ func TestSpacesDragReorder(t *testing.T) {
 	checkWidths(t, m) // the list settles its scroll offset when it draws
 	cs, _ := m.layout()
 	x, top := cs[m.colOf(viewAgents)].x+1, m.bodyTop(viewAgents)
+	top += slices.IndexFunc(m.ag.rows(m), func(r agRow) bool { return r.kind == agProject }) // folded, on the bottom edge
 	m.Update(tea.MouseClickMsg{X: x, Y: top, Button: tea.MouseLeft})
 
 	if m.drag == nil || m.drag.kind != dragRow || m.drag.proj != first {
@@ -645,8 +655,20 @@ func TestSpacesDragReorder(t *testing.T) {
 	if m.ag.collapsed[other] == was {
 		t.Fatal("a click that never moved folds the project")
 	}
-	// alt+↑↓ does the same from the keyboard.
-	m.ag.l.sel = slices.IndexFunc(m.ag.rows(m), func(r agRow) bool { return r.kind == agProject && r.project == first })
+	// A folded project sits below every open one, and alt+↑↓ keeps it there.
+	onFirst := func() {
+		m.ag.l.sel = slices.IndexFunc(m.ag.rows(m), func(r agRow) bool { return r.kind == agProject && r.project == first })
+	}
+	onFirst()
+	press(m, "alt+up")
+
+	if m.st.Projects[0] != other {
+		t.Fatalf("alt+up takes a folded project above an open one: %v", m.st.Projects)
+	}
+	// alt+↑↓ does what the drag does from the keyboard.
+	m.ag.collapsed[other] = true
+
+	onFirst()
 	press(m, "alt+up")
 
 	if m.st.Projects[0] != first {
@@ -657,6 +679,62 @@ func TestSpacesDragReorder(t *testing.T) {
 
 	if m.st.Projects[0] != first {
 		t.Fatalf("alt+up at the top does nothing: %v", m.st.Projects)
+	}
+}
+
+// TestSpacesFoldedSink folds a project: it sinks below the open ones with the
+// selection on it, and unfolding brings it back to its saved place.
+func TestSpacesFoldedSink(t *testing.T) {
+	m := testModel(t)
+	first, second, third := m.ws, t.TempDir(), t.TempDir()
+
+	m.st.Projects = []string{first, second, third}
+	for _, p := range []string{second, third} {
+		m.wss = append(m.wss, proto.Workspace{Path: p, Project: p, Branch: "main", Main: true})
+	}
+
+	press(m, "3")
+
+	projects := func() []string {
+		var out []string
+
+		for _, r := range m.ag.rows(m) {
+			if r.kind == agProject {
+				out = append(out, r.project)
+			}
+		}
+
+		return out
+	}
+
+	m.ag.activate(m, &agRow{kind: agProject, project: first})
+
+	if got := projects(); !slices.Equal(got, []string{second, third, first}) {
+		t.Fatalf("a folded project sinks: %v", got)
+	}
+
+	if r := m.ag.selected(m); r == nil || r.project != first {
+		t.Fatalf("the selection goes with the folded project: %+v", r)
+	}
+
+	if rows := m.ag.rows(m); len(rows) != m.bodyH(viewAgents) || rows[len(rows)-1].project != first {
+		t.Fatalf("the folded project sits on the panel's bottom edge: %d rows of %d", len(rows), m.bodyH(viewAgents))
+	}
+
+	m.ag.activate(m, &agRow{kind: agProject, project: third})
+
+	if got := projects(); !slices.Equal(got, []string{second, first, third}) {
+		t.Fatalf("the folded keep their saved order: %v", got)
+	}
+
+	m.ag.activate(m, &agRow{kind: agProject, project: first})
+
+	if got := projects(); !slices.Equal(got, []string{first, second, third}) {
+		t.Fatalf("an unfolded project goes back to its place: %v", got)
+	}
+
+	if !slices.Equal(m.st.Projects, []string{first, second, third}) {
+		t.Fatalf("folding leaves the saved order alone: %v", m.st.Projects)
 	}
 }
 
