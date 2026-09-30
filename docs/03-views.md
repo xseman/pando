@@ -178,7 +178,10 @@ working, `✓` done (finished while nobody was looking), `○` idle, `✕` exite
 with a code. The daemon reads each agent's screen once a tick and matches the
 phrases it prints while it waits (`Do you want to proceed?`, `Allow command?`)
 or works (`esc to interrupt`), the way herdr's detection manifests do
-(`internal/daemon/detect.go`); output timing decides for anything else.
+(`internal/daemon/detect.go`); output timing decides for anything else. A
+claude at its prompt with a subagent or a workflow still listed under it
+(`◯ deep-task … 8m 33s`) is left to output timing too: the row's clock ticks
+while the work runs, so the session reads working until it stops.
 
 View options (`o`, the header's sliders, or _View Options…_) are VS Code's
 agent sessions menu (`agents.viewMenu`). Filter, Sort and Group are settings

@@ -17,8 +17,12 @@ import (
 type rules struct {
 	blocked, running []string
 	runningLine      *regexp.Regexp // a status line only a running turn shows
-	titleBlocked     *regexp.Regexp
-	idlePrompt       bool // a ❯ prompt line with nothing above says idle
+	// backgroundLine is a row of background work (a subagent, a workflow)
+	// listed under the prompt. Its clock ticks while the work runs, so the
+	// prompt stops saying idle and output timing decides instead.
+	backgroundLine *regexp.Regexp
+	titleBlocked   *regexp.Regexp
+	idlePrompt     bool // a ❯ prompt line with nothing above says idle
 }
 
 const screenLines = 12
@@ -34,7 +38,9 @@ var agentRules = map[string]rules{
 		running: []string{"esc to interrupt", "background agents to finish", "mcp tasks still running"},
 		// "✻ Orbiting… (5s · ↓ 66 tokens)"; a finished turn says "✻ Worked for 5s", no ellipsis.
 		runningLine: regexp.MustCompile(`(?m)^\s*[*·✢✳✶✻✽]\s+\S.*…(?:\s+\(\d+[smh]|\s*$)`),
-		idlePrompt:  true,
+		// "◯ deep-task  Checking the decoder   8m 33s · ↓ 127.6k tokens"
+		backgroundLine: regexp.MustCompile(`(?m)^\s*◯\s+\S.*\s\d+[hms](?:\s?\d+[ms])?\b`),
+		idlePrompt:     true,
 	},
 	"codex": {
 		titleBlocked: regexp.MustCompile(`Action Required`),
@@ -79,6 +85,8 @@ func screenState(program, title string, lines []string) string {
 		return "blocked"
 	case has(r.running), r.runningLine != nil && r.runningLine.MatchString(text):
 		return "running"
+	case r.backgroundLine != nil && r.backgroundLine.MatchString(text):
+		return ""
 	case r.idlePrompt && promptLine.MatchString(text):
 		return "idle"
 	}

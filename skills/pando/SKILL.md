@@ -79,7 +79,7 @@ pando session get reviewer
 
 | Status    | Meaning                                           |
 | --------- | ------------------------------------------------- |
-| `running` | a turn or a command is working                    |
+| `running` | a turn, a command or a background subagent works  |
 | `blocked` | the agent is waiting at an approval or a question |
 | `idle`    | at its prompt, ready for input                    |
 | `exited`  | the process is gone; `exit_code` says how         |
