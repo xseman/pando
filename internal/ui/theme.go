@@ -39,6 +39,7 @@ type palette struct {
 	blockedSoftBg, doneSoftBg                                                                                  color.Color // the other shade of their pulse
 	sliderBg, sliderActiveBg, rulerBorder                                                                      color.Color // VS Code's scrollbarSlider over the editor, and editorOverviewRuler.border
 	tabBg, tabBorder                                                                                           color.Color // tab.inactiveBackground and tab.border, a shade stronger for a terminal
+	tabActiveBg                                                                                                color.Color // the active tab, a shade past the selection so it stands out of its strip
 	sashHover                                                                                                  color.Color // VS Code's sash.hoverBorder: a divider under a resting pointer, a shade off the accent it drags in
 	whitespace                                                                                                 color.Color // VS Code's editorWhitespace.foreground: the · and → of render_whitespace
 	mdCode, mdCodeBg                                                                                           color.Color // code in rendered Markdown: inline code's text, glow's salmon, and the background of it and of code blocks
@@ -71,7 +72,7 @@ var (
 		blockedBg: hex("#4f342e"), doneBg: hex("#3d3248"),
 		blockedSoftBg: hex("#35272a"), doneSoftBg: hex("#2b2733"),
 		sliderBg: hex("#606162"), sliderActiveBg: hex("#6e6f70"), rulerBorder: hex("#2a2b2c"),
-		tabBg: hex("#26272a"), tabBorder: hex("#3c3d40"),
+		tabBg: hex("#232427"), tabBorder: hex("#3c3d40"), tabActiveBg: hex("#434446"),
 		sashHover: hex("#2c7092"), whitespace: hex("#3e3f40"), mdCode: hex("#ff7b72"), mdCodeBg: hex("#242526"),
 		lineNumber: hex("#6e7681"), lineNumberActive: hex("#cccccc"),
 	}
@@ -96,7 +97,7 @@ var (
 		blockedBg: hex("#edd4d4"), doneBg: hex("#e2d9e8"),
 		blockedSoftBg: hex("#f6e8e8"), doneSoftBg: hex("#efeaf3"),
 		sliderBg: hex("#8a8a8a"), sliderActiveBg: hex("#777777"), rulerBorder: hex("#f0f1f2"),
-		tabBg: hex("#e8e8ec"), tabBorder: hex("#d0d0d6"),
+		tabBg: hex("#ededf0"), tabBorder: hex("#d0d0d6"), tabActiveBg: hex("#c9c9ce"),
 		sashHover: hex("#5c9fe0"), whitespace: hex("#d0d0d4"), mdCode: hex("#c4314b"), mdCodeBg: hex("#ededf0"),
 		lineNumber: hex("#6e7681"), lineNumberActive: hex("#171184"),
 	}
@@ -123,7 +124,7 @@ var (
 		blockedBg: vscodeDark.blockedBg, doneBg: vscodeDark.doneBg,
 		blockedSoftBg: vscodeDark.blockedSoftBg, doneSoftBg: vscodeDark.doneSoftBg,
 		sliderBg: ansi16(8), sliderActiveBg: ansi16(7), rulerBorder: ansi16(8),
-		tabBg: ansi16(0), tabBorder: ansi16(8),
+		tabBg: ansi16(0), tabBorder: ansi16(8), tabActiveBg: ansi16(8),
 		sashHover: ansi16(12), whitespace: ansi16(8), mdCode: ansi16(9), mdCodeBg: ansi16(0),
 		lineNumber: ansi16(8),
 	}
@@ -171,7 +172,7 @@ func (p *palette) colorKeys() map[string]*color.Color {
 		"ok": &p.ok, "warn": &p.warn, "error": &p.errc, "attention": &p.attention,
 		"blocked_bg": &p.blockedBg, "done_bg": &p.doneBg, "blocked_soft_bg": &p.blockedSoftBg, "done_soft_bg": &p.doneSoftBg,
 		"scrollbar_slider": &p.sliderBg, "scrollbar_slider_active": &p.sliderActiveBg, "overview_ruler_border": &p.rulerBorder,
-		"tab_bg": &p.tabBg, "tab_border": &p.tabBorder, "sash_hover": &p.sashHover, "whitespace": &p.whitespace,
+		"tab_bg": &p.tabBg, "tab_active_bg": &p.tabActiveBg, "tab_border": &p.tabBorder, "sash_hover": &p.sashHover, "whitespace": &p.whitespace,
 		"md_code": &p.mdCode, "md_code_bg": &p.mdCodeBg,
 		"line_number": &p.lineNumber, "line_number_active": &p.lineNumberActive,
 	}
@@ -242,7 +243,6 @@ func keycapHot() lipgloss.Style {
 	return lipgloss.NewStyle().Background(pal.keycapBg).Foreground(pal.keycapFg)
 }
 
-// selStyle is the selected tab's chip: bold on the selection background.
 // tabGap is the column after every tab of a strip, where tab.border's
 // hairline sets it apart from the next.
 const tabGap = 1
@@ -258,8 +258,8 @@ func tabClose(active bool) string {
 	return strings.Repeat(" ", ansi.StringWidth(icClose.s())) + " "
 }
 
-// tabChip draws one tab of a strip as VS Code does: the active one in the
-// selection's colors, any other on its own background (bg, else
+// tabChip draws one tab of a strip as VS Code does: the active one bold on
+// tab_active_bg, any other dim on its own background (bg, else
 // tab.inactiveBackground), and the border's hairline after it.
 func tabChip(label string, active bool, bg color.Color) []seg {
 	if bg == nil {
@@ -274,8 +274,9 @@ func tabChip(label string, active bool, bg color.Color) []seg {
 	return []seg{sgOwn(label, st), sg("▏", fg(pal.tabBorder))}
 }
 
+// selStyle is the active tab's chip: bold on tab_active_bg.
 func selStyle() lipgloss.Style {
-	st := lipgloss.NewStyle().Background(pal.selBg).Bold(true)
+	st := lipgloss.NewStyle().Background(pal.tabActiveBg).Bold(true)
 	if pal.selFg != nil {
 		st = st.Foreground(pal.selFg)
 	}

@@ -143,8 +143,9 @@ it (`editor-h`, `scrollDrag.horiz`) follows the mouse's column. Split diffs
 and Markdown beside its source have none.
 
 Tab strips (editors, a session's tabs, the Terminal's) draw each tab as a
-chip (`tabChip`): the active one in the selection's colors, the others on
-`tab_bg`, VS Code's tab.inactiveBackground, and every tab followed by
+chip (`tabChip`): the active one bold on `tab_active_bg`, a shade past the
+selection, the others dim on `tab_bg`, a shade off the background (VS Code's
+tab.inactiveBackground), and every tab followed by
 `tab_border`'s `▏` in a column of its own (`tabGap`). The layout counts that
 column, so hit tests stay on the tabs and a click on the hairline does nothing.
 Every tab keeps room for the active one's `✕` (`tabClose`), so activating a

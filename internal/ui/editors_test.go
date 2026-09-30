@@ -219,7 +219,7 @@ func TestTabChips(t *testing.T) {
 	}
 
 	strip := m.editorStrip(m.mainW())
-	if !strings.Contains(strip, bgParams(pal.tabBg)) || !strings.Contains(strip, bgParams(pal.selBg)) || strings.Count(ansi.Strip(strip), "▏") != 2 {
+	if !strings.Contains(strip, bgParams(pal.tabBg)) || !strings.Contains(strip, bgParams(pal.tabActiveBg)) || strings.Count(ansi.Strip(strip), "▏") != 2 {
 		t.Fatalf("strip = %q", strip)
 	}
 
