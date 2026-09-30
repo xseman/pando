@@ -31,13 +31,17 @@ var promptLine = regexp.MustCompile(`(?m)^\s*❯`)
 
 var agentRules = map[string]rules{
 	"claude": {
+		// "esc to cancel" opens the permission prompt's last line, so it stays
+		// in view, whole, when a narrow column wraps the question out of the
+		// tail and the rest of that line onto the next.
 		blocked: []string{
 			"do you want to proceed?", "requests your input", "waiting for permission",
-			"do you want to allow", "enter to confirm", "enter to select",
+			"do you want to allow", "enter to confirm", "enter to select", "esc to cancel",
 		},
 		running: []string{"esc to interrupt", "background agents to finish", "mcp tasks still running"},
-		// "✻ Orbiting… (5s · ↓ 66 tokens)"; a finished turn says "✻ Worked for 5s", no ellipsis.
-		runningLine: regexp.MustCompile(`(?m)^\s*[*·✢✳✶✻✽]\s+\S.*…(?:\s+\(\d+[smh]|\s*$)`),
+		// "✻ Orbiting… (5s · ↓ 66 tokens)" or "✻ Wandering… (thinking)"; a finished
+		// turn says "✻ Worked for 5s", no ellipsis.
+		runningLine: regexp.MustCompile(`(?m)^\s*[*·✢✳✶✻✽]\s+\S.*…(?:\s+\((?:\d+[smh]|thinking)|\s*$)`),
 		// "◯ deep-task  Checking the decoder   8m 33s · ↓ 127.6k tokens"
 		backgroundLine: regexp.MustCompile(`(?m)^\s*◯\s+\S.*\s\d+[hms](?:\s?\d+[ms])?\b`),
 		idlePrompt:     true,

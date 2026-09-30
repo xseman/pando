@@ -17,7 +17,19 @@ func TestScreenState(t *testing.T) {
 		{"claude", "Claude Code", []string{"✻ Orbiting… (2s · ↓ 66 tokens)", "", "───", "❯ ", "───"}, "running"},
 		{"claude", "Claude Code", []string{"✶ Reading 1 file…", "❯ "}, "running"},
 		{"claude", "Claude Code", []string{"✻ Cooking… (12s · esc to interrupt)", "❯ "}, "running"},
+		{"claude", "Claude Code", []string{"✻ Wandering… (thinking)", "", "───", "❯ ", "───"}, "running"},
+		{"claude", "Claude Code", []string{"✻ Clauding… (thinking with high effort)", "❯ "}, "running"},
 		{"claude", "Claude Code", []string{"Bash command", "  rm -rf build", "Do you want to proceed?", "❯ 1. Yes", "  2. No", "esc to cancel"}, "blocked"},
+		// A column 30 wide wraps the options until the question leaves the tail
+		// and ❯ 1. Yes reads as the prompt; the footer still says blocked.
+		{"claude", "Claude Code", []string{
+			"Do you want to proceed?", "❯ 1. Yes", "  2. Yes, and don't ask again", "     for go vet, \"echo \\\"vet",
+			"     exit: $?\\\"\", go run,", "     and \"echo \\\"run exit:", "     $?\\\"\" commands in", "     /tmp/pando-demo",
+			"  3. Yes, and switch to auto", "     mode · auto mode handles", "     these prompts for you", "  4. No",
+			"Esc to cancel · Tab to amend",
+		}, "blocked"},
+		// Narrower still, the footer wraps too.
+		{"claude", "Claude Code", []string{"  3. Yes, and switch to", "     auto mode", "  4. No", "", "Esc to cancel · Tab to", "amend"}, "blocked"},
 		// A subagent still runs under the idle prompt: output timing decides.
 		{"claude", "Claude Code", []string{"───", "❯ ", "───", "  ⏵⏵ auto mode on", "  ● main", "  ◯ deep-task  Checking the decoder   8m 33s · ↓ 127.6k tokens"}, ""},
 		{"claude", "Claude Code", []string{"❯ ", "───", "  ◯ docs-r2  ▰▰▰▱▱  50/67 · 25m33s · ↓ 8.6m tokens"}, ""},
