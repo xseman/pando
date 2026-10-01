@@ -253,7 +253,11 @@ it reads the pty's foreground process group (`TIOCGPGRP`, then
 `/proc/<pgid>/cmdline`, with `node cli.js` counting as `cli`) and stores the
 matching `[resume]` command in the session's spec. A daemon that starts again
 respawns the shell and types that command into it, so the agent comes back with
-its conversation instead of an empty prompt. Leaving the agent clears it.
+its conversation instead of an empty prompt. Leaving the agent clears it. A
+session started as the agent itself (an `[agents]` preset, `--agent`) has no
+shell to type into: its foreground is the session's own process, the spec
+marks it (`ResumeExec`), and a restart runs the command in place of the
+preset (`sh -c 'exec env …'`) rather than typing it into a fresh agent.
 
 `--continue` means the latest conversation in the directory, which is another
 session's when two share a worktree. So for an agent that says which one a

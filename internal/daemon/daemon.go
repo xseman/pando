@@ -136,12 +136,34 @@ func New(configDir, dataDir string) (*Daemon, error) {
 			continue
 		}
 
+		argv, leftover, notice := d.resume(spec, resumed)
+
 		start := d.start
-		if isShellAgent(spec.Agent) { // the shell it ran first, then what a new one would open
+
+		switch {
+		case isShellAgent(spec.Agent): // the shell it ran first, then what a new one would open
 			shells := append([][]string{spec.Cmd}, d.shellCandidates(spec.Agent)...)
 			start = func(spec proto.SessionSpec, cols, rows int) (*session, error) {
 				return d.startShell(spec, cols, rows, shells)
 			}
+
+		case spec.ResumeExec && len(argv) > 0: // no shell to type it into: it runs in place of the agent
+			hangUp(leftover)
+
+			cmd, line := spec.Cmd, execLine(argv)
+			start = func(spec proto.SessionSpec, cols, rows int) (*session, error) {
+				spec.Cmd = line
+
+				s, err := d.start(spec, cols, rows)
+				if err == nil {
+					s.mu.Lock()
+					s.spec.Cmd = cmd // what a restart without a resume starts again
+					s.mu.Unlock()
+				}
+
+				return s, err
+			}
+			argv, leftover = nil, 0
 		}
 
 		s, err := start(spec, 0, 0)
@@ -150,7 +172,11 @@ func New(configDir, dataDir string) (*Daemon, error) {
 			continue
 		}
 
-		d.resume(s, resumed)
+		if len(notice) > 0 {
+			s.notice(notice...)
+		}
+
+		s.resumeWith(argv, leftover)
 	}
 
 	return d, nil
@@ -163,6 +189,7 @@ func New(configDir, dataDir string) (*Daemon, error) {
 // d.mu is held.
 func (d *Daemon) remember(s *session, pid int, prog string) bool {
 	env := s.ownEnv(agentEnv(pid, d.state.ResumeEnv[prog])) // the config it runs in, which the shell does not set
+	own := pid == s.cmd.Process.Pid                         // no shell under it: a restart runs its resume instead
 
 	if src, t := conversations[prog], d.state.ResumeID[prog]; src != nil && len(t) > 0 && pid > 0 {
 		id, job, name := src.open(pid)
@@ -180,13 +207,13 @@ func (d *Daemon) remember(s *session, pid int, prog string) bool {
 				argv = withID(jt, job)
 			}
 
-			return s.setResume(withEnv(c.Env, argv), c)
+			return s.setResume(withEnv(c.Env, argv), c, own)
 		}
 	}
 
 	s.setJob(false, "")
 
-	return s.setResume(withEnv(env, d.state.Resume[prog]), nil)
+	return s.setResume(withEnv(env, d.state.Resume[prog]), nil, own)
 }
 
 // byID is the command that continues conversation id of prog, [resume_id].
@@ -206,36 +233,30 @@ func (d *Daemon) byID(prog, id string) []string {
 	return append([]string{shellWord(exe)}, argv...)
 }
 
-// resume brings a respawned session's agent back, each conversation once:
-// one that an earlier session in by already continues, or that a process
-// outside pando has open, stays where it is and s says so instead. A
-// background job still running is attached to again; what is left of the
-// session before the restart is stopped first; a conversation with nothing
-// in it yet starts the agent afresh, as its [agents] preset.
-func (d *Daemon) resume(s *session, by map[string]string) {
-	spec := s.spec
-
+// resume is what brings respawned session spec's agent back, each
+// conversation once: the command, and the leftover of the session before the
+// restart to stop first. A conversation that an earlier session in by
+// already continues, or that a process outside pando has open, stays where
+// it is: no command, and the lines that say so instead. A background job
+// still running is attached to again; a conversation with nothing in it yet
+// starts the agent afresh, as its [agents] preset.
+func (d *Daemon) resume(spec proto.SessionSpec, by map[string]string) (argv []string, leftover int, notice []string) {
 	c := spec.Conversation
 	if c == nil {
-		s.resumeWith(spec.Resume, 0)
-		return
+		return spec.Resume, 0, nil
 	}
 
 	key := c.Agent + "/" + c.ID
 	if other, ok := by[key]; ok {
-		s.notice(fmt.Sprintf("not resumed, session %s continues this conversation", other))
-		return
+		return nil, 0, []string{fmt.Sprintf("not resumed, session %s continues this conversation", other)}
 	}
 
 	src := conversations[c.Agent]
 	if src == nil {
-		s.resumeWith(spec.Resume, 0)
-		return
+		return spec.Resume, 0, nil
 	}
 
-	var leftover int
-
-	argv := spec.Resume
+	argv = spec.Resume
 
 	switch pid, job := src.holder(*c); {
 	case job != "": // a background job: its daemon kept it through the restart
@@ -245,15 +266,13 @@ func (d *Daemon) resume(s *session, by map[string]string) {
 
 		by[key] = cmp.Or(spec.Name, spec.ID)
 
-		s.resumeWith(argv, 0)
-
-		return
+		return argv, 0, nil
 
 	case pid > 0 && !d.ours(pid):
-		s.notice(fmt.Sprintf("not resumed, process %d has this conversation open", pid),
-			"once it is closed: "+strings.Join(spec.Resume, " "))
-
-		return
+		return nil, 0, []string{
+			fmt.Sprintf("not resumed, process %d has this conversation open", pid),
+			"once it is closed: " + strings.Join(spec.Resume, " "),
+		}
 
 	case pid > 0:
 		leftover = pid
@@ -269,7 +288,7 @@ func (d *Daemon) resume(s *session, by map[string]string) {
 		by[key] = cmp.Or(spec.Name, spec.ID)
 	}
 
-	s.resumeWith(argv, leftover)
+	return argv, leftover, nil
 }
 
 // ours reports whether process pid is a leftover of this daemon's sessions:

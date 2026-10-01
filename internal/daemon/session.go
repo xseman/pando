@@ -288,26 +288,40 @@ func (s *session) resumeWith(argv []string, leftover int) {
 	}
 
 	time.AfterFunc(600*time.Millisecond, func() {
-		if leftover > 0 {
-			_ = syscall.Kill(leftover, syscall.SIGHUP) // its terminal is gone
-			waitGone(leftover, 3*time.Second)
-		}
+		hangUp(leftover)
 
 		_, _ = s.pty.WriteString(strings.Join(argv, " ") + "\r") // best effort
 	})
 }
 
-// setResume records what would bring this session's agent back and the
-// conversation that is, when known; it reports a change worth saving.
-func (s *session) setResume(argv []string, c *proto.Conversation) bool {
+// hangUp stops leftover process pid, whose terminal is gone, and waits for
+// it; 0 is none.
+func hangUp(pid int) {
+	if pid > 0 {
+		_ = syscall.Kill(pid, syscall.SIGHUP)
+		waitGone(pid, 3*time.Second)
+	}
+}
+
+// execLine runs resume command line argv, written for a shell to read, as a
+// session's own process: env takes the KEY=VALUE before the program.
+func execLine(argv []string) []string {
+	return []string{"/bin/sh", "-c", "exec env " + strings.Join(argv, " ")}
+}
+
+// setResume records what would bring this session's agent back, the
+// conversation that is, when known, and whether the agent is the session's
+// own process; it reports a change worth saving.
+func (s *session) setResume(argv []string, c *proto.Conversation, own bool) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if slices.Equal(s.spec.Resume, argv) && sameConversation(s.spec.Conversation, c) {
+	own = own && len(argv) > 0
+	if slices.Equal(s.spec.Resume, argv) && sameConversation(s.spec.Conversation, c) && s.spec.ResumeExec == own {
 		return false
 	}
 
-	s.spec.Resume, s.spec.Conversation = argv, c
+	s.spec.Resume, s.spec.Conversation, s.spec.ResumeExec = argv, c, own
 
 	return true
 }

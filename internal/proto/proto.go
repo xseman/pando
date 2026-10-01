@@ -227,6 +227,9 @@ type SessionSpec struct {
 	Agent     string   `json:"agent"`
 	Cmd       []string `json:"cmd"`
 	Resume    []string `json:"resume,omitempty"` // what a restarted daemon types to bring the agent back
+	// ResumeExec is an agent that was the session's own process, no shell
+	// under it to type Resume into: a restart runs Resume in place of Cmd.
+	ResumeExec bool `json:"resume_exec,omitempty"`
 	// Conversation is the agent conversation the session had open, when the
 	// agent says which: a restart continues it once, not the latest one.
 	Conversation *Conversation `json:"conversation,omitempty"`

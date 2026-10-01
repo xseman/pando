@@ -647,6 +647,77 @@ func TestResumeAgentAfterRestart(t *testing.T) {
 	waitFor(t, "the agent to be resumed", func() bool { return strings.Contains(screen(ss[0].ID), "RESUMED") })
 }
 
+// TestResumeAgentWithoutShell is a session started as its agent, no shell
+// under it: a restart runs the command that continues it in place of a fresh
+// agent, rather than typing that command into one.
+func TestResumeAgentWithoutShell(t *testing.T) {
+	boot := start(t)
+	d := boot()
+	ws := t.TempDir()
+	agent := filepath.Join(ws, "myagent")
+	mustWrite(t, agent, "#!/bin/sh\necho AGENT UP\nsleep 300\n")
+
+	if err := os.Chmod(agent, 0o755); err != nil { // the test runs it
+		t.Fatalf("chmod %s: %v", agent, err)
+	}
+
+	d.mu.Lock()
+	d.state.Resume = map[string][]string{"myagent": {"MY_VAR='a b'", "sh", "-c", "'echo RESUMED $MY_VAR; sleep 300'"}}
+	d.mu.Unlock()
+
+	var s proto.Session
+	call(t, "session.new", map[string]any{"workspace": ws, "cmd": []string{agent}}, &s)
+
+	screen := func(id string) string {
+		t.Helper()
+
+		var scr proto.Screen
+		call(t, "session.screen", proto.ScreenParams{ID: id, Cols: 40, Rows: 8}, &scr)
+
+		return strings.Join(scr.Lines, "\n")
+	}
+
+	waitFor(t, "the agent to start", func() bool { return strings.Contains(screen(s.ID), "AGENT UP") })
+
+	sess := d.sessions[s.ID]
+
+	waitFor(t, "the agent to be recognised", func() bool { return remembered(d, sess).Resume != nil })
+
+	if got := remembered(d, sess); !got.ResumeExec {
+		t.Fatalf("an agent run as the session is not marked as one: %+v", got)
+	}
+
+	d.mu.Lock()
+	saveErr := d.save()
+	d.mu.Unlock()
+
+	if saveErr != nil {
+		t.Fatal(saveErr)
+	}
+
+	d.Close()
+
+	d = boot()
+	defer d.Close()
+
+	var ss []proto.Session
+	call(t, "session.list", nil, &ss)
+
+	if len(ss) != 1 {
+		t.Fatalf("sessions after restart: %+v", ss)
+	}
+
+	waitFor(t, "the agent to be resumed", func() bool { return strings.Contains(screen(ss[0].ID), "RESUMED a b") })
+
+	if scr := screen(ss[0].ID); strings.Contains(scr, "AGENT UP") {
+		t.Fatalf("a fresh agent started before the resume:\n%s", scr)
+	}
+
+	if !reflect.DeepEqual(ss[0].Cmd, []string{agent}) {
+		t.Fatalf("cmd after restart %q, want the agent's own", ss[0].Cmd)
+	}
+}
+
 // remembered is what the ticker does for session s: notice the program and
 // remember how to bring it back. It returns the spec as it is then.
 func remembered(d *Daemon, s *session) proto.SessionSpec {

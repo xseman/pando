@@ -105,7 +105,8 @@ anything in it. `w` adds a worktree, `x` kills a session, deletes a worktree
   scrollback.
 
 **Resume.** On a daemon restart each session comes back as its shell and pando
-types the command that continues the agent it held: `claude` (by conversation
+types the command that continues the agent it held (a session started as the
+agent, with no shell, runs that command instead): `claude` (by conversation
 id), `codex resume --last` and `opencode --continue` out of the box, anything
 else is one line. A conversation still open elsewhere is not opened twice, and
 a custom config dir (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`) comes back with it.
