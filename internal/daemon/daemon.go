@@ -17,8 +17,10 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/xseman/pando/internal/git"
@@ -1075,6 +1077,10 @@ func (d *Daemon) removeWorkspace(path string) error {
 			return errors.New("kill the sessions in this workspace first")
 		}
 
+		if err := unlockStale(w.Project, path); err != nil {
+			return err
+		}
+
 		if err := git.RemoveWorktree(w.Project, path); err != nil {
 			return err
 		}
@@ -1085,6 +1091,53 @@ func (d *Daemon) removeWorkspace(path string) error {
 	}
 
 	return fmt.Errorf("unknown workspace %s", path)
+}
+
+// claudeLock is the reason Claude Code locks a worktree it enters with:
+// "claude session NAME (pid N start T)", T the process's start time.
+var claudeLock = regexp.MustCompile(`^claude session (.*) \(pid (\d+) start (\d+)\)$`)
+
+// unlockStale unlocks worktree path when the claude that locked it is gone,
+// which a claude killed mid-session leaves behind, so `git worktree remove`
+// takes it. A claude still running in it is an error naming it; any other
+// lock is left for git to refuse.
+func unlockStale(project, path string) error {
+	wts, err := git.Worktrees(project)
+	if err != nil {
+		return err
+	}
+
+	for _, w := range wts {
+		m := claudeLock.FindStringSubmatch(w.Lock)
+		if w.Path != path || m == nil {
+			continue
+		}
+
+		pid, _ := strconv.Atoi(m[2]) // \d+, an overflow reads as a pid that is gone
+		if running(pid, m[3]) {
+			return fmt.Errorf("claude session %s is still running in it (pid %d)", m[1], pid)
+		}
+
+		return git.UnlockWorktree(project, path)
+	}
+
+	return nil
+}
+
+// running reports whether process pid, started at start, still runs. Without
+// /proc to compare start times by, any process with that pid counts.
+func running(pid int, start string) bool {
+	if s := startTime(pid); s != "" {
+		return s == start
+	}
+
+	if pid <= 0 {
+		return false
+	}
+
+	err := syscall.Kill(pid, 0)
+
+	return err == nil || errors.Is(err, syscall.EPERM)
 }
 
 func (d *Daemon) hasSessions(ws string) bool {

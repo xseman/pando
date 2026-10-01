@@ -84,7 +84,8 @@ pando too.
 Spaces is a tree of projects → worktrees (`⌂` the checkout, `⑂` linked) →
 sessions. `n` (or `+`) opens a shell in the worktree; run `claude`, `codex` or
 anything in it. `w` adds a worktree, `x` kills a session, deletes a worktree
-(the branch stays) or closes a project (its checkout is never removed).
+(the branch stays; not one a running claude has locked) or closes a project
+(its checkout is never removed).
 
 - A session opens in a column beside the editor; drag it to the other side,
   over the editor, or nearly off screen to hide it (it keeps running).

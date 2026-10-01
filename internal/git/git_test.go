@@ -181,6 +181,18 @@ func TestWorkflow(t *testing.T) {
 		t.Fatalf("worktrees: %+v %v", wts, err)
 	}
 
+	mustGit(t, root, "worktree", "lock", "--reason", "claude session x (pid 1 start 2)", wt)
+
+	if wts, _ = Worktrees(root); !wts[1].Locked || wts[1].Lock != "claude session x (pid 1 start 2)" || wts[0].Locked {
+		t.Fatalf("locked worktree: %+v", wts)
+	}
+
+	if RemoveWorktree(root, wt) == nil {
+		t.Fatal("git removed a locked worktree")
+	}
+
+	must(t, "unlock worktree", UnlockWorktree(root, wt))
+
 	if err := RemoveWorktree(root, wt); err != nil {
 		t.Fatalf("remove worktree: %v", err)
 	}

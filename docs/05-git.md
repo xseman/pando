@@ -44,6 +44,16 @@ gives its worktrees, `Discover` also finds nested repositories under it.
 `pando ws new BRANCH` creates a worktree under
 `~/.local/share/pando/worktrees/<project>/<branch>`.
 
+Claude Code locks a worktree it enters (`.claude/worktrees/<name>`) with the
+reason `claude session NAME (pid N start T)`, and `git worktree remove` refuses
+a locked one. Deleting it from pando checks that pid:
+
+| The claude that locked it                  | Delete                                                |
+| ------------------------------------------ | ----------------------------------------------------- |
+| still running (pid alive, same start time) | refused: "claude session NAME is still running in it" |
+| gone, or the pid reused by another process | `git worktree unlock`, then remove                    |
+| a lock with any other reason               | git's own refusal                                     |
+
 ## Branches
 
 ```

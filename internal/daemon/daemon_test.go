@@ -1076,6 +1076,51 @@ func TestMoveSession(t *testing.T) {
 // TestMoveWorkspace reorders a project's worktrees: the order survives a
 // restart, the checkout stays Main wherever it goes, and a worktree made
 // after the move joins at the end.
+// TestRemoveLockedWorkspace is a worktree Claude Code locked: the lock of a
+// claude that is gone is lifted, one still running refuses with its name.
+func TestRemoveLockedWorkspace(t *testing.T) {
+	boot := start(t)
+	boot()
+
+	repo := t.TempDir()
+	for _, a := range [][]string{{"init", "-q", "-b", "main"}, {"-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "i"}} {
+		mustGit(t, repo, a...)
+	}
+
+	var root string
+	call(t, "project.add", map[string]string{"path": repo}, &root)
+
+	lock := func(start string) proto.Workspace {
+		var ws proto.Workspace
+		call(t, "workspace.new", map[string]string{"project": root}, &ws)
+		mustGit(t, root, "worktree", "lock", "--reason", fmt.Sprintf("claude session s (pid %d start %s)", os.Getpid(), start), ws.Path)
+
+		return ws
+	}
+
+	live := lock(startTime(os.Getpid()))
+
+	err := proto.Call("workspace.remove", map[string]string{"path": live.Path}, nil)
+	if err == nil || !strings.Contains(err.Error(), "claude session s is still running in it") {
+		t.Fatalf("removing a worktree a live claude locked: %v", err)
+	}
+
+	gone := lock("1") // the pid, reused by a process started at another time
+	call(t, "workspace.remove", map[string]string{"path": gone.Path}, nil)
+
+	if _, err := os.Stat(gone.Path); !os.IsNotExist(err) {
+		t.Fatalf("stale-locked worktree still there: %v", err)
+	}
+
+	var other proto.Workspace
+	call(t, "workspace.new", map[string]string{"project": root}, &other)
+	mustGit(t, root, "worktree", "lock", "--reason", "on a usb stick", other.Path)
+
+	if proto.Call("workspace.remove", map[string]string{"path": other.Path}, nil) == nil {
+		t.Fatal("a lock that is not claude's was lifted")
+	}
+}
+
 func TestMoveWorkspace(t *testing.T) {
 	boot := start(t)
 	d := boot()

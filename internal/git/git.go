@@ -892,6 +892,8 @@ func Lines(root string, args ...string) []string {
 type Worktree struct {
 	Path   string
 	Branch string
+	Locked bool   // `git worktree lock`ed: remove refuses it
+	Lock   string // the reason it was locked for, "" when none was given
 }
 
 // Worktrees lists the repository's worktrees from `git worktree list
@@ -918,6 +920,10 @@ func Worktrees(root string) ([]Worktree, error) {
 
 			if line == "detached" {
 				w.Branch = "(detached)"
+			}
+
+			if r, ok := strings.CutPrefix(line, "locked"); ok && (r == "" || r[0] == ' ') {
+				w.Locked, w.Lock = true, strings.TrimPrefix(r, " ")
 			}
 		}
 
@@ -961,6 +967,12 @@ func AddWorktree(root, path, branch string) error {
 // changes in it.
 func RemoveWorktree(root, path string) error {
 	_, err := Run(root, "worktree", "remove", path)
+	return err
+}
+
+// UnlockWorktree runs `git worktree unlock`.
+func UnlockWorktree(root, path string) error {
+	_, err := Run(root, "worktree", "unlock", path)
 	return err
 }
 
