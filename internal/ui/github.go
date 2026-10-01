@@ -134,6 +134,7 @@ type ghRow struct {
 	text string    // an info row's text
 	err  int       // an info row's error class, which decides what ⏎ does
 	key  string    // what folding and the selection hold on to
+	sash bool      // a section header whose drag resizes: it lights as a sash
 }
 
 // ghErrKind classes gh's stderr. The first match wins: the message for a
@@ -557,8 +558,12 @@ func (g *ghView) lines(m *Model, w, h int) []string {
 
 	var out []string
 
-	for _, p := range g.panes(rows, h) {
-		out = append(out, g.renderRow(m, rows[p.start-1], w, g.l.sel == p.start-1, hover == p.head))
+	ps := g.panes(rows, h)
+	for _, p := range ps {
+		head := rows[p.start-1]
+		head.sash = g.resizes(ps, p.sec)
+
+		out = append(out, g.renderRow(m, head, w, g.l.sel == p.start-1, hover == p.head))
 		if p.h == 0 {
 			continue
 		}
@@ -624,7 +629,13 @@ func (g *ghView) renderRow(m *Model, r ghRow, w int, selected, hovered bool) str
 			right = count(nil)
 		}
 
-		return row(w, bg, []seg{sg(" "+chevron(g.open[r.key]), base.Bold(true)), sg(strings.ToUpper(r.text), base.Bold(true))}, right...)
+		left := []seg{sg(" "+chevron(g.open[r.key]), base.Bold(true)), sg(strings.ToUpper(r.text), base.Bold(true))}
+		if r.sash { // the header is the resize handle, as a Source Control drawer's
+			right = append(right, sg("⇕ ", dim))
+			left = append(left, m.sashRule(paneSash(viewGitHub, r.text), w, left, right)...)
+		}
+
+		return row(w, bg, left, right...)
 
 	case ghrQuery:
 		return row(w, bg, []seg{sg("   "+chevron(g.open[r.key]), dim), sg(r.q.label, base)}, count(r.q)...)
@@ -1216,6 +1227,14 @@ func above(ps []ghPane, sec int) (up, h int) {
 	return up, h
 }
 
+// resizes reports whether section sec's header drags an edge: it is open,
+// below another open one.
+func (g *ghView) resizes(ps []ghPane, sec int) bool {
+	up, _ := above(ps, sec)
+
+	return up >= 0 && g.open[ghSecKey(sec)]
+}
+
 // dragPane moves the edge between an open section and the open one above
 // it, VS Code's sash between two panes; a press that never moved folds or
 // unfolds the section instead.
@@ -1223,7 +1242,8 @@ func (g *ghView) dragPane(m *Model, d *drag, y int, release bool) tea.Cmd {
 	sec := slices.Index(ghSections, d.pane)
 	if !release {
 		d.moved = d.moved || y != d.y0
-		if up, _ := above(g.panes(g.rows(m), m.bodyH(viewGitHub)), sec); d.moved && up >= 0 && g.open[ghSecKey(sec)] {
+		if ps := g.panes(g.rows(m), m.bodyH(viewGitHub)); d.moved && g.resizes(ps, sec) {
+			up, _ := above(ps, sec)
 			g.h[up] = max(d.h0+y-d.y0, 1) // panes clamps it to what the others leave
 		}
 

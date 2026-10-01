@@ -393,7 +393,7 @@ runners have gh.
    ▾ All Open                    3   gh pr list --limit 50
       PR release v0.4.0 #14 @ann ⑂ ✓ its worktree, its checks (✓ ⇅ ✕)
                                      a pane scrolls on its own
- ▾ NOTIFICATIONS                 1   drag its header: the edge with the pane above moves
+ ▾ NOTIFICATIONS               1 ⇕   drag its header: the edge with the pane above moves
       feat: streets  review requested   api repos/{owner}/{repo}/notifications: unread
  ▸ ISSUES                            folded: pinned at the bottom
 ```

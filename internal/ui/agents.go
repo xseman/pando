@@ -2639,16 +2639,7 @@ func (m *Model) termPanelLines(w, h int) []string {
 	}
 
 	closer := sg(" "+icClose.s()+" ", dim)
-	if sash, ok := m.sashStyle(termSash); ok { // the row is the sash: a rule across its free part
-		used := ansi.StringWidth(closer.s)
-		for _, s := range left {
-			used += ansi.StringWidth(s.s)
-		}
-
-		if gap := w - used; gap > 2 {
-			left = append(left, sg(" "+strings.Repeat("━", gap-2)+" ", sash))
-		}
-	}
+	left = append(left, m.sashRule(termSash, w, left, []seg{closer})...) // the row is the sash
 
 	title := m.stripMark(row(w, pal.sectionBg, left, closer), stripTerm, 1, pal.sectionBg) // the tabs start past a space
 

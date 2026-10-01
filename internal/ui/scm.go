@@ -1250,6 +1250,7 @@ func (s *scmView) renderRow(m *Model, i, w int, hovered bool) string {
 		var right []seg
 		if p.Open {
 			right = []seg{sg("⇕ ", dim)} // the header is the resize handle
+			left = append(left, m.sashRule(paneSash(viewGit, r.title), w, left, right)...)
 		}
 
 		return row(w, bg, left, right...)
@@ -2401,7 +2402,7 @@ func (s *scmView) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 					return s.drawerMenu(m, m.drawers()[j].Title, mo.X, mo.Y)
 				}
 
-				m.drag = &drag{kind: dragPane, pane: m.drawers()[j].Title, y0: mo.Y, h0: d.h}
+				m.drag = &drag{kind: dragPane, v: viewGit, pane: m.drawers()[j].Title, y0: mo.Y, h0: d.h}
 
 				return nil
 

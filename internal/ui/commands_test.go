@@ -2953,8 +2953,8 @@ func TestSashHover(t *testing.T) {
 		x, y := cs[0].x+cs[0].w, 5 // the gap on the Explorer's editor side
 		hover := fgParams(pal.sashHover)
 
-		if _, cmd := m.Update(tea.MouseMotionMsg{X: x + m.bord(), Y: y + m.bord()}); m.sashAt != 0 || cmd == nil {
-			t.Fatalf("borders %v: the pointer on the divider is noted and waits: sash %d", borders, m.sashAt)
+		if _, cmd := m.Update(tea.MouseMotionMsg{X: x + m.bord(), Y: y + m.bord()}); m.sashAt != colSash(0) || cmd == nil {
+			t.Fatalf("borders %v: the pointer on the divider is noted and waits: sash %v", borders, m.sashAt)
 		}
 
 		if strings.Contains(m.View().Content, hover) {
@@ -2969,7 +2969,7 @@ func TestSashHover(t *testing.T) {
 
 		m.Update(tea.MouseClickMsg{X: x + m.bord(), Y: y + m.bord(), Button: tea.MouseLeft})
 
-		if st, ok := m.sashStyle(0); !ok || st.GetForeground() != pal.accent || strings.Contains(m.View().Content, hover) {
+		if st, ok := m.sashStyle(colSash(0)); !ok || st.GetForeground() != pal.accent || strings.Contains(m.View().Content, hover) {
 			t.Fatalf("borders %v: dragged, the divider is the accent, not the hover shade", borders)
 		}
 
@@ -2993,7 +2993,7 @@ func TestSashHover(t *testing.T) {
 	m.Update(tea.MouseMotionMsg{X: x + m.bord(), Y: y + m.bord()})
 
 	if m.sashAt != termSash {
-		t.Fatalf("the Terminal's title row is a sash: %d", m.sashAt)
+		t.Fatalf("the Terminal's title row is a sash: %v", m.sashAt)
 	}
 
 	m.sashSince = time.Now().Add(-sashDelay)
@@ -3002,6 +3002,51 @@ func TestSashHover(t *testing.T) {
 		t.Fatalf("the rested-on title row draws a rule: %q", head)
 	}
 
+	checkWidths(t, m)
+}
+
+// TestPaneSashHover lights an open Source Control drawer's header as the
+// Terminal's title row lights: a rule across its free part once the pointer
+// rests, the accent while it is dragged. A folded drawer's header only folds.
+func TestPaneSashHover(t *testing.T) {
+	m := gitModel(t)
+	m.st.Settings.GitPanes = map[string]proto.Pane{"Commits": {Open: true, H: 4}}
+
+	j := slices.IndexFunc(m.drawers(), func(d git.Drawer) bool { return d.Title == "Commits" })
+	_, ds := m.scm.geometry(m, m.scm.paneH(m))
+	head := func() string { return ansi.Strip(m.scm.lines(m, 40, m.bodyH(viewGit))[ds[j].head]) }
+	y := m.bodyTop(viewGit) + ds[j].head
+
+	m.Update(tea.MouseMotionMsg{X: 3, Y: m.bodyTop(viewGit) + ds[j+1].head})
+
+	if m.sashAt != noSash {
+		t.Fatalf("a folded drawer's header is no sash: %v", m.sashAt)
+	}
+
+	m.Update(tea.MouseMotionMsg{X: 3, Y: y})
+
+	if m.sashAt != paneSash(viewGit, "Commits") {
+		t.Fatalf("an open drawer's header is a sash: %v", m.sashAt)
+	}
+
+	if strings.Contains(head(), "━") {
+		t.Fatalf("it does not light before the delay: %q", head())
+	}
+
+	m.sashSince = time.Now().Add(-sashDelay)
+
+	if h := head(); !strings.Contains(h, "Commits ━") || !strings.HasSuffix(strings.TrimRight(h, " "), "━ ⇕") {
+		t.Fatalf("the rested-on header draws a rule between its title and ⇕: %q", h)
+	}
+
+	m.Update(tea.MouseClickMsg{X: 3, Y: y, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: 3, Y: y - 1, Button: tea.MouseLeft})
+
+	if st, ok := m.sashStyle(paneSash(viewGit, "Commits")); !ok || st.GetForeground() != pal.accent {
+		t.Fatal("dragged, the header is the accent")
+	}
+
+	m.Update(tea.MouseReleaseMsg{X: 3, Y: y - 1, Button: tea.MouseLeft})
 	checkWidths(t, m)
 }
 

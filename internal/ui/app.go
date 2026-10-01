@@ -81,7 +81,7 @@ type drag struct {
 	kind   int
 	col    int    // dragDivider: the column being resized
 	pane   string // dragPane: Git drawer title, or GitHub section title with v viewGitHub
-	v      view   // dragTab: the tab being dragged; dragPane: viewGitHub for its sections
+	v      view   // dragTab: the tab being dragged; dragPane: viewGit or viewGitHub
 	proj   string // dragRow: the project being moved in the Spaces list
 	sess   string // dragRow: the session being moved under its worktree instead
 	ws     string // dragRow: the worktree being moved under its project instead
@@ -3402,13 +3402,13 @@ func (m *Model) View() tea.View {
 				l, r := edge(p).Render("│"), edge(p).Render("│")
 
 				if j > 0 {
-					if st, ok := m.sashStyle(sash(owner(j))); ok {
+					if st, ok := m.sashStyle(colSash(owner(j))); ok {
 						l = st.Render("┃")
 					}
 				}
 
 				if j+1 < len(ps) {
-					if st, ok := m.sashStyle(sash(owner(j + 1))); ok {
+					if st, ok := m.sashStyle(colSash(owner(j + 1))); ok {
 						r = st.Render("┃")
 					}
 				}
@@ -3494,7 +3494,7 @@ func (m *Model) View() tea.View {
 }
 
 func (m *Model) divider(i int) string {
-	if st, ok := m.sashStyle(sash(i)); ok {
+	if st, ok := m.sashStyle(colSash(i)); ok {
 		return st.Render("┃")
 	}
 
@@ -3502,13 +3502,25 @@ func (m *Model) divider(i int) string {
 }
 
 // sash is a divider the mouse drags to resize: a column's edge toward the
-// editor (its index), or the bottom Terminal panel's title row.
-type sash int
+// editor (col, its index), the bottom Terminal panel's title row, or the
+// header of an open Source Control drawer or GitHub section (v and pane, as
+// its dragPane names them).
+type sash struct {
+	col  int
+	v    view
+	pane string
+}
 
-const (
-	noSash   sash = -1
-	termSash sash = -2
+var (
+	noSash   = sash{col: -1}
+	termSash = sash{col: -2}
 )
+
+// colSash is the edge of column i toward the editor.
+func colSash(i int) sash { return sash{col: i} }
+
+// paneSash is the header of pane in view v, viewGit or viewGitHub.
+func paneSash(v view, pane string) sash { return sash{col: -3, v: v, pane: pane} }
 
 // sashDelay is how long the pointer rests on a sash before it lights, VS
 // Code's workbench.sash.hoverDelay default.
@@ -3518,7 +3530,8 @@ const sashDelay = 300 * time.Millisecond
 type sashMsg struct{}
 
 // sashUnder is the sash at content cell (x, y): the gaps the mouse code
-// starts a dragDivider in, and the Terminal title row outside its tabs and ✕.
+// starts a dragDivider in, the Terminal title row outside its tabs and ✕,
+// and the pane headers whose drag resizes.
 func (m *Model) sashUnder(x, y int) sash {
 	if y < 0 || y >= m.panelH() {
 		return noSash
@@ -3531,8 +3544,12 @@ func (m *Model) sashUnder(x, y int) sash {
 		switch {
 		case r.w == 0 || m.railed(i):
 		case m.side(i) == 0 && x >= r.x+r.w && x < r.x+r.w+gap, m.side(i) == 1 && x >= r.x-gap && x < r.x:
-			return sash(i)
+			return colSash(i)
 		}
+	}
+
+	if s := m.paneSashUnder(); s != noSash {
+		return s
 	}
 
 	if m.termRows() == 0 || y != m.mainH() || x < c.x || x >= c.x+c.w-3 {
@@ -3546,6 +3563,30 @@ func (m *Model) sashUnder(x, y int) sash {
 	}
 
 	return termSash
+}
+
+// paneSashUnder is the pane header under the mouse that a drag resizes: an
+// open Source Control drawer's, or a GitHub section's below another open one.
+func (m *Model) paneSashUnder() sash {
+	if y := m.hoverRow(viewGit); y >= 0 && len(m.scm.repos) > 0 {
+		_, ds := m.scm.geometry(m, m.scm.paneH(m))
+		for j, d := range ds {
+			if t := m.drawers()[j].Title; j < len(m.scm.heads) && y == d.head && m.pane(t).Open {
+				return paneSash(viewGit, t)
+			}
+		}
+	}
+
+	if y := m.hoverRow(viewGitHub); y >= 0 {
+		rows := m.gh.rows(m)
+		ps := m.gh.panes(rows, m.bodyH(viewGitHub))
+
+		if i, p := m.gh.at(rows, ps, y); p != nil && i == p.start-1 && m.gh.resizes(ps, p.sec) {
+			return paneSash(viewGitHub, ghSections[p.sec])
+		}
+	}
+
+	return noSash
 }
 
 // trackSash notes the sash the mouse is on and wakes View after sashDelay
@@ -3569,10 +3610,32 @@ func (m *Model) trackSash() tea.Cmd {
 // VS Code's sash.activeBorder and sash.hoverBorder. ok is false otherwise.
 func (m *Model) sashStyle(s sash) (lipgloss.Style, bool) {
 	if d := m.drag; d != nil {
-		return fg(pal.accent), d.kind == dragDivider && sash(d.col) == s || d.kind == dragTerm && s == termSash
+		return fg(pal.accent), d.kind == dragDivider && colSash(d.col) == s || d.kind == dragTerm && s == termSash ||
+			d.kind == dragPane && d.moved && paneSash(d.v, d.pane) == s
 	}
 
 	return fg(pal.sashHover), m.modal == nil && s != noSash && s == m.sashAt && time.Since(m.sashSince) >= sashDelay
+}
+
+// sashRule is the rule a title row that is sash s draws across the cells
+// its segments leave free, while s lights; none otherwise.
+func (m *Model) sashRule(s sash, w int, segs ...[]seg) []seg {
+	st, ok := m.sashStyle(s)
+	if !ok {
+		return nil
+	}
+
+	for _, ss := range segs {
+		for _, x := range ss {
+			w -= ansi.StringWidth(x.s)
+		}
+	}
+
+	if w <= 2 {
+		return nil
+	}
+
+	return []seg{sg(" "+strings.Repeat("━", w-2)+" ", st)}
 }
 
 func (m *Model) sideTitle(s int) string {

@@ -547,6 +547,20 @@ func TestGitHubPanes(t *testing.T) {
 	prs, notes := pane(ghPRs), pane(ghNotes)
 	y := top + notes.head
 
+	// Only a header with an open pane above it is a sash.
+	m.Update(tea.MouseMotionMsg{X: x, Y: top + prs.head})
+
+	if m.sashAt != noSash || strings.Contains(m.gh.lines(m, 40, h)[prs.head], "⇕") {
+		t.Errorf("the first header is a sash: %v", m.sashAt)
+	}
+
+	m.Update(tea.MouseMotionMsg{X: x, Y: y})
+	m.sashSince = time.Now().Add(-sashDelay)
+
+	if m.sashAt != paneSash(viewGitHub, "Notifications") || !strings.Contains(ansi.Strip(m.gh.lines(m, 40, h)[notes.head]), "━") || !strings.HasSuffix(strings.TrimRight(ansi.Strip(m.gh.lines(m, 40, h)[notes.head]), " "), "⇕") {
+		t.Errorf("the Notifications header is a sash, lit once rested on: %v", m.sashAt)
+	}
+
 	m.Update(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
 	m.Update(tea.MouseMotionMsg{X: x, Y: y - 2, Button: tea.MouseLeft})
 	m.Update(tea.MouseReleaseMsg{X: x, Y: y - 2, Button: tea.MouseLeft})
