@@ -158,6 +158,38 @@ If an agent draws on the alternate screen, its finished output never reaches
 scrollback and more lines will not recover it. Then, and only then, ask the
 agent to write its answer to a file and read the file yourself.
 
+## Pass a message to another session
+
+The user names the recipient as Spaces shows it ("the claude in feat/x"), not
+by id. Hit exactly that session:
+
+1. **Find.** Join `session ls` (its `workspace` path) with `ws ls` (that
+   path's `project`, shown by basename, and `branch`). Match the label against
+   `name`, `agent`, `program` and `title`; Spaces' done is `idle`, unseen.
+   From here on use the `id`.
+2. **Prove.** Exactly one candidate; not `$PANDO_SESSION`; `program` not a
+   shell (`bash`, `zsh`, `fish`…), which would run the text as a command —
+   with no `/proc`, as on macOS, it is empty and the screen must show the
+   agent. `running`: `session wait ID --timeout 120000` first.
+   Then `session read ID --lines 40` must show what the user described, at its
+   prompt with no approval or question, whatever `status` says. `blocked`, a
+   timeout or any doubt: ask the user, listing the candidates by id, space and
+   label.
+3. **Confirm.** Name the target — id, space, label, what its screen shows —
+   and wait for a yes, unless the user gave its id or exact `name`.
+4. **Deliver.** `session get ID` right before sending; not `idle` goes back to
+   2. Single-quote the text (`'` as `'\''`) so your shell runs none of it:
+
+```sh
+pando session send ID 'From pando session <your id> (<your space>): <message>' --enter
+pando session wait ID --until running,blocked --timeout 15000   # picked up; on a timeout read, never resend
+```
+
+Without `$PANDO_SESSION`, sign it `From outside pando:`. Send paths, not file
+contents: worktrees share a disk. For its reply, replace both lines with one
+`send … --wait --timeout 300000` and read the answer yourself; the recipient
+does not send back.
+
 ## A worktree of its own
 
 ```sh
@@ -176,6 +208,9 @@ the session in a workspace that already exists.
   and never to `$PANDO_SESSION`. Killing a session also kills its own tabs
   (`--agent tab --parent ID`) and the shells of its Terminal panel
   (`--agent terminal --parent ID`), so a kill takes more than one terminal.
+- The one input you send to a session you did not create is a message the
+  user asked you to pass, after the checks in _Pass a message to another
+  session_.
 - Do not run `pando stop`: it takes down the daemon and every session in it,
   including the user's.
 - Do not answer an approval or a permission prompt for the user. Report what
