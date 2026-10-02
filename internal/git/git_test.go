@@ -93,6 +93,18 @@ func mustWrite(t *testing.T, path, content string) {
 	}
 }
 
+// mustRead reads a file back, or fails the test; tests assert on the content.
+func mustRead(t *testing.T, path string) string {
+	t.Helper()
+
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+
+	return string(b)
+}
+
 // mustGit runs a git command in root, or fails the test naming the command.
 func mustGit(t *testing.T, root string, args ...string) {
 	t.Helper()
@@ -230,6 +242,19 @@ func TestSectionOperations(t *testing.T) {
 
 	if st, _ := Stat(root); len(st.Changes) != 2 || st.Changes[0].Letter != 'U' {
 		t.Fatalf("discard tracked keeps untracked files: %+v", st)
+	}
+
+	outside := filepath.Join(filepath.Dir(root), "outside.txt")
+	mustWrite(t, outside, "keep\n")
+
+	if err := DeleteUntracked(root, []string{"../outside.txt"}); err == nil || mustRead(t, outside) != "keep\n" {
+		t.Fatalf("a path out of the repository is refused: %v", err)
+	}
+
+	must(t, "delete untracked", DeleteUntracked(root, []string{"u1.txt", "u2.txt"}))
+
+	if st, _ := Stat(root); len(st.Changes) != 0 {
+		t.Fatalf("delete untracked: %+v", st)
 	}
 }
 

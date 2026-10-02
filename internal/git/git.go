@@ -466,6 +466,23 @@ func Discard(root string, e Entry) error {
 	return err
 }
 
+// DeleteUntracked deletes untracked paths, VS Code's Discard All Untracked
+// Changes: they are in no commit, so nothing brings them back. A path that
+// would leave root is refused, not followed.
+func DeleteUntracked(root string, paths []string) error {
+	for _, p := range paths {
+		if !filepath.IsLocal(p) {
+			return fmt.Errorf("refusing to delete %q outside the repository", p)
+		}
+
+		if err := os.RemoveAll(filepath.Join(root, p)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // LineOp moves selected diff lines between the working tree, the index and HEAD.
 type LineOp int
 

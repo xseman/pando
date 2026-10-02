@@ -465,6 +465,7 @@ func (s *scmView) actions(r scmRow, w int) []rowAction {
 			add(icAdd, s.stageTracked(root))
 
 		case "Untracked Changes":
+			add(icDiscard, func(m *Model) tea.Cmd { return s.confirmDeleteUntracked(m, root, "") })
 			add(icAdd, s.stageUntracked(root))
 		}
 
@@ -475,6 +476,10 @@ func (s *scmView) actions(r scmRow, w int) []rowAction {
 			add(icAdd, func(m *Model) tea.Cmd { return s.stageConflicts(m, root, dir.Path) })
 		case "Staged Changes":
 			add(icRemove, git1("unstaging", func(root string) error { return git.Unstage(root, dir) }))
+		case "Untracked Changes":
+			add(icDiscard, func(m *Model) tea.Cmd { return s.confirmDeleteUntracked(m, root, dir.Path) })
+			add(icAdd, git1("staging", func(root string) error { return git.Stage(root, dir) }))
+
 		default:
 			add(icAdd, git1("staging", func(root string) error { return git.Stage(root, dir) }))
 		}
@@ -1997,9 +2002,13 @@ func (s *scmView) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 			return m.openFile(filepath.Join(r.root, r.entry.Path))
 		}
 
-	case "d":
-		if r != nil && r.kind == rowFile && !r.entry.Staged && r.entry.Letter != '!' {
-			return s.confirmDiscard(m, r.root, r.entry)
+	case "d": // the row's own discard button, wherever it has one
+		if r != nil {
+			for _, a := range s.actions(*r, 0) {
+				if a.g == icDiscard {
+					return a.run(m)
+				}
+			}
 		}
 
 	case "m":
@@ -2296,6 +2305,40 @@ func (s *scmView) confirmDiscard(m *Model, root string, e git.Entry) tea.Cmd {
 		item{label: "Discard", run: func(_ *Model) tea.Cmd {
 			return s.run(root, "discarding", func(root string) scmMsg {
 				return scmMsg{text: "discarded " + e.Path, err: git.Discard(root, e)}
+			})
+		}},
+		cancelItem())
+
+	return nil
+}
+
+// confirmDeleteUntracked is VS Code's Discard All Untracked Changes, for the
+// section or, dir set, one of its folders. Untracked files are in no commit,
+// so the dialog says they go for good.
+func (s *scmView) confirmDeleteUntracked(m *Model, root, dir string) tea.Cmd {
+	var paths []string
+
+	for _, p := range untrackedPaths(s.status[root]) {
+		if dir == "" || p == dir || strings.HasPrefix(p, strings.TrimSuffix(dir, "/")+"/") {
+			paths = append(paths, p)
+		}
+	}
+
+	if len(paths) == 0 {
+		return flash("no untracked files", false)
+	}
+
+	where := cmp.Or(dir, filepath.Base(root))
+	title, label := fmt.Sprintf("Delete %d untracked files in %s? They are in no commit: this cannot be undone.", len(paths), where), "Delete Files"
+
+	if len(paths) == 1 {
+		title, label = "Delete the untracked file "+paths[0]+"? It is in no commit: this cannot be undone.", "Delete File"
+	}
+
+	m.modal = newDialog(title,
+		item{label: label, run: func(_ *Model) tea.Cmd {
+			return s.run(root, "deleting", func(root string) scmMsg {
+				return scmMsg{text: "deleted " + plural(len(paths), "untracked file"), err: git.DeleteUntracked(root, paths)}
 			})
 		}},
 		cancelItem())

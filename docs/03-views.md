@@ -69,7 +69,12 @@ is "mark resolved". Staging a `UU`/`AA` file that still matches VS Code's
 marker test (`^<<<<<<< `, `^=======$`, `^>>>>>>> `) asks first; a `UD`/`DU`
 file asks _Keep Our/Their Version_ or _Delete File_ (`git rm`). Stage All and
 the Changes `+` leave the merge group alone, as VS Code's `git.stageAll`
-does. While `Status.Op` is set the Commit button reads _Continue_, refuses
+does. Untracked Changes, its folders in tree mode and its files have `↶` too,
+VS Code's Discard All Untracked Changes: it deletes the files, after a dialog
+that says they are in no commit (`confirmDeleteUntracked`,
+`git.DeleteUntracked`, which refuses a path outside the repository). `d` runs
+whatever `↶` the selected row has.
+While `Status.Op` is set the Commit button reads _Continue_, refuses
 until Merge Changes is empty, and then commits (merge, cherry-pick) or runs
 `rebase --continue`. During a merge or cherry-pick the message box shows the
 first line of git's `MERGE_MSG` (`Merge branch 'develop' of … into feat`) as

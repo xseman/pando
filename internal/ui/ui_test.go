@@ -1679,6 +1679,35 @@ func TestSectionActions(t *testing.T) {
 
 	m.modal = nil
 
+	// The untracked section deletes its files, asking first: they are in no
+	// commit. d does what the row's ↶ does.
+	un := scmRowAt(m, rowSection, "Untracked Changes", "")
+	m.Update(tea.MouseMotionMsg{X: 3, Y: top + un})
+
+	if got := sidebarRow(t, m, un); !strings.Contains(got, "↶  +  1  ") {
+		t.Fatalf("hovered Untracked Changes header = %q", got)
+	}
+
+	mustWrite(t, filepath.Join(m.ws, "a", "c.go"), "package a\n")
+	click(m, m.scm.actions(m.scm.rows[un], l.w)[0].x, top+un, tea.MouseLeft)
+
+	if m.modal == nil || !strings.HasPrefix(m.modal.title, "Delete the untracked file a/c.go?") || m.modal.items[0].label != "Delete File" {
+		t.Fatalf("↶ on Untracked Changes asks first: %+v", m.modal)
+	}
+
+	m.modal, m.scm.sel = nil, un
+	press(m, "d")
+
+	if m.modal == nil || !strings.HasPrefix(m.modal.title, "Delete the untracked file") {
+		t.Fatalf("d on the section: %+v", m.modal)
+	}
+
+	fire(m, m.modal.choose(m, 0))
+
+	if _, err := os.Stat(filepath.Join(m.ws, "a", "c.go")); !os.IsNotExist(err) {
+		t.Fatalf("Delete File deletes it: %v", err)
+	}
+
 	// File rows: discard and stage; the untracked section stages with U too.
 	f := scmRowAt(m, rowFile, "Changes", "a/b.go")
 	m.Update(tea.MouseMotionMsg{X: 3, Y: top + f})
