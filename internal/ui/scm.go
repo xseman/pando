@@ -1795,7 +1795,7 @@ func (s *scmView) onRemotes(m *Model, msg remotesMsg) tea.Cmd {
 
 	items := make([]item, 0, len(msg.remotes)+1)
 	for _, r := range msg.remotes {
-		items = append(items, item{label: r.Name, detail: r.URL, run: func(_ *Model) tea.Cmd { return s.publishTo(root, r.Name, "") }})
+		items = append(items, item{label: r.Name, hint: r.URL, run: func(_ *Model) tea.Cmd { return s.publishTo(root, r.Name, "") }})
 	}
 
 	items = append(items, item{label: icAdd.s() + " Add a new remote…", always: true, run: func(m *Model) tea.Cmd {
@@ -2144,9 +2144,24 @@ func (s *scmView) onRefs(m *Model, msg refsMsg) tea.Cmd {
 // branches (the checked-out one first), then remotes, then tags.
 var refGroups = map[string]string{"branch": "branches", "remote": "remote branches", "tag": "tags"}
 
-// refPicker opens a picker of refs, each with its latest commit on a second row.
+// refPicker opens a picker of refs, the selected one's latest commit on a
+// second row. A remote branch at its local branch's commit is left out: it
+// would only repeat it, and checking it out checks out the local one.
 func (s *scmView) refPicker(m *Model, title string, refs []git.Ref, pick func(*Model, git.Ref) tea.Cmd) *modal {
-	sorted := slices.Clone(refs)
+	local := map[string]string{}
+
+	for _, r := range refs {
+		if r.Kind == "branch" {
+			local[r.Name] = r.Hash
+		}
+	}
+
+	sorted := slices.DeleteFunc(slices.Clone(refs), func(r git.Ref) bool {
+		_, name, _ := strings.Cut(r.Name, "/")
+		h, ok := local[name]
+
+		return r.Kind == "remote" && ok && h == r.Hash
+	})
 	order := func(r git.Ref) int {
 		switch {
 		case r.Head:

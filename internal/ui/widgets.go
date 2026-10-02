@@ -460,12 +460,12 @@ type item struct {
 	run    func(m *Model) tea.Cmd
 	styled bool   // label carries its own styles (keycaps, headings)
 	inline string // dimmed text right after the label
-	detail string // a dimmed second row under the label
+	detail string // a muted second row under the label, shown while it is selected
 	search string // what the filter matches instead of the label
-	always bool   // stays on top whatever the filter
-	group  string // the heading a prefixed picker files it under after ":"
-	cont   bool   // the detail row of the item above, made by refilter
-	sep    bool   // a rule between groups of a menu; run stays nil so it is skipped
+	always bool   // listed whatever the filter: on top while browsing, after a query's matches
+	group  string // the heading it is filed under; a prefixed picker's only after ":"
+	cont   bool   // the detail row of the selected item above it, placed by focus
+	sep    bool   // a rule between groups, or with a label a group's muted heading; run stays nil so it is skipped
 }
 
 // cancelItem is the last entry of a menu or a confirmation: it closes the
@@ -716,11 +716,20 @@ func (md *modal) refilter() {
 		})
 	}
 
-	md.disp = md.disp[:0]
+	var always []item
+
 	for _, it := range md.items {
 		if it.always {
-			md.disp = append(md.disp, it)
+			always = append(always, it)
 		}
+	}
+
+	// A query's matches come first: what ⏎ runs is the best of them.
+	last := q != "" && len(hits) > 0
+
+	md.disp = md.disp[:0]
+	if !last {
+		md.disp = append(md.disp, always...)
 	}
 
 	switch {
@@ -768,33 +777,69 @@ func (md *modal) refilter() {
 		}
 
 	default:
+		if q != "" {
+			// A query ranks within each group and orders the groups by their best match.
+			rank := map[string]int{}
+			for _, h := range hits {
+				if _, ok := rank[md.items[h.i].group]; !ok {
+					rank[md.items[h.i].group] = len(rank)
+				}
+			}
+
+			slices.SortStableFunc(hits, func(a, b hit) int {
+				return cmp.Compare(rank[md.items[a.i].group], rank[md.items[b.i].group])
+			})
+		}
+
 		group := ""
 
 		for _, h := range hits {
 			it := md.items[h.i]
-			// Browsing shows the group headings; a query ranks across them.
-			if q == "" && it.group != group {
+			if it.group != group {
 				if group = it.group; group != "" {
 					if len(md.disp) > 0 {
 						md.disp = append(md.disp, item{}) // breathing room between groups
 					}
 
-					md.disp = append(md.disp, heading(group))
+					md.disp = append(md.disp, item{label: group, sep: true})
 				}
 			}
 
 			md.disp = append(md.disp, it)
-			if it.detail != "" {
-				md.disp = append(md.disp, item{label: it.detail, cont: true})
-			}
 		}
+	}
+
+	if last && len(always) > 0 {
+		md.disp = append(md.disp, item{})
+		md.disp = append(md.disp, always...)
 	}
 
 	md.l = list{sel: -1}
 	md.step(1, 0)
 
+	md.l.top = 0 // step knows no height here and scrolled past a heading over the selection
 	if md.l.sel < 0 && len(md.disp) > 0 {
-		md.l.sel, md.l.top = 0, 0 // informational menus still scroll from the top; step scrolled past them
+		md.l.sel = 0 // informational menus still scroll from the top
+	}
+}
+
+// focus selects row i and moves the detail row under it: only the selected
+// item shows its detail, so a list of refs or remotes stays one row each.
+func (md *modal) focus(i int) {
+	if j := slices.IndexFunc(md.disp, func(it item) bool { return it.cont }); j >= 0 {
+		md.disp = slices.Delete(md.disp, j, j+1)
+		if i > j {
+			i--
+		}
+
+		if j < md.l.top {
+			md.l.top-- // the rows on screen stay put
+		}
+	}
+
+	md.l.sel = i
+	if i >= 0 && i < len(md.disp) && md.disp[i].detail != "" {
+		md.disp = slices.Insert(md.disp, i+1, item{label: md.disp[i].detail, cont: true})
 	}
 }
 
@@ -802,10 +847,10 @@ func (md *modal) refilter() {
 func (md *modal) step(d, rows int) {
 	for i := md.l.sel + d; i >= 0 && i < len(md.disp); i += d {
 		if md.disp[i].run != nil {
-			md.l.sel = i
+			md.focus(i)
 			md.l.snap(rows)
 
-			if i+1 < len(md.disp) && md.disp[i+1].cont && i+1 >= md.l.top+rows {
+			if i = md.l.sel; i+1 < len(md.disp) && md.disp[i+1].cont && i+1 >= md.l.top+rows {
 				md.l.top++ // keep the item's detail row in view
 			}
 
@@ -939,6 +984,10 @@ func (md *modal) view(m *Model) (string, int, int) {
 		}
 
 		if it.sep {
+			if it.label != "" {
+				return fit(" "+muted.Render(it.label), rw)
+			}
+
 			return dim.Render(strings.Repeat("─", rw))
 		}
 
@@ -946,14 +995,14 @@ func (md *modal) view(m *Model) (string, int, int) {
 			return fit(" "+it.label, rw)
 		}
 
-		st := plain
+		st, note := plain, muted
 		if it.run == nil {
 			st = dim
 		}
 
 		var bg color.Color
 		if i == md.l.sel && it.run != nil {
-			bg = pal.selBg
+			bg, note = pal.selBg, dim // the grey can be the selection's own color (the terminal theme's 8)
 			if pal.selFg != nil {
 				st = st.Foreground(pal.selFg)
 			}
@@ -961,10 +1010,10 @@ func (md *modal) view(m *Model) (string, int, int) {
 
 		left := []seg{sg(" "+it.label, st)}
 		if it.inline != "" {
-			left = append(left, sg(" "+it.inline, dim))
+			left = append(left, sg(" "+it.inline, note))
 		}
 
-		return row(rw, bg, left, sg(it.hint+" ", dim))
+		return row(rw, bg, left, sg(it.hint+" ", note))
 	}) {
 		lines = append(lines, side+r+side)
 	}
@@ -1191,7 +1240,7 @@ func (md *modal) choose(m *Model, i int) tea.Cmd {
 		sel := md.l.sel
 		md.items = md.build(m)
 		md.refilter()
-		md.l.sel = sel
+		md.focus(sel)
 	}
 
 	return cmd
@@ -1231,7 +1280,7 @@ func (md *modal) mouse(m *Model, msg tea.MouseMsg) tea.Cmd {
 	switch msg.(type) {
 	case tea.MouseMotionMsg: // the row under the mouse is the selection, like a GUI menu
 		if i := md.rowAt(mo.Y-top, rows); inside && i >= 0 && md.disp[i].run != nil && i != md.l.sel {
-			md.l.sel = i
+			md.focus(i)
 			md.moved(m)
 		}
 

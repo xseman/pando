@@ -57,6 +57,10 @@ func TestBranchPicker(t *testing.T) {
 		{"commit", "-qm", "init"},
 		{"branch", "feat"},
 		{"-c", "tag.gpgSign=false", "tag", "v1"},
+		{"commit", "-q", "--allow-empty", "-m", "ahead"},
+		{"update-ref", "refs/remotes/origin/main", "HEAD"}, // ahead of main: listed
+		{"update-ref", "refs/remotes/origin/feat", "feat"}, // feat's own commit: left out
+		{"reset", "-q", "--hard", "HEAD~1"},
 	} {
 		mustGit(t, root, a...)
 	}
@@ -70,19 +74,31 @@ func TestBranchPicker(t *testing.T) {
 	press(m, "2")
 	send(m, keyMsg("B"))
 	got := labels(m)
-	// 3 actions, then each kind under its heading, every ref with a detail row.
+	// 3 actions, then each kind under its heading, one row per ref: the
+	// selected action has no detail row.
 	if m.modal == nil || m.modal.title != "Select a branch or tag to checkout" || len(got) != 13 ||
-		!strings.HasSuffix(got[0], "Create new branch…") || !strings.Contains(got[4], "branches") ||
-		!strings.HasPrefix(got[6], "Ann • ") || !strings.Contains(got[10], "tags") {
+		!strings.HasSuffix(got[0], "Create new branch…") || got[4] != "branches" || !m.modal.disp[4].sep ||
+		got[8] != "remote branches" || !strings.HasSuffix(got[9], " origin/main") || got[11] != "tags" ||
+		slices.ContainsFunc(m.modal.disp, func(it item) bool { return it.cont }) {
 		t.Fatalf("picker %v", got)
 	}
 
+	// The selected ref shows its detail row, which keeps it selected under the mouse.
 	feat := slices.IndexFunc(got, func(l string) bool { return strings.HasSuffix(l, " feat") })
 	x, y, _, _, _ := m.modal.rect(m)
-	m.Update(tea.MouseMotionMsg{X: x + 3, Y: y + 2 + feat + 1}) // over feat's detail row
+	m.Update(tea.MouseMotionMsg{X: x + 3, Y: y + 2 + feat})
 
-	if m.modal.l.sel != feat {
-		t.Fatalf("a detail row selects its item: sel=%d want %d", m.modal.l.sel, feat)
+	if got := labels(m); m.modal.l.sel != feat || !strings.HasPrefix(got[feat+1], "Ann • ") {
+		t.Fatalf("hovering feat: sel=%d want %d, %v", m.modal.l.sel, feat, got)
+	}
+
+	m.Update(tea.MouseMotionMsg{X: x + 3, Y: y + 2 + feat + 1})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+
+	if got := labels(m); m.modal.l.sel != feat || !strings.HasPrefix(got[feat+1], "Ann • ") ||
+		strings.HasPrefix(got[feat-1], "Ann • ") {
+		t.Fatalf("the detail row follows the selection: sel=%d want %d, %v", m.modal.l.sel, feat, got)
 	}
 
 	checkWidths(t, m)
@@ -92,7 +108,19 @@ func TestBranchPicker(t *testing.T) {
 		t.Fatalf("checkout feat: HEAD is %s (%s)", head(), m.msg)
 	}
 
-	// Create new branch takes the typed name and stays on top of the filter.
+	// A query keeps the groups, the best match first and selected, the actions after it.
+	send(m, keyMsg("B"))
+	press(m, "v", "1")
+
+	if got := labels(m); len(got) < 5 || got[0] != "tags" || !strings.HasSuffix(got[1], " v1") || m.modal.l.sel != 1 || m.modal.l.top != 0 ||
+		!strings.HasPrefix(got[2], "Ann • ") || got[3] != "" || !strings.HasSuffix(got[4], "Create new branch…") {
+		t.Fatalf("query %v sel=%d", got, m.modal.l.sel)
+	}
+
+	checkWidths(t, m)
+	press(m, "esc")
+
+	// With nothing matching, Create new branch is first and takes the typed name.
 	send(m, keyMsg("B"))
 	press(m, "t", "o", "p", "i", "c")
 

@@ -180,19 +180,24 @@ question with a row of buttons).
 ```
 ╭ Select a branch or tag to checkout ─────────╮
 │›                                            │  input (picker/prompt)
-│ + Create new branch…                        │  always: pinned above results
+│ + Create new branch…                        │  always: above the items while browsing
 │                                             │  spacer before a heading
-│ branches                                    │  group heading
-│ ⎇ feat/one 42 seconds ago                   │  item, inline dimmed after label
-│   Ann • 059c60c • first commit              │  detail row of the item above
+│ branches                                    │  group: a muted heading (sep + label)
+│ ⎇ feat/one 42 seconds ago                   │  selected item, inline muted after label
+│   Ann • 059c60c • first commit              │  its detail row, only while selected
+│ ⎇ main 2 hours ago                          │
 ╰─────────────────────────────────────────────╯
 ```
 
 Pickers keep a fixed top edge and a minimum height, so the box does not jump
 while results change. Items can carry a `search` string (`@idle`, `!claude`
-tokens must match verbatim, the rest fuzzily), a `group` (browsing files the
-items under a heading, a query ranks across all of them), an `inline` note
-drawn dimmed right after the label and a right-aligned `hint`.
+tokens must match verbatim, the rest fuzzily), a `group` (filed under a muted
+heading; a query ranks within each group and orders the groups by their best
+match, so the best match is first and selected, and the `always` items follow
+the matches), an `inline` note right after the label, a right-aligned `hint`
+and a `detail` row that `focus` moves under the selection, so a long list
+stays one row per item. Notes, hints and headings take the `description`
+color rather than Faint, which not every terminal draws.
 
 ```
 ╭────────────────────────────────────────╮

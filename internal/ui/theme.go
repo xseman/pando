@@ -44,6 +44,7 @@ type palette struct {
 	whitespace                                                                                                 color.Color // VS Code's editorWhitespace.foreground: the · and → of render_whitespace
 	mdCode, mdCodeBg                                                                                           color.Color // code in rendered Markdown: inline code's text, glow's salmon, and the background of it and of code blocks
 	lineNumber, lineNumberActive                                                                               color.Color // a file's line numbers and the cursor's, Dark and Light Modern's (subtler than 2026's); nil is the terminal's text color
+	descFg                                                                                                     color.Color // VS Code's descriptionForeground: a picker's dates, details and group labels, where Faint is not drawn by every terminal
 }
 
 func hex(s string) color.Color { return lipgloss.Color(s) }
@@ -74,7 +75,7 @@ var (
 		sliderBg: hex("#606162"), sliderActiveBg: hex("#6e6f70"), rulerBorder: hex("#2a2b2c"),
 		tabBg: hex("#232427"), tabBorder: hex("#3c3d40"), tabActiveBg: hex("#434446"),
 		sashHover: hex("#2c7092"), whitespace: hex("#3e3f40"), mdCode: hex("#ff7b72"), mdCodeBg: hex("#242526"),
-		lineNumber: hex("#6e7681"), lineNumberActive: hex("#cccccc"),
+		lineNumber: hex("#6e7681"), lineNumberActive: hex("#cccccc"), descFg: hex("#9d9d9d"),
 	}
 	vscodeLight = palette{
 		light:    true,
@@ -99,13 +100,13 @@ var (
 		sliderBg: hex("#8a8a8a"), sliderActiveBg: hex("#777777"), rulerBorder: hex("#f0f1f2"),
 		tabBg: hex("#ededf0"), tabBorder: hex("#d0d0d6"), tabActiveBg: hex("#c9c9ce"),
 		sashHover: hex("#5c9fe0"), whitespace: hex("#d0d0d4"), mdCode: hex("#c4314b"), mdCodeBg: hex("#ededf0"),
-		lineNumber: hex("#6e7681"), lineNumberActive: hex("#171184"),
+		lineNumber: hex("#6e7681"), lineNumberActive: hex("#171184"), descFg: hex("#6f6f73"),
 	}
 	// terminalPal inherits the terminal profile's ANSI colors. Diff tints stay
 	// RGB: an ANSI background would collide with remapped syntax colors.
 	terminalPal = palette{
 		modified: ansi16(3), untracked: ansi16(2), added: ansi16(10), renamed: ansi16(2),
-		deleted: ansi16(1), conflict: ansi16(9), ignored: ansi16(8),
+		deleted: ansi16(1), conflict: ansi16(9), ignored: ansi16(8), descFg: ansi16(8),
 		selBg: ansi16(8), selUnfocusedBg: ansi16(0), hoverBg: ansi16(0), selFg: ansi16(15),
 		accent: ansi16(4), headerAccent: ansi16(12),
 		buttonBg: ansi16(4), buttonFg: ansi16(15), buttonHoverBg: ansi16(12), buttonSep: ansi16(12),
@@ -148,6 +149,7 @@ var (
 
 	plain  = lipgloss.NewStyle()
 	dim    = lipgloss.NewStyle().Faint(true)
+	muted  = fg(pal.descFg)
 	bold   = lipgloss.NewStyle().Bold(true)
 	accent = lipgloss.NewStyle().Foreground(pal.headerAccent).Bold(true)
 )
@@ -174,7 +176,7 @@ func (p *palette) colorKeys() map[string]*color.Color {
 		"scrollbar_slider": &p.sliderBg, "scrollbar_slider_active": &p.sliderActiveBg, "overview_ruler_border": &p.rulerBorder,
 		"tab_bg": &p.tabBg, "tab_active_bg": &p.tabActiveBg, "tab_border": &p.tabBorder, "sash_hover": &p.sashHover, "whitespace": &p.whitespace,
 		"md_code": &p.mdCode, "md_code_bg": &p.mdCodeBg,
-		"line_number": &p.lineNumber, "line_number_active": &p.lineNumberActive,
+		"line_number": &p.lineNumber, "line_number_active": &p.lineNumberActive, "description": &p.descFg,
 	}
 }
 
@@ -212,6 +214,7 @@ func applyLook(theme string, dark bool, icons string, colors map[string]string) 
 
 	iconsNerd, iconsEmoji = icons == "nerd", icons == "emoji"
 	accent = lipgloss.NewStyle().Foreground(pal.headerAccent).Bold(true)
+	muted = fg(pal.descFg)
 }
 
 func fg(c color.Color) lipgloss.Style { return lipgloss.NewStyle().Foreground(c) }
