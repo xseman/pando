@@ -14,8 +14,8 @@
 
 # The palette pando and the agent record in, "light" or "dark". Keep it in step
 # with Set Theme in settings.tape, which paints the terminal around them.
-mode=dark
-# mode=light
+mode=light
+# mode=dark
 
 # The command resume.tape types into its shell session, after cfg has written
 # claude.json. Its "tui": "default" keeps claude in its classic renderer, the

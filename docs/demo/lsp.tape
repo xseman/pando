@@ -2,6 +2,8 @@
 # by gopls. VHS cannot send F12, shift+F12, ctrl+. or F2, so the demo binds
 # those commands to ctrl letters in its config (the browser VHS records in eats
 # ctrl+r, so rename is ctrl+y).
+# The README's still under Why is a frame of it: lsp.png, the peek with a
+# reference picked.
 # Record with: make demo   (needs vhs v0.10 or v0.11, ttyd, ffmpeg, a Chrome and gopls)
 Output docs/demo/lsp.gif
 
@@ -48,6 +50,8 @@ Down
 Sleep 500ms
 Down
 Sleep 700ms
+Screenshot docs/demo/lsp.png
+Sleep 200ms # vhs takes the next frame, which would already hold the next key
 
 # enter takes you to the reference, in main.go; ctrl+<- steps back (ctrl+h here).
 Enter

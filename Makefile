@@ -35,16 +35,22 @@ fmt:
 
 # Needs vhs v0.10 or v0.11 (v0.12 records but writes no GIF: vhs#787),
 # ttyd, ffmpeg, a Chrome, jq, gopls and claude. One tape: make demo-lsp.
-demo: install
+demo: install docs/demo/bg.png
 	$(MAKE) -j$(JOBS) $(addprefix demo-,$(PAR_TAPES))
 	$(MAKE) $(addprefix demo-,$(SEQ_TAPES))
 
 # A tape leaves its daemon running; each recipe stops it, pass or fail.
-$(addprefix demo-,$(PAR_TAPES)): demo-%: install
+# The blue gradient around every GIF (settings.tape's MarginFill), built, not
+# kept: four corner colors interpolated over a small image vhs scales up.
+docs/demo/bg.png:
+	ffmpeg -v error -y -f lavfi -i color=s=66x42 -frames:v 1 \
+		-vf "format=rgb24,geq=r='(90*(W-1-X)*(H-1-Y)+38*X*(H-1-Y)+74*(W-1-X)*Y+51*X*Y)/((W-1)*(H-1))':g='(154*(W-1-X)*(H-1-Y)+126*X*(H-1-Y)+143*(W-1-X)*Y+134*X*Y)/((W-1)*(H-1))':b='(254*(W-1-X)*(H-1-Y)+252*X*(H-1-Y)+254*(W-1-X)*Y+253*X*Y)/((W-1)*(H-1))'" $@
+
+$(addprefix demo-,$(PAR_TAPES)): demo-%: install docs/demo/bg.png
 	PANDO_DEMO_REPO=/tmp/pando-$*/pando-demo PANDO_DEMO_STATE=/tmp/pando-$*/state vhs docs/demo/$*.tape; \
 	s=$$?; PANDO_RUNTIME_DIR=/tmp/pando-$*/state/run pando stop >/dev/null 2>&1; exit $$s
 
-$(addprefix demo-,$(SEQ_TAPES)): demo-%: install
+$(addprefix demo-,$(SEQ_TAPES)): demo-%: install docs/demo/bg.png
 	vhs docs/demo/$*.tape; \
 	s=$$?; PANDO_RUNTIME_DIR=/tmp/pando-state/run pando stop >/dev/null 2>&1; exit $$s
 
