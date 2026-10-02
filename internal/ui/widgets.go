@@ -123,10 +123,10 @@ func chevron(open bool) string {
 
 // list is a windowed selection: the wheel scrolls the view only, keys move
 // the selection and snap the view to it. sel -1 = nothing selected yet.
-// held draws its scrollbar's slider as the mouse holds it.
+// bar is the mouse on its scrollbar, which draws the slider held or hovered.
 type list struct {
 	sel, top int
-	held     bool
+	bar      barState
 }
 
 func (l *list) clamp(n, h int) {
@@ -183,16 +183,17 @@ func (l *list) renderBar(w, h, n, skip int, rowFn func(i, w int) string) []strin
 	bar := n > h && w > 1
 	rw := w
 	thumb, thumbH := 0, 0
+	slider := plain // held: lit, as the active shade barely shows on a thin glyph
 
 	if bar { // the geometry a click on it reads back (listBar)
 		rw = w - 1
-		thumb, thumbH = vbar{n - skip, h - skip, l.top}.thumb()
+		b := vbar{n - skip, h - skip, l.top}
+		thumb, thumbH = b.thumb()
 		thumb += skip
-	}
 
-	slider := dim
-	if l.held {
-		slider = plain
+		if !l.bar.held {
+			slider = fg(l.bar.slider(b))
+		}
 	}
 
 	for y := range out {
@@ -256,7 +257,7 @@ func (b vbar) topAt(y int) int {
 // cells are the bar's column, one cell a row: the slider shaded over the
 // rows in view, the track a thin border like the overview ruler's, and
 // blanks when everything fits.
-func (b vbar) cells(active bool) []string {
+func (b vbar) cells(s barState) []string {
 	out := make([]string, max(b.h, 0))
 	if !b.on() {
 		for i := range out {
@@ -266,15 +267,12 @@ func (b vbar) cells(active bool) []string {
 		return out
 	}
 
-	slider := pal.sliderBg
-	if active {
-		slider = pal.sliderActiveBg
-	}
+	slider := lipgloss.NewStyle().Background(s.slider(b))
 
 	ty, sh := b.thumb()
 	for i := range out {
 		if i >= ty && i < ty+sh {
-			out[i] = lipgloss.NewStyle().Background(slider).Render(" ")
+			out[i] = slider.Render(" ")
 		} else {
 			out[i] = fg(pal.rulerBorder).Render("▏")
 		}
@@ -287,15 +285,12 @@ func (b vbar) cells(active bool) []string {
 // slider's color over the columns in view and the track's border elsewhere.
 // A block glyph per cell (▀) seams at fractional scaling in VTE and a
 // background fills the whole row; an underline is one line across the run.
-func (b vbar) hcells(active bool) string {
+func (b vbar) hcells(s barState) string {
 	if !b.on() {
 		return blank(max(b.h, 0))
 	}
 
-	slider := pal.sliderBg
-	if active {
-		slider = pal.sliderActiveBg
-	}
+	slider := s.slider(b)
 
 	line := func(c color.Color, n int) string {
 		return lipgloss.NewStyle().Underline(true).UnderlineSpaces(true).UnderlineColor(c).Render(blank(n))
@@ -307,8 +302,8 @@ func (b vbar) hcells(active bool) string {
 }
 
 // withBar fits lines to w-1 columns and puts b's column after them, h rows.
-func withBar(lines []string, w int, b vbar, active bool) []string {
-	cells := b.cells(active)
+func withBar(lines []string, w int, b vbar, s barState) []string {
+	cells := b.cells(s)
 	out := make([]string, len(cells))
 
 	for i := range out {
@@ -386,6 +381,43 @@ func (m *Model) barDragTo(d *scrollDrag, x, y int, release bool) tea.Cmd {
 // barActive reports bar id's slider held by the mouse.
 func (m *Model) barActive(id string) bool {
 	return m.drag != nil && m.drag.kind == dragScroll && m.drag.bar.id == id
+}
+
+// barPoint is the scrollbar cell under the pointer: its bar's id and the row
+// along it, or the column for a bar along a row. Each bar's hit test notes
+// it as the mouse passes, which is all a hover needs.
+type barPoint struct {
+	id string
+	at int
+}
+
+// barState is the mouse on a scrollbar: holding its slider, or over the bar
+// at row at.
+type barState struct {
+	held, over bool
+	at         int
+}
+
+// barState is bar id's state, read where the bar is drawn: the slider may
+// have scrolled away from under a resting pointer since.
+func (m *Model) barState(id string) barState {
+	return barState{held: m.barActive(id), over: m.overBar.id == id, at: m.overBar.at}
+}
+
+// slider is the slider's color on bar b: scrollbar_slider_active while held,
+// scrollbar_slider_hover while the pointer rests on it, as VS Code's slider
+// shades under the pointer.
+func (s barState) slider(b vbar) color.Color {
+	ty, sh := b.thumb()
+
+	switch {
+	case s.held:
+		return pal.sliderActiveBg
+	case s.over && s.at >= ty && s.at < ty+sh:
+		return pal.sliderHoverBg
+	}
+
+	return pal.sliderBg
 }
 
 // ptree groups slash-separated relative paths by directory.

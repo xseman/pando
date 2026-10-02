@@ -81,6 +81,18 @@ func TestEditorScrollbar(t *testing.T) {
 	if first, last := lines[m.stripH()+1], ansi.Strip(lines[m.stripH()+h]); !strings.Contains(first, bgParams(pal.sliderBg)) || !strings.HasSuffix(last, "▏") {
 		t.Fatalf("body rows end in the bar: first %q, last %q", first, last)
 	}
+	// The pointer on the slider shades it, as VS Code's; on the track it does not.
+	m.Update(tea.MouseMotionMsg{X: x, Y: y0})
+
+	if !strings.Contains(m.View().Content, bgParams(pal.sliderHoverBg)) {
+		t.Fatal("the slider under the pointer is drawn hovered")
+	}
+
+	m.Update(tea.MouseMotionMsg{X: x, Y: y0 + h - 1})
+
+	if strings.Contains(m.View().Content, bgParams(pal.sliderHoverBg)) {
+		t.Fatal("the pointer on the track leaves the slider at rest")
+	}
 
 	m.Update(tea.MouseClickMsg{X: x, Y: y0 + h - 1, Button: tea.MouseLeft})
 
@@ -351,9 +363,20 @@ func TestSourceControlScrollbar(t *testing.T) {
 	if m.hoverRow(viewGit) != -1 || m.scm.hovRow != -1 {
 		t.Fatalf("hover over the scrollbar lit row %d (%d)", m.hoverRow(viewGit), m.scm.hovRow)
 	}
+	// The slider at the top of the bar shades under it.
+	m.Update(tea.MouseMotionMsg{X: x, Y: y0})
+	checkWidths(t, m)
+
+	if !strings.Contains(m.View().Content, fgParams(pal.sliderHoverBg)) {
+		t.Fatal("the slider under the pointer is drawn hovered")
+	}
 
 	m.Update(tea.MouseMotionMsg{X: x - 3, Y: y0 + 2})
 	checkWidths(t, m)
+
+	if strings.Contains(m.View().Content, fgParams(pal.sliderHoverBg)) {
+		t.Fatal("off the bar the slider rests")
+	}
 
 	if m.scm.hovRow < 0 {
 		t.Fatal("beside the bar the row lights again")

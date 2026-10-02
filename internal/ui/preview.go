@@ -2237,16 +2237,16 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 	}
 
 	tw := w - 1 // the text; the scrollbar has the last column, as VS Code's editor.scrollbar does
-	active := m.barActive("editor")
+	vb := m.barState("editor")
 
 	switch {
 	case p.split(m):
 		body = p.splitBody(tw, h)
-		return header, withBar(body, w, vbar{p.scrollRows(m), h, p.top}, active), footer
+		return header, withBar(body, w, vbar{p.scrollRows(m), h, p.top}, vb), footer
 
 	case p.side(m):
 		body = p.sideBody(m, tw, h)
-		return header, withBar(body, w, vbar{p.scrollRows(m), h, p.top}, active), footer
+		return header, withBar(body, w, vbar{p.scrollRows(m), h, p.top}, vb), footer
 	}
 
 	p.hl, p.blanks = p.hlWord(), m.st.Settings.Blanks
@@ -2260,9 +2260,9 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 		body = append(body, p.renderRow(vis[k], tw))
 	}
 
-	body = withBar(body, w, vbar{len(vis), h, p.top}, active)
+	body = withBar(body, w, vbar{len(vis), h, p.top}, vb)
 	if hb.on() { // under the text, the gutter and the vertical bar's corner left blank
-		body = append(body, blank(p.gutter())+hb.hcells(m.barActive("editor-h"))+" ")
+		body = append(body, blank(p.gutter())+hb.hcells(m.barState("editor-h"))+" ")
 	}
 
 	return header, body, footer
@@ -3497,20 +3497,27 @@ func (p *preview) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 		return nil
 	}
 
-	if click && mo.Button == tea.MouseLeft && x >= w && y >= 0 && y < h { // the scrollbar
-		return m.barClick("editor", y, mo.Y-y, func() vbar { return p.bar(m) }, func(top int) tea.Cmd {
-			p.top = top
-			return nil
-		})
+	if x >= w && y >= 0 && y < h { // the scrollbar
+		m.overBar = barPoint{"editor", y}
+
+		if click && mo.Button == tea.MouseLeft {
+			return m.barClick("editor", y, mo.Y-y, func() vbar { return p.bar(m) }, func(top int) tea.Cmd {
+				p.top = top
+				return nil
+			})
+		}
 	}
 
-	if click && mo.Button == tea.MouseLeft && y == h && x >= p.gutter() && x < w { // the horizontal bar under the text
+	if y == h && x >= p.gutter() && x < w { // the horizontal bar under the text
 		bx := x - p.gutter()
+		m.overBar = barPoint{"editor-h", bx}
 
-		return m.hbarClick("editor-h", bx, mo.X-bx, func() vbar { return p.hbar(m, m.pvW()) }, func(left int) tea.Cmd {
-			p.left = left
-			return nil
-		})
+		if click && mo.Button == tea.MouseLeft {
+			return m.hbarClick("editor-h", bx, mo.X-bx, func() vbar { return p.hbar(m, m.pvW()) }, func(left int) tea.Cmd {
+				p.left = left
+				return nil
+			})
+		}
 	}
 
 	switch msg.(type) {

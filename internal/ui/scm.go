@@ -1112,7 +1112,7 @@ func (s *scmView) renderPane(m *Model, w, h int, key string, start, end, hover i
 	}
 
 	n := end - start
-	l := list{sel: s.sel - start, top: s.tops[key], held: m.barActive("list:git:" + key)}
+	l := list{sel: s.sel - start, top: s.tops[key], bar: m.barState("list:git:" + key)}
 	l.clamp(n, h)
 	s.tops[key] = l.top
 

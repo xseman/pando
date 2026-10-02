@@ -569,7 +569,7 @@ func (g *ghView) lines(m *Model, w, h int) []string {
 		}
 
 		n := p.end - p.start
-		l := list{top: g.tops[p.sec], held: m.barActive(ghBarID(p.sec))}
+		l := list{top: g.tops[p.sec], bar: m.barState(ghBarID(p.sec))}
 		l.clamp(n, p.h)
 		g.tops[p.sec] = l.top
 

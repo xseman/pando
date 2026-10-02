@@ -539,7 +539,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 	a.l.clamp(len(rows), h)
 
 	hover := m.hoverRow(viewAgents)
-	a.l.held = m.barActive("list:agents")
+	a.l.bar = m.barState("list:agents")
 	all, every := m.agentSessions(), m.mainSessions() // every: their tabs too, which roll up
 
 	return a.l.render(w, h, len(rows), func(i, rw int) string {
@@ -2232,7 +2232,7 @@ func (t *term) view(m *Model, w, _ int) (string, []string) {
 		lines[i] = t.mark(i, t.paintFind(i, lines[i]))
 	}
 
-	return row(w, nil, left, right...), withBar(lines, w, t.bar(len(lines)), m.barActive("session"))
+	return row(w, nil, left, right...), withBar(lines, w, t.bar(len(lines)), m.barState("session"))
 }
 
 // bar is the terminal's scrollbar: its scrollback above the h rows it shows.
@@ -2538,6 +2538,8 @@ func (m *Model) termPanelMouse(msg tea.MouseMsg, x, y int) tea.Cmd {
 	}
 
 	if x == w-1 {
+		m.overBar = barPoint{"terminal", y}
+
 		if _, click := msg.(tea.MouseClickMsg); click && mo.Button == tea.MouseLeft && y >= 0 {
 			return m.barMouse(&t.term, "terminal", y, mo.Y)
 		}
@@ -2705,7 +2707,7 @@ func (m *Model) termScreen(w, h int) []string {
 		}
 	}
 
-	return withBar(out, w, t.bar(h), m.barActive("terminal"))
+	return withBar(out, w, t.bar(h), m.barState("terminal"))
 }
 
 func (m *Model) termTabs(w int) []sessTab { return m.tabsFor(w, m.termSessions(), m.tv.id) }

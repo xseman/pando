@@ -179,7 +179,7 @@ func (e *explorer) reveal(m *Model, path string) {
 func (e *explorer) lines(m *Model, w, h int) []string {
 	filtering := m.query(viewFiles) != ""
 	hover := m.hoverRow(viewFiles)
-	e.l.held = m.barActive("list:files")
+	e.l.bar = m.barState("list:files")
 
 	return e.l.render(w, h, len(e.nodes), func(i, rw int) string {
 		n := e.nodes[i]

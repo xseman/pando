@@ -37,7 +37,7 @@ type palette struct {
 	ok, warn, errc, attention                                                                                  color.Color
 	blockedBg, doneBg                                                                                          color.Color // session_highlight: error and attention over the sidebar
 	blockedSoftBg, doneSoftBg                                                                                  color.Color // the other shade of their pulse
-	sliderBg, sliderActiveBg, rulerBorder                                                                      color.Color // VS Code's scrollbarSlider over the editor, and editorOverviewRuler.border
+	sliderBg, sliderHoverBg, sliderActiveBg, rulerBorder                                                       color.Color // VS Code's scrollbarSlider at rest, hovered and held over the editor, and editorOverviewRuler.border
 	tabBg, tabBorder                                                                                           color.Color // tab.inactiveBackground and tab.border, a shade stronger for a terminal
 	tabActiveBg                                                                                                color.Color // the active tab, a shade past the selection so it stands out of its strip
 	sashHover                                                                                                  color.Color // VS Code's sash.hoverBorder: a divider under a resting pointer, a shade off the accent it drags in
@@ -72,7 +72,7 @@ var (
 		ok: hex("#72c892"), warn: hex("#cca700"), errc: hex("#f48771"), attention: hex("#ad80d7"),
 		blockedBg: hex("#4f342e"), doneBg: hex("#3d3248"),
 		blockedSoftBg: hex("#35272a"), doneSoftBg: hex("#2b2733"),
-		sliderBg: hex("#606162"), sliderActiveBg: hex("#6e6f70"), rulerBorder: hex("#2a2b2c"),
+		sliderBg: hex("#606162"), sliderHoverBg: hex("#676869"), sliderActiveBg: hex("#6e6f70"), rulerBorder: hex("#2a2b2c"),
 		tabBg: hex("#232427"), tabBorder: hex("#3c3d40"), tabActiveBg: hex("#434446"),
 		sashHover: hex("#2c7092"), whitespace: hex("#3e3f40"), mdCode: hex("#ff7b72"), mdCodeBg: hex("#242526"),
 		lineNumber: hex("#6e7681"), lineNumberActive: hex("#cccccc"), descFg: hex("#9d9d9d"),
@@ -97,7 +97,7 @@ var (
 		ok: hex("#388a34"), warn: hex("#b69500"), errc: hex("#ad0707"), attention: hex("#652d90"),
 		blockedBg: hex("#edd4d4"), doneBg: hex("#e2d9e8"),
 		blockedSoftBg: hex("#f6e8e8"), doneSoftBg: hex("#efeaf3"),
-		sliderBg: hex("#8a8a8a"), sliderActiveBg: hex("#777777"), rulerBorder: hex("#f0f1f2"),
+		sliderBg: hex("#8a8a8a"), sliderHoverBg: hex("#818181"), sliderActiveBg: hex("#777777"), rulerBorder: hex("#f0f1f2"),
 		tabBg: hex("#ededf0"), tabBorder: hex("#d0d0d6"), tabActiveBg: hex("#c9c9ce"),
 		sashHover: hex("#5c9fe0"), whitespace: hex("#d0d0d4"), mdCode: hex("#c4314b"), mdCodeBg: hex("#ededf0"),
 		lineNumber: hex("#6e7681"), lineNumberActive: hex("#171184"), descFg: hex("#6f6f73"),
@@ -124,7 +124,7 @@ var (
 		ok: ansi16(2), warn: ansi16(3), errc: ansi16(1), attention: ansi16(5),
 		blockedBg: vscodeDark.blockedBg, doneBg: vscodeDark.doneBg,
 		blockedSoftBg: vscodeDark.blockedSoftBg, doneSoftBg: vscodeDark.doneSoftBg,
-		sliderBg: ansi16(8), sliderActiveBg: ansi16(7), rulerBorder: ansi16(8),
+		sliderBg: ansi16(8), sliderHoverBg: ansi16(7), sliderActiveBg: ansi16(7), rulerBorder: ansi16(8),
 		tabBg: ansi16(0), tabBorder: ansi16(8), tabActiveBg: ansi16(8),
 		sashHover: ansi16(12), whitespace: ansi16(8), mdCode: ansi16(9), mdCodeBg: ansi16(0),
 		lineNumber: ansi16(8),
@@ -173,7 +173,7 @@ func (p *palette) colorKeys() map[string]*color.Color {
 		"merge_common_head_bg": &p.mergeCommonHeadBg, "merge_common_bg": &p.mergeCommonBg,
 		"ok": &p.ok, "warn": &p.warn, "error": &p.errc, "attention": &p.attention,
 		"blocked_bg": &p.blockedBg, "done_bg": &p.doneBg, "blocked_soft_bg": &p.blockedSoftBg, "done_soft_bg": &p.doneSoftBg,
-		"scrollbar_slider": &p.sliderBg, "scrollbar_slider_active": &p.sliderActiveBg, "overview_ruler_border": &p.rulerBorder,
+		"scrollbar_slider": &p.sliderBg, "scrollbar_slider_hover": &p.sliderHoverBg, "scrollbar_slider_active": &p.sliderActiveBg, "overview_ruler_border": &p.rulerBorder,
 		"tab_bg": &p.tabBg, "tab_active_bg": &p.tabActiveBg, "tab_border": &p.tabBorder, "sash_hover": &p.sashHover, "whitespace": &p.whitespace,
 		"md_code": &p.mdCode, "md_code_bg": &p.mdCodeBg,
 		"line_number": &p.lineNumber, "line_number_active": &p.lineNumberActive, "description": &p.descFg,

@@ -177,6 +177,7 @@ type Model struct {
 	hasGH     bool // gh is installed: the GitHub view shows
 	mouseX    int  // last mouse position (content rows) for hover
 	mouseY    int
+	overBar   barPoint  // the scrollbar cell under the mouse: its slider hovers
 	sashAt    sash      // the divider under the mouse, noSash for none
 	sashSince time.Time // when the mouse came onto it
 	mouseAt   time.Time
@@ -2998,6 +2999,7 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 	}
 
 	m.mouseX, m.mouseY, m.mouseAt = mo.X, mo.Y, time.Now()
+	m.overBar = barPoint{} // the bar under it, if any, notes it again below
 
 	_, click := msg.(tea.MouseClickMsg)
 	if m.drag != nil {
@@ -3114,6 +3116,8 @@ func (m *Model) sessionMouse(msg tea.MouseMsg, x, y, w int) tea.Cmd {
 	}
 
 	if x == w-1 && y >= 0 { // the scrollbar
+		m.overBar = barPoint{"session", y}
+
 		if _, click := msg.(tea.MouseClickMsg); click && msg.Mouse().Button == tea.MouseLeft {
 			return m.barMouse(&m.term, "session", y, msg.Mouse().Y)
 		}
@@ -3305,12 +3309,16 @@ func (m *Model) sideMouse(s int, rc rect, msg tea.MouseMsg) tea.Cmd {
 		m.scm.input.Blur()
 	}
 
-	if b, ok := m.listBar(v, y); ok && click && x == rc.w-m.barW(s)-1 { // the wheel over it scrolls the list, below
-		if mo.Button != tea.MouseLeft {
-			return nil
-		}
+	if b, ok := m.listBar(v, y); ok && x == rc.w-m.barW(s)-1 { // the wheel over it scrolls the list, below
+		m.overBar = barPoint{b.id, b.row}
 
-		return m.barClick(b.id, b.row, mo.Y-b.row, b.geo, b.to)
+		switch {
+		case !click:
+		case mo.Button != tea.MouseLeft:
+			return nil
+		default:
+			return m.barClick(b.id, b.row, mo.Y-b.row, b.geo, b.to)
+		}
 	}
 
 	return m.viewMouse(v, msg, x, y)

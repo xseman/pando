@@ -142,17 +142,20 @@ click zone. The row width passed to a hit test excludes the scrollbar column.
 The editor, a session and the Terminal panel keep their last column for VS
 Code's editor scrollbar (`vbar` in `widgets.go`), whether or not anything
 scrolls: the text width stays put (`pvW`, a session's `Cols` one short of its
-view). The slider (`scrollbar_slider`, `scrollbar_slider_active` while held)
-shows once rows are out of view, over a track drawn as the overview ruler's
-border (`overview_ruler_border`); a terminal counts its scrollback as the rows
-above. An app on the alternate screen (vim, less, a claude with
+view). The slider (`scrollbar_slider`, `scrollbar_slider_hover` under the
+pointer, `scrollbar_slider_active` while held) shows once rows are out of
+view, over a track drawn as the overview ruler's border
+(`overview_ruler_border`); a terminal counts its scrollback as the rows
+above. Each bar's hit test notes the cell under the pointer (`overBar`) and
+the bar reads it as it draws (`barState`), so a slider scrolled from under a
+resting pointer rests again. An app on the alternate screen (vim, less, a claude with
 `"tui": "fullscreen"`) has no scrollback and scrolls itself: the daemon
 reports none (`Screen.AltScreen`), the bar stays empty, and the wheel and
 `pgup` `pgdn` go to the app, the wheel as mouse events when it asked for them,
 else as three arrows (xterm's alternate scroll). A click on the slider grabs it, one on the track jumps it there first,
 and the drag (`dragScroll`) follows the mouse. Sidebar lists keep their thin
 `┃`, drawn from the same geometry and handled the same way (`listBar`): the
-slider drags, lit while held, a click on the track jumps it, the wheel over it
+slider shades under the pointer, drags, lit while held, a click on the track jumps it, the wheel over it
 scrolls the list, and the pointer over it lights no row. Source Control has
 one per pane, beside the changes below their pinned rows and in each drawer.
 
