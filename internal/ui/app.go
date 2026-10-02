@@ -377,9 +377,9 @@ func New(st proto.State, wss []proto.Workspace, ss []proto.Session, ws string, e
 	m.gh.init()
 	m.switchWorkspace(ws) // attaches the Terminal panel too; Init starts a shell when it found none
 
-	m.ag.collapsed = map[string]bool{} // after the switch: its reveal must not unfold what was left folded
-	for _, k := range st.Folded {
-		m.ag.collapsed[k] = true
+	m.ag.collapsed, m.ag.folded = map[string]bool{}, nil // after the switch: its reveal must not unfold what was left folded
+	for _, k := range slices.Backward(st.Folded) {
+		m.ag.fold(k, true)
 	}
 
 	m.ag.l.sel = slices.IndexFunc(m.ag.rows(m), func(r agRow) bool { return r.kind == agWorkspace && r.ws.Path == ws })

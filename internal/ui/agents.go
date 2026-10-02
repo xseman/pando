@@ -40,6 +40,7 @@ type agRow struct {
 type agents struct {
 	l         list
 	collapsed map[string]bool
+	folded    []string // the collapsed keys in the order the folded list shows them, the one folded last first
 }
 
 type newSessionMsg proto.Session
@@ -95,14 +96,18 @@ func (a *agents) rows(m *Model) []agRow {
 }
 
 // treeRows are Group by Workspace's rows: project, worktree, session. A
-// folded project sinks below the open ones and keeps its place among the
-// folded (shownProjects), so the spaces in use stay together at the top.
+// folded project sinks below the open ones, to the top of the folded
+// (shownProjects), so the spaces in use stay together at the top; unfolded it
+// takes its place among the open again.
 func (a *agents) treeRows(m *Model, sessions []proto.Session, q string) []agRow {
-	var open, folded []agRow
+	var (
+		open   []agRow
+		folded [][]agRow
+	)
 
 	add := func(p string, rows []agRow) {
 		if a.collapsed[p] {
-			folded = append(folded, rows...)
+			folded = append(folded, rows)
 		} else {
 			open = append(open, rows...)
 		}
@@ -152,15 +157,43 @@ func (a *agents) treeRows(m *Model, sessions []proto.Session, q string) []agRow 
 
 	add("", other)
 
-	return append(open, folded...)
+	slices.SortStableFunc(folded, func(x, y []agRow) int { return cmp.Compare(a.foldRank(x[0].project), a.foldRank(y[0].project)) })
+
+	return append(open, slices.Concat(folded...)...)
 }
 
 // shownProjects are the projects in the order Spaces lists them: the open
-// ones, then the folded ones, each in their saved order.
+// ones in their saved order, then the folded ones, the one folded last first.
 func (a *agents) shownProjects(m *Model) []string {
 	open := slices.DeleteFunc(slices.Clone(m.st.Projects), func(p string) bool { return a.collapsed[p] })
+	folded := slices.DeleteFunc(slices.Clone(m.st.Projects), func(p string) bool { return !a.collapsed[p] })
+	slices.SortStableFunc(folded, func(x, y string) int { return cmp.Compare(a.foldRank(x), a.foldRank(y)) })
 
-	return append(open, slices.DeleteFunc(slices.Clone(m.st.Projects), func(p string) bool { return !a.collapsed[p] })...)
+	return append(open, folded...)
+}
+
+// foldRank is folded heading k's place in the folded list; one the list
+// misses goes after the rest, in its saved order.
+func (a *agents) foldRank(k string) int {
+	if i := slices.Index(a.folded, k); i >= 0 {
+		return i
+	}
+
+	return len(a.folded)
+}
+
+// fold shuts heading k, on top of the folded, or opens it.
+func (a *agents) fold(k string, shut bool) {
+	if a.collapsed == nil {
+		a.collapsed = map[string]bool{}
+	}
+
+	a.collapsed[k] = shut
+
+	a.folded = slices.DeleteFunc(a.folded, func(x string) bool { return x == k })
+	if shut {
+		a.folded = slices.Insert(a.folded, 0, k)
+	}
 }
 
 // withGaps puts a blank row before a project, herdr's gap between two spaces,
@@ -323,14 +356,16 @@ func foldKey(r agRow) string {
 
 // collapseAll folds every heading the grouping shows: projects, or times.
 func (a *agents) collapseAll(m *Model) tea.Cmd {
-	if a.collapsed == nil {
-		a.collapsed = map[string]bool{}
-	}
+	var shut []string // the open ones, over the folded in the order they were listed
 
 	for _, r := range a.rows(m) {
-		if r.kind == agProject || r.kind == agTime {
-			a.collapsed[foldKey(r)] = true
+		if (r.kind == agProject || r.kind == agTime) && !a.collapsed[foldKey(r)] {
+			shut = append(shut, foldKey(r))
 		}
+	}
+
+	for _, k := range slices.Backward(shut) {
+		a.fold(k, true)
 	}
 
 	return a.saveFolds()
@@ -339,15 +374,7 @@ func (a *agents) collapseAll(m *Model) tea.Cmd {
 // saveFolds sends the folded headings to state.json, so a restart keeps
 // them shut.
 func (a *agents) saveFolds() tea.Cmd {
-	folded := []string{} // not nil: null would keep the list saved before
-
-	for k, v := range a.collapsed {
-		if v {
-			folded = append(folded, k)
-		}
-	}
-
-	slices.Sort(folded)
+	folded := append([]string{}, a.folded...) // not nil: null would keep the list saved before
 
 	return do("state.set", map[string]any{"spaces_folded": folded})
 }
@@ -645,7 +672,7 @@ func (a *agents) reveal(m *Model, path string) tea.Cmd {
 	var saved tea.Cmd
 
 	if w := m.workspace(path); w != nil && a.collapsed[w.Project] {
-		a.collapsed[w.Project] = false
+		a.fold(w.Project, false)
 		saved = a.saveFolds()
 	}
 
@@ -771,13 +798,9 @@ func (a *agents) activate(m *Model, r *agRow) tea.Cmd {
 		return nil
 	}
 
-	if a.collapsed == nil {
-		a.collapsed = map[string]bool{}
-	}
-
 	switch r.kind {
 	case agProject, agTime:
-		a.collapsed[foldKey(*r)] = !a.collapsed[foldKey(*r)]
+		a.fold(foldKey(*r), !a.collapsed[foldKey(*r)])
 		a.follow(m, r) // a folded project sinks below the open ones
 		a.l.snap(m.bodyH(viewAgents))
 
@@ -1273,6 +1296,10 @@ func (a *agents) dragRowTo(m *Model, d *drag, y int, release bool) tea.Cmd {
 		return do("session.move", proto.SessionMoveParams{ID: d.sess, To: d.to})
 	}
 
+	if a.collapsed[d.proj] { // the folded keep an order of their own, saved with them
+		return a.saveFolds()
+	}
+
 	to := slices.Index(m.st.Projects, d.proj)
 	if to < 0 || to == d.from {
 		return nil
@@ -1293,6 +1320,10 @@ func (a *agents) shiftProject(m *Model, path string, d int) tea.Cmd {
 	}
 
 	a.moveProject(m, path, order[j])
+
+	if a.collapsed[path] {
+		return a.saveFolds()
+	}
 
 	return do("project.move", proto.MoveParams{Path: path, To: slices.Index(m.st.Projects, path)})
 }
@@ -1318,13 +1349,18 @@ func (a *agents) projectAt(m *Model, y int) string {
 // It reorders the model's own copy so the tree follows the pointer; the
 // daemon is told once, on release.
 func (a *agents) moveProject(m *Model, from, to string) {
-	i, j := slices.Index(m.st.Projects, from), slices.Index(m.st.Projects, to)
+	order := &m.st.Projects
+	if a.collapsed[from] { // among the folded: their own order
+		order = &a.folded
+	}
+
+	i, j := slices.Index(*order, from), slices.Index(*order, to)
 	if i < 0 || j < 0 || i == j {
 		return
 	}
 
-	rest := slices.Delete(slices.Clone(m.st.Projects), i, i+1)
-	m.st.Projects = slices.Insert(rest, j, from)
+	rest := slices.Delete(slices.Clone(*order), i, i+1)
+	*order = slices.Insert(rest, j, from)
 
 	rows := a.rows(m)
 	if k := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agProject && r.project == from }); k >= 0 {

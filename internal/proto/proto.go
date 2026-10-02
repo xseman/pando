@@ -160,7 +160,8 @@ type State struct {
 	// outside a repository opens it again.
 	LastWorkspace string `json:"last_workspace,omitempty"`
 	// Folded is the Spaces headings folded: project paths, and "time:" plus
-	// a time heading, so a restart keeps them shut.
+	// a time heading, so a restart keeps them shut. Its order is the folded
+	// projects', the one folded last first.
 	Folded []string `json:"spaces_folded,omitempty"`
 }
 

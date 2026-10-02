@@ -151,20 +151,22 @@ _New Worktree…_ (`w`) asks for a branch prefilled with a random name,
 `worktree/rapid-meadow-a12e` as herdr makes them; ⏎ takes it, and an emptied
 prompt still gets one from `workspace.new`.
 
-A folded project sinks below the open ones, the selection with it, and keeps
-its place among the folded (`shownProjects`); unfolded, it goes back to its
-saved one. Folding is a view: `state.json` keeps the order. Blank rows before
-the first folded one pin the folded to the panel's bottom edge, as VS Code
-stacks collapsed views (`pinFolded`); a tree taller than the panel has none
-and scrolls as it is. They are gaps like the one between two spaces, and a
-walk over them that meets the end of the list turns back.
+A folded project sinks below the open ones, the selection with it, to the top
+of the folded: they list the one folded last first (`agents.folded`, saved in
+that order as `spaces_folded`). Unfolded, it goes back to its place among the
+open, which folding never touches: `state.json` keeps the project order.
+Blank rows before the first folded one pin the folded to the panel's bottom
+edge, as VS Code stacks collapsed views (`pinFolded`); a tree taller than the
+panel has none and scrolls as it is. They are gaps like the one between two
+spaces, and a walk over them that meets the end of the list turns back.
 
 Dragging a project row moves it up and down the list: the tree reorders under
 the pointer and the release sends `project.move`, so the order is saved with
 the projects. `alt+↑↓` and the menu's _Move Project Up / Down_ do the same
 without the mouse, and a press that never leaves its row is still the click
 that folds the project. Neither moves an open project among the folded, or a
-folded one among the open.
+folded one among the open; among the folded they reorder the folded list,
+saved with the folds rather than as `project.move`.
 
 A session row drags the same way among its worktree's sessions and sends
 `session.move`, which takes its tabs along; `alt+↑↓` and _Move Session Up /
