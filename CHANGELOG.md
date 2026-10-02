@@ -1,5 +1,55 @@
 # Changelog
 
+## [0.4.0](https://github.com/xseman/pando/compare/v0.3.0...v0.4.0) (2026-10-02)
+
+
+### Features
+
+* **daemon:** a shell command under an agent reads running ([d5844e5](https://github.com/xseman/pando/commit/d5844e5d2ae0a41603f72f2b21a8f3326b947e21))
+* **daemon:** session.move reorders a session's tabs ([15d5f21](https://github.com/xseman/pando/commit/15d5f215c71f1d0101ee439addc4bae30915f699))
+* **scm:** Untracked Changes discards, deleting the files after asking ([f1a9103](https://github.com/xseman/pando/commit/f1a9103fc7f784d111fd9c80ddbd2384f56af2b7))
+* **ui:** a faint border parts the activity bar from the view ([04ccf0f](https://github.com/xseman/pando/commit/04ccf0f8409af48f4c12c9cf04e4d3103796a520))
+* **ui:** a folded project tops the folded list and unfolds to its place ([1a3c67d](https://github.com/xseman/pando/commit/1a3c67d451c3ec669f3fe8dafd194c6b14cde15c))
+* **ui:** a GitHub view where gh is installed ([e73cc6c](https://github.com/xseman/pando/commit/e73cc6c04c2ffc01282dcf79638cd6cc8a987998))
+* **ui:** a narrow screen gives the session the editor area and keeps Spaces ([e9c6fe3](https://github.com/xseman/pando/commit/e9c6fe3d9ec7779c596b22645f793993edb5577b))
+* **ui:** a pane header that resizes lights as a sash ([ea920b5](https://github.com/xseman/pando/commit/ea920b5df8dabf078d846a96e094231f6a1872f5))
+* **ui:** a scrollbar's slider shades under the pointer ([27d17de](https://github.com/xseman/pando/commit/27d17de86d5045815aac6b64cfce9b04f28b2172))
+* **ui:** drag a tab along its strip, dropped where a mark shows ([26f515c](https://github.com/xseman/pando/commit/26f515c601eaf93e7271750094e5ed40f3c63cda))
+* **ui:** folded projects sit on the Spaces panel's bottom edge ([c42ba1d](https://github.com/xseman/pando/commit/c42ba1d1d498234555455038f45551efd17488da))
+* **ui:** folded Spaces projects stay folded across restarts ([988afee](https://github.com/xseman/pando/commit/988afeedee0d04fa5fac9a96b0a9c3c0b3650dda))
+* **ui:** Move Tab Left / Right, for editors, session tabs and shells ([8bf7d52](https://github.com/xseman/pando/commit/8bf7d52e35ac79fb26950bf5a02575cabf515e3f))
+* **ui:** questions ask with a row of buttons, as VS Code's dialog ([9a940f4](https://github.com/xseman/pando/commit/9a940f4261371e650f9599d90ea568925ac90dd4))
+* **ui:** Sort Lines Ascending sorts the selected lines, or the file ([ae2fa3c](https://github.com/xseman/pando/commit/ae2fa3c24e9d514e24621b838b3949d466a2e6a0))
+* **ui:** the active tab stands out of its strip ([8bf2ce6](https://github.com/xseman/pando/commit/8bf2ce658fc9ebe72d299ac9828bacae954badc1))
+* **ui:** the branch picker groups its matches, the best one first ([232a8fc](https://github.com/xseman/pando/commit/232a8fc4da84783e518ebcd595542daa24b196aa))
+* **ui:** the open view's icon hides its sidebar, leaving the activity bar ([baaff89](https://github.com/xseman/pando/commit/baaff89fcfeb4b1e2ed5dbad6a8640ea4ca9fb04))
+
+
+### Bug Fixes
+
+* **daemon:** a background shell under an attached claude job reads running ([e3ff97e](https://github.com/xseman/pando/commit/e3ff97ea3e1233c48d560707da6101986a5967a0))
+* **daemon:** a claude permission prompt in a narrow column reads blocked ([37dd157](https://github.com/xseman/pando/commit/37dd1577667fc8b7aa4287ab9502bee54d907b05))
+* **daemon:** a claude session with a live subagent reads running ([18a08d1](https://github.com/xseman/pando/commit/18a08d1e47afff89a0b581b17709bd099bb2ac7f))
+* **daemon:** a worktree a gone claude locked can be deleted ([0a8d1f3](https://github.com/xseman/pando/commit/0a8d1f3eeae0e7a4a4bd1eceb6d4d1ca1f904cf3))
+* **daemon:** an agent run as its session resumes in place of a fresh one ([3358680](https://github.com/xseman/pando/commit/3358680a827199645c5b5f7de0958a0049902196))
+* **daemon:** session input reaches the app in the order it was sent ([8e93c3b](https://github.com/xseman/pando/commit/8e93c3ba67e9dc9cc60fb23c4e3bcb4ce4cbd1d9))
+* **ui:** a second click on a session in Spaces leaves no row selected ([eaa9a22](https://github.com/xseman/pando/commit/eaa9a2210ff22af18f33a650a9309b076b8351ba))
+* **ui:** ctrl+v pastes into a find box and every other text box ([c64ecfe](https://github.com/xseman/pando/commit/c64ecfe22415f27a7287ff83e6aebe0ed0525346))
+* **ui:** pgup and pgdn page a terminal's scrollback ([00c59df](https://github.com/xseman/pando/commit/00c59dfafbee725aea4ca565375e73762f35c850))
+* **ui:** pgup and pgdn page the Spaces and Search lists ([35528b2](https://github.com/xseman/pando/commit/35528b28e93c25f693b5ca1eae5a5e58ed74a6e8))
+* **ui:** the help lists alt+, alt+. for back and forward ([bd3b678](https://github.com/xseman/pando/commit/bd3b6786788967858d7377aa442459186847e8ca))
+* **ui:** the Spaces selection stays on its session when the list re-sorts ([7b49a3f](https://github.com/xseman/pando/commit/7b49a3fb1ba68c08e180ead82e5f6ef7e3cd1443))
+
+
+### Documentation
+
+* a shorter README and a user guide, every doc terse with diagrams ([c3b0cd0](https://github.com/xseman/pando/commit/c3b0cd07a5dd5a2272183c0c0711b390efdf7964))
+* **demo:** re-record the GIFs with every panel on the left ([73a8f10](https://github.com/xseman/pando/commit/73a8f10099231ec6a0f12d7a9f18f2f7e3daf58a))
+* **demo:** record the GIFs light in a blue gradient, with a README still ([09bfdae](https://github.com/xseman/pando/commit/09bfdae4229ff8caea14cc6602b3ea19e6efde45))
+* re-cut the demo GIFs around what pando is for ([dd87f64](https://github.com/xseman/pando/commit/dd87f64d6a216f1980af3865dc24816fd23d2615))
+* **skill:** pass a message to another session, after proving the target ([71b8402](https://github.com/xseman/pando/commit/71b84020cc089e309ada672195571d800d18037a))
+* trim the README, fix what went stale in docs/ ([e6fbfc8](https://github.com/xseman/pando/commit/e6fbfc8bcd9739526de2123c05ccf6e43f44011c))
+
 ## [0.3.0](https://github.com/xseman/pando/compare/v0.2.0...v0.3.0) (2026-09-27)
 
 
