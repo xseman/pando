@@ -18,9 +18,13 @@ Type `cfg 30 resume` Enter
 Type "pando project add . >/dev/null && pando session new --ws . --name barista --wait >/dev/null" Enter
 Type `pando session send barista "$claude_cmd" --wait >/dev/null` Enter
 Type `pando session send barista 'Remember the word cortado. Answer in one short line.' --wait >/dev/null` Enter
+# The sends above return only once claude has answered, so the shell is busy
+# for a while: wait for pando and the conversation in it, or the GIF would
+# open on the hidden setup.
 Type "clear; pando" Enter
-Sleep 2s
+Wait+Screen@120s /PANDO-DEMO/
 Type "3"
+Wait+Screen@30s /cortado/
 Sleep 500ms
 Show
 
@@ -37,15 +41,16 @@ Type "pando stop" Enter
 Sleep 1200ms
 
 # The next pando starts a daemon, which brings the session back: its shell,
-# and claude resumed on the same conversation.
+# and claude resumed on the same conversation. 3 shows Spaces at once, beside
+# the shell typing the resume command.
 Type "pando" Enter
-Wait+Screen@60s /cortado/
+Wait+Screen@30s /PANDO-DEMO/
 Type "3"
+Wait+Screen@60s /cortado/
 Sleep 2500ms
 
-# Still the same conversation: ask it. (The wait for the answer is cut.)
-Ctrl+]
-Sleep 200ms
+# Still the same conversation: ask it, ctrl+] focusing it from Spaces. (The
+# wait for the answer is cut.)
 Ctrl+]
 Sleep 300ms
 Type "Which word?"

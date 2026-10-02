@@ -27,7 +27,7 @@ Sleep 800ms
 Type "o"
 Sleep 1500ms
 
-# Fold the sidebar to a rail, then the same diff side by side.
+# b hides the sidebar to its icons, then the same diff side by side.
 Type "b"
 Sleep 400ms
 Type "s"

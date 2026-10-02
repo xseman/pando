@@ -32,7 +32,7 @@ Sleep 1800ms
 Ctrl+n
 Sleep 2500ms
 
-# Side by side wants a wide main area: fold the sidebar to a rail, then both
+# Side by side wants a wide main area: hide the sidebar to its icons, then both
 # halves, scrolling together. A page at a time: every line scrolled repaints
 # the whole screen, a 120 KB GIF frame each.
 Ctrl+]

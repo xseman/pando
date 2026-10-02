@@ -44,7 +44,7 @@ Wait+Screen@90s /✓/
 Show
 Sleep 2s
 
-# ⏎ on the finished one opens it beside the editor: what it did.
+# ⏎ on the finished one opens it in the editor area: what it did.
 Type "g"
 Down 3
 Sleep 400ms
@@ -52,7 +52,7 @@ Enter
 Sleep 2500ms
 
 # ctrl+] goes back to the tree; Source Control (2) follows the session to its
-# worktree, and o opens the change it made.
+# worktree, and o opens the change it made in front of the session.
 Ctrl+]
 Sleep 300ms
 Type "2"

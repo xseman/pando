@@ -45,8 +45,11 @@ cfg() {
 	mkdir -p "$PANDO_CONFIG_DIR"
 	printf '{"theme": "%s", "tui": "default"}\n' "$mode" > "$PANDO_CONFIG_DIR/claude.json"
 	# Top-level keys first: after a [table] header they would belong to it.
+	# Every panel on the left, the session over the editor area: at the 98
+	# columns a GIF records in, a session docked beside the editor leaves
+	# both too narrow to read, and a file opened shows in front of it.
 	{
-		printf 'icons = "nerd"\npanel_borders = false\ncolor_theme = "vscode-%s"\nwidth = %s\n%s' "$mode" "$width" "$top"
+		printf 'icons = "nerd"\npanel_borders = false\ncolor_theme = "vscode-%s"\nwidth = %s\nsession_position = "editor"\n%s' "$mode" "$width" "$top"
 		[ -n "$agents" ] && printf '[agents]\n%s' "$agents"
 		[ -n "$rid" ] && printf '[resume_id]\n%s' "$rid"
 		[ -n "$keys" ] && printf '[keys]\n%s' "$keys"

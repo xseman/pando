@@ -133,6 +133,11 @@ hidden except in `cli.tape`, and cuts the turn it waits for with
 `github.tape` puts `gh/gh`, a fake answering from the files beside it, on the
 PATH. What bites:
 
+- A GIF is 98×27 cells (`settings.tape`), so `cfg` keeps every panel on the
+  left and the session over the editor area (`session_position = "editor"`):
+  docked beside the editor, a session and a file are both too narrow to
+  read. A file opened shows in front of the session, its Spaces row brings
+  the session back.
 - VHS cannot send `F12`, `ctrl+.`, `ctrl+s`, `ctrl+space` or `alt+shift`
   chords: a tape binds those commands to `ctrl` letters in its own
   `config.toml` (`cfg 26 ctrl+k=editor.saveFile`).

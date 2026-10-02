@@ -4,9 +4,9 @@ Set Shell bash
 Set FontFamily "JetBrainsMono Nerd Font Mono"
 Set FontSize 20
 # vhs subtracts padding and margin from these, so they carry both: the terminal
-# itself stays 1160x720, the size the tapes count columns against (markdown's
-# side by side wants a 90 column main area).
-Set Width 1240
+# itself stays 1200x720, 98 columns, the size the tapes count columns against
+# (side by side wants a 90 column main area, beside a hidden sidebar's icons).
+Set Width 1280
 Set Height 800
 Set Padding 20
 Set Margin 20
