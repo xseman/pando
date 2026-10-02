@@ -3012,6 +3012,10 @@ func (p *preview) keyItems(_ *Model) []item {
 			item{label: "Delete Line", hint: "^⇧k", run: chord('k', tea.ModCtrl|tea.ModShift)},
 			item{label: "Move Line Up", hint: "M-↑", run: chord(tea.KeyUp, tea.ModAlt)},
 			item{label: "Move Line Down", hint: "M-↓", run: chord(tea.KeyDown, tea.ModAlt)},
+			item{label: "Sort Lines Ascending", run: func(m *Model) tea.Cmd {
+				m.focus = onMain
+				return m.pv.sortLines(m)
+			}},
 			item{label: "Trigger Suggest", hint: "^space", run: func(m *Model) tea.Cmd {
 				m.focus = onMain
 				return m.pv.suggest(m, "", true)

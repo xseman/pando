@@ -696,3 +696,35 @@ func TestStatusBarEditorItems(t *testing.T) {
 		t.Fatalf("a rendering has no cursor: %q", s)
 	}
 }
+
+// TestSortLines sorts the lines a selection touches, or the whole file
+// without one, as VS Code's Sort Lines Ascending does.
+func TestSortLines(t *testing.T) {
+	m, _ := editorModel(t, "a.txt", "d\nc\nb\na\n")
+	m.focus = 0
+
+	m.pv.anchor, m.pv.cur = &pos{1, 0}, pos{3, 0} // c and b: the line it ends on at column 0 stays out
+	runCommand(t, m, "editor.sortLinesAscending")
+
+	if got := m.pv.text(); got != "d\nb\nc\na\n" || m.focus != onMain {
+		t.Fatalf("selection sorted: %q, focus %d", got, m.focus)
+	}
+
+	if a, z, ok := m.pv.selection(); !ok || a != (pos{1, 0}) || z != (pos{3, 0}) {
+		t.Fatalf("the selection stays on the sorted lines: %v %v", a, z)
+	}
+
+	m.pv.anchor = nil
+	runCommand(t, m, "editor.sortLinesAscending")
+
+	if got := m.pv.text(); got != "a\nb\nc\nd\n" {
+		t.Fatalf("whole file sorted: %q", got)
+	}
+
+	m, _ = editorModel(t, "b.txt", "a\nb\n")
+	runCommand(t, m, "editor.sortLinesAscending")
+
+	if m.pv.dirty() {
+		t.Fatal("sorted lines are left as they are, the file unchanged")
+	}
+}

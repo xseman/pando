@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -549,6 +550,37 @@ func (p *preview) copyLines(m *Model, d int) tea.Cmd {
 		}
 	}
 
+	p.anchor = anchor
+	p.setCursor(m, cur)
+
+	return cmd
+}
+
+// sortLines sorts every line the selection touches, or the whole file without
+// one: VS Code's Sort Lines Ascending. The selection stays on the sorted lines.
+func (p *preview) sortLines(m *Model) tea.Cmd {
+	a, z, ok := p.selection()
+	if !ok {
+		a, z = pos{}, pos{p.lastLine(), p.lineLen(p.lastLine())}
+	}
+
+	if z.col == 0 && z.line > a.line { // as changedLines: a selection ending at column 0 leaves that line out
+		z.line--
+	}
+
+	out := make([]string, 0, z.line-a.line+1)
+	for i := a.line; i <= z.line; i++ {
+		out = append(out, string(p.buf.line(i)))
+	}
+
+	if slices.IsSorted(out) { // nothing to change, nothing to mark unsaved
+		return nil
+	}
+
+	slices.Sort(out)
+
+	anchor, cur := p.anchor, p.cur // edit clears the anchor
+	cmd := p.edit(m, pos{a.line, 0}, pos{z.line, p.lineLen(z.line)}, strings.Join(out, "\n"))
 	p.anchor = anchor
 	p.setCursor(m, cur)
 
