@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"cmp"
 	"fmt"
 	"io"
 	"maps"
@@ -52,9 +53,10 @@ type session struct {
 	// attached is set while the foreground attaches to a background job
 	// (claude attach), which sets no title of its own: the shell's, the
 	// command line, would stand in for it. jobName, the job's own name,
-	// is reported instead.
+	// is reported instead; jobPID is the job's process, where its tools run.
 	attached      bool
 	jobName       string
+	jobPID        int
 	cursorVisible bool
 	mouse         map[int]bool
 	status        string
@@ -451,9 +453,10 @@ func (s *session) shownTitle() string {
 }
 
 // setCommands records the shell commands running under the foreground
-// program. One seen on two ticks in a row keeps the session running whatever
-// its screen says: claude sits at its idle prompt while a background shell
-// works. A status line or hook command is gone by the next tick.
+// program, or under the job it attaches to (worker). One seen on two ticks in
+// a row keeps the session running whatever its screen says: claude sits at
+// its idle prompt while a background shell works. A status line or hook
+// command is gone by the next tick.
 func (s *session) setCommands(pids []int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -462,13 +465,23 @@ func (s *session) setCommands(pids []int) {
 	s.commands = pids
 }
 
-// setJob records whether the foreground attaches to a background job, and
-// the job's name.
-func (s *session) setJob(attached bool, name string) {
+// setJob records whether the foreground attaches to a background job, the
+// job's name and its process, 0 when unknown.
+func (s *session) setJob(attached bool, name string, pid int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.attached, s.jobName = attached, strings.TrimSpace(name)
+	s.attached, s.jobName, s.jobPID = attached, strings.TrimSpace(name), pid
+}
+
+// worker is the process whose shell commands are the session's work: the
+// background job's while foreground fg only attaches to it, else fg. A
+// `claude attach` runs no tools of its own; the job's process does.
+func (s *session) worker(fg int) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return cmp.Or(s.jobPID, fg) // set by an attach alone
 }
 
 // setProgram records what runs in the foreground; it reports a change clients

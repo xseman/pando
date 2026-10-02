@@ -1487,6 +1487,11 @@ func TestResumeBackgroundJob(t *testing.T) {
 		if title := sess.info().Title; title != wantTitle {
 			t.Fatalf("title %q, want %q", title, wantTitle)
 		}
+		// Its tools run in the job's process, not the attach client: the
+		// shells under that one keep the session working.
+		if w := sess.worker(0); w != bg.Process.Pid {
+			t.Fatalf("worker %d, want the job's process %d", w, bg.Process.Pid)
+		}
 	}
 
 	d.mu.Lock()

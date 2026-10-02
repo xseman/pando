@@ -192,12 +192,12 @@ func (d *Daemon) remember(s *session, pid int, prog string) bool {
 	own := pid == s.cmd.Process.Pid                         // no shell under it: a restart runs its resume instead
 
 	if src, t := conversations[prog], d.state.ResumeID[prog]; src != nil && len(t) > 0 && pid > 0 {
-		id, job, name := src.open(pid)
+		id, job, name, worker := src.open(pid)
 		if job != "" && (name == "" || name == job || strings.HasPrefix(id, name)) { // a job without a name goes by its id
 			name = src.title(proto.Conversation{Agent: prog, ID: id, Env: env})
 		}
 
-		s.setJob(job != "", name) // an attach sets no title: the job's name stands in
+		s.setJob(job != "", name, worker) // an attach sets no title: the job's name stands in
 
 		if id != "" {
 			c := &proto.Conversation{Agent: prog, ID: id, Job: job, Env: env}
@@ -211,7 +211,7 @@ func (d *Daemon) remember(s *session, pid int, prog string) bool {
 		}
 	}
 
-	s.setJob(false, "")
+	s.setJob(false, "", 0)
 
 	return s.setResume(withEnv(env, d.state.Resume[prog]), nil, own)
 }
@@ -322,7 +322,7 @@ func (d *Daemon) Serve(ln net.Listener) error {
 				}
 
 				pid, prog := s.foreground()
-				s.setCommands(commandsUnder(pid))
+				s.setCommands(commandsUnder(s.worker(pid)))
 				changed = s.tick(now) || changed
 				changed = s.setProgram(prog) || changed
 				dirty = d.remember(s, pid, prog) || dirty

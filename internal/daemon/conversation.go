@@ -22,8 +22,9 @@ import (
 type conversationSource interface {
 	// open is the conversation process pid has open, "" when it does not
 	// say; job is the background job it runs in when pid only attaches to
-	// it, and name the conversation's name, as the agent shows it.
-	open(pid int) (id, job, name string)
+	// it, worker that job's own process, and name the conversation's name,
+	// as the agent shows it.
+	open(pid int) (id, job, name string, worker int)
 	// holder is a live process that has conversation c open, 0 when none;
 	// job is set when that process is a background job, which outlives pando
 	// and is attached to again rather than resumed.
@@ -129,21 +130,21 @@ const (
 // open reads the conversation of a claude in the terminal from its own
 // sessions/<pid>.json. `claude attach JOB` writes none: its conversation is
 // the background session whose job id JOB begins.
-func (claudeSource) open(pid int) (id, job, name string) {
+func (claudeSource) open(pid int) (id, job, name string, worker int) {
 	dir := envOf(pid, "CLAUDE_CONFIG_DIR")
 	if dir == "" {
 		dir = claudeDir()
 	}
 
 	if p, ok := readClaude(filepath.Join(dir, "sessions", strconv.Itoa(pid)+".json")); ok && p.PID == pid {
-		return p.SessionID, p.bgJob(), p.Name
+		return p.SessionID, p.bgJob(), p.Name, 0
 	}
 
 	argv := cmdline(pid)
 
 	i := slices.Index(argv, "attach")
 	if i < 1 || i+1 >= len(argv) || argv[i+1] == "" {
-		return "", "", ""
+		return "", "", "", 0
 	}
 
 	var found []claudeProcess
@@ -155,10 +156,10 @@ func (claudeSource) open(pid int) (id, job, name string) {
 	}
 
 	if len(found) != 1 { // none, or a prefix too short to say which
-		return "", "", ""
+		return "", "", "", 0
 	}
 
-	return found[0].SessionID, found[0].JobID, found[0].Name
+	return found[0].SessionID, found[0].JobID, found[0].Name, found[0].PID
 }
 
 // holder prefers a background job to any other process with c open: the
