@@ -472,18 +472,32 @@ func TestTwoSidebarsAndDrag(t *testing.T) {
 	}
 
 	m.Update(tea.MouseClickMsg{X: l.w, Y: 5, Button: tea.MouseLeft})
-	m.Update(tea.MouseMotionMsg{X: 40, Y: 5, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: 24, Y: 5, Button: tea.MouseLeft})
 
 	if m.drag == nil || !strings.Contains(m.View().Content, "┃") {
 		t.Fatal("dragging highlights the divider")
 	}
 
 	checkWidths(t, m)
-	m.Update(tea.MouseReleaseMsg{X: 40, Y: 5, Button: tea.MouseLeft})
+	m.Update(tea.MouseReleaseMsg{X: 24, Y: 5, Button: tea.MouseLeft})
 
-	if l = m.colRect(0); m.drag != nil || m.st.Settings.Left[0].Width != 40 || l.w != 40 {
+	if l = m.colRect(0); m.drag != nil || m.st.Settings.Left[0].Width != 24 || l.w != 24 {
 		t.Fatalf("left width = %d (setting %v)", l.w, m.st.Settings.Left)
 	}
+
+	// Past the editor's minEditor cells it stops, and keeps the width it shows.
+	m.Update(tea.MouseClickMsg{X: l.w, Y: 5, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: 60, Y: 5, Button: tea.MouseLeft})
+	m.Update(tea.MouseReleaseMsg{X: 60, Y: 5, Button: tea.MouseLeft})
+
+	_, c = m.layout()
+	if l = m.colRect(0); c.w != minEditor || m.st.Settings.Left[0].Width != l.w {
+		t.Fatalf("dragged past the editor: left %d (setting %v), editor %d", l.w, m.st.Settings.Left, c.w)
+	}
+
+	m.Update(tea.MouseClickMsg{X: l.w, Y: 5, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: 24, Y: 5, Button: tea.MouseLeft})
+	m.Update(tea.MouseReleaseMsg{X: 24, Y: 5, Button: tea.MouseLeft})
 
 	r = m.colRect(1)
 	m.Update(tea.MouseClickMsg{X: r.x - 1, Y: 5, Button: tea.MouseLeft})
@@ -510,6 +524,85 @@ func TestTwoSidebarsAndDrag(t *testing.T) {
 
 	if len(m.cols()) != 1 || m.colOf(viewAgents) != 0 {
 		t.Fatalf("move back: cols=%+v", m.cols())
+	}
+
+	checkWidths(t, m)
+}
+
+// A screen too narrow for everything: the editor gives the docked session its
+// area, the side without Spaces folds into its rail, Spaces narrows last and
+// never goes; a wider screen brings it all back, nothing saved on the way.
+func TestNarrowScreen(t *testing.T) {
+	m := testModelSized(t, 280, 30)
+	m.st.Settings.Left = proto.Columns{{Views: []string{"files", "git", "search", "github"}, Width: 42}}
+	m.st.Settings.Right = proto.Columns{{Views: []string{"session"}, Width: 55}, {Views: []string{"agents"}, Width: 63}}
+	m.st.Settings.SessPos = "right"
+	m.switchSession("s1")
+	fire(m, m.openFile(filepath.Join(m.ws, "README.md")))
+	fire(m, m.pv.load(m))
+
+	spaces := func() int { return m.colRect(m.colOf(viewAgents)).w }
+	saved := fmt.Sprint(m.st.Settings.Left, m.st.Settings.Right, m.st.Settings.SessPos, m.st.SessionViews)
+
+	if !m.sessDocked() || !m.showsPreview() || spaces() != 63 {
+		t.Fatalf("280 wide, all of it: docked %v, file %v, Spaces %d", m.sessDocked(), m.showsPreview(), spaces())
+	}
+
+	m.focus = m.colOf(viewSession) // typing into it
+	m.Update(tea.WindowSizeMsg{Width: 200, Height: 30})
+
+	if m.sessDocked() || !m.showsSession() || m.focus != onMain || spaces() != 63 || m.colRect(0).w != 42 {
+		t.Fatalf("200 wide, the editor gives way: docked %v, over the editor %v, focus %d, Spaces %d, left %d",
+			m.sessDocked(), m.showsSession(), m.focus, spaces(), m.colRect(0).w)
+	}
+
+	checkWidths(t, m)
+
+	for _, c := range []struct{ w, spaces, main int }{{120, 63, 120 - railW - 2 - 63}, {80, 80 - railW - 2 - minEditor, minEditor}, {50, 20, 50 - railW - 2 - 20}} {
+		m.Update(tea.WindowSizeMsg{Width: c.w, Height: 30})
+
+		if _, main := m.layout(); !m.railed(0) || spaces() != c.spaces || main.w != c.main {
+			t.Fatalf("%d wide, the left side folds, then Spaces narrows: railed %v, Spaces %d, editor %d",
+				c.w, m.railed(0), spaces(), main.w)
+		}
+
+		checkWidths(t, m)
+	}
+
+	// Its rail opens it again: it and Spaces narrow so the editor keeps minEditor.
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.showView(viewFiles)
+
+	if _, main := m.layout(); m.railed(0) || m.colRect(0).w != 20 || main.w != minEditor || spaces() != 120-20-minEditor-2 {
+		t.Fatalf("opened by hand: railed %v, left %d, editor %d, Spaces %d", m.railed(0), m.colRect(0).w, main.w, spaces())
+	}
+
+	checkWidths(t, m)
+
+	// A file opens in front of the session rather than docking it; the
+	// session comes back from Spaces.
+	m.preview = false
+	fire(m, m.openFile(filepath.Join(m.ws, ".env")))
+	fire(m, m.pv.load(m))
+
+	if m.sessDocked() || !m.showsPreview() {
+		t.Fatalf("a file in front of the session: docked %v, file %v", m.sessDocked(), m.showsPreview())
+	}
+
+	m.switchSession("s1")
+
+	if !m.showsSession() {
+		t.Fatal("the session back in front of the file")
+	}
+
+	m.Update(tea.WindowSizeMsg{Width: 280, Height: 30})
+
+	if !m.sessDocked() || !m.showsPreview() || spaces() != 63 || m.colRect(0).w != 42 {
+		t.Fatalf("280 wide again: docked %v, file %v, Spaces %d, left %d", m.sessDocked(), m.showsPreview(), spaces(), m.colRect(0).w)
+	}
+
+	if now := fmt.Sprint(m.st.Settings.Left, m.st.Settings.Right, m.st.Settings.SessPos, m.st.SessionViews); now != saved {
+		t.Fatalf("the layout saved nothing:\n%s\n%s", saved, now)
 	}
 
 	checkWidths(t, m)

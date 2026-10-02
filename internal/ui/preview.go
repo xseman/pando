@@ -254,7 +254,9 @@ func (m *Model) setPreview(p preview) tea.Cmd {
 
 	var dock tea.Cmd
 
-	if m.showsSession() && !m.restoring { // the session has the editor area: it docks so the file opens beside it
+	// The session has the editor area: it docks so the file opens beside it,
+	// where there is room for both; else the file shows in front of it.
+	if m.showsSession() && m.sessPos() == "editor" && !m.restoring && !m.crampedBy(m.sessionSplit(m.sessSide())) {
 		focus := m.focus
 		dock = m.splitTo(viewSession, m.sessSide())
 		m.focus = focus // docking does not move the keyboard off what opened the file

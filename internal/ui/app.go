@@ -144,6 +144,7 @@ type Model struct {
 	ticks       int
 	clock       int     // counter behind recent
 	hidden      [2]bool // per side, left and right: folded into a rail
+	unfold      [2]bool // per side: opened by hand while squeezed, so it stays open until the next resize
 	preview     bool    // main shows the preview instead of the session
 	dark        bool
 	fg, bg      string // host terminal colors as #rrggbb, passed to new sessions
@@ -658,7 +659,128 @@ func (m *Model) cols() []col {
 		}
 	}
 
+	if colWith(out, viewSession) >= 0 && m.crampedBy(out) {
+		out = removeView(out, viewSession)
+	}
+
 	return out
+}
+
+// crampedBy reports no room for the editor beside the docked session in
+// columns cs: at their widths they leave it under minEditor cells. The
+// session then takes the editor area, the files waiting in their tabs as
+// they do with session_position = "editor". Nothing is saved: a wider screen
+// docks it again. A dragged divider keeps its column where it is.
+func (m *Model) crampedBy(cs []col) bool {
+	if m.drag != nil && m.drag.kind == dragDivider {
+		return false
+	}
+
+	return m.w < 40 || m.overBy(m.wants(cs, m.hidden), minEditor) > 0
+}
+
+// cramped reports the session in the editor area for want of room beside it.
+func (m *Model) cramped() bool {
+	return m.sess != "" && m.sessPos() != "editor" && !m.sessDocked()
+}
+
+// wants are the widths columns cs ask for: their own or their side's
+// default, at least 20; a folded side's first column its rail, the others on
+// that side nothing; a session column nobody sized half of what the rest
+// leave, as docking it by hand gives it.
+func (m *Model) wants(cs []col, fold [2]bool) []int {
+	ws := make([]int, len(cs))
+	if m.w < 40 {
+		return ws
+	}
+
+	var railed [2]bool
+
+	for i, k := range cs {
+		side := b2i(k.right)
+		switch {
+		case fold[side]:
+			if !railed[side] {
+				ws[i], railed[side] = railW, true
+			}
+
+		default:
+			w := k.width
+			if w <= 0 {
+				w = []int{m.st.Settings.Width, m.st.Settings.WidthR}[side]
+			}
+
+			if w <= 0 {
+				w = 32
+			}
+
+			ws[i] = max(w, 20)
+		}
+	}
+
+	b, gap := m.bord(), 1+m.bord()
+
+	for i, k := range cs {
+		if k.width > 0 || ws[i] == 0 || fold[b2i(k.right)] || !slices.Contains(k.views, viewSession) {
+			continue
+		}
+
+		rest := m.w - 2*b - gap
+		for j, w := range ws {
+			if j != i && w > 0 {
+				rest -= w + gap
+			}
+		}
+
+		ws[i] = max(rest/2, 20)
+	}
+
+	return ws
+}
+
+// overBy is how many cells columns of widths ws and a mainMin-wide editor
+// need beyond the screen.
+func (m *Model) overBy(ws []int, mainMin int) int {
+	b := m.bord()
+
+	n := mainMin + 2*b - m.w
+	for _, w := range ws {
+		if w > 0 {
+			n += w + 1 + b
+		}
+	}
+
+	return n
+}
+
+// folds are the sides folded into a rail: hidden by hand, or squeezed. The
+// side without Spaces is squeezed when, its columns and the others at 20
+// cells, it would still leave the editor under minEditor: it folds before
+// Spaces gives up a cell, and its rail opens it again (unfold), Spaces and
+// the editor then making room.
+func (m *Model) folds(cs []col) [2]bool {
+	f := m.hidden
+
+	sp := colWith(cs, viewAgents)
+	if m.w < 40 || sp < 0 || f[b2i(cs[sp].right)] {
+		return f
+	}
+
+	other := 1 - b2i(cs[sp].right)
+	if f[other] || m.unfold[other] || !slices.ContainsFunc(cs, func(c col) bool { return b2i(c.right) == other }) {
+		return f
+	}
+
+	ws := m.wants(cs, f)
+	for i := range ws {
+		if i != sp {
+			ws[i] = min(ws[i], 20)
+		}
+	}
+
+	f[other] = m.overBy(ws, minEditor) > 0
+
+	return f
 }
 
 // leftCount is the number of left columns, which come first in cols.
@@ -733,11 +855,15 @@ func (m *Model) shown(v view) bool {
 // railed reports a column on a hidden side; the side folds into one narrow
 // rail listing its tabs.
 func (m *Model) railed(i int) bool {
-	return len(m.colViews(i)) > 0 && m.hidden[m.side(i)] && m.w >= 40
+	cs := m.cols()
+	return i >= 0 && i < len(cs) && m.folds(cs)[b2i(cs[i].right)] && m.w >= 40
 }
 
 func (m *Model) anyRailed() bool {
-	return m.w >= 40 && slices.ContainsFunc(m.cols(), func(c col) bool { return m.hidden[b2i(c.right)] })
+	cs := m.cols()
+	f := m.folds(cs)
+
+	return m.w >= 40 && slices.ContainsFunc(cs, func(c col) bool { return f[b2i(c.right)] })
 }
 
 func (m *Model) focused(v view) bool { return m.focus == m.colOf(v) && m.shown(v) }
@@ -748,82 +874,50 @@ func (m *Model) bord() int { return b2i(m.st.Settings.Borders && m.termH >= 10 &
 func (m *Model) resize() { m.h = max(m.termH-2*m.bord(), 1) }
 
 // layout places left columns | main | right columns, separated by a divider
-// or by the facing borders of framed panels. A hidden side collapses into
-// one rail. Columns that do not fit, the outermost first, take no space;
-// main keeps at least 20 cells.
+// or by the facing borders of framed panels. A folded side collapses into
+// one rail. Short of room, the other columns narrow to 20 cells, the
+// outermost first, then Spaces does, then the editor gives up all but 20
+// cells; only then does a column go, the outermost first and Spaces last.
 func (m *Model) layout() (cs []rect, c rect) {
 	b := m.bord()
 	gap := 1 + b
 	cols := m.cols()
-	cs = make([]rect, len(cols))
-
-	var railed [2]bool
-
-	for i, k := range cols {
-		side := b2i(k.right)
-		switch {
-		case m.w < 40:
-		case m.hidden[side]:
-			if !railed[side] {
-				cs[i].w, railed[side] = railW, true
-			}
-
-		default:
-			w := k.width
-			if w <= 0 {
-				w = []int{m.st.Settings.Width, m.st.Settings.WidthR}[side]
-			}
-
-			if w <= 0 {
-				w = 32
-			}
-
-			cs[i].w = max(w, 20)
-		}
-	}
-
-	for i, k := range cols { // a session column nobody sized takes half the editor area, as docking it by hand does
-		if k.width > 0 || cs[i].w == 0 || m.hidden[b2i(k.right)] || !slices.Contains(k.views, viewSession) {
-			continue
-		}
-
-		rest := m.w - 2*b - gap
-		for j, r := range cs {
-			if j != i && r.w > 0 {
-				rest -= r.w + gap
-			}
-		}
-
-		cs[i].w = max(rest/2, 20)
-	}
-
-	over := func() int {
-		n := 20 + 2*b - m.w
-		for _, r := range cs {
-			if r.w > 0 {
-				n += r.w + gap
-			}
-		}
-
-		return n
-	}
+	ws := m.wants(cols, m.folds(cols))
 	left := leftCount(cols)
+	sp := colWith(cols, viewAgents)
 
-	shrink := make([]int, 0, len(cols)) // right columns from the right edge, then left ones from the left edge
+	order := make([]int, 0, len(cols)) // right columns from the right edge, then left ones from the left edge
 	for i := len(cols) - 1; i >= left; i-- {
-		shrink = append(shrink, i)
+		if i != sp {
+			order = append(order, i)
+		}
 	}
 
 	for i := range left {
-		shrink = append(shrink, i)
+		if i != sp {
+			order = append(order, i)
+		}
 	}
 
-	for _, i := range shrink {
-		if d := over(); d > 0 && cs[i].w > railW {
-			if cs[i].w -= d; cs[i].w < 20 {
-				cs[i].w = 0
-			}
+	if sp >= 0 {
+		order = append(order, sp)
+	}
+
+	for _, i := range order {
+		if d := m.overBy(ws, minEditor); d > 0 && ws[i] > railW {
+			ws[i] = max(ws[i]-d, 20)
 		}
+	}
+
+	for _, i := range order {
+		if m.overBy(ws, 20) > 0 && ws[i] > railW {
+			ws[i] = 0
+		}
+	}
+
+	cs = make([]rect, len(cols))
+	for i, w := range ws {
+		cs[i].w = w
 	}
 
 	x := b
@@ -1184,15 +1278,15 @@ func (m *Model) cycleFocus() {
 		}
 
 		side := m.side(f)
-		was := m.hidden[side]
+		was, wasOpen := m.hidden[side], m.unfold[side]
 
-		m.hidden[side] = false
-		if m.colRect(f).w > 0 {
+		m.hidden[side], m.unfold[side] = false, true
+		if m.colRect(f).w > 0 && !m.railed(f) {
 			m.focus = f
 			return
 		}
 
-		m.hidden[side] = was
+		m.hidden[side], m.unfold[side] = was, wasOpen
 	}
 }
 
@@ -1201,6 +1295,11 @@ func (m *Model) showView(v view) tea.Cmd {
 	i := m.colOf(v)
 	m.clock++
 	m.recent[v] = m.clock
+
+	if side := m.side(i); i >= 0 && m.folds(m.cols())[side] {
+		m.unfold[side] = true // opened by hand: it stays open where it would be squeezed
+	}
+
 	m.hidden[m.side(i)], m.focus = false, i
 	m.fixFocus()
 
@@ -1562,17 +1661,7 @@ func soloCol(c col) bool {
 // session's goes right beside the editor, half its width.
 func (m *Model) splitTo(v view, to int) tea.Cmd {
 	if v == viewSession {
-		_, c := m.layout()
-
-		w := c.w / 2
-		if i := m.colOf(v); i >= 0 {
-			w = m.colRect(i).w // moving sides: the session and the editor keep their widths
-		}
-
-		cs := removeView(m.cols(), v)
-		cs = slices.Insert(cs, leftCount(cs), col{views: []view{v}, right: to == 1, width: max(w, 20)})
-
-		return m.dock(cs, v)
+		return m.dock(m.sessionSplit(to), v)
 	}
 
 	if v == viewTerm && m.termPos() != []string{"left", "right"}[to] {
@@ -1587,6 +1676,21 @@ func (m *Model) splitTo(v view, to int) tea.Cmd {
 	}
 
 	return m.dock(cs, v)
+}
+
+// sessionSplit are the columns with the session docked on side to: half the
+// editor area, or moving sides the width it has, so the editor keeps its own.
+func (m *Model) sessionSplit(to int) []col {
+	_, c := m.layout()
+
+	w := c.w / 2
+	if i := m.colOf(viewSession); i >= 0 {
+		w = m.colRect(i).w
+	}
+
+	cs := removeView(m.cols(), viewSession)
+
+	return slices.Insert(cs, leftCount(cs), col{views: []view{viewSession}, right: to == 1, width: max(w, 20)})
 }
 
 // sessionDrop is where a dragged session lands: the middle of the editor area
@@ -1793,7 +1897,7 @@ func (m *Model) saveAll() {
 // toggleSidebars folds both sides away, or brings them back.
 func (m *Model) toggleSidebars() tea.Cmd {
 	both := !m.hidden[0] && !m.hidden[1]
-	m.hidden = [2]bool{both, both}
+	m.hidden, m.unfold = [2]bool{both, both}, [2]bool{!both, !both}
 	m.fixFocus()
 
 	return m.fetchScreen()
@@ -1832,7 +1936,7 @@ func (m *Model) toggleRendered() tea.Cmd {
 
 // hide folds column i's side into a rail.
 func (m *Model) hide(i int) tea.Cmd {
-	m.hidden[m.side(i)] = true
+	m.hidden[m.side(i)], m.unfold[m.side(i)] = true, false
 	m.fixFocus()
 
 	return m.fetchScreen()
@@ -2138,16 +2242,45 @@ func (m *Model) showsSession() bool { return m.sess != "" && !m.preview && !m.se
 // the commands it started send back.
 // Update handles msg, then starts a text effect on whatever it changed.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	cramped, focus, inSess := m.cramped(), m.focus, m.focus == onMain && m.showsSession()
+	v, _ := m.viewOn(m.focus)
+
 	_, cmd := m.update(msg)
+	if m.cramped() != cramped {
+		m.followCramp(focus, v, inSess)
+	}
+
 	m.noteFx()
 
 	return m, tea.Batch(cmd, m.animate())
+}
+
+// followCramp follows the session in or out of the editor area for room: in
+// it shows in front of the file, as a narrow screen asks; and when the focus
+// was left where it was, it stays on the view it was on (v, or the session
+// when it had the editor area, inSess) as the columns shift under it.
+func (m *Model) followCramp(focus int, v view, inSess bool) {
+	if m.cramped() {
+		m.preview = false
+	}
+
+	if m.focus == focus {
+		switch {
+		case focus >= 0:
+			m.focus = m.colOf(v) // onMain when that was the session's column: it is in the editor area now
+		case inSess && m.sessDocked():
+			m.focus = m.colOf(viewSession)
+		}
+	}
+
+	m.fixFocus()
 }
 
 func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.w, m.termH = msg.Width, msg.Height
+		m.unfold = [2]bool{} // a new screen folds what does not fit again
 		m.resize()
 		m.fixFocus()
 
@@ -3284,7 +3417,7 @@ func (m *Model) dragMouse(msg tea.MouseMsg) tea.Cmd {
 
 		if _, c := m.layout(); slices.Contains(m.colViews(d.col), viewSession) {
 			switch {
-			case c.w-(w-r.w) < snapMain:
+			case c.w-(w-r.w) < minEditor:
 				m.drag = nil // stretched nearly over the editor: it takes the editor area
 				return m.undockSession()
 
@@ -3299,6 +3432,11 @@ func (m *Model) dragMouse(msg tea.MouseMsg) tea.Cmd {
 		}
 
 		m.setColWidth(d.col, max(20, min(w, m.w-21)))
+
+		if r := m.colRect(d.col); r.w >= 20 && r.w < w { // as wide as it shows: the editor keeps minEditor
+			m.setColWidth(d.col, r.w)
+		}
+
 		d.moved = true
 
 		return nil
@@ -3332,9 +3470,10 @@ func (m *Model) dragTerm(d *drag, y int, release bool) tea.Cmd {
 	return m.fetchScreen()
 }
 
-// snapMain is the editor width below which a widening session column takes
-// the whole editor area instead.
-const snapMain = 24
+// minEditor is the least width the editor keeps beside a docked session: a
+// session column widened past it takes the editor area instead, and a screen
+// too narrow for both gives the session the editor area while it lasts.
+const minEditor = 40
 
 // snapHide is the width below which a narrowing session column closes.
 const snapHide = 10

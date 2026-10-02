@@ -2408,7 +2408,7 @@ func TestSessionOpensDocked(t *testing.T) {
 // The session's column follows Spaces to the other sidebar, unless it has the
 // editor area to itself.
 func TestSessionFollowsSpaces(t *testing.T) {
-	m := testModelSized(t, 140, 30)
+	m := testModelSized(t, 180, 30)        // room for the editor beside both on one side
 	m.st.Settings.SessPos, m.sess = "", "" // the shipped default, nothing on screen
 	rows := m.ag.rows(m)
 	m.ag.activate(m, &rows[slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agSession })])

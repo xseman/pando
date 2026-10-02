@@ -42,15 +42,16 @@ terminal cells.
   nobody sized takes half the editor area. `left`/`right` list it once it has
   been docked or resized by hand, and keep its place while `session_position`
   is `editor` — the session over the whole editor area, which it takes when it
-  is widened past `snapMain` cells of editor or dropped in the middle of it.
-  Opening a file then docks it back on that side (`sessSide`), so the file has
-  somewhere to go. Narrowed below `snapHide` cells it closes instead, as a VS
-  Code sidebar dragged shut does (`hideSession`, the session runs on), at the
-  width it was picked up at. Each worktree keeps its own place and width
-  (`sessView`, `session_views` in `state.json`): `cols()` sizes the column
-  where `left`/`right` list it, or puts it beside the editor when the worktree
-  keeps it on the other side. Its column exists only while a session is on screen, and
-  follows Spaces when that view is docked on the other side (`sessionFollows`).
+  is widened past `minEditor` cells of editor or dropped in the middle of it.
+  Opening a file then docks it back on that side (`sessSide`) where both fit,
+  so the file has somewhere to go. Narrowed below `snapHide` cells it closes
+  instead, as a VS Code sidebar dragged shut does (`hideSession`, the session
+  runs on), at the width it was picked up at. Each worktree keeps its own
+  place and width (`sessView`, `session_views` in `state.json`): `cols()`
+  sizes the column where `left`/`right` list it, or puts it beside the editor
+  when the worktree keeps it on the other side. Its column exists only while a
+  session is on screen, and follows Spaces when that view is docked on the
+  other side (`sessionFollows`).
 - A **column** holds tabs (views); `left`/`right` in `config.toml` define them.
   A column with one tab draws no activity bar and puts ⚙ in its header.
 - The activity bar is `actH` = 2 rows: the icons, then the row that carries
@@ -65,6 +66,21 @@ terminal cells.
 - Focus is a column index or `onMain` (-1); `ctrl+]` cycles left → main → right.
 - A hidden side folds into a 2-cell **rail** of its tab icons; a click or `»`
   reopens it.
+- Short of room (`layout`), nothing is saved and a wider screen undoes it:
+  1. A docked session whose columns, at their widths, leave the editor under
+     `minEditor` (40) cells takes the editor area (`crampedBy`, in `cols()`).
+     The files wait in their tabs and a file opened shows in front of it; the
+     session comes back from Spaces. Becoming cramped puts the session in
+     front and keeps the focus on its view (`followCramp`, in `Update`).
+  2. The other columns narrow to 20 cells, the outermost first.
+  3. The side without Spaces folds into its rail (`folds`) when that is still
+     not enough. Opened from the rail, `ctrl+]` or a view's key it stays open
+     (`unfold`, until the next resize) and the rest make room.
+  4. Spaces narrows to 20 cells, then the editor to 20; only then does a
+     column go, the outermost first and Spaces last.
+
+  A dragged divider stops where the editor would drop under `minEditor`, and
+  the width saved is the one shown.
 - The active tab of a column is the one shown most recently (`recent` counter),
   so moving views between columns needs no per-column state.
 - The **terminal panel** sits under the main area when `terminal_position` is
