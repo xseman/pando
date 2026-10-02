@@ -1340,12 +1340,18 @@ func TestVerticalActivityBar(t *testing.T) {
 		t.Fatalf("the active chip is bordered on the outer edge:\n%s", out[0])
 	}
 
-	if got := strings.TrimSpace(ansi.Cut(out[0], 1, actW())); got != strings.TrimSpace(m.vertTabs(0)[0].label) {
+	if got := strings.TrimSpace(ansi.Cut(out[0], 1, actW()-1)); got != strings.TrimSpace(m.vertTabs(0)[0].label) {
 		t.Fatalf("its icon sits beside the border: %q", got)
 	}
 
-	if strip := ansi.Cut(out[actH-1], 0, actW()); strings.TrimSpace(strip) != "" {
+	if strip := ansi.Cut(out[actH-1], 0, actW()-1); strings.TrimSpace(strip) != "" {
 		t.Fatalf("the rest of the block is air: %q", strip)
+	}
+	// A rule down the inner edge parts the strip from the view, all the way down.
+	for _, y := range []int{0, actH - 1, m.panelH() - 1} {
+		if sep := ansi.Cut(out[y], actW()-1, actW()); sep != "▕" {
+			t.Fatalf("row %d: the strip's inner edge is %q, want a rule", y, sep)
+		}
 	}
 
 	if tabs := m.vertTabs(0); len(tabs) != 4 || tabs[1].x != actH || tabs[1].v != viewGit {
@@ -2220,19 +2226,18 @@ func TestActivityBarAir(t *testing.T) {
 	}
 
 	rc := m.colRect(0)
-	at := slices.IndexFunc(tabs, func(t tab) bool { return t.v == active })
-	under := strings.Repeat("━", tabs[at].chipW)
-
+	// The row under the icons is a line across the column, parting the bar
+	// from the view; the active chip's stretch of it takes the accent.
 	bar := m.activityBar(0, rc.w)
 	if len(bar) != actH || !strings.Contains(bar[0], fgParams(pal.headerAccent)) ||
-		strings.TrimSpace(ansi.Strip(bar[1])) != under {
-		t.Fatalf("the active chip is underlined, nothing behind it: %q", bar)
+		!strings.Contains(bar[1], fgParams(pal.headerAccent)) || strings.Trim(ansi.Strip(bar[1]), "─") != "" || ansi.StringWidth(bar[1]) != rc.w {
+		t.Fatalf("the active chip is underlined on the rule, nothing behind it: %q", bar)
 	}
-	// The one under the mouse takes a neutral line of its own.
+	// The one under the mouse takes a tint of the accent, icon and mark.
 	m.Update(tea.MouseMotionMsg{X: rc.x + other.x + 1, Y: 0})
 
-	if bar = m.activityBar(0, rc.w); strings.Count(ansi.Strip(bar[1]), under) != 2 ||
-		!strings.Contains(bar[1], fgParams(pal.inputBorder)) {
+	if bar = m.activityBar(0, rc.w); !strings.Contains(bar[1], fgParams(pal.headerAccent)) ||
+		!strings.Contains(bar[1], fgParams(pal.sashHover)) || !strings.Contains(bar[0], fgParams(pal.sashHover)) {
 		t.Fatalf("the chip under the mouse is marked, not filled: %q", bar)
 	}
 

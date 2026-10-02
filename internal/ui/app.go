@@ -3869,25 +3869,29 @@ func (m *Model) sidebarBody(s, w int) []string {
 
 // activityBar is the view switcher: an icon chip per view, marked the way VS
 // Code marks them, with no fill behind them. The active one takes the accent
-// color and activityBarTop.activeBorder under it, a heavy rule the row
-// below, the one under the mouse a neutral line, and the settings gear sits
-// on the right.
+// color and activityBarTop.activeBorder under it, a bar on the row below,
+// the one under the mouse a tint of both, and the settings gear sits on the
+// right. Under the rest runs VS Code's sideBarActivityBarTop.border, a
+// faint line through the middle of the row, air above it under the icons and
+// below it before the view; a mark is that line in its own color.
 func (m *Model) activityBar(s, w int) []string {
 	active, _ := m.viewOn(s)
 	rc := m.colRect(s)
-	// Under the mouse a chip lights up, as VS Code's activity bar does.
+	// Under the mouse a chip takes a tint of the accent, icon and mark both.
 	hot := func(x, w int) bool {
 		return m.mouseY < actH && time.Since(m.mouseAt) < actionsLinger && m.mouseX >= rc.x+x && m.mouseX < rc.x+x+w
 	}
 	idle := func(x, w int) lipgloss.Style {
 		if hot(x, w) {
-			return plain
+			return fg(pal.sashHover)
 		}
 
 		return dim
 	}
 
 	var segs, marks []seg
+
+	rule := func(n int) seg { return sg(strings.Repeat("─", max(n, 0)), fg(pal.rulerBorder)) }
 
 	x, cx := 0, 0
 	for _, t := range m.tabs(s) {
@@ -3899,7 +3903,7 @@ func (m *Model) activityBar(s, w int) []string {
 		}
 
 		if c := markColor(t.v == active, hot(t.x, t.chipW)); c != nil {
-			marks = append(marks, sg(blank(t.x-cx), plain), sg(strings.Repeat("━", t.chipW), fg(c)))
+			marks = append(marks, rule(t.x-cx), sg(strings.Repeat("─", t.chipW), fg(c)))
 			cx = t.x + t.chipW
 		}
 
@@ -3913,25 +3917,25 @@ func (m *Model) activityBar(s, w int) []string {
 
 	gw := ansi.StringWidth(gearLabel())
 
-	var gearMark []seg
+	gearMark := rule(gw)
 	if hot(w-gw, gw) { // the gear is a chip too
-		gearMark = []seg{sg(strings.Repeat("━", gw), fg(pal.inputBorder))}
+		gearMark = sg(strings.Repeat("─", gw), fg(pal.sashHover))
 	}
 
 	return []string{
 		row(w, nil, segs, sgOwn(gearLabel(), idle(w-gw, gw))),
-		row(w, nil, marks, gearMark...),
+		row(w, nil, append(marks, rule(w-gw-cx), gearMark)),
 	}
 }
 
 // markColor is the active border's color for a chip: the accent for the open
-// view, a neutral line under the mouse, nothing otherwise.
+// view, a tint of it under the mouse (sash_hover), nothing otherwise.
 func markColor(active, hovered bool) color.Color {
 	switch {
 	case active:
 		return pal.headerAccent
 	case hovered:
-		return pal.inputBorder
+		return pal.sashHover
 	}
 
 	return nil
@@ -3941,8 +3945,12 @@ func markColor(active, hovered bool) color.Color {
 // chips stacked, one `actH`-row block each, with no fill behind them. The
 // active one takes the accent color and VS Code's activityBar.activeBorder
 // down the strip's outer edge, where the top bar underlines instead; the one
-// under the mouse takes a neutral line. A view waiting on its agent has no
-// room for a count here, so its icon takes the attention color instead.
+// under the mouse takes a tint of the accent, icon and mark. A view waiting on
+// its agent has no room for a count here, so its icon takes the attention
+// color instead.
+// VS Code's activityBar.border runs down the inner edge, an eighth of a cell
+// on the side facing the view as the CSS border is, so the icon sits midway
+// between it and the mark; a rail has none, the column divider is its edge.
 func (m *Model) vertBar(s, w int) []string {
 	active, open := m.viewOn(s)
 	open = open && !m.railed(s) // a hidden side shows no view: none of its chips is marked
@@ -3961,14 +3969,19 @@ func (m *Model) vertBar(s, w int) []string {
 	// The active border runs down the strip's outer edge, a quarter of a cell
 	// wide; the block elements have no right quarter, so a right-docked strip
 	// takes the half block, the nearest there is.
-	edge, at := "▎", 0
+	edge, at, inner, border := "▎", 0, w-1, "▕"
 	if m.side(s) == 1 {
-		edge, at = "▐", w-1
+		edge, at, inner, border = "▐", w-1, 0, "▏"
+	}
+
+	base := row(w, nil, []seg{sg(blank(inner), plain), sg(border, fg(pal.rulerBorder))})
+	if m.railed(s) {
+		base, inner = blank(w), -1
 	}
 
 	out := make([]string, m.panelH())
 	for y := range out {
-		out[y] = blank(w)
+		out[y] = base
 	}
 	// chipAt draws one chip: the icon centered on row y, the border beside it.
 	chipAt := func(y int, g glyph, st lipgloss.Style, mark color.Color) {
@@ -3986,6 +3999,8 @@ func (m *Model) vertBar(s, w int) []string {
 			switch {
 			case mark != nil && i == at:
 				segs, i = append(segs, sg(edge, fg(mark))), i+1
+			case i == inner:
+				segs, i = append(segs, sg(border, fg(pal.rulerBorder))), i+1
 			case i == l:
 				segs, i = append(segs, sg(icon, st)), i+iw
 			default:
@@ -4008,7 +4023,7 @@ func (m *Model) vertBar(s, w int) []string {
 		case on:
 			st = fg(pal.headerAccent).Bold(true)
 		case hot(t.x):
-			st = plain
+			st = fg(pal.sashHover)
 		}
 
 		if t.badge != "" && !on {
@@ -4020,7 +4035,7 @@ func (m *Model) vertBar(s, w int) []string {
 
 	st := dim
 	if hot(gearRow) {
-		st = plain
+		st = fg(pal.sashHover)
 	}
 
 	chipAt(gearRow, icGear, st, markColor(false, hot(gearRow)))

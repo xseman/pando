@@ -281,7 +281,7 @@ func TestActivityBarHeaderFooter(t *testing.T) {
 	raw := strings.Split(m.View().Content, "\n") // checkWidths strips the colors
 	l := m.colRect(0)
 	// Spaces and Search share an "S" chip: the ascii set trades the letter for a true label.
-	if !strings.Contains(lines[0], "F   G   S   S") || !strings.Contains(raw[0], fgParams(pal.headerAccent)) || !strings.Contains(lines[1], "━━━") {
+	if !strings.Contains(lines[0], "F   G   S   S") || !strings.Contains(raw[0], fgParams(pal.headerAccent)) || !strings.Contains(lines[1], "───") {
 		t.Fatalf("activity bar is the chips with the active one underlined:\n%s\n%s", lines[0], lines[1])
 	}
 
