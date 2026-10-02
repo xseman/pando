@@ -73,8 +73,10 @@ const actH = 2
 // bar draws, so both bars hold the same button.
 func actW() int { return 2*len(barPad()) + ansi.StringWidth(icFiles.short()) }
 
-// railW is the width a hidden sidebar keeps: a column of view icons to reopen it.
-const railW = 2
+// railW is the width a hidden side keeps: VS Code's activity bar, the
+// side's view icons stacked down it as the side bar draws them, a click on
+// one opening that view again.
+func railW() int { return actW() }
 
 // drag is a mouse gesture from a click until its release.
 type drag struct {
@@ -97,6 +99,7 @@ type drag struct {
 	y0, h0 int
 	moved  bool
 	fine   bool        // dragTab: one row of motion is a drag (vertical bar chips sit a row apart)
+	hide   bool        // dragTab: pressed on the open view's own chip, so let go where it was it hides its side
 	bar    *scrollDrag // dragScroll: the scrollbar and where its slider was picked up
 }
 
@@ -701,7 +704,7 @@ func (m *Model) wants(cs []col, fold [2]bool) []int {
 		switch {
 		case fold[side]:
 			if !railed[side] {
-				ws[i], railed[side] = railW, true
+				ws[i], railed[side] = railW(), true
 			}
 
 		default:
@@ -904,13 +907,13 @@ func (m *Model) layout() (cs []rect, c rect) {
 	}
 
 	for _, i := range order {
-		if d := m.overBy(ws, minEditor); d > 0 && ws[i] > railW {
+		if d := m.overBy(ws, minEditor); d > 0 && ws[i] > railW() {
 			ws[i] = max(ws[i]-d, 20)
 		}
 	}
 
 	for _, i := range order {
-		if m.overBy(ws, 20) > 0 && ws[i] > railW {
+		if m.overBy(ws, 20) > 0 && ws[i] > railW() {
 			ws[i] = 0
 		}
 	}
@@ -1507,11 +1510,11 @@ func (m *Model) dropAt(v view, x, y int) dropTarget {
 
 	own := dropTarget{rc: edge, side: side, col: -1, own: true, label: "New Column"}
 
-	if j := slices.IndexFunc(cs, func(r rect) bool { return r.w > railW && x >= r.x && x < r.x+r.w }); j >= 0 {
+	if j := slices.IndexFunc(cs, func(r rect) bool { return r.w > railW() && x >= r.x && x < r.x+r.w }); j >= 0 {
 		i = j
 	}
 
-	if i < 0 || i >= len(cs) || cs[i].w <= railW {
+	if i < 0 || i >= len(cs) || cs[i].w <= railW() {
 		return own
 	}
 
@@ -1616,6 +1619,8 @@ func (m *Model) dragTabTo(d *drag, x, y int, release bool) tea.Cmd {
 	m.drag = nil
 
 	switch {
+	case !d.moved && d.hide: // VS Code's activity bar: a second click on the open view hides its side
+		return m.hide(m.colOf(d.v))
 	case !d.moved:
 		return nil
 	case d.drop.main:
@@ -2083,13 +2088,6 @@ func (m *Model) headerActions(s int, v view, w int) []titleAction {
 	if m.barH(s) == 0 && bw == 0 { // no activity bar to hold the gear
 		add(icGear, func(m *Model) tea.Cmd { m.modal = settingsModal(m); return nil })
 	}
-
-	hide := icOpenRight // the arrow points the way the sidebar folds
-	if m.side(s) == 1 {
-		hide = icOpenLeft
-	}
-
-	add(hide, func(m *Model) tea.Cmd { return m.hide(s) })
 
 	x := w
 	for i := len(acts) - 1; i >= 0; i-- {
@@ -3186,6 +3184,10 @@ func (m *Model) vertBarMouse(s int, mo tea.Mouse, y int, click bool) tea.Cmd {
 
 		if mo.Button == tea.MouseLeft {
 			m.drag = &drag{kind: dragTab, v: t.v, x0: mo.X, y0: mo.Y, fine: true}
+			if v, _ := m.viewOn(s); v == t.v && !m.railed(s) {
+				m.drag.hide = true
+				return nil
+			}
 		}
 
 		return m.showView(t.v)
@@ -3208,22 +3210,7 @@ func (m *Model) sideMouse(s int, rc rect, msg tea.MouseMsg) tea.Cmd {
 	}
 
 	if m.railed(s) {
-		views := m.railViews(s)
-		switch {
-		case !click:
-			return nil
-		case mo.Y < len(views):
-			if mo.Button == tea.MouseLeft {
-				m.drag = &drag{kind: dragTab, v: views[mo.Y], x0: mo.X, y0: mo.Y}
-			}
-
-			return m.showView(views[mo.Y])
-
-		case mo.Y == m.panelH()-1:
-			return m.showView(v)
-		}
-
-		return nil
+		return m.vertBarMouse(s, mo, mo.Y, click)
 	}
 
 	if click {
@@ -3262,7 +3249,10 @@ func (m *Model) sideMouse(s int, rc rect, msg tea.MouseMsg) tea.Cmd {
 				}
 
 				if mo.Button == tea.MouseLeft { // drag it to the other side
-					m.drag = &drag{kind: dragTab, v: t.v, x0: mo.X, y0: mo.Y}
+					m.drag = &drag{kind: dragTab, v: t.v, x0: mo.X, y0: mo.Y, hide: t.v == v}
+					if t.v == v {
+						return nil
+					}
 				}
 
 				return m.showView(t.v)
@@ -3617,7 +3607,11 @@ func (m *Model) View() tea.View {
 		var top, bot strings.Builder
 
 		for _, p := range ps {
-			t := ansi.Truncate(" "+p.title+" ", max(p.rc.w-2, 0), "…")
+			t := ""
+			if p.title != "" {
+				t = ansi.Truncate(" "+p.title+" ", max(p.rc.w-2, 0), "…")
+			}
+
 			top.WriteString(edge(p).Render("┌─") + edge(p).Bold(m.focus == p.focus).Render(t) +
 				edge(p).Render(strings.Repeat("─", max(p.rc.w-1-ansi.StringWidth(t), 0))+"┐"))
 			bot.WriteString(edge(p).Render("└" + strings.Repeat("─", p.rc.w) + "┘"))
@@ -3778,6 +3772,10 @@ func (m *Model) sashRule(s sash, w int, segs ...[]seg) []seg {
 }
 
 func (m *Model) sideTitle(s int) string {
+	if m.railed(s) { // a hidden side shows no view to name
+		return ""
+	}
+
 	v, _ := m.viewOn(s)
 	if s := m.session(m.sess); v == viewSession && s != nil {
 		return m.fx.text("sess:"+s.ID, sessionName(*s))
@@ -3803,7 +3801,7 @@ func (m *Model) mainTitle() string {
 
 func (m *Model) sidebar(s, w int) []string {
 	if m.railed(s) {
-		return m.rail(s, w)
+		return m.vertBar(s, w)
 	}
 
 	if bw := m.barW(s); bw > 0 {
@@ -3938,7 +3936,8 @@ func markColor(active, hovered bool) color.Color {
 // under the mouse takes a neutral line. A view waiting on its agent has no
 // room for a count here, so its icon takes the attention color instead.
 func (m *Model) vertBar(s, w int) []string {
-	active, _ := m.viewOn(s)
+	active, open := m.viewOn(s)
+	open = open && !m.railed(s) // a hidden side shows no view: none of its chips is marked
 	rc := m.colRect(s)
 
 	x0 := rc.x
@@ -3995,20 +3994,20 @@ func (m *Model) vertBar(s, w int) []string {
 			break
 		}
 
-		st := dim
+		st, on := dim, open && t.v == active
 
 		switch {
-		case t.v == active:
+		case on:
 			st = fg(pal.headerAccent).Bold(true)
 		case hot(t.x):
 			st = plain
 		}
 
-		if t.badge != "" && t.v != active {
+		if t.badge != "" && !on {
 			st = st.Foreground(pal.attention).Bold(true)
 		}
 
-		chipAt(t.x, viewIcon(t.v), st, markColor(t.v == active, hot(t.x)))
+		chipAt(t.x, viewIcon(t.v), st, markColor(on, hot(t.x)))
 	}
 
 	st := dim
@@ -4024,51 +4023,20 @@ func (m *Model) vertBar(s, w int) []string {
 // vertTabs are the same chips as tabs, in a block each down the edge: x is
 // the icon's row, the rest of the block is the air under it.
 func (m *Model) vertTabs(s int) []tab {
+	views := m.colViews(s)
+	if m.railed(s) {
+		views = m.railViews(s)
+	}
+
 	var out []tab
 
-	for k, v := range m.colViews(s) {
+	for k, v := range views {
 		t := tab{v: v, x: k * actH, w: actW(), chipW: actW(), label: center(viewIcon(v).short(), actW())}
 		if c := m.attentionCount(); v == viewAgents && c > 0 {
 			t.badge = "•"
 		}
 
 		out = append(out, t)
-	}
-
-	return out
-}
-
-// chipCell is a narrow chip's label in w cells: a space, then the icon; a
-// two-cell emoji drops the space instead of overflowing.
-func chipCell(label string, w int) string {
-	if ansi.StringWidth(label) < w {
-		label = " " + label
-	}
-
-	return fit(label, w)
-}
-
-// rail is a hidden sidebar: its view icons stacked, and a chevron at the
-// bottom reopening the last view. A click on an icon opens that view.
-func (m *Model) rail(s, w int) []string {
-	views := m.railViews(s)
-
-	out := make([]string, m.panelH())
-	for y := range out {
-		switch {
-		case y < len(views):
-			out[y] = row(w, nil, []seg{sg(chipCell(viewIcon(views[y]).short(), w), dim)})
-		case y == len(out)-1:
-			g := icOpenLeft
-			if m.side(s) == 1 {
-				g = icOpenRight
-			}
-
-			out[y] = row(w, nil, []seg{sg(" "+g.s(), accent)})
-
-		default:
-			out[y] = blank(w)
-		}
 	}
 
 	return out

@@ -6,7 +6,7 @@ terminal cells.
 ```
  col 0      col 1                     main                     col 2
 ┌────────┬──────────────────┬──────────────────────────────┬──────────┐
-│ SPACES │  Files Git  ⚙ «  │ app.ts ✕ │ notes.md          │ SEARCH   │  ← tabs / editor strip
+│ SPACES │  Files Git    ⚙  │ app.ts ✕ │ notes.md          │ SEARCH   │  ← tabs / editor strip
 │ ▾ repo │ EXPLORER  +f +d  │ ✕ app.ts  src — diff         │ ▏query ▕ │  ← view header
 │   main │ ▾ src            │ 1  1  import …               │ 2 results│
 │        │    app.ts      M │ 2    - old                   │ ▾ app.ts │
@@ -64,8 +64,14 @@ terminal cells.
   `▐` bar down the strip's outer edge on a side bar. The open view's icon
   takes the accent color too.
 - Focus is a column index or `onMain` (-1); `ctrl+]` cycles left → main → right.
-- A hidden side folds into a 2-cell **rail** of its tab icons; a click or `»`
-  reopens it.
+- A hidden side keeps VS Code's activity bar, its **rail** (`railW` = `actW`
+  cells): the side's view icons stacked down its outer edge as
+  `activity_bar = "side"` draws them, the gear at the bottom, none marked as
+  open. A click on an icon opens that view. A second click on the open view's
+  own icon, top or side bar, hides its side, VS Code's iconClickBehavior
+  `toggle`; it is decided on release (`drag.hide`), so the icon still drags.
+  `b`, `ctrl+b` and a tab's _Hide Sidebar_ hide it from the keyboard and the
+  menu; a view header has no hide button.
 - Short of room (`layout`), nothing is saved and a wider screen undoes it:
   1. A docked session whose columns, at their widths, leave the editor under
      `minEditor` (40) cells takes the editor area (`crampedBy`, in `cols()`).

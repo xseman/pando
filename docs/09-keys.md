@@ -60,7 +60,7 @@ matches still shown; `esc` closes the widget.
 | `ctrl+alt+-` `ctrl+shift+-`, `alt+,` `alt+.`                | back and forward through visited editors (also `ctrl+-`, `super+←` `super+→`)                |
 | `ctrl+0` `ctrl+1`                                           | focus sidebar / editor                                                                       |
 | `ctrl+f`                                                    | in a panel: filter the list (`enter` keeps it, `esc` clears); in a file or a terminal: find  |
-| `ctrl+b`, `b`, `<` `>`                                      | fold the sidebars to a rail of view icons (click one or `»` to reopen), resize a column      |
+| `ctrl+b`, `b`, `<` `>`                                      | hide the sidebars to their activity bar (an icon opens one again), resize a column           |
 | `ctrl+,`, `?`                                               | settings, help (`,` in a sidebar too)                                                        |
 | `m`, right click                                            | context menu                                                                                 |
 | `q`, `esc`                                                  | close the TUI once there is nothing left to close; it asks first (sessions keep running)     |

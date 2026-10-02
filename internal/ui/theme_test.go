@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
 )
 
 func TestColorOverrides(t *testing.T) {
@@ -63,17 +62,17 @@ func TestEmojiIcons(t *testing.T) {
 		t.Fatalf("open directory icon: %q", got)
 	}
 
-	if got := chipCell(icFiles.short(), railW); ansi.StringWidth(got) != railW || ansi.Strip(got) != icFiles.emoji {
-		t.Fatalf("emoji fills the rail cell: %q", got)
-	}
-
 	if got := icSearch.short(); got != icSearch.emoji {
 		t.Fatalf("short glyph in emoji mode: %q", got)
 	}
 
 	checkWidths(t, m)
 	m.hidden = [2]bool{true, true}
-	checkWidths(t, m)
+
+	if out := checkWidths(t, m); !strings.Contains(out, icFiles.emoji) {
+		t.Fatal("a hidden side keeps its emoji chips")
+	}
+
 	applyLook("vscode", true, "ascii", nil)
 
 	if got := icFiles.short(); got != "F" || iconSeg("a.go", false, false).s != "" {

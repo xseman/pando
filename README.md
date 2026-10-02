@@ -195,10 +195,12 @@ python = ["pyright-langserver", "--stdio"]     # by language id
 
 ``ctrl+` ``, `ctrl+j` or `5` toggles the terminal panel (in a terminal only
 ``ctrl+` ``); `ctrl+shift+↑` maximizes it. Drag a view's tab to reorder it,
-move it to another sidebar or give it a column; drag a divider to resize.
-On a screen too narrow for everything, the editor gives a docked session its
-area first, then the sidebar without Spaces folds into its rail, and Spaces
-narrows last; it never goes. Widen the screen and the layout comes back.
+move it to another sidebar or give it a column; drag a divider to resize. A
+second click on the open view's icon hides its sidebar, as in VS Code: the
+icons stay down the edge, and one opens it again (`ctrl+b` hides both). On a
+screen too narrow for everything, the editor gives a docked session its area
+first, then the sidebar without Spaces folds to its icons, and Spaces narrows
+last; it never goes. Widen the screen and the layout comes back.
 
 Settings live in `~/.config/pando/config.toml`, commented in the file; `ctrl+,`
 edits them and every change applies live. The common ones:

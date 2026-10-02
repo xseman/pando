@@ -347,8 +347,6 @@ var (
 	icSync       = glyph{"sync", "\uea77", "⇅", ""}
 	icSplit      = glyph{"split-horizontal", "", "split", ""}
 	icInline     = glyph{"diff", "", "inline", ""}
-	icOpenLeft   = glyph{"chevron-right", "", "»", ""}
-	icOpenRight  = glyph{"chevron-left", "", "«", ""}
 	icSearch     = glyph{"search", "\uea6d", "Search", "🔍"}
 	icCase       = glyph{"case-sensitive", "\ueab1", "Aa", ""}
 	icWord       = glyph{"whole-word", "\ueb7e", "ab", ""}
@@ -374,7 +372,7 @@ var (
 	allGlyphs    = []glyph{
 		icFiles, icGit, icSpaces, icAgents, icGear, icNewFile, icNewDir, icRefresh, icCollapse, icTree, icList,
 		icAdd, icRemove, icDiscard, icWorktree, icSparkle, icCheck, icChevron, icClose, icBranch, icPublish, icSync, icSplit, icInline,
-		icOpenLeft, icOpenRight, icSearch, icCase, icWord, icRegex, icEllipsis, icClearAll, icOptions, icPreview, icSource,
+		icSearch, icCase, icWord, icRegex, icEllipsis, icClearAll, icOptions, icPreview, icSource,
 		icPrevRev, icNextRev, icUp, icDown, icHistory, icTag, icDetach, icReplace, icPreserve, icReplaceAll, icTerminal, icDot,
 		icMainWt, icLinkedWt, icWrap, icGitHub, icPR, icPRDraft, icPRNew, icIssue, icBell, icCheckAll,
 	}

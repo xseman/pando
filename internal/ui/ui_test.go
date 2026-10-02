@@ -314,7 +314,7 @@ func TestActivityBarHeaderFooter(t *testing.T) {
 	if !strings.Contains(m.View().Content, bgParams(pal.hoverBg)) {
 		t.Fatal("hovered row is not highlighted")
 	}
-	// The gear opens settings with hotkeys; « hides the sidebar.
+	// The gear opens settings with hotkeys.
 	click(m, l.w-2, 0, tea.MouseLeft)
 
 	if m.modal == nil || m.modal.title != "Settings" || !slices.ContainsFunc(m.modal.items, func(it item) bool { return it.label == heading("Hotkeys").label }) {
@@ -324,22 +324,25 @@ func TestActivityBarHeaderFooter(t *testing.T) {
 	checkWidths(t, m)
 
 	m.modal = nil
-	hideAt := m.headerActions(0, viewFiles, l.w)
-	click(m, hideAt[len(hideAt)-1].x, actH, tea.MouseLeft)
+	// A second click on the open view's icon hides the sidebar: VS Code's
+	// activity bar stays, the icons stacked down the edge, none marked.
+	click(m, tabAt(m, viewFiles), 0, tea.MouseLeft)
 
-	if l = m.colRect(0); !m.railed(0) || l.w != railW {
-		t.Fatalf("« folds the sidebar to a rail: w=%d", l.w)
+	if l = m.colRect(0); !m.railed(0) || l.w != actW() {
+		t.Fatalf("the open view's icon hides the sidebar: w=%d", l.w)
 	}
 
 	out := strings.Split(checkWidths(t, m), "\n")
-	if !strings.HasPrefix(out[0], " F") || !strings.HasPrefix(out[1], " G") || !strings.HasPrefix(out[len(out)-2], " »") {
-		t.Fatalf("rail:\n%s", strings.Join(out, "\n"))
+	chip := func(y int) string { return strings.Trim(ansi.Cut(out[y], 0, actW()), " ▎") } // the pointer's mark aside
+
+	if chip(0) != icFiles.short() || chip(actH) != icGit.short() || chip(m.panelH()-actH) != icGear.short() {
+		t.Fatalf("the activity bar:\n%s", strings.Join(out, "\n"))
 	}
 
-	click(m, 0, 1, tea.MouseLeft) // the Git icon reopens the sidebar on Git
+	click(m, 1, actH, tea.MouseLeft) // the Git icon opens the sidebar on Git
 
 	if v, _ := m.viewOn(0); m.railed(0) || v != viewGit || m.focus != 0 {
-		t.Fatalf("rail click: railed=%v view=%d focus=%d", m.railed(0), v, m.focus)
+		t.Fatalf("activity bar click: railed=%v view=%d focus=%d", m.railed(0), v, m.focus)
 	}
 }
 
@@ -429,7 +432,7 @@ func TestViewsModalsAndFocus(t *testing.T) {
 	<-m.inputs
 	press(m, "ctrl+]", "b") // main → (no right sidebar) → left, then hide it
 
-	if l := m.colRect(0); l.w != railW || m.focus != onMain {
+	if l := m.colRect(0); l.w != railW() || m.focus != onMain {
 		t.Fatalf("b folds the sidebar to a rail and focuses main: left=%d focus=%d", l.w, m.focus)
 	}
 
@@ -558,7 +561,7 @@ func TestNarrowScreen(t *testing.T) {
 
 	checkWidths(t, m)
 
-	for _, c := range []struct{ w, spaces, main int }{{120, 63, 120 - railW - 2 - 63}, {80, 80 - railW - 2 - minEditor, minEditor}, {50, 20, 50 - railW - 2 - 20}} {
+	for _, c := range []struct{ w, spaces, main int }{{120, 63, 120 - railW() - 2 - 63}, {80, 80 - railW() - 2 - minEditor, minEditor}, {50, 20, 50 - railW() - 2 - 20}} {
 		m.Update(tea.WindowSizeMsg{Width: c.w, Height: 30})
 
 		if _, main := m.layout(); !m.railed(0) || spaces() != c.spaces || main.w != c.main {
@@ -1845,8 +1848,8 @@ func TestColumns(t *testing.T) {
 	}
 
 	m.Update(tea.MouseMotionMsg{X: 2, Y: 0})
-	acts := m.headerActions(0, viewAgents, 24) // …, ⚙, « at the end
-	click(m, acts[len(acts)-2].x, 0, tea.MouseLeft)
+	acts := m.headerActions(0, viewAgents, 24) // …, ⚙ at the end
+	click(m, acts[len(acts)-1].x, 0, tea.MouseLeft)
 
 	if m.modal == nil || m.modal.title != "Settings" {
 		t.Fatalf("the header gear opens settings: %+v", m.modal)
@@ -1882,7 +1885,7 @@ func TestColumns(t *testing.T) {
 	// Hiding the side folds all its columns into one rail.
 	press(m, "b")
 
-	if cs, _ := m.layout(); cs[0].w != railW || cs[1].w != 0 {
+	if cs, _ := m.layout(); cs[0].w != railW() || cs[1].w != 0 {
 		t.Fatalf("rail: %+v", cs)
 	}
 

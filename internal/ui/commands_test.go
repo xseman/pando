@@ -1372,24 +1372,29 @@ func TestVerticalActivityBar(t *testing.T) {
 		t.Fatalf("hover over the body: row %d", got)
 	}
 	// Header buttons are laid out over the body and hit-tested there too:
-	// hovering the last one (fold) marks it hot, clicking it folds the sidebar.
+	// hovering the last one marks it hot.
 	rc := m.colRect(0)
 	m.mouseAt, m.mouseY = time.Now(), m.barH(0)
 	acts := m.headerActions(0, viewGit, rc.w)
-	fold := acts[len(acts)-1]
+	last := acts[len(acts)-1]
 
-	m.mouseX = rc.x + actW() + fold.x + 1
+	m.mouseX = rc.x + actW() + last.x + 1
 	if acts = m.headerActions(0, viewGit, rc.w); !acts[len(acts)-1].hot {
-		t.Fatalf("the fold button is hot under the mouse: %+v", acts)
+		t.Fatalf("the last button is hot under the mouse: %+v", acts)
+	}
+	// A second click on the open view's icon hides the sidebar, VS Code's
+	// activity bar; the strip stays, and its icon opens it again.
+	click(m, 1, actH, tea.MouseLeft)
+
+	if !m.hidden[0] || m.colRect(0).w != actW() {
+		t.Fatalf("clicking the open view's icon hides the sidebar: hidden %v, w %d", m.hidden[0], m.colRect(0).w)
 	}
 
-	click(m, m.mouseX, m.barH(0), tea.MouseLeft)
+	click(m, 1, actH, tea.MouseLeft)
 
-	if !m.hidden[0] {
-		t.Fatal("clicking the fold button where it is drawn folds the sidebar")
+	if v, _ := m.viewOn(0); m.hidden[0] || v != viewGit {
+		t.Fatalf("its icon opens it again: hidden %v, view %v", m.hidden[0], v)
 	}
-
-	m.hidden[0] = false
 	// A right sidebar keeps its icons on the right edge.
 	m.moveView(viewSearch, 1)
 	i := m.colOf(viewSearch)
