@@ -4437,7 +4437,7 @@ var hotkeys = map[view][][2]string{
 	viewGitHub: {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"d", "changes"}, {"o", "on github.com"}, {"y", "copy link"}, {"w", "worktree"}, {"x", "done"}, {"^r", "refresh"}, {"C", "collapse"}, {"^f", "filter"}},
 }
 
-var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4 6", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"M-t", "agents"}, {"^tab", "editors"}, {"^⇧pgup ^⇧pgdn", "move tab"}, {"^f", "find"}, {"^← ^→", "back/forward"}, {"[ ]", "sessions"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"esc q", "quit"}}
+var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4 6", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"M-t", "agents"}, {"^tab", "editors"}, {"^⇧pgup ^⇧pgdn", "move tab"}, {"^f", "find"}, {"M-, M-.", "back/forward"}, {"[ ]", "sessions"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"esc q", "quit"}}
 
 var previewKeys = [][2]string{{"↑↓", "move"}, {"⇧↑↓", "select"}, {"^a", "all"}, {"y", "copy"}, {"s", "split diff"}, {"m", "stage/revert lines"}, {"w", "wrap"}, {"^f", "find"}, {"^h", "replace"}, {"^g", "go to line"}, {"f12", "definition"}, {"⇧f12", "references"}, {"^.", "code action"}, {"e", "edit"}, {"q", "close"}}
 
