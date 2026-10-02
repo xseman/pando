@@ -1,402 +1,190 @@
-# Preview
+# Preview and editor
 
-The main area shows either the active session's screen or the preview
-(`preview.go`). One struct serves six kinds:
+How the main area shows files, diffs, commits and GitHub pages, and how a file
+becomes an editor. Keys: [09-keys.md](09-keys.md); settings and editor/draft
+storage: [06-config.md](06-config.md).
 
-| kind     | Content                                                  | Opened by                          |
-| -------- | -------------------------------------------------------- | ---------------------------------- |
-| `file`   | a file, chroma-highlighted                               | Explorer ⏎, quick open, search hit |
-| `diff`   | working tree or index diff of one file                   | Source Control ⏎ / `o`             |
-| `show`   | a whole commit                                           | a drawer line (hash)               |
-| `rev`    | what one revision changed in the open file               | header `←` `→`, `H`                |
-| `gh`     | a pull request's or issue's page, rendered Markdown only | GitHub ⏎                           |
-| `ghdiff` | a pull request's changes, `gh pr diff`                   | GitHub `d`                         |
+- [Kinds and loading](#kinds-and-loading)
+- [Text model](#text-model)
+- [Editors and editing](#editors-and-editing)
+- [Diffs and revisions](#diffs-and-revisions)
+- [Markdown](#markdown)
+- [Vim mode](#vim-mode)
+- [Untitled buffers and drafts](#untitled-buffers-and-drafts)
+- [Merge conflicts](#merge-conflicts)
+- [Suggestions and formatting](#suggestions-and-formatting)
+- [Language servers](#language-servers)
 
-The two `gh` kinds are never saved with the open editors, so a restart calls
-no `gh`. ponytail: going back to one of their tabs fetches it again.
+## Kinds and loading
 
-## Editors
+One `preview` struct (`preview.go`) serves every kind. Only `pvFile` is
+editable, and `editable` also refuses a truncated file and a rendering.
 
-Open editors stack in a strip above the main area, drawn from two upwards.
-A revision of the open file stays in its tab; a diff gets its own.
+| kind     | Content                                        | Opened by                          |
+| -------- | ---------------------------------------------- | ---------------------------------- |
+| `file`   | a file, chroma-highlighted; or an untitled one | Explorer ⏎, quick open, search hit |
+| `diff`   | working tree or index diff of one file         | Source Control ⏎ / `o`             |
+| `show`   | a whole commit, `git show`                     | a drawer line (hash)               |
+| `rev`    | what one revision changed in the open file     | header `←` `→`, `H`                |
+| `gh`     | a pull request or issue, rendered Markdown     | GitHub ⏎                           |
+| `ghdiff` | a pull request's changes, `gh pr diff`         | GitHub `d`                         |
 
-```
- app.ts ✕ │ README.md │ notes.md      ctrl+tab / ctrl+shift+tab cycle
-     ▲ active, ✕ closes it            ctrl+w closes, ctrl+alt+- / ctrl+shift+- go back
-```
-
-`editor_limit` is VS Code's `workbench.editor.limit`: past it, `limitEditors`
-closes the tab shown least recently (`preview.used`, stamped by `setPreview`),
-never the active one or one with unsaved text, which count all the same. A
-lowered limit applies on its `state` event. `0`, the default, is no limit.
-
-Every jump (search hit, quick open, `go to line`, a revision step) is a history
-entry that remembers the cursor and the scroll, so going back lands where you
-left. The strip itself outlives the TUI: `saveEditors` sends the files, cursors
-and scroll to the daemon (`editorsSpec`, per workspace in `state.json`) and
-`restoreEditors` reopens them when the workspace opens, the active one on
-screen unless a session of the worktree is showing. An untitled buffer is a tab
-there too, with a name in place of a path. `ctrl+g` opens Go to Line, a picker
-whose query starts with `:` (`:120`, `:120:5` or `:120,5`); the editor follows
-the number as it is typed and `esc` puts the cursor back. `:` typed first in
-quick open is the same picker, `@` goes to a symbol instead, and quick open
-still takes `app.ts:120:5`.
+`load` runs `fetch` and `render` in a `tea.Cmd` (chroma for files,
+`parseDiff`/`renderDiff` for the rest); `onLoad` drops an answer whose `id`
+no longer matches. A file over 1 MiB or 5000 lines loads truncated and
+read-only. Every 2 s tick, `reloadIfLive` reloads a clean `file` or `diff`;
+unsaved text wins over the disk.
 
 ## Text model
 
-```
-raw ──render()──▶ lines[]   styled, one per source line
-                  plain[][] the same without styles  ← cursor, selection, copy
-                  meta[]    diff rows: old/new line number + kind (c a d h p f)
-lines ──rows(w)──▶ vrow{line, from, to}  screen rows (wrapping when `wrap` is on)
-```
-
-A tab draws as `tab_size` spaces (`tabW`, VS Code's `editor.tabSize`, 4 by
-default); the buffer keeps the tab, and `docCol`/`displayCol` translate
-between the two. `syncTabs` redraws the editor when the size changes, mapping
-the cursor and the selection through buffer columns so they stay on their
-characters. With `insert_spaces` the tab key inserts spaces to the next stop
-instead of a tab. The status bar shows VS Code's `Ln, Col` (with the
-characters selected, a tab and a line break one each), which opens Go to
-Line, and `Tab Size: N` or `Spaces: N`, which opens _Indent Using Spaces /
-Tabs_ and then the size (`editor.changeIndentation`, for `[keys]` and the
-palette); a rendered Markdown file has neither.
-
-`render_whitespace` is VS Code's `editor.renderWhitespace`. The display
-holds `tabW` spaces for a tab, so `blankMarks` finds tabs in the buffer's line
-and puts `→` on the first of them; `markBlanks` draws the markers over the
-styled line in the `whitespace` color, leaving the syntax colors around them
-(`ansi.Cut` carries them across), and a selection keeps the color on its
-markers. Diffs and rendered Markdown show none.
-
-Word wrap is the `word_wrap` setting, off by default: Settings, `alt+z`, `w`
-in a read-only view and the header's toggle (lit while on) all flip it through
-the daemon, as `s` flips `diff_view`, and `syncWrap` puts it on the open
-editor when the settings change. Off, a
-row is cut at `left` and a horizontal scrollbar under the text pans it
-(`docs/02-ui-layout.md`); the cursor still pulls `left` along.
-
-While nothing is selected, `hlWord` takes the identifier under the cursor and
-`renderRow` paints every place it stands on a visible line (`wordSpans`, whole
-words only, two characters or more) — VS Code's occurrence highlight without a
-language server. It lights up only when the cursor *moves* onto a name the file
-already uses: an edit sets `typed` and takes the highlight away until the
-cursor moves on its own (VS Code cancels its word highlighter on every change),
-and `standsElsewhere` drops a name that stands nowhere else, so a word is never
-painted as it is being typed. That scan stops at the first other occurrence, so
-only a name used once pays for the whole file. `ctrl+↑`/`ctrl+↓` scroll the
-view by a line and leave the cursor alone, as the wheel does.
-
-The cursor is a `pos{line, col}` into `plain`; `shift`+arrows or a mouse drag
-set an anchor, so selection, `y` copy and "Ln x, Col y" all read the same
-model. `clicks.count` tells a double click, which selects `wordAt` (a run of
-one `runeClass`), from a triple, which selects the line with the cursor at its
-end. Line numbers take `line_number`, the cursor's `line_number_active`: Dark
-and Light Modern's `editorLineNumber` colors (2026's are louder). A file's
-gutter has a blank before the numbers (`numPad`). Styles never enter the text
-model, so a selection copies code, not ANSI.
-`alt+shift+→`/`←` (or `ctrl+shift`) grow and shrink the selection through the
-chain VS Code's smart select uses — word, trimmed line, line, inside each
-bracket pair and with it, the file — computed once per chain by a bracket pass
-over `plain` (no lexer, so brackets in strings count) and dropped as soon as
-the cursor moves on its own.
-
-## Diff rendering
-
-```
- 2    - console.log("scm up");     old · new · mark · code
-    3 + console.log("scm oh yeah");
+```text
+buffer.lines   raw runes, tabs kept       ◀── edits, save, language server
+     │  docCol / displayCol  (rawPos / dispPos)
+     ▼
+plain[][]      tabs as tab_size spaces    ◀── cursor, selection, copy
+lines[]        the same, styled           ◀── drawing only
+meta[]         diff rows: old/new number, kind (c a d h p f)
+     │  rows(w)
+     ▼
+vrow{line, from, to}   screen rows; wrapped when wrap is on
 ```
 
-Rows are tinted (`diffAddBg`/`diffDelBg`), the changed words darker
-(word ranges from the common prefix/suffix of a paired del/add run), and the
-code is highlighted per side: two chroma token streams approximate the old and
-the new file so a string opened on a context line colors both.
+- `pos{line, col}` is a display position into `plain`; `anchor` is the other
+  end of a selection. Styles never enter `plain`, so copy gives code.
+- A tab is `tabW` spaces, not a run to the next stop; `syncTabs` redraws on a
+  change. `insert_spaces` makes the tab key insert spaces.
+- `render_whitespace`: `blankMarks` picks `·`/`→` per rune, `markBlanks`
+  paints them over the styled line. Files only.
+- Every change goes through `preview.edit` (display columns) or `editRaw`
+  (buffer columns) into `buf.apply`, which pushes an undo splice (typing
+  coalesces).
+- `refresh` re-lexes only the touched lines (a whole 5000-line file takes
+  ~260 ms); undo, save and edits over 100 lines take `refreshAll`. A
+  partial re-lex can miscolor the rest of a block comment until then. Both end
+  in `rehit` (find hits, conflicts).
 
-`s` switches inline ↔ side by side; the split pairs each deletion run with the
-additions after it and needs a 90-cell main area, else it falls back to inline.
+## Editors and editing
 
-Side by side selects the same lines inline does: the cursor is a whole row
-(there are two columns of text, so no text caret), `⇧↑↓` and a mouse drag
-extend it, and `m` stages, unstages or reverts exactly the selected changes.
-The cursor is a line of the diff, so it walks a deletion run before the
-additions paired with it — the order the changes are staged in.
+The strip above the main area lists open editors (`●` unsaved).
+`editor_limit` closes the tab with the lowest `used`, never the active or a
+dirty one. Every jump is a history entry with cursor and scroll for Go Back.
+`saveEditors` sends `editorsSpec` (`file` and `rev` tabs only) to the daemon;
+`restoreEditors` reopens them. Go to Line takes `:120`, `:120:5`, `:120,5`.
+
+`preview.key` offers a key to `compKey` (suggest), `findKey`, `vimKey`, then
+`editKey`; the first to claim it wins.
+
+| Command                   | How it works                                                   |
+| ------------------------- | -------------------------------------------------------------- |
+| Copy / Move Line Up, Down | one splice, one undo step                                      |
+| Toggle Line Comment       | `commentOf` picks the marker by extension                      |
+| Sort Lines Ascending      | `sortLines`: selected lines or the whole file; palette, menu   |
+| Expand / Shrink Selection | `smartSel`: word, trimmed line, line, bracket pairs, file      |
+| Save                      | `errChangedOnDisk` asks before overwriting a newer file        |
+| Find (`ctrl+f`)           | VS Code's widget: case, word, regex; hits tinted (`rehit`)     |
+| Replace (`ctrl+h`)        | `$1` in regex mode, preserve case; `replaceAll` is one undo    |
+
+- Smart select brackets come from `plain`, no lexer; moving drops the chain.
+- Occurrence highlight: `hlWord` paints the identifier under the cursor
+  wherever it shows. An edit sets `typed` and hides it until the cursor
+  moves; `standsElsewhere` skips a name used once.
+- Read-only kinds have find but no replace.
+
+## Diffs and revisions
+
+```text
+inline                                side by side (diff_view = "split")
+ 12    - foo := 1                      12 - foo := 1      │ 12 + foo := 2
+    12 + foo := 2                      13   bar()         │ 13   bar()
+ 13 13   bar()
+ old new mark code
+```
+
+- `renderDiff` tints rows (`diffAddBg`/`diffDelBg`) and changed words
+  (`wordRanges`). `tokenLines` lexes an approximate old and new file, so a
+  string opened on a context line colors both sides.
+- `splitRows` pairs each deletion run with the additions after it; under
+  `splitMinW` (90 cells) the split falls back to inline.
+- The cursor is a whole diff line in both views. `m` (or `shift+F10`) opens the
+  context menu; a diff of a tracked file (not `U` or `!`) adds Stage Selected
+  Ranges and Revert Selected Ranges… (asks first, `confirmRevert`), a staged
+  diff Unstage Selected Ranges. `changedLines` picks the lines (a selection
+  ending at column 0 drops that line; none means the cursor line), then
+  `git.ApplyLines` ([05-git.md](05-git.md)).
+- `←`/`→` in the header walk the file's history, `H` picks a revision. Each
+  step is a `rev` diff, entry 0 the uncommitted change.
 
 ## Markdown
 
-`.md` opens as source. `ctrl+shift+v` renders it in place, `alt+v` puts
-source and rendering side by side. goldmark parses (CommonMark + GFM), the renderer is pando's own:
-headings, lists, quotes, tables, task lists and fenced code through chroma,
-wrapped to the panel width. Images become `[image: alt]`, HTML stays source.
-
-The layout is glow's, in pando's colors rather than through glamour, which
-would bring 3 MB and a palette of its own: `mdMargin` cells of air either
-side (dropped under 26 cells), the title as a chip on the accent, the other
-headings with their `#`s, inline code as a chip in `md_code` (`padL`/`padR`
-put the pad cells on the run's first and last word, so a pad wraps with its
-word), and table cells that wrap within their column, the row as tall as its
-tallest cell, instead of being cut. Inline code and code blocks sit on
-`md_code_bg`, a soft grey on the light theme.
-`markdown_width` (80, glow's `-w`) caps the width it lays out in, margins
-included (`mdWidth`); a wider panel leaves the rest blank, 0 fills it. Side
-by side takes its whole half uncapped, so the rendering's lines stay level
-with the source's. The rendering is cached per width, so a new setting lays it
-out again at once.
-
-## Find and replace
-
-`ctrl+f` finds in the open file with VS Code's find widget, floating over the
-editor's top right corner: the query, match case / whole word / regular
-expression (`alt+c` `alt+w` `alt+r`, or a click), `n of m`, and `↑` `↓` `✕`.
-Every match is tinted, the current one stronger, and selected in turn (`⏎`/`F3`
-next, `⇧F3` back, `esc` closes the widget but keeps the matches). An edit or a
-reload recollects them.
-
-`ctrl+h`, or the `▸` before the query, opens the replace box under it: the
-replacement, preserve case (`alt+p`, VS Code's `AB`), and the replace and
-replace-all buttons. `tab` moves the caret between the two boxes. `⏎` in the
-replacement (or `ctrl+shift+1`) replaces the current match and selects the
-next; `ctrl+alt+⏎` replaces every match as one undo step. `$1` expands in regex
-mode. `replacement` reads the buffer's own line so a tab inside a match
-survives; `replaceAll` joins the rewritten lines into one `editRaw` splice.
-Read-only previews (diffs, revisions, rendered Markdown) have no chevron and no
-`ctrl+h`. While Go to Line's query holds a number, that line is highlighted
-across the editor until the picker closes.
-
-## Editing
-
-A file preview is an editor: `buffer` (`buffer.go`) holds the file's raw lines —
-tabs kept, unlike the view's expanded ones — plus an undo stack of splices and
-the mtime the file was read at. Every change goes through `preview.edit`
-(display coordinates) or `editRaw` (buffer coordinates, where a tab is one
-rune); `docCol`/`displayCol` translate between them, the same pair the language
-server uses. `alt+shift+↑`/`↓` (and `ctrl+d`) copy the line or the selected
-lines as one splice, so one undo step.
-
-```
-key → editKey → buf.apply(a, z, text) ─▶ undo stack (typing coalesces)
-                     │
-                     ▼
-              refresh(from, oldTo, newTo)  only the changed lines re-lex
-```
-
-Re-lexing the whole file costs 260 ms at 5 000 lines, so an edit re-renders
-only the lines it touched (~2 ms whatever the file size); undo, save and reload
-take the full pass. A dirty buffer wins over the file: the one-second reload
-skips it, reopening the tab keeps it, and the language server is handed the
-unsaved text through `Client.Overlay` for definitions and references. Code
-actions and rename write to disk, so `saveForServer` saves the editor first and
-only stops when that save cannot happen.
+`md` is 0 source, 1 rendered (`ctrl+shift+v`), 2 side by side (`alt+v`); `gh`
+always renders. goldmark parses CommonMark + GFM, `markdown.go` renders in
+glow's layout: `mdMargin` air (dropped under 26 cells), wrapping table cells,
+chroma code blocks on `md_code_bg`, images as `[image: alt]`, HTML as source.
+`markdown_width` caps the width (`mdWidth`); side by side uses its whole half
+so lines stay level. The rendering is cached per width.
 
 ## Vim mode
 
-`vim.go`, off until `vim_mode = true`. It is one key layer over the editor
-that is already there, not a second editor: the modes decide who gets the key.
+`vim.go`, on with `vim_mode`: a key layer over the same editor, for editable
+files only. Its keys: [09-keys.md](09-keys.md#vim-mode).
 
-```
-preview.key ─▶ compKey ─▶ findKey ─▶ vimKey ─▶ editKey
-                                       │ normal, visual: letters are commands
-                                       └ insert: only esc, so typing,
-                                         suggestions and every ⌃ key are
-                                         exactly what they are with it off
-```
-
-An editor opens in normal mode (`vimState`'s zero value, so a reopened tab
-comes back there) and the header names the mode beside `Ln, Col`. Only an
-editable file takes vim keys — a diff, a revision and a rendering keep their
-own single letters.
-
-| Mode   | Keys                                                                                  |
-| ------ | ------------------------------------------------------------------------------------- |
-| normal | `h j k l 0 $ w b e gg G`, a count before any of them; `i a I A o O` insert            |
-|        | `x D C J p P u`, `⌃r` redo, `v` `V` visual, `/` find, `n` `N` matches, `:` go to line |
-|        | operators `d c y` over a motion (`dw`, `d$`, `dgg`) or doubled (`dd cc yy`)           |
-| visual | the motions grow the selection, `o` swaps its ends, `d x y c s` run over it           |
-| insert | the editor itself; `esc` goes back to normal                                          |
-
-The pieces come from what the editor already had: `moved()` walks `hjkl 0 $ G`,
-`p.edit` splices and undoes, `anchor` is the visual selection, `/` opens the
-find widget and `:` the Go to Line picker. What is new is `vimWord` (vim's
-three rune classes behind `w b e`), the operator/count parser in `vimRun`, and
-one register on the model (`vimReg`, shared by every editor, line-wise or not).
-
-Normal mode stands on a rune rather than past the line end (`vimClamp`), so
-`$`, `x` and leaving insert mode land where vim lands. `esc` with nothing
-selected and no half-typed command still closes the editor, pando's own key.
-
-ponytail: no ex commands (`:w` is `⌃s`, `:q` is `⌃w`), no macros, no marks,
-no named registers, no `.`, no text objects (`ciw`). Add one when it is
-actually missed.
+`vimRun` parses count and operator, `vimReg` is one register for all editors,
+`vimClamp` keeps normal mode on a rune. `esc` with nothing pending closes the
+editor. No ex commands, macros, marks, named registers, `.` or text objects.
 
 ## Untitled buffers and drafts
 
-`draft.go`. `⌃n`, a double click on the empty main area, or *New Untitled File*
-opens an editor with no path — `untitled()`, `kind` still `file`, so it types,
-undoes and finds like any other. It has no file to read, so `load` builds the
-view from the buffer instead of fetching; and no name to lex by, so it is plain
-text until it is saved. `⌃s` opens *Save as* (`saveAsPrompt`, the prompt with
-fish path completion `addProjectPrompt` uses, `completePath` rather than
-`completeDir` so an existing file can be picked), asks before clobbering
-anything, then re-points the tab and reads the file back so chroma lexes it as
-what it now is.
+`draft.go`. `ctrl+n` opens a `file` with no path (`untitled`), built from its
+buffer instead of fetched. `ctrl+s` opens Save As (`saveAsPrompt`), then re-points
+the tab and reloads it so chroma lexes it.
 
-```
-⌃n ─▶ Untitled-1 ●  ──⌃s──▶ Save as ─▶ main.go   the tab follows the file
-  │                                        │
-  └── tick ──▶ draft.set ──▶ ~/.local/share/pando/drafts/…   draft.set "" ──┘
-```
-
-Nothing unsaved is lost to a restart. Every dirty editor — an untitled buffer
-or an edit to a file that exists — is a draft the daemon keeps as a file
-(`docs/06-config.md`), sent by `saveDrafts` on the tick, on the way out and
-before a workspace switch, diffed against `m.savedDrafts` rather than the
-daemon's copy so two TUIs do not rewrite each other. `loadDrafts`/`onDrafts`
-put the text back when the workspace opens: into the tabs `restoreEditors`
-rebuilt, or a tab of their own. A draft carries the mtime its editor read the
-file at, so `errChangedOnDisk` still catches a foreign write across the restart,
-and a tab restored but never opened still counts as unsaved — its buffer is
-built at once, so the `●` shows and the next tick does not mistake it for clean.
-
-A draft goes when its editor is saved, or when a tab is closed without saving.
-Closing unsaved text always asks (`closeEditor`, `⌃w`, `esc`, a middle click);
-for an untitled buffer *Save and close* opens *Save as* first and drops the tab
-only once the file is written. *Close All Editors* and `editor_limit` step
-over what is unsaved rather than take its draft with the tab, the rule
-*Close Other Editors* already followed.
+Every dirty editor is a draft: `saveDrafts` sends it on the tick, on quit and
+before a workspace switch, diffing against `savedDrafts` so two TUIs do not
+rewrite each other. `onDrafts` puts drafts back on open. A draft keeps its
+mtime, so `errChangedOnDisk` still fires after a restart. Closing unsaved
+text asks; Close All Editors and `editor_limit` skip dirty tabs.
 
 ## Merge conflicts
 
-`conflict.go` is VS Code's merge-conflict extension over the editor's text,
-independent of git: `parseConflicts` scans `plain` on every `rehit` (load,
-edit, undo) with the extension's rules — `<<<<<<<` and `>>>>>>>` by prefix,
-`=======` as the whole line, `|||||||` ancestors before the splitter, a
-footer without a splitter drops its block, a nested header stops the scan.
+`conflict.go` decorates `<<<<<<<` / `|||||||` / `=======` / `>>>>>>>` blocks
+from the text alone, using VS Code's rules (`parseConflicts`, on every
+`rehit`). `conflictSuffix` puts Accept Current / Incoming / Both on the header
+line; an accept builds `resolved` and applies it with `setText`, one undo step.
 
-```
-<<<<<<< HEAD (Current Change)  Accept Current Change | Accept Incoming Change | Accept Both Changes
-ours                             merge_current_bg (header: merge_current_head_bg)
-||||||| base / old               merge_common_*
-=======                          no tint
-theirs                           merge_incoming_bg
->>>>>>> feat (Incoming Change)   merge_incoming_head_bg
-```
+## Suggestions and formatting
 
-The header row carries the CodeLens: `conflictSuffix` appends the note and
-the three actions to the marker line (a TUI has no row between lines), and
-`conflictClick` hits them before `posAt` does. `renderRow` lays the block's
-tint under the text with `underBg`, as Go to Line does. An accept rebuilds
-the text (`resolved`: markers and the other side go, the kept side stays
-verbatim, a lone empty line chosen from one side goes too, Both is current
-then incoming) and hands it to `setText`, so a whole Accept All is one undo
-step and the view keeps its scroll. Next / Previous wrap around like VS
-Code's. Compare Changes has no counterpart.
+`complete.go` is not a modal: `compKey` takes arrows, `⏎`/`tab`, `esc`, and
+`afterEdit` refilters. It lists `fileWords` at once and, after an 80 ms tick,
+the server's completions (stale `seq` dropped). `autoSuggest` opens it while
+typing in files with a language; `ctrl+space` anywhere.
 
-## Suggestions, formatting and language servers
+`format.go` pipes the text through the `[format]` tool (stdin to stdout, 10 s
+timeout, on the update loop); `setText` swaps only differing lines. A failing
+tool changes nothing. `format_on_save` runs it in `save`. `commandFor` picks
+by extension, language id, then defaults (`gofmt`).
 
-`complete.go` is the suggest widget. It is not a modal: `preview.key` gives the
-open list first pick of the keys (`compKey`: arrows, `⏎`/`tab`, `esc`), lets
-everything else reach `editKey`, and `afterEdit` refilters or closes it.
+## Language servers
 
-```
-typed letter ─▶ suggest ─▶ refilter: server items, else fileWords (nearest line first)
-                   │
-                   └─ 80 ms tick (seq) ─▶ Overlay + textDocument/completion ─▶ compMsg
-                                                      stale seq dropped ◀─┘
+`internal/lsp` covers definition, references, rename, documentSymbol,
+completion and codeAction (with resolve and executeCommand); no diagnostics.
+
+```text
+F12, shift+F12 ─▶ lspGo ─▶ tea.Cmd ─▶ lspPool.get(root, path, lang, argv)
+                                    one server per language + binary,
+                                    nearest node_modules/.bin, then PATH;
+                                    TypeScript 7: tsc --lsp
+                                       │ Overlay(unsaved text), didOpen
+                                       ▼
+                         Definition / References ─▶ lspMsg ─▶ onLSP
+        one definition ─▶ openLocation        else ─▶ openPeek
 ```
 
-Typing opens it in files with a language (`autoSuggest`), not in prose;
-`ctrl+space` forces it. A `.` asks the server for members with an empty word.
-An accepted item replaces the typed word, or from the column the server's
-`textEdit` names, in one `editRaw`; snippet tab stops are stripped to their
-placeholders. The box is drawn by `View` over the editor, under the cursor's
-line or above it when it would run off, like the code action menu.
-
-`ctrl+shift+i` formats: the editor's text goes into the `[format]` tool on stdin
-and what comes back replaces the buffer in one undoable edit, the cursor kept
-where it was (`format.go`). A tool that exits non-zero changes nothing and
-flashes its first stderr line. `format_on_save` runs the same path from
-`preview.save` before the write, so a file that stops parsing still saves.
-Lookup is `commandFor`, shared with `[lsp]`: the file's extension, then its
-language id, then pando's defaults (`gofmt` for Go).
-
-`F12` jumps to a definition, `⇧F12` lists references, `ctrl+.` (`alt+⏎`, or `.`
-in a read-only file) lists the code actions for the selection, `F2` renames the
-symbol under the cursor (`textDocument/rename`; the box opens over the symbol
-at `lightbulb(back)`, the same placement the actions menu uses, and starts with
-the identifier around the cursor — no `prepareRename`). pando speaks the small
-part of LSP it needs (`internal/lsp`): definition, references, rename,
-documentSymbol, completion, codeAction with its resolve and executeCommand —
-no diagnostics.
-
-The menu opens under the cursor's line, its actions grouped by kind. A picked
-action is applied by the client: the server's `WorkspaceEdit` (its own,
-one from `codeAction/resolve`, or one the command sends back as
-`workspace/applyEdit`) is written to the files on disk — text edits last one
-first, file creates, renames and deletes in order — and the preview and the
-git status reload. There is no undo: git is the undo.
-
-`ctrl+shift+o` is Go to Symbol: `textDocument/documentSymbol` in a picker whose
-query starts with `@` (typing `@` in quick open lands there too). The tree a
-server answers is flattened in document order, a child naming its parent on the
-right, and the symbol around the cursor is selected. `@:` groups the rows under
-VS Code's kind headings (`methods (3)`), groups by name. Moving through the
-list moves the editor to the symbol's name, esc puts it back, and deleting the
-`@` goes back to Go to File. A Markdown file needs no server: its ATX headings
-are the symbols, fenced code skipped.
-
-```
-ctrl+shift+o ─▶ Symbols(path) ─▶ picker "@"  ─▶ ↑/↓ showSymbol   esc ─▶ cursor back
-                   (overlay)          │ ":"
-                                      ▼
-                         fields (1) · functions (2) · methods (3) …
-```
-
-```
-F12 ─▶ lspPool.get(workspace, language, binary) ─▶ gopls / typescript-language-server
-   │        nearest node_modules/.bin first, then PATH (TypeScript 7: its own tsc --lsp);
-   │        started on the first jump, stdio JSON-RPC
-   ▼
- one location ─▶ open it          many ─▶ peek under the editor
-```
-
-```
- withRouter.tsx  src/util — References (27)                              ✕
- 16 export function withRouter…  │ ▾ app.tsx  src                     2
- 17     function Component…      │ ▾ withRouter.tsx  src/util         1
- 18         let location = …     │     function withRouter<Params…   16
-```
-
-↑↓ walks the locations and the source follows, ←→ folds a file, ⏎ opens and
-closes, `o` opens and keeps the list, `esc` closes. A file's columns and the
-preview's differ (a tab shows as `tab_size` spaces), so pando translates both ways.
-
-## Staging selected lines
-
-Right click or `m` in a diff: *Stage / Unstage / Revert Selected Ranges*, the
-VS Code behaviour without patching hunks.
-
-```
-selection ─▶ dels{old line numbers}, adds{new line numbers}
-git diff -U1000000000 ─▶ whole file as one hunk
-  stage : start from the old side, apply the selected changes → git hash-object → update-index
-  revert: start from the new side, undo them              → write the file
-  unstage: same, against the index diff                   → update-index
-```
-
-Rebuilding the file from a fresh full-context diff means there are no hunk
-offsets to get wrong; a file that changed underneath simply fails the diff.
-
-## Revisions
-
-The header's `←` / `→` buttons walk the open file's history like GitLens; `H`
-picks one.
-
-```
-file ──←──▶ [0] uncommitted changes ──▶ [1] abc1234 · 2 days ago · fix …
-     ◀──→──                          ◀──
-```
-
-The list comes from `git log --follow` (plus an entry for uncommitted changes
-when there are any); each step shows that revision's diff, so the split view,
-selection and copy work unchanged. A repository with nothing committed yet
-shows the uncommitted entry alone, diffed against an empty file.
+- Servers start on first use and die with the TUI. Columns convert through
+  `UTF16Col`/`RuneCol` and `docCol`/`displayCol`.
+- Code actions and rename write to disk: `saveForServer` saves first, the
+  `WorkspaceEdit` is applied file by file, then preview and git reload. Git is
+  the undo.
+- Go to Symbol flattens the symbol tree; Markdown uses `mdSymbols` (ATX
+  headings) without a server.
+- The references peek (`peek.go`) sits under the editor: the selected hit's
+  source left, hits grouped by file right.

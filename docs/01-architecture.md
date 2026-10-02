@@ -1,113 +1,164 @@
 # Architecture
 
-Two processes: a daemon owns the state and the agent sessions, clients (TUI, CLI)
-talk to it over a unix socket. Killing a TUI never kills a session.
+How the daemon, its sessions and its clients fit together: the socket
+protocol, how a session's status is decided, and how sessions come back after
+a restart. The TUI is in [02-ui-layout.md](02-ui-layout.md).
 
+- [Processes](#processes) · [Protocol](#protocol) · [Sessions](#sessions) ·
+  [Status](#status) · [Resume after a restart](#resume-after-a-restart)
+
+## Processes
+
+One daemon owns all state and every PTY; the TUI and the CLI are clients.
+Killing a TUI never kills a session.
+
+```text
+ pando (TUI)        pando session …        any script
+     │                    │                     │
+     └─────── JSON lines over a unix socket ────┘
+                          │  <runtime dir>/pando.sock
+ ┌────────────────────────┴─────────────────────────────┐
+ │ daemon: pando serve      state.json · config.toml    │
+ │  500 ms ticker: status, foreground, resume, config   │
+ │  session ── PTY ── shell ── claude / codex / …       │
+ │     └─ vt.Emulator: screen + 10 000 lines scrollback │
+ │  broadcast ──▶ every subscribe connection            │
+ └──────────────────────────┬───────────────────────────┘
+                            │ claude attach JOB, run in a PTY
+                            ▼
+          Claude Code's daemon: claude --bg jobs, outlive pando
 ```
- pando (TUI)        pando session ls      any script
-      │                    │                   │
-      └──── JSON lines ────┴───────────────────┘
-                           │  $XDG_RUNTIME_DIR/pando/pando.sock
-                    ┌──────┴───────┐
-                    │   daemon     │  config.toml · state.json
-                    │  sessions[]  │──── PTY ──── claude / codex / shell
-                    └──────────────┘      └─ vt.Emulator (screen + scrollback)
-```
+
+- Runtime dir: `PANDO_RUNTIME_DIR`, else `$XDG_RUNTIME_DIR/pando`, else
+  `/tmp/pando-<uid>`; it holds the socket, `pando.lock` (`flock`, one daemon)
+  and `daemon.log`.
+- Any client autostarts the daemon (`proto.EnsureDaemon`). `ping` returns the
+  build id; a TUI whose build differs restarts the daemon, silently when no
+  session runs, otherwise after asking (`staleModal`): a restart kills the PTYs.
+- `WatchUpdates` checks GitHub at start and daily while `update_check` is on.
 
 ## Protocol
 
-One request per connection, one response line back; `subscribe` keeps the
-connection and streams events instead.
+One request per connection, one response line back. `subscribe` keeps the
+connection open and streams events instead.
 
-```
+```text
 → {"method":"session.new","params":{"workspace":"/repo","agent":"claude"}}
-← {"result":{"id":"a1b2","agent":"claude",...}}
-
-subscribe → {"event":"sessions"} {"event":"screen","id":"a1b2"} {"event":"state"} …
+← {"result":{"id":"a1b2c3","agent":"claude","status":"running",…}}
+← {"error":"unknown session \"zz\""}
 ```
 
-Methods: `ping state.get state.set draft.list draft.set project.add
-project.remove project.move workspace.list workspace.new workspace.remove
-workspace.move focus session.new session.get session.list session.kill
-session.rename session.move session.input session.screen session.read
-session.wait update.status update.check update.install subscribe shutdown`.
+Methods (`Daemon.dispatch`; `subscribe` in `Daemon.handle`):
 
-The API is the orchestration surface — sessions, workspaces, projects,
-settings — not a mirror of the TUI. Explorer, Source Control, Search, diffs
-and the editor run inside the client over `internal/git` and the filesystem,
-which any script already reaches on its own.
+- daemon: `ping` `shutdown` `subscribe` `focus`
+- state: `state.get` `state.set` `draft.list` `draft.set`
+- projects: `project.add` `project.remove` `project.move`
+- worktrees: `workspace.list` `workspace.new` `workspace.remove` `workspace.move`
+- sessions: `session.new` `session.get` `session.list` `session.kill`
+  `session.rename` `session.move` `session.input` `session.screen`
+  `session.read` `session.wait`
+- updates: `update.status` `update.check` `update.install`
 
-`session.wait` is the one call that blocks: it returns when the session's
-status is one of `until` (default `idle`, `blocked`, `exited`), when the
-screen matches `match`, or when `timeout_ms` passes, so no client polls for a
-turn to finish. Every other method answers at once.
+Events are notifications; the client re-reads what changed: `sessions` →
+`session.list`, `screen` (output, at most every 16 ms) → `session.screen`,
+`state` (also `config.toml` edited on disk) → `state.get`, `workspaces` →
+`workspace.list`. `focus` and `update` carry their payload.
 
-Sessions resolve by id, by the name `session.new` or `session.rename` gave
-them, or by an unambiguous prefix of either; a name is unique among live
-sessions. A `parent` on `session.new` (resolved the same way, stored as the id)
-makes a shell of that session's Terminal panel; `session.kill` on the parent
-kills them with it. `session.move` puts a session in the place of another in
-its workspace, in the order `session.list` returns, and its children go with it;
-a child moves among its siblings, behind the parent that stays in front.
-`workspace.move` puts a worktree at an index among its project's, kept per
-project in `state.json`; worktrees it has not seen follow in git's order.
-`skills/pando/SKILL.md`, which `pando skill` prints, is the guide an agent
-reads before driving any of this.
+- `draft.set` broadcasts nothing: a `state` event per keystroke burst would
+  make every client re-read the state.
+- A subscriber that falls 256 events behind is dropped.
+- `session.wait` is the one call that blocks: it returns when the status is in
+  `until` (default `idle`, `blocked`, `exited`, dropped when only `match` is
+  given), the screen matches `match`, or fails when `timeout_ms` passes. Every other method answers at once.
 
-`draft.list`/`draft.set` are the editors' unsaved text. They are the one pair
-that does not broadcast: a draft is written on the TUI's tick, and a `state`
-event per keystroke burst would have every client re-read the state.
+[SKILL.md](../skills/pando/SKILL.md) is the contract an agent reads before
+driving the API.
 
-Events are notifications, not data: the client re-reads what changed
-(`state` → `state.get`, `sessions` → `session.list`, `screen` → `session.screen`).
-`focus` and `update` are the exceptions and carry their payload, so a download's
-progress needs no call per frame.
+## Sessions
 
-## Daemon
+- Each session is a `creack/pty` process and a `vt.Emulator`, one mutex each,
+  with `PANDO_SESSION=<id>` and `PANDO_RUNTIME_DIR` set and `NO_COLOR` dropped.
+- A shell session tries `shellCandidates` in order; one failing within 2 s
+  yields to the next.
+- Sessions resolve by id, by name (unique among live sessions), or an
+  unambiguous prefix. A `parent` session's Terminal shells die with it.
+- `xtermKey` encodes modified special keys vt drops (`ctrl+←`).
+- Attention: bell, OSC 9/777, or, unseen, turning blocked or exited or
+  ending a burst of 3 s or more.
+- Exit 0 closes a session; a failure stays listed with its code. A kill sends
+  SIGHUP to the shell's and the foreground job's process groups, SIGKILL
+  after 2 s.
 
-- Autostarted by any client (`proto.EnsureDaemon`), single instance via `flock`.
-- `ping` returns the executable's build id; a TUI from a newer build restarts a
-  stale daemon (silently when no session runs, otherwise it asks).
-- Sessions: `creack/pty` + `charmbracelet/x/vt` emulator per session, each
-  behind its own mutex. Keys go through vt's encoder, except a special key
-  held with shift, ctrl or meta, which vt drops: `xtermKey` writes xterm's
-  `CSI 1;m D` / `CSI n;m ~` for those, so `ctrl+←` reaches readline. Output
-  sets an "attention" flag on bell/OSC 777/long quiet runs. A process that
-  exits with code 0 closes its session; a failure stays listed with its exit
-  code.
-- Restart respawns sessions from `state.json` (scrollback is lost) and
-  resumes the agent each one held (`docs/03-views.md`, Spaces).
-- `pando claude` is not a daemon call: it runs `claude --bg` and execs
-  `claude attach`, so Claude Code's own daemon holds the conversation.
-- Updates: `pando serve` starts `WatchUpdates`, which asks GitHub for the
-  latest release at startup and once a day after while `update_check` is on.
-  `update.install` downloads it in the background and reports its progress as
-  `update` events; see `internal/update`.
+`session.screen` counts as viewed: it clears attention for 2 s.
 
-## Client
+## Status
 
-Bubble Tea model in `internal/ui`. One `Model` holds every view; messages come
-from the daemon subscription, a 2 s tick (git status, preview reload, drafts,
-open editors), and the terminal (keys, mouse, resize).
+`Session.Status` is `blocked`, `running`, `idle` or `exited`; the TUI shows
+`idle` with `attention` as done. Each tick, `session.tick` decides:
 
-```
-tea.Msg ─▶ Model.Update ─▶ view state ─▶ Model.View ─▶ lines[] ─▶ terminal
-   ▲                          │
-   └── tea.Cmd (git, search, daemon calls in goroutines)
+```text
+ process gone? ────────────────────────────────yes─▶ exited
+   │ no
+ screenState: last 12 non-empty lines and the title
+   ├─ blocked: a permission or a question ─────────▶ blocked
+   ├─ running: esc to interrupt, ✻ Doing… ─────────▶ running
+   └─ idle (claude at an empty ❯), or "" (no rule)
+        │
+ shell command under the worker on 2 ticks? ───yes─▶ running
+        │ no
+ the screen said idle? ────────────────────────yes─▶ idle
+        │ no: unknown program, or a ◯ background row
+ output in the last 1.5 s? ────────────────────yes─▶ running
+        │ no
+        └──────────────────────────────────────────▶ idle
 ```
 
-Everything expensive (git, ripgrep, daemon RPC) runs in a `tea.Cmd`, never in
-`Update`, so the UI never blocks.
+- `agentRules` in `internal/daemon/detect.go` holds the phrases per agent
+  (`claude`, `codex`, `gemini`, `opencode`). The screen is reclassified only
+  after output or a change of foreground program.
+- Foreground program: the PTY's process group (`TIOCGPGRP`, `/proc/<pgid>/cmdline`).
+- Shell commands: `commandsUnder` keeps the worker's direct children that run a
+  command line (`sh -c`, `bash -lc`). An MCP server is no shell; a hook is gone
+  by the next tick. The worker is the foreground process, or, under `claude
+  attach`, the background job's process. So a `run_in_background` shell keeps
+  an idle claude running.
+- `/proc` is Linux only; elsewhere only the screen and output timing decide.
 
-## Packages
+## Resume after a restart
 
-| Path              | Contents                                                      |
-| ----------------- | ------------------------------------------------------------- |
-| `main.go`         | the CLI: every command `pando help` lists                     |
-| `internal/proto`  | wire types, client calls, socket paths, daemon autostart      |
-| `internal/daemon` | state, config, sessions, PTY, event fan-out                   |
-| `internal/git`    | every git call (`git -C root …`), no libgit2                  |
-| `internal/lsp`    | language server client over stdio                             |
-| `internal/update` | GitHub release check, verified download, replacing the binary |
-| `internal/ui`     | Bubble Tea model, views, preview, theme                       |
-| `skills/pando`    | `SKILL.md`, printed by `pando skill`                          |
+```text
+ running daemon, every tick (Daemon.remember)
+   foreground program ─▶ spec.Resume      [resume], [resume_id] or [resume_job]
+   claude: ~/.claude/sessions/<pid>.json ─▶ spec.Conversation {id, job, env}
+   agent is the session's own process     ─▶ spec.ResumeExec
+   changed? ─▶ state.json
+        │
+ restart: Daemon.New, each saved spec (workspace gone: skipped)
+   Daemon.resume ─▶ command, leftover pid, notice lines
+   ├─ shell session ─▶ respawn the shell; 600 ms later stop the leftover,
+   │                   type the command (resumeWith)
+   └─ ResumeExec    ─▶ run the command in place of Cmd: sh -c 'exec env …'
+```
+
+Scrollback is lost. A claude resumes by id from its `sessions/<pid>.json`
+(`procStart` guards against a reused pid); other agents use `[resume]`.
+`Daemon.resume` decides per conversation:
+
+| The conversation is…                                | The session                                                   |
+| --------------------------------------------------- | ------------------------------------------------------------- |
+| continued already by an earlier session in the list | stays a shell, saying which session has it                    |
+| running as a background job                         | attaches to the job again (`[resume_job]`)                    |
+| a background job that ended                         | resumes the conversation by id                                |
+| open in a process outside pando                     | stays a shell, saying which process and the command for later |
+| open in a leftover of this daemon (a crash)         | stops the leftover, then resumes                              |
+| not open anywhere                                   | resumes                                                       |
+| empty: no transcript yet, `--resume` would fail     | starts the agent afresh, its `[agents]` preset                |
+
+- A leftover (`Daemon.ours`) ran under this runtime directory and belongs to a
+  respawned session or lost its terminal.
+- `[resume_env]` variables the agent had and its shell lacks
+  (`CLAUDE_CONFIG_DIR`, …) go before the command (`agentEnv`).
+- `pando claude ARGS` runs `claude --bg ARGS` and execs `claude attach ID`, so
+  the conversation lives in Claude Code's daemon and a restart stops only the
+  attach. With `claude_background` on, resumes by id go through it too.
+- An attach sets no title: the session shows the job's name or transcript title.

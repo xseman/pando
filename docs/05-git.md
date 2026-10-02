@@ -1,135 +1,130 @@
-# Git integration
+# Git
 
-`internal/git` shells out to `git -C root …` with a 60 s timeout,
-`GIT_TERMINAL_PROMPT=0` and `GIT_OPTIONAL_LOCKS=0`. No libgit2, no cgo; every
-feature is a porcelain or plumbing command whose output is parsed once.
+How `internal/git` runs git and gh: projects and worktrees, status, staging
+selected lines, branches, commits. No libgit2: every feature is a git command
+whose output is parsed once.
 
-## Status
+## Running git
 
-`git status --porcelain -z --branch --renames --untracked-files=all` → branch,
-upstream, ahead/behind and entries:
-
-```
-XY path        X = index, Y = worktree
-M  a.go        staged
- M b.go        changed
-?? c.go        untracked  → letter U
-UU d.go        conflict   → letter !, Conflicts, XY kept ("UU")
-```
-
-Entries split into the four view sections (merge / staged / tracked /
-untracked); a conflict (`UU AA DD AU UA DU UD`) goes to `Conflicts` only, with
-its pair in `XY` for `ConflictText` ("both modified", "deleted by them", …).
-`Decorations` colors the Explorer from the same status, propagating a `*` up
-the parent directories.
-
-`operation` names what is in progress by the files VS Code checks in
-`rev-parse --git-dir`: `MERGE_HEAD` → merge, `rebase-merge` or `rebase-apply`
-→ rebase, `CHERRY_PICK_HEAD` → cherry-pick. `HasConflictMarkers` is VS Code's
-regexp over the working tree file. `Diff` of a conflict is `diff --ours`
-(working tree against stage 2), a two-way diff where plain `diff` would print
-a combined one. `Continue` finishes: `commit -m` for a merge or cherry-pick,
-or `commit --no-edit --cleanup=strip` with no message, which takes the
-`MERGE_MSG` git wrote without its `# Conflicts:` comments; `-c
-core.editor=true rebase --continue` for a rebase. `Status.MergeMsg` is that
-file cleaned up the same way, for the message box to show.
-
-`RandomBranch` names a worktree nobody named, herdr's
-`worktree/<adjective>-<noun>-<4 hex>`.
-
-## Worktrees and projects
-
-A project is a repository's main worktree; `git worktree list --porcelain`
-gives its worktrees, `Discover` also finds nested repositories under it.
-`pando ws new BRANCH` creates a worktree under
-`~/.local/share/pando/worktrees/<project>/<branch>`.
-
-Claude Code locks a worktree it enters (`.claude/worktrees/<name>`) with the
-reason `claude session NAME (pid N start T)`, and `git worktree remove` refuses
-a locked one. Deleting it from pando checks that pid:
-
-| The claude that locked it                  | Delete                                                |
-| ------------------------------------------ | ----------------------------------------------------- |
-| still running (pid alive, same start time) | refused: "claude session NAME is still running in it" |
-| gone, or the pid reused by another process | `git worktree unlock`, then remove                    |
-| a lock with any other reason               | git's own refusal                                     |
-
-## Branches
-
-```
-git for-each-ref --sort=-creatordate refs/heads refs/remotes refs/tags
-  → Ref{Name, Kind: branch|remote|tag, When, Author, Hash, Subject, Head}
-checkout: branch → git switch NAME
-          remote → git switch --track NAME   (a local branch of that name wins)
-          tag    → git switch --detach NAME
-```
-
-A branch already checked out in another worktree is not an error: pando parses
-the path out of git's message and opens that worktree instead.
-
-## Writing to the index
-
-Beyond `add`/`reset`, pando writes blobs directly for partial staging:
-
-```
-content ─ git hash-object -w --no-filters --stdin ─▶ sha
-          git update-index --add --cacheinfo MODE,sha,PATH
-```
-
-`MODE` comes from `git ls-files -s`, so an executable bit survives.
-
-## Commit
-
-`Commit`, `Amend`, `Sync` (`pull --rebase --autostash`, then `push`), `Publish`
-(`push -u REMOTE HEAD`, after `remote add` when given a URL), `Remotes`
-(`remote -v`, push URLs) and `Suggest`, which pipes the staged diff into
-`claude -p --model haiku` for a commit message. `SuggestOpts` adds a body,
-the last 20 subjects (`log -20 --no-merges --format=%s`) as a style to
-follow, a message to rewrite, or a previous suggestion to avoid; stdin
-carries them as labelled blocks before the diff, and `parseSuggestion` (fuzzed)
-strips fences and quotes. `PublishGitHub` stands in for
-VS Code's GitHub extension with `gh repo create NAME --private|--public
---source ROOT --remote origin --push`; `HasGH` and `GHLogin` tell whether gh
-is there and who it is signed in as. Commit & Sync publishes instead of
-syncing while the branch has no upstream: to the only remote at once,
-otherwise it opens the Publish picker after the commit.
-
-## gh
-
-`github.go` holds every gh call. `GH` runs gh in a directory, where gh finds
-the repository by its remotes, with the 60 s timeout, `GH_PROMPT_DISABLED=1`
-(a question fails rather than hangs) and the same `*Error`. Its JSON goes
-through `encoding/json` straight into structs: no parser of ours to fuzz.
-
-| Func            | gh                                                                                                                                |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `PullRequests`  | `pr list --limit N --json number,title,author,url,isDraft,headRefName,baseRefName,headRefOid,isCrossRepository,statusCheckRollup` |
-| `Issues`        | `issue list --json number,title,author,url`                                                                                       |
-| `Notifications` | `api repos/{owner}/{repo}/notifications`, the unread threads                                                                      |
-| `CheckoutPR`    | `pr checkout N --branch B` in a worktree, then `branch -D` the throwaway branch it was made on                                    |
-
-`Item.Checks` sums the rollup as VS Code's list does: fail when a CheckRun
-concluded `FAILURE`, `TIMED_OUT`, `CANCELLED`, `ACTION_REQUIRED` or
-`STARTUP_FAILURE`, or a StatusContext is `FAILURE`/`ERROR`; else pending while
-a CheckRun is not `COMPLETED` or a StatusContext is `PENDING`/`EXPECTED`;
-else pass. A StatusContext has no status at all, so it goes by its state.
-
-`CheckoutPR` never passes `--force`: gh resets an existing branch with it. The
-tests run a fake gh from `PATH` that logs its arguments (`fakeGH`), and the
-checkout against real worktrees with a gh that does what gh does.
-
-## Errors
-
-Every failure from this package is a `*git.Error` carrying the arguments, what
-git printed on stderr and its exit status; `Error()` is still just the stderr
-line the UI shows. Read the status with `git.ExitCode(err)` — 0 for success,
--1 when the command never ran — and never by matching on the message:
+`Run` is `git -C root …` with a 60 s timeout, `GIT_TERMINAL_PROMPT=0` (a
+credential prompt fails instead of hanging) and `GIT_OPTIONAL_LOCKS=0`.
+Every failure, git's or gh's, is a `*git.Error` carrying the arguments, stderr
+(its `Error()` text) and the exit status. Test the status, never the message:
 
 ```go
 if git.ExitCode(err) == 1 { … }          // diff --quiet: the file differs
 errors.Is(err, context.DeadlineExceeded) // the 60 s timeout fired
 ```
 
-`Revisions` returns revisions or an error, never both. A repository with no
-commits yet has no `HEAD` to log, so it answers with the single "Uncommitted
-changes" row instead of git's `fatal:`.
+## Projects and worktrees
+
+A project is a repository's main worktree, kept in `state.json`; each of its
+worktrees is a workspace, where sessions run.
+
+```text
+ state.json  projects: [/src/repo, /src/notes]
+                             │
+ /src/repo                   project = main worktree (git.MainRoot)
+ ├─ .git/                    common dir, shared by every worktree
+ │  └─ worktrees/feat-x/     the linked worktree's own git dir
+ └─ libs/sub/  (.git)        nested repo: found by Discover, own status
+                             │ git worktree add
+ <data dir>/worktrees/repo/feat-x      ⑂ linked worktree, branch feat-x
+ /src/notes                  not a repository: one workspace, Main
+```
+
+- `project.add` resolves a linked worktree to its project (`--git-common-dir`).
+- `workspace.list` is `git worktree list --porcelain` per project, in the
+  order `workspace.move` saved, git's order for the rest.
+- `workspace.new` takes a branch, or `RandomBranch`
+  (`worktree/<adjective>-<noun>-<4 hex>`), creating it if missing.
+- `workspace.remove` refuses the main worktree and one with sessions.
+- `Discover` finds nested repositories up to two levels down.
+
+Claude Code locks a worktree it enters (`claude session NAME (pid N start T)`)
+and `git worktree remove` refuses a locked one. `unlockStale` unlocks it when
+that pid is gone or reused; a claude still running refuses the removal; any
+other lock is left to git.
+
+## Status
+
+The TUI reads status on its 2 s tick, off the UI goroutine:
+
+```text
+ refreshGit (skipped while the last one runs)
+   Discover(workspace) ─▶ repository roots
+   per root, Stat:
+     git status --porcelain -z --branch --renames --untracked-files=all
+       └─ parseStatus ─▶ Branch, Upstream, Ahead, Behind, entries
+     git rev-parse --git-dir ─▶ operationIn ─▶ Op, MergeMsg
+   Decorations (git_deco on): entries + status --ignored ─▶ Explorer letters
+   gitMsg ─▶ Model.Update
+```
+
+- Entries fall into `Staged` (X), `Changes` (Y; `??` as `U`, which the view
+  splits off as Untracked) and `Conflicts` (`UU AA DD AU UA DU UD`, letter `!`,
+  pair kept in `XY`).
+- `operationIn` checks the worktree's own git dir as VS Code does:
+  `MERGE_HEAD`, `rebase-merge`/`rebase-apply`, `CHERRY_PICK_HEAD`.
+- `Diff` of a conflict is `diff --ours`, a two-way diff; an untracked file
+  diffs against `/dev/null`.
+- `Continue` runs `rebase --continue`, or commits a merge or cherry-pick,
+  with git's `MERGE_MSG` (`--cleanup=strip`) when the box is empty.
+
+## Staging selected lines
+
+`ApplyLines` rebuilds the whole target file from a full-context diff, as
+VS Code does, so no hunk offsets go wrong:
+
+```text
+ diff --unified=1000000000 [--cached] ─▶ pickLines ─▶ content
+ content ─ git hash-object -w --no-filters --stdin ─▶ sha
+           git update-index --add --cacheinfo MODE,sha,PATH
+```
+
+`MODE` comes from `git ls-files -s`, so an executable bit survives. Reverting
+lines writes the working tree file instead.
+
+## Revisions
+
+`Revisions` lists a file's history newest first, following renames: its
+uncommitted changes as a first row, then every commit. It returns revisions
+or an error, never both; with no commits yet it is the one "Uncommitted
+changes" row. `RevisionDiff` is one revision's patch.
+
+## Branches
+
+```text
+git for-each-ref --sort=-creatordate refs/heads refs/remotes refs/tags
+checkout: branch → git switch NAME
+          remote → git switch --track NAME   (a local branch of that name wins)
+          tag    → git switch --detach NAME
+```
+
+A branch checked out in another worktree opens that worktree instead.
+
+## Commit and sync
+
+- `Commit`, `Amend` (`--no-edit` with no message).
+- `Sync`: `pull --rebase --autostash`, then `push`.
+- `Publish`: `remote add` when given a URL, then `push -u REMOTE HEAD`.
+  Commit & Sync publishes instead while the branch has no upstream.
+- `Suggest`: `claude -p --model haiku` over the staged diff (else the
+  unstaged, cut at 16 KiB); `SuggestOpts` adds a body, the recent subjects as
+  a style, a message to rewrite or one to avoid. `parseSuggestion` is fuzzed.
+
+## GitHub
+
+`github.go` holds every gh call. `GH` runs gh in the workspace (gh finds the
+repository by its remotes) with the 60 s timeout and `GH_PROMPT_DISABLED=1`;
+JSON decodes straight into structs.
+
+- `PullRequests`, `Issues`: `pr list` / `issue list --json …`.
+- `Notifications`: `api repos/{owner}/{repo}/notifications`.
+- `CheckoutPR`: `pr checkout N --branch B`, never `--force` (it would reset an
+  existing branch).
+- `PublishGitHub`: `repo create NAME --source ROOT --remote origin --push`.
+- `Item.Checks` sums the check rollup as VS Code does: fail, else pending,
+  else pass.
+
+Tests run a fake gh from `PATH` that logs its arguments (`fakeGH`).

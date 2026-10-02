@@ -1,64 +1,72 @@
 # Releasing
 
-Conventional commits on `master` → release-please opens a release PR → merging
-it tags `vX.Y.Z`, writes `CHANGELOG.md` and publishes a GitHub release →
-`.github/workflows/release.yml` builds the binaries and uploads them.
+How a release is cut, what it ships, and how `install.sh` and the self-update
+fetch and verify it.
 
+## Pipeline
+
+```text
+feat:/fix: commits on master
+        │ release-please (.github/workflows/release.yml)
+        ▼
+release PR ──merge──▶ tag vX.Y.Z, CHANGELOG.md, GitHub release
+                              │ artifacts job, one ubuntu runner
+                              ▼
+          pando-{linux,darwin}-{amd64,arm64}, install.sh,
+          CHECKSUMS.txt (sha256sum pando-*)
+                              │
+              ┌───────────────┴────────────────┐
+              ▼                                ▼
+   install.sh: download, verify,      daemon (internal/update): download,
+   mv into ~/.local/bin               verify, os.Rename over the binary
 ```
-commit (feat: …)  ─▶  release PR  ─merge─▶  tag vX.Y.Z + release
-                                                   │
-                                                   ├─ pando-linux-amd64
-                                                   ├─ pando-linux-arm64
-                                                   ├─ pando-darwin-amd64
-                                                   ├─ pando-darwin-arm64
-                                                   ├─ CHECKSUMS.txt
-                                                   └─ install.sh
-```
 
-| File                             | What it does                                                         |
-| -------------------------------- | -------------------------------------------------------------------- |
-| `.github/.release-config.json`   | one package at the repository root, `release-type: go`, tag `vX.Y.Z` |
-| `.github/.release-manifest.json` | the last released version; release-please writes it                  |
-| `.github/workflows/release.yml`  | release-please, then the cross-compiled artifacts                    |
-| `install.sh`                     | what `curl … \| sh` runs                                              |
-| `internal/update`                | the same download from inside pando                                  |
+| File                             | Role                                                             |
+| -------------------------------- | ---------------------------------------------------------------- |
+| `.github/.release-config.json`   | one package at the root, `release-type: go`, changelog sections  |
+| `.github/.release-manifest.json` | the last released version; release-please writes it              |
+| `.github/workflows/release.yml`  | release-please, then the cross-compiled artifacts                |
+| `install.sh`                     | what `curl … \| sh` runs                                         |
 
-- `initial-version` pins the first release to `0.1.0`. Without it
-  release-please ignores the `0.0.0` in the manifest and calls a brand-new
-  package `1.0.0`; `bump-minor-pre-major` only governs the bumps after that.
-- The release job needs a `RELEASE_PLEASE_TOKEN` secret (a PAT with `contents`
-  and `pull-requests` write). `GITHUB_TOKEN` would work too, but pull requests
-  it opens do not start CI.
-- Pure Go with `CGO_ENABLED=0`, so one Linux runner cross-compiles every
-  target. `-X …/internal/update.Version` links the version in: it is what
-  `pando version` prints and what the update check compares against. A build
-  without it says `dev` and is never offered an update.
-- `workflow_dispatch` with a tag rebuilds and re-uploads that tag's artifacts,
-  for a release whose build failed.
+- `initial-version: 0.1.0` pins the first release; release-please would
+  otherwise start at `1.0.0`.
+- The workflow needs a `RELEASE_PLEASE_TOKEN` secret (PAT with `contents` and
+  `pull-requests` write): pull requests opened with `GITHUB_TOKEN` start no CI.
+- `CGO_ENABLED=0`, so one runner cross-compiles every target.
+- `-X …/internal/update.Version` links the version in. A `dev` build skips
+  the daily check, but `pando update` installs the latest release over it:
+  the way back after `make install`.
+- `workflow_dispatch` with a tag rebuilds that tag's artifacts.
 
 ## Asset names are API
 
-`pando-$GOOS-$GOARCH`, no archive, plus `CHECKSUMS.txt` from `sha256sum`.
-`install.sh` and `internal/update` both derive the file name from the platform
-they run on and refuse anything `CHECKSUMS.txt` does not cover, so renaming an
-asset breaks every installed pando. Add platforms, never rename.
+`pando-$GOOS-$GOARCH`, no archive, plus `CHECKSUMS.txt`. `install.sh` and
+`update.Asset` derive the name from the running platform and refuse anything
+`CHECKSUMS.txt` does not cover. Renaming an asset breaks every installed pando:
+add platforms, never rename.
+
+## install.sh
+
+- `PANDO_VERSION` pins a release (default latest), `PANDO_INSTALL_DIR` the
+  target (default `~/.local/bin`).
+- The latest tag comes from the `/releases/latest` redirect: no API token, no
+  rate limit.
+- It verifies with `sha256sum`, `shasum` or `openssl`; with none it refuses.
 
 ## Self-update
 
-```
-update.check   ─ GitHub API ─▶ tag, asset URL, sha256   → state "available"
-update.install ─ download ────▶ verify ──▶ rename over the binary
-                     │
-                     └─ update events: done/total ──▶ status bar meter
+```text
+update.check   ─▶ GitHub API ─▶ tag, asset URL, sha256 ─▶ "available"
+update.install ─▶ download ─▶ verify ─▶ os.Rename ─▶ "ready"
+                     └─ update events (done/total) ─▶ status bar, pando update
 ```
 
-The daemon owns it (`internal/daemon/update.go`) so one download serves every
-attached TUI, and the status bar chip and `pando update` follow the same
-events. The binary is replaced by `os.Rename` next to itself: the kernel
-refuses to write into a running executable, and a rename is atomic for anyone
-starting pando meanwhile. The running process keeps its own inode, which is why
-the last word is always "restart to update" — after which the TUI finds a
-daemon from the older build and offers to restart that too.
-
-`update.Path` and `update.API` are variables so a test can aim an install at a
-scratch file and a local server; nothing in the test suite reaches GitHub.
+- The daemon owns it: one download serves every TUI and `pando update`.
+- `WatchUpdates` checks at startup and every 24 h while `update_check` is on.
+- The download lands next to the binary and is renamed over it: the kernel
+  refuses writes to a running executable (ETXTBSY), and a rename is atomic for
+  anyone starting pando meanwhile.
+- The running process keeps its old inode, so the last step is always "restart
+  to update". The next TUI then finds a daemon from the older build: it
+  restarts it silently when no session runs, else asks (`staleModal`).
+- Tests swap `update.Path` and `update.API`; none reaches GitHub.

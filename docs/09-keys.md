@@ -1,126 +1,167 @@
 # Keys
 
-Every command is also in the command palette (`ctrl+shift+p`), where its id
-is what `[keys]` in `config.toml` rebinds; `pando doctor` prints the ids.
-`?` opens the same list in the TUI.
+Every key, by where the focus is. Each command is in the palette
+(`ctrl+shift+p`) under an id that `[keys]` rebinds
+([06-config.md](06-config.md#keys)); `?` shows a summary in the TUI.
 
-⌃` reaches pando only where the terminal can tell it from ⌃space: both are NUL
-without the kitty keyboard protocol, and in an editor that byte belongs to the
-suggestions, so the panel stays on `ctrl+j` there. In a session or a shell
-`ctrl+j` is the app's line feed (a newline in claude's prompt), so the panel
-is on ``ctrl+` `` there, which reaches pando as `ctrl+space` without the
-protocol. Inside tmux the protocol needs `set -s extended-keys on` and
+[Focus](#focus) · [Everywhere](#everywhere) · [Lists](#sidebar-lists) ·
+[Views](#views) · [Terminals](#terminals) · [Files](#in-a-file) ·
+[Vim](#vim-mode) · [Pickers](#pickers-menus-questions) ·
+[Mouse](#mouse-and-clipboard)
+
+## Focus
+
+A key means what the focused part makes of it (`keyContext`, `keybindings`):
+
+- a session or the Terminal panel: every key but the chords marked T below
+- an editable file: printable keys type; ctrl and F-keys stay commands
+- a text box (commit message, filter, find): its own keys; `[keys]` waits
+- a sidebar list, a diff, a rendering: single letters and every chord
+
+Without the kitty keyboard protocol ``ctrl+` `` and `ctrl+space` are one byte:
+an editable file takes it as suggestions (the panel is on `ctrl+j` there), a
+terminal as the panel (its `ctrl+j` is the app's line feed). Inside tmux the
+protocol needs `set -s extended-keys on` and
 `set -as terminal-features ",*:extkeys"`.
 
-A key means what the focused part makes of it, as VS Code's `when` clauses
-say (`keyContext`, `keybindings` in `internal/ui/keys.go`):
+## Everywhere
 
-| Focus                                   | Keys                                                                                              |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| a session or the Terminal panel         | every key goes to the app, but for the chords a terminal gives up (VS Code's commandsToSkipShell) |
-| an editable file                        | its keys are text: `5`, `[` `]` type, `ctrl+←` `ctrl+→` move by words                             |
-| a text box (commit message, find, …)    | the box keeps its keys; `[keys]` and pando's panel chords wait                                    |
-| a sidebar list, a diff, a rendering     | the single letters and every chord below                                                          |
+T: also in a terminal; the rest are the shell's there.
 
-In the commit message `⏎` commits and `shift+⏎` starts a new line; `alt+⏎`
-does too, for the terminals that send `shift+⏎` as a plain `⏎`. Selecting is
-the editor's: `ctrl+a` all, `shift+←→↑↓` or a mouse drag, then `ctrl+c` copy,
-`ctrl+x` cut, or type over it. `home` is the line start.
+| Key                                                    | Action                                                  |
+| ------------------------------------------------------ | ------------------------------------------------------- |
+| `ctrl+]` T                                             | cycle focus: left sidebar, main, panel, right sidebar   |
+| `ctrl+shift+p` T, `F1`                                 | command palette                                         |
+| `ctrl+shift+e` `ctrl+shift+g` `ctrl+shift+f` T         | Explorer, Source Control, Search                        |
+| `ctrl+shift+h` T                                       | Search with replace                                     |
+| ``ctrl+` `` T, `ctrl+j`, `5` (list, diff)              | toggle the Terminal panel                               |
+| ``ctrl+shift+` `` T                                    | new shell in the panel                                  |
+| `ctrl+shift+↑` `ctrl+shift+↓` T                        | maximize, restore the panel                             |
+| `ctrl+b` T, `ctrl+,` T                                 | hide the sidebars, settings                             |
+| `ctrl+0` `ctrl+1` T                                    | focus sidebar, editor                                   |
+| `alt+t` T                                              | go to a session or worktree (`@idle`, `!claude` narrow) |
+| `ctrl+pgup` `ctrl+pgdn` T, `ctrl+shift+tab` `ctrl+tab` | previous, next editor                                   |
+| `alt+1`…`alt+9` T                                      | editor N                                                |
+| `ctrl+shift+pgup` `ctrl+shift+pgdn` T                  | move the tab: editor, session tab, shell                |
+| `ctrl+p`                                               | quick open; `:` line, `@` symbols, `ctrl+t` tree        |
+| `ctrl+n`, `ctrl+s`                                     | new untitled file, save                                 |
+| `ctrl+enter`                                           | commit                                                  |
+| `ctrl+g`, `ctrl+shift+o`                               | go to line, symbol                                      |
+| `ctrl+shift+v`, `alt+v` (in a file)                    | rendered Markdown, side by side                         |
+| `ctrl+alt+-` `ctrl+-` `alt+,` `super+←`                | back through visited editors                            |
+| `ctrl+shift+-` `alt+.` `super+→`                       | forward                                                 |
 
-A terminal gives up `ctrl+]`, `ctrl+shift+p`, `ctrl+shift+f` `ctrl+shift+e`
-`ctrl+shift+g` `ctrl+shift+h`, ``ctrl+` `` `ctrl+space`,
-``ctrl+shift+` ``, `ctrl+shift+↑↓`, `ctrl+b`, `ctrl+,`, `ctrl+0` `ctrl+1`,
-`alt+t`, `ctrl+pgup` `ctrl+pgdn`, `ctrl+shift+pgup` `ctrl+shift+pgdn`,
-`alt+1`…`alt+9` and `ctrl+f` (find), with
-`F3` `shift+F3` and `esc` while the find widget shows; everything else,
-`ctrl+←` `ctrl+p` `ctrl+s` `ctrl+enter` `F1` included, is the shell's.
+## Sidebar lists
 
-In a terminal's find widget `⏎` goes to the previous match, up toward older
-output, and `shift+⏎` to the next, as in VS Code's terminal; `↑` `↓`, `F3`
-`shift+F3` and the buttons do the same, `alt+c` `alt+w` `alt+r` toggle case,
-word and regex. A click on the terminal gives the shell its keys back with the
-matches still shown; `esc` closes the widget.
+- `↑` `↓` `j` `k`, `pgup` `pgdn`: move, a page
+- `g` `home`, `G` `end`: first, last row
+- `⏎` `space`, `→` `l`, `←` `h`: activate, unfold, fold or go to the parent
+- `m`, right click: context menu
+- `ctrl+f`: filter (`⏎` keeps it, `esc` clears)
+- `1` `2` `3` `4` `6`: Explorer, Source Control, Spaces, Search, GitHub
+- `tab`: focus main
+- `[` `]`: previous, next tab of the session
+- `b`, `<` `>`: hide this column, narrow or widen it
+- `,`, `?`: settings, help
+- `q`, `esc`: close pando, asking first (sessions keep running)
+- `ctrl+c`: close pando at once (in Explorer: copy)
 
-| Key                                                         | Action                                                                                       |
-| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `ctrl+]`                                                    | cycle focus: left sidebar, main, right sidebar. In a session every other key goes to the app |
-| `1`–`4`, `6`                                                | Files, Git, Spaces, Search, GitHub                                                           |
-| `ctrl+shift+e` `ctrl+shift+g` `ctrl+shift+f` `ctrl+shift+h` | Explorer, Source Control, Search, Search with replace                                        |
-| `ctrl+j`, `5`, ``ctrl+` ``                                  | toggle the terminal panel; inside a terminal only ``ctrl+` `` (`ctrl+j` is its line feed)    |
-| ``ctrl+shift+` ``                                           | another shell in the terminal panel                                                          |
-| `ctrl+shift+↑` `ctrl+shift+↓`                               | maximize the terminal panel, and restore it                                                  |
-| `ctrl+shift+p`, `F1`                                        | command palette: every command available now, each one bindable in `[keys]`                  |
-| `ctrl+p`                                                    | quick open (`ctrl+t` or the title button switches list and tree)                             |
-| `alt+t`                                                     | go to an agent session or worktree (`@idle`, `@running`, `!claude` narrow it)                |
-| `[` `]`                                                     | previous / next session                                                                      |
-| `ctrl+n`                                                    | new untitled file (a double click on the empty editor area does the same)                    |
-| `ctrl+tab`, `ctrl+w`                                        | next editor, close editor (middle click closes a tab too); a workspace reopens its editors   |
-| `ctrl+pgup` `ctrl+pgdn`, `alt+1`…`alt+9`                    | previous / next editor, editor N                                                             |
-| `ctrl+shift+pgup` `ctrl+shift+pgdn`                         | move the tab left / right, wrapping: the Terminal's shell, a session's tab or an editor      |
-| `ctrl+alt+-` `ctrl+shift+-`, `alt+,` `alt+.`                | back and forward through visited editors (also `ctrl+-`, `super+←` `super+→`)                |
-| `ctrl+0` `ctrl+1`                                           | focus sidebar / editor                                                                       |
-| `ctrl+f`                                                    | in a panel: filter the list (`enter` keeps it, `esc` clears); in a file or a terminal: find  |
-| `ctrl+b`, `b`, `<` `>`                                      | hide the sidebars to their activity bar (an icon opens one again), resize a column           |
-| `ctrl+,`, `?`                                               | settings, help (`,` in a sidebar too)                                                        |
-| `m`, right click                                            | context menu                                                                                 |
-| `q`, `esc`                                                  | close the TUI once there is nothing left to close; it asks first (sessions keep running)     |
-| `↑↓` `j`/`k`, `pgup` `pgdn`, `g`/`G` `home` `end`            | in a view's list: move, a page, first / last row                                            |
-| `←→` `tab`, `⏎` `space`, `esc` `q`                          | in a question: the next button, run the focused one, cancel                                  |
+## Views
 
-| View   | Keys                                                                                                                                                                                                                                                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Files  | `⏎` open, `h`/`l` fold, `n`/`N` new file/folder, `R` rename, `D` delete, `d` duplicate, `^x`/`^c`/`^v` cut/copy/paste, `s` stage, `e` edit, `o` open, `O` open containing folder, `F` find in folder, `c`/`y`/`Y` copy name/path/relative path, `.` hidden files, `C` collapse all |
-| Git    | `⏎` stage/unstage, `o` diff, `t` tree or list, `a`/`u` stage/unstage all, `U` stage untracked, `d` discard (on a section too), `c` message, `C` commit, `A` suggest, `S` sync or publish, `O` open file, `B` switch branch or tag, `{` `}` switch repo                             |
-| Spaces | `⏎` switch, `M-↑↓` move a project, worktree or session, `n` new shell session, `w` new worktree, `a` add project, `o` view options (filter, sort, group), `x` kill a session, delete a worktree, close a project                                                                   |
-| GitHub | `⏎` open in the editor, `d` a pull request's changes, `w` check out in a worktree (on an issue: start one), `o` on github.com, `y` copy link, `x` Mark as Done, `m` merge and the rest, `^r` refresh, `C` collapse all                                                             |
+| View           | Keys                                                                                                                                                                                                                                                                                                        |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Explorer       | `⏎` open, `n` `N` new file, folder, `R` `F2` rename, `D` `del` delete, `d` duplicate, `ctrl+x` `ctrl+c` `ctrl+v` cut, copy, paste, `s` stage, `e` `$EDITOR`, `o` system app, `O` containing folder, `F` find in folder, `c` `y` `Y` copy name, path, relative path, `.` dotfiles, `C` collapse, `r` refresh |
+| Source Control | `⏎` stage, unstage, `o` diff, `O` open, `d` discard, `a` `u` stage, unstage all, `U` stage untracked, `c` message, `C` commit, `A` suggest, `S` sync, publish, `B` branch or tag, `t` tree, `{` `}` repository, `r` refresh                                                                                 |
+| Spaces         | `⏎` `l` switch, `alt+↑` `alt+↓` reorder, `n` shell session, `w` worktree, `a` add project, `R` rename, `x` `d` `del` kill, delete, close, `o` view options, `r` refresh                                                                                                                                     |
+| Search         | `ctrl+f` `/` `i` query, `ctrl+h` replace, `ctrl+i` include, `⏎` `o` open, `r` `R` replace in file, all, `alt+c` `alt+w` `alt+r` `alt+p` case, word, regex, preserve case, `t` tree, `ctrl+r` rerun, `x` clear, `C` collapse                                                                                 |
+| GitHub         | `⏎` open, `d` pull request diff, `w` worktree (issue: start one), `o` github.com, `y` copy link, `x` mark done, `ctrl+r` refresh, `C` collapse                                                                                                                                                              |
 
-| In a file                         | Action                                                                    |
-| --------------------------------- | ------------------------------------------------------------------------- |
-| arrows, `shift`+arrows, drag      | move the cursor, select                                                   |
-| double click, triple click        | select the word (or run of punctuation or blanks), the whole line         |
-| `ctrl+←` `ctrl+→`                 | a word back, a word on (`shift` selects), past blanks and punctuation     |
-| `ctrl+↑` `ctrl+↓`                 | scroll the view, the cursor stays where it is (the wheel does the same)   |
-| `ctrl+a`, `ctrl+c`, `ctrl+v`      | select all, copy the selection (or the whole file), paste                 |
-| `ctrl+z` `ctrl+y`, `ctrl+s`       | undo, redo, save (`●` until you do; an untitled file asks where)          |
-| `⏎`, `tab`, `⌫`, `del`            | typing; `⏎` keeps the indent                                              |
-| `ctrl+x`, `ctrl+shift+k`          | cut, delete the line or selection                                         |
-| `alt+shift+↑↓`, `ctrl+d`          | copy the line or the selected lines up, down                              |
-| `alt+↑` `alt+↓`                   | move the line                                                             |
-| `alt+shift+→←`                    | expand, shrink the selection: word, line, brackets, file                  |
-| `ctrl+/`                          | toggle a comment                                                          |
-| `ctrl+space`                      | suggestions                                                               |
-| `ctrl+shift+i`                    | format document                                                           |
-| `ctrl+f`, `⏎`/`F3`, `shift+F3`    | find widget, next, previous (`alt+c` `alt+w` `alt+r` case/word/regex)     |
-| `ctrl+h`, `⏎`, `ctrl+alt+⏎`       | replace box (`tab` switches fields), replace and go on, replace all       |
-| `alt+p`                           | preserve case while replacing                                             |
-| `ctrl+g`                          | go to line: the `:` picker, also `:` typed first in `ctrl+p`              |
-| `ctrl+shift+o`                    | go to symbol; `@:` groups them by kind, `@` in `ctrl+p` does the same     |
-| `alt+z`, header wrap toggle       | word wrap (`word_wrap`, off by default); off, a scrollbar pans long lines |
-| `s`                               | diff inline or side by side                                               |
-| `shift+F10`, right click          | Stage / Unstage / Revert Selected Ranges in a diff (`m` outside a file)   |
-| `ctrl+⏎`                          | commit                                                                    |
-| `O`, header button                | open the file a diff shows, at the line under the cursor                  |
-| `←` `→` header buttons, `H`       | step through the file's revisions, pick one                               |
-| `ctrl+shift+v`, `alt+v`           | rendered Markdown, beside the source                                      |
-| `e`                               | open in `$EDITOR`                                                         |
-| `esc`, `q`                        | clear the selection, close                                                |
-| vim mode                          | `vim_mode = true`: the editor opens in normal mode, `i` types, `esc` back |
+Commit message: `⏎` commits, `shift+⏎` `alt+⏎` new line, `esc` `tab` leave,
+`ctrl+a` all, `home` line start, `ctrl+c` `ctrl+x` copy, cut. Search boxes: `⏎`
+`↓` to the results, `tab` next box.
 
-Every copy (a selection, a terminal's text, a path) goes to the desktop's
-clipboard through `wl-copy`, `xclip`, `xsel` or `pbcopy`, whichever the session
-has, and as OSC 52 too for a terminal that takes it, which is what reaches the
-desktop over ssh; VTE terminals (GNOME Terminal, Ptyxis) ignore OSC 52. `ctrl+v`
-in a file or a text box (find, filter, Search, commit message) and the
-Terminal's _Paste_ read it back with the matching tool; the
-terminal's own paste (`ctrl+shift+v`) arrives as a bracketed paste anywhere.
+## Terminals
 
-A tilt wheel or `shift`+wheel scrolls sideways; the plain wheel scrolls a
-session's scrollback when the app does not use the mouse, and on the alternate
-screen (a fullscreen claude, less, vim) it is the app's: mouse events, or
-arrows for one without the mouse. `pgup` `pgdn` (`shift` too) page the
-scrollback the same way, and on the alternate screen go to the app. A left drag over a
-session or the Terminal selects text and the release copies it (`term.sel`);
-it is drawn in reverse video until a key or the next click. The selection
-holds lines of the scrollback, not screen rows (`lineAt`, the numbering
-terminal find uses), so it moves with its text when the wheel scrolls or new
-output arrives; one reaching past the screen is copied from `session.read`.
+- `ctrl+f`: find in the scrollback
+- `shift+F3`, `F3` (in the box also `⏎` `↑`, `shift+⏎` `↓`): previous (older), next match
+- `alt+c` `alt+w` `alt+r`: find: case, word, regex
+- `esc` (`ctrl+f` in the box): close find; a click on the terminal keeps the matches
+- `pgup` `pgdn` (`shift` too): page the scrollback; on the alternate screen, the app's
+- `alt+z`: Terminal panel: fit to the content width, scroll sideways
+
+## In a file
+
+Editable files and read-only views (diff, revision, rendering):
+
+| Key                                  | Action                                                   |
+| ------------------------------------ | -------------------------------------------------------- |
+| arrows, `shift`+arrows               | move, select                                             |
+| `ctrl+←` `ctrl+→`                    | a word back, on (`shift` selects)                        |
+| `home` `end`, `ctrl+home` `ctrl+end` | line start, end; file start, end                         |
+| `ctrl+↑` `ctrl+↓`                    | scroll the view, the cursor stays                        |
+| `alt+shift+→` `alt+shift+←`          | expand, shrink the selection: word, line, brackets, file |
+| `ctrl+a`, `ctrl+c`                   | select all, copy the selection (or the whole file)       |
+| `ctrl+f`, `ctrl+h`                   | find, replace                                            |
+| `F3` `shift+F3`                      | next, previous match with the find box closed            |
+| `F12`, `shift+F12`, `F2`             | go to definition, references, rename symbol              |
+| `ctrl+.` `alt+⏎`                     | quick fix                                                |
+| `ctrl+shift+i`                       | format document                                          |
+| `alt+z`                              | word wrap                                                |
+| `shift+F10`, right click             | menu: Stage / Unstage / Revert Selected Ranges in a diff |
+| `esc`, `ctrl+w`                      | clear the selection, else close; close                   |
+
+Editable only:
+
+- `⏎`, `tab`, `⌫`, `del`: type; `⏎` keeps the indent, `tab` follows `insert_spaces`
+- `ctrl+z`, `ctrl+y` `ctrl+shift+z`: undo, redo
+- `ctrl+x`, `ctrl+v`: cut (the line without a selection), paste
+- `ctrl+shift+k`: delete the line or selection
+- `alt+↑` `alt+↓`: move the line
+- `alt+shift+↑`, `alt+shift+↓` `ctrl+d`: copy the line up, down
+- `ctrl+/`: toggle a comment
+- `ctrl+space`: suggestions (`⏎` `tab` accept, `esc` close)
+
+Read-only views add letters: `hjkl` `0` `$` move, `b` `f` `space` page, `g`
+`G` top, bottom, `n` `N` matches, `y` copy, `w` wrap, `.` quick fix, `s` inline
+or split diff (Markdown: side by side), `p` rendered Markdown, `O` open the
+diffed file at the cursor, `H` pick a revision (header `←` `→` step), `e`
+`$EDITOR`, `o` system app, `m` menu, `q` close.
+
+Find box: `⏎` `↓` next, `shift+⏎` `↑` previous, `tab` to replace, where `⏎`
+replaces and goes on; `ctrl+shift+1` one, `ctrl+alt+⏎` all; `alt+c` `alt+w`
+`alt+r` `alt+p` case, word, regex, preserve case; `esc` closes.
+
+## Vim mode
+
+`vim_mode = true`: editable files open in normal mode; other `ctrl` keys work
+in every mode.
+
+- normal: `h j k l 0 $ w b e gg G` with a count; `i a I A o O` insert; `x D C
+  J p P u`, `ctrl+r` redo, `v` `V` visual, `/` find, `n` `N`, `:` go to line;
+  `d c y` over a motion (`dw`, `d$`, `dgg`) or doubled (`dd cc yy`); `esc`
+  with nothing pending closes the editor
+- visual: motions grow the selection, `o` swaps ends, `d x y c s` act on it
+- insert: the editor itself; `esc` back to normal
+
+## Pickers, menus, questions
+
+- Palette, quick open, menus: `↑` `↓` (`ctrl+p` `ctrl+n`, `tab` `shift+tab`)
+  move, `⏎` runs, `esc` `ctrl+c` close; without a query box `j` `k` move and
+  `q` closes. In a path prompt `tab` or `→` takes the suggestion.
+- A question: `←` `→` `h` `l` `tab` pick a button, `⏎` `space` run it, `esc`
+  `q` cancel.
+- References (`shift+F12`): `j` `k` `b` `f` `g` `G` move, `h` `l` fold, `⏎` go
+  and close, `o` `space` go and keep the list, `esc` `q` `tab` close.
+
+## Mouse and clipboard
+
+- Right click: menu. Middle click: close a tab. Double click on the empty
+  editor area: untitled file.
+- In a file: drag selects, double click a word, triple click a line.
+- Tilt or `shift`+wheel pans. The wheel scrolls a session's scrollback unless
+  the app takes the mouse or the alternate screen.
+- A drag over a terminal selects scrollback lines (`lineAt`), following its
+  text; the release copies.
+- Copies go through `wl-copy`, `xclip`, `xsel` or `pbcopy`, plus OSC 52 (ssh;
+  VTE ignores it); `ctrl+v` reads back. The terminal's own paste arrives as a
+  bracketed paste.

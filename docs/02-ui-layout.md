@@ -1,241 +1,222 @@
 # UI layout
 
-The screen is sidebar columns around one main area, VS Code's shape with
-terminal cells.
+How the TUI runs as a daemon client, and how its screen is divided, sized,
+hit-tested and dragged. The views themselves are in [03-views.md](03-views.md).
 
+[Client](#client) · [Screen](#screen) · [Columns](#columns) ·
+[Activity bar](#activity-bar) · [Session column](#session-column) ·
+[Terminal panel](#terminal-panel) · [Short of room](#short-of-room) ·
+[Dragging](#dragging) · [Rows](#rows) · [Mouse](#mouse) ·
+[Scrollbars](#scrollbars) · [Tab strips](#tab-strips) · [Modals](#modals)
+
+## Client
+
+The TUI is one Bubble Tea `Model` (`app.go`) holding no state the daemon
+owns. It never blocks: git, files, the daemon and language servers run in
+`tea.Cmd`s whose results come back as messages.
+
+```text
+proto.Subscribe ─▶ waitEvent ─▶ eventMsg ─▶ onEvent ─▶ loadState,
+                                                       loadSessions, …
+tick (2 s) ─▶ refreshGit, reloadIfLive, saveDrafts, saveEditors, …
+             every 15th: loadWorkspaces
 ```
- col 0      col 1                     main                     col 2
-┌────────┬──────────────────┬──────────────────────────────┬──────────┐
-│ SPACES │  Files Git    ⚙  │ app.ts ✕ │ notes.md          │ SEARCH   │  ← tabs / editor strip
-│ ▾ repo │ EXPLORER  +f +d  │ ✕ app.ts  src — diff         │ ▏query ▕ │  ← view header
-│   main │ ▾ src            │ 1  1  import …               │ 2 results│
-│        │    app.ts      M │ 2    - old                   │ ▾ app.ts │
-│        │                  │    2 + new                   │   line…  │
-├────────┴──────────────────┴──────────────────────────────┴──────────┤
-│ ⎇ main* ↑1  repo      staged 2 lines        ! 1  12 results  ^⇧p    │  ← status bar
-└─────────────────────────────────────────────────────────────────────┘
-   ▲ single tab: no activity bar          ▲ dividers drag to resize
+
+- `onEvent` re-reads what an event names ([01](01-architecture.md#protocol));
+  `screen` only for the shown session or Terminal shell.
+- A lost connection flashes, then `reconnect` retries every second
+  (`proto.EnsureDaemon`) and re-reads everything.
+
+## Screen
+
+```text
+ left columns            main                      right columns
+┌──────────────┬──────────────────────────────┬──────────────┐
+│ activity bar │ editor tabs                  │ activity bar │
+│ view header  │ preview / editor / session   │ view header  │
+│ rows…        ├──────────────────────────────┤ rows…        │
+│              │ terminal panel (bottom)      │              │
+├──────────────┴──────────────────────────────┴──────────────┤
+│ ⎇ main* ↑1  repo   flash   ! 1 waiting   Ln 3, Col 7       │ status bar
+└────────────────────────────────────────────────────────────┘
 ```
 
-- A **status bar** spans the bottom: branch and sync state, flash messages,
-  agents waiting for you, search results, and with an editor open its cursor
-  (`Ln, Col`) and indentation (`Tab Size`). The branch and the project name are
-  buttons, lit under the mouse: the branch opens the branch picker, the project
-  a switcher over every project with _Add Project…_ on top; the agent count
-  opens the navigator.
-- The bottom terminal panel's title row, outside its tabs, is a sash: dragging
-  it sets `terminal_height`.
-- An open Source Control drawer's header, and a GitHub section's below
-  another open one, is a sash too: dragging it moves the pane's top edge.
-- A sash (a column's divider, a title row or pane header) lights once the
-  pointer has rested on it for `sashDelay` (300 ms, VS Code's
-  `workbench.sash.hoverDelay`): `┃` in `sash_hover`, a `━` rule across the
-  row's free part (`sashRule`), and the accent while it is dragged, VS Code's
-  `sash.hoverBorder` and `sash.activeBorder`. `trackSash` notes the sash under
-  each mouse event (`sashUnder`, the same cells the mouse code drags) and
-  ticks View once the delay is out; with panel borders both frame edges of the
-  gap light. A right click in the panel opens its menu (Copy
-  All, Paste, Clear, Kill Terminal, Toggle Size to Content Width).
-- A view moves by dragging its tab or its header title to the other side.
-- The agent session is the `session` view: a column of its own beside the
-  editor, on the side `session_position` names (`right` by default); a column
-  nobody sized takes half the editor area. `left`/`right` list it once it has
-  been docked or resized by hand, and keep its place while `session_position`
-  is `editor` — the session over the whole editor area, which it takes when it
-  is widened past `minEditor` cells of editor or dropped in the middle of it.
-  Opening a file then docks it back on that side (`sessSide`) where both fit,
-  so the file has somewhere to go. Narrowed below `snapHide` cells it closes
-  instead, as a VS Code sidebar dragged shut does (`hideSession`, the session
-  runs on), at the width it was picked up at. Each worktree keeps its own
-  place and width (`sessView`, `session_views` in `state.json`): `cols()`
-  sizes the column where `left`/`right` list it, or puts it beside the editor
-  when the worktree keeps it on the other side. Its column exists only while a
-  session is on screen, and follows Spaces when that view is docked on the
-  other side (`sessionFollows`).
-- A **column** holds tabs (views); `left`/`right` in `config.toml` define them.
-  A column with one tab draws no activity bar and puts ⚙ in its header.
-- The activity bar is `actH` = 2 rows: the icons, then the row that carries
-  their marks. A chip is `barPad` (two cells with icons, one with text
-  labels), the icon, `barPad`: an odd width keeps a one-cell glyph centered.
-  Chips that would run into ⚙ tighten to one cell of air.
-- Nothing is filled behind a chip. The marks are VS Code's active border
-  (`markColor`): `header_accent` for the open view, `input_border` for the
-  one under the mouse, a `━` rule under the icon on a top bar and a `▎` or
-  `▐` bar down the strip's outer edge on a side bar. The open view's icon
-  takes the accent color too.
-- Focus is a column index or `onMain` (-1); `ctrl+]` cycles left → main → right.
-- A hidden side keeps VS Code's activity bar, its **rail** (`railW` = `actW`
-  cells): the side's view icons stacked down its outer edge as
-  `activity_bar = "side"` draws them, the gear at the bottom, none marked as
-  open. A click on an icon opens that view. A second click on the open view's
-  own icon, top or side bar, hides its side, VS Code's iconClickBehavior
-  `toggle`; it is decided on release (`drag.hide`), so the icon still drags.
-  `b`, `ctrl+b` and a tab's _Hide Sidebar_ hide it from the keyboard and the
-  menu; a view header has no hide button.
-- Short of room (`layout`), nothing is saved and a wider screen undoes it:
-  1. A docked session whose columns, at their widths, leave the editor under
-     `minEditor` (40) cells takes the editor area (`crampedBy`, in `cols()`).
-     The files wait in their tabs and a file opened shows in front of it; the
-     session comes back from Spaces. Becoming cramped puts the session in
-     front and keeps the focus on its view (`followCramp`, in `Update`).
-  2. The other columns narrow to 20 cells, the outermost first.
-  3. The side without Spaces folds into its rail (`folds`) when that is still
-     not enough. Opened from the rail, `ctrl+]` or a view's key it stays open
-     (`unfold`, until the next resize) and the rest make room.
-  4. Spaces narrows to 20 cells, then the editor to 20; only then does a
-     column go, the outermost first and Spaces last.
+- `layout` places the columns, split by a one-cell divider (facing frame
+  edges with `borders`).
+- Status bar buttons: the branch opens the branch picker, the project a
+  project switcher, the agent count the navigator.
+- Focus is a column index, `onMain` or `onPanel`; `ctrl+]` cycles left →
+  main → panel → right (`cycleFocus`).
 
-  A dragged divider stops where the editor would drop under `minEditor`, and
-  the width saved is the one shown.
-- The active tab of a column is the one shown most recently (`recent` counter),
-  so moving views between columns needs no per-column state.
-- The **terminal panel** sits under the main area when `terminal_position` is
-  `bottom`: `termRows()` takes its height off `mainH()`, and everything in main
-  (`pvH`, `sessH`, `peekH`) measures from that. It is focused as `onPanel`
-  (-2), one more stop in `ctrl+]`. Moved to a side it becomes an ordinary
-  column holding only `viewTerm` — never a tab beside another view.
-- `activity_bar = "side"` moves the icons into an `actW`-wide strip down the
-  sidebar's outer edge (`barW`), left-docked columns on their left,
-  right-docked on their right; `barH` is then 0 and the ⚙ sits at the bottom of
-  the strip. The strip holds the same chips the top bar draws, one `actH`-row
-  block per view, the second row air, so both bars mark a chip the same way. A
-  view waiting on its agent has no room for a count there and takes the
-  attention color instead.
-- Dragging a tab docks it where it is dropped (`dropAt`): over a column's
-  activity bar, or its half facing main, it takes the slot between the chips
-  under the mouse (`slotAt`, `placeView` — its own bar reorders); below the bar
-  toward the screen edge it gets a column of its own. The drop target draws as
-  a rectangle (`dropBox`): a `actH`-row frame between the icons for a slot
-  (`actW` wide around the target block on a side bar), the whole labelled
-  column for a new one.
+## Columns
+
+- `left` / `right` in `config.toml` list columns of views (tabs), built by
+  `cols()`. A view in neither joins the left column next to main.
+- Widths come from `wants`: the column's `width`, else the side default,
+  else 32; at least 20.
+- A column shows its most recently shown tab (`recent`, `viewOn`).
+- A one-tab column has no activity bar; ⚙ moves into its header.
+- Move a view by dragging its tab or header title, or from its tab menu
+  (`moveView`, `splitView`, `mergeView`, _Hide Sidebar_).
+
+## Activity bar
+
+`activity_bar = "top"` or `"side"`; both draw one chip per view (`barPad`,
+icon, `barPad`). The mark (`markColor`) is `header_accent` for the open view,
+`sash_hover`, a tint of the accent, for the icon and the mark under the mouse.
+
+```text
+top: activityBar, actH = 2 rows
+
+  files    git    spaces       ⚙        icons row
+──────────────────────────────────      mark row: ─ mid-row, air either side;
+         └ mark: the accent         the open view's stretch in the accent
+
+side: vertBar, actW wide, one actH-row block per chip, ⚙ at the bottom
+
+ left column            right column
+ ▎ icon ▕ view …        … view ▏ icon ▐
+ └ mark └ border        border ┘      └ mark
+```
+
+- The border is `overview_ruler_border`. On a side bar a waiting view's icon
+  takes the attention color (no room for a count).
+- No side strip (`barW` 0) for a one-tab column, a railed one, or one
+  narrower than `actW` + 20.
+- A hidden side keeps a **rail** (`railW`): its icons down the outer edge,
+  none marked, no border. Hide with `b`, `ctrl+b`, _Hide Sidebar_, or a second
+  click on the open view's icon (on release, `drag.hide`, so it still drags).
+
+## Session column
+
+The agent session is `viewSession`. `session_position` is `right` (default),
+`left` (a column; unsized, half the editor area) or `editor` (over the editor
+area; opening a file docks it back, `sessSide`).
+
+- Widened past `minEditor` (40) cells of editor, or dropped mid-editor, it
+  takes the editor area; narrowed below `snapHide` (10) it closes
+  (`hideSession`) and keeps running.
+- Each worktree keeps its own place and width (`session_views` in
+  `state.json`).
+
+## Terminal panel
+
+`terminal_position = "bottom"` puts it under main: `termRows()` comes off
+`mainH()`, and its title row is a sash for `terminal_height`. `left` or
+`right` makes it a column holding only `viewTerm`.
+
+## Short of room
+
+Nothing is saved; a wider screen undoes it.
+
+```text
+editor < minEditor (40)?
+  1. docked session ──▶ takes the editor area (crampedBy, followCramp)
+  2. other columns ───▶ narrow to 20, outermost first
+  3. side w/o Spaces ─▶ folds into its rail (folds)
+  4. Spaces ──────────▶ narrows to 20
+editor < 20?
+  5. editor ──────────▶ gives up all but 20 cells
+  6. columns ─────────▶ drop, outermost first, Spaces last
+```
+
+A side opened from its rail stays open until the next resize (`unfold`). A
+dragged divider stops at `minEditor`.
+
+## Dragging
+
+| Drag                                      | Effect                                     |
+| ----------------------------------------- | ------------------------------------------ |
+| column divider                            | width, saved on release                    |
+| terminal title row                        | `terminal_height`                          |
+| Source Control drawer, GitHub pane header | the pane's top edge                        |
+| tab onto a bar, or the half facing main   | slot between chips (`slotAt`, `placeView`) |
+| tab below a bar, toward the screen edge   | a new column                               |
+
+`dropAt` picks the target, `dropBox` draws it. A sash lights after
+`sashDelay` (300 ms) in `sash_hover`, the accent while dragged (`trackSash`,
+`sashUnder`, `sashRule`).
 
 ## Rows
 
-Every list row is built from segments and padded to the exact column width, so
-nothing ever shears:
+Every row is segments padded to the exact width (`row` in `widgets.go`);
+`checkWidths` asserts every line is the terminal width.
 
-```
+```text
 row(w, bg, left…, right…)   " ▾ Changes            ↶ + [3] "
-                              │ │                  │   └ count badge (own bg)
+                              │ │                  │   └ count badge
                               │ └ label            └ hover actions
                               └ chevron
 ```
 
-`checkWidths` in the tests asserts every rendered line is exactly the terminal
-width, which is what keeps mouse hit-testing and the layout honest.
-
 ## Mouse
 
-`Model.mouse` maps a click to a panel, then the panel maps it to a row:
-
+```text
+Model.mouse
+  modal open?      → modal.mouse
+  status bar row   → statusMouse
+  column rect      → sideMouse: side strip, y < barH tabs, y == barH header
+  divider gap      → drag divider
+  main rect        → preview / session / terminal panel
 ```
-x → column rect?        → sideMouse(col): the side icon strip, then
-                          y < barH → tabs, y == barH → header actions,
-  → divider gap?        → drag divider (width saved on release)
-  → main rect           → preview / session
-```
 
-Hit tests use the same geometry helpers the renderer uses (`toggles(w)`,
-`actions(row, w)`, `buttons(m, w)`), so a moved button cannot desync from its
-click zone. The row width passed to a hit test excludes the scrollbar column.
+- Hit tests reuse the renderer's geometry (`toggles`, `actions`, `buttons`),
+  minus the scrollbar column.
+- All-motion mouse mode: the row under the pointer paints `hoverBg`; header
+  actions linger `actionsLinger` (3 s), since terminals never report "mouse
+  left".
 
-The editor, a session and the Terminal panel keep their last column for VS
-Code's editor scrollbar (`vbar` in `widgets.go`), whether or not anything
-scrolls: the text width stays put (`pvW`, a session's `Cols` one short of its
-view). The slider (`scrollbar_slider`, `scrollbar_slider_hover` under the
-pointer, `scrollbar_slider_active` while held) shows once rows are out of
-view, over a track drawn as the overview ruler's border
-(`overview_ruler_border`); a terminal counts its scrollback as the rows
-above. Each bar's hit test notes the cell under the pointer (`overBar`) and
-the bar reads it as it draws (`barState`), so a slider scrolled from under a
-resting pointer rests again. An app on the alternate screen (vim, less, a claude with
-`"tui": "fullscreen"`) has no scrollback and scrolls itself: the daemon
-reports none (`Screen.AltScreen`), the bar stays empty, and the wheel and
-`pgup` `pgdn` go to the app, the wheel as mouse events when it asked for them,
-else as three arrows (xterm's alternate scroll). A click on the slider grabs it, one on the track jumps it there first,
-and the drag (`dragScroll`) follows the mouse. Sidebar lists keep their thin
-`┃`, drawn from the same geometry and handled the same way (`listBar`): the
-slider shades under the pointer, drags, lit while held, a click on the track jumps it, the wheel over it
-scrolls the list, and the pointer over it lights no row. Source Control has
-one per pane, beside the changes below their pinned rows and in each drawer.
+## Scrollbars
 
-With word wrap off (the default) the editor has a horizontal bar too: the
-same `vbar` geometry on its side (`hbar`, the widest line against the text
-width, from `left`), drawn by `hcells` on a row of its own under the text (blanks
-underlined in the slider's and the track's colors: a block glyph per cell
-seams in VTE at fractional scaling, a background would fill the row), the
-gutter and the corner under the vertical bar left blank. The row exists only
-while a line runs past the right edge: `pvH` gives it back (`hbarH`), so
-`follow`, the peek and every hit test below the text move with it. A drag on
-it (`editor-h`, `scrollDrag.horiz`) follows the mouse's column. Split diffs
-and Markdown beside its source have none.
+| Where                     | Bar                                                        |
+| ------------------------- | ---------------------------------------------------------- |
+| editor, session, Terminal | `vbar` in the last column, always reserved                 |
+| editor, word wrap off     | `hbar` row under the text while a line overflows (`hbarH`) |
+| sidebar lists             | thin `┃` (`listBar`); one per Source Control pane          |
 
-Tab strips (editors, a session's tabs, the Terminal's) draw each tab as a
-chip (`tabChip`): the active one bold on `tab_active_bg`, a shade past the
-selection, the others dim on `tab_bg`, a shade off the background (VS Code's
-tab.inactiveBackground), and every tab followed by
-`tab_border`'s `▏` in a column of its own (`tabGap`). The layout counts that
-column, so hit tests stay on the tabs and a click on the hairline does nothing.
-Every tab keeps room for the active one's `✕` (`tabClose`), so activating a
-tab changes neither its width nor where the ones after it sit.
+- Colors `scrollbar_slider`, `scrollbar_slider_hover`,
+  `scrollbar_slider_active` over an `overview_ruler_border` track; hover state
+  via `overBar` and `barState`.
+- Click grabs the slider or jumps to the track point; `dragScroll` follows.
+- On the alternate screen (`Screen.AltScreen`) the bar is empty and the wheel
+  and `pgup`/`pgdn` go to the app.
 
-A left press on a tab shows it and picks it up (`grabTab`, `dragStrip` in
-`strip.go`). As in herdr, the strip stays put while it is held: an accent `│`
-in the hairline marks where it would land (`stripSlot`, herdr's
-`tab_drop_index_at`: a tab's left half drops before it, its right half after),
-and only the release moves it there, saved as a key move is. A release off the
-strip's row drops nothing; a session's own tab never picks up.
+## Tab strips
 
-`ctrl+shift+pgup` `ctrl+shift+pgdn` (_Move Tab Left / Right_, `moveTab` in
-`strip.go`) move the focused strip's tab (`focusedStrip`), wrapping at either
-end as herdr's `move_tab_previous` / `move_tab_next` do. The order is saved in
-`state.json` for editors, through `session.move` for a session's tabs and the
-Terminal's shells. A session's own tab stays first.
+Editors, session tabs and Terminal shells share `strip.go`.
 
-Hover works because pando requests all-motion mouse mode: the row under the
-pointer paints `hoverBg`, header actions appear for 3 s after any motion over
-the column (a terminal never reports "mouse left").
+- `tabChip`: active bold on `tab_active_bg`, others on `tab_bg`, each
+  followed by a `▏` in `tab_border` (`tabGap`). Room for `✕` is always kept
+  (`tabClose`), so activating moves nothing.
+- Press picks a tab up (`grabTab`, `dragStrip`), an accent `│` marks the slot
+  (`stripSlot`), release moves it. `ctrl+shift+pgup`/`pgdn` move it
+  (`moveTab`). A session's own tab stays first.
 
 ## Modals
 
-One overlay at a time (`Model.modal`): a menu (items at a position), a picker
-(filter + fuzzy ranking), a prompt (single input) or a dialog (`newDialog`, a
-question with a row of buttons).
+One at a time (`Model.modal`): menu, picker (fuzzy), prompt, or dialog
+(`newDialog`).
 
-```
+```text
 ╭ Select a branch or tag to checkout ─────────╮
-│›                                            │  input (picker/prompt)
-│ + Create new branch…                        │  always: above the items while browsing
-│                                             │  spacer before a heading
-│ branches                                    │  group: a muted heading (sep + label)
-│ ⎇ feat/one 42 seconds ago                   │  selected item, inline muted after label
-│   Ann • 059c60c • first commit              │  its detail row, only while selected
-│ ⎇ main 2 hours ago                          │
+│›                                            │  input
+│ + Create new branch…                        │  always
+│                                             │
+│ branches                                    │  group heading
+│ ⎇ feat/one 42 seconds ago                   │  selected, inline note
+│   Ann • 059c60c • first commit              │  detail, selected only
 ╰─────────────────────────────────────────────╯
 ```
 
-Pickers keep a fixed top edge and a minimum height, so the box does not jump
-while results change. Items can carry a `search` string (`@idle`, `!claude`
-tokens must match verbatim, the rest fuzzily), a `group` (filed under a muted
-heading; a query ranks within each group and orders the groups by their best
-match, so the best match is first and selected, and the `always` items follow
-the matches), an `inline` note right after the label, a right-aligned `hint`
-and a `detail` row that `focus` moves under the selection, so a long list
-stays one row per item. Notes, hints and headings take the `description`
-color rather than Faint, which not every terminal draws.
+| Item field | Meaning                                                  |
+| ---------- | -------------------------------------------------------- |
+| `search`   | `@idle`, `!claude` tokens match verbatim, the rest fuzzy |
+| `group`    | heading; a query ranks within groups                     |
+| `always`   | kept after the matches                                   |
+| `inline`   | note after the label                                     |
+| `hint`     | right-aligned                                            |
+| `detail`   | row under the selection only                             |
 
-```
-╭────────────────────────────────────────╮
-│ Close pando?                           │  message, wrapped
-│ unsaved text is kept                   │  the focused button's hint
-│                                        │
-│ Save all and close    Cancel    Close  │  focused button in the button color
-╰────────────────────────────────────────╯
-```
-
-A dialog's items are its buttons, `items[0]` the primary one and focused
-first, `cancelItem()` last. They show in VS Code's Linux order (Cancel moved
-next to the primary, then reversed): the primary rightmost, Cancel before it.
-The box keeps the height of the tallest hint, and it takes every key: `←→`
-`tab` walk the buttons, `⏎` runs the focused one, `esc` cancels; hover does
-not move the focus.
+A dialog's buttons run `items[0]` (primary, focused) to `cancelItem()`,
+drawn primary rightmost with Cancel before it. `←→` `tab` walk, `⏎` runs,
+`esc` cancels.

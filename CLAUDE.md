@@ -47,6 +47,7 @@ BurntSushi/toml, creack/pty. No cgo, no libgit2: git is shelled out.
 | writing tests, tmux checks, gotchas, GIFs / tapes                   | `docs/07-testing.md`                     |
 | driving pando from an agent, session lifecycle over the CLI         | `skills/pando/SKILL.md`                  |
 | every key, per view and in a file                                   | `docs/09-keys.md`                        |
+| the user guide: what a user does, end to end (README links here)    | `docs/usage.md`                          |
 | releases, install script, self-update                               | `docs/08-release.md`                     |
 
 ## Conventions
