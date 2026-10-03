@@ -114,7 +114,7 @@ func TestClipboardIsTheDesktops(t *testing.T) {
 	}
 
 	// Without a tool the copy still goes out as OSC 52, and says so.
-	t.Setenv("WAYLAND_DISPLAY", "")
+	t.Setenv("PATH", t.TempDir()) // pbcopy included
 
 	for _, msg := range runAll(setClipboard("x", "copied x")) {
 		if f, ok := msg.(flashMsg); ok && (!strings.Contains(f.text, "OSC 52 only") || f.err) {

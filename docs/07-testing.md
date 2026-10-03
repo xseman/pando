@@ -95,6 +95,10 @@ tmux capture-pane -p -t gv                          # -e keeps colors
 - `pando stop` before removing a runtime directory. In a test use
   `t.TempDir()`: `defer os.RemoveAll` runs before `t.Cleanup`, removes the
   socket, and the shutdown call never reaches the daemon.
+- On macOS run the tests with `TMPDIR=/private/tmp`, as CI does: the default
+  temp dir sits behind the `/var` symlink, which git resolves and the tests'
+  paths do not, and its socket paths run past 104 bytes. Tests of what
+  pando reads in `/proc` skip there (`needProc`).
 
 ## Demo recordings
 

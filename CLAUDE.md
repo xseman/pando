@@ -16,7 +16,8 @@ go test ./internal/ui -run TestName
 make demo               # re-record docs/demo/*.gif with vhs (slow, needs claude, gopls)
 ```
 
-`make test` and `make lint` are what CI runs (`.github/workflows/ci.yml`).
+`make test` and `make lint` are what CI runs (`.github/workflows/ci.yml`),
+`make test` on macOS too.
 
 Go 1.26, stdlib + charm (bubbletea v2, lipgloss v2, x/vt), goldmark, chroma,
 BurntSushi/toml, creack/pty. No cgo, no libgit2: git is shelled out.

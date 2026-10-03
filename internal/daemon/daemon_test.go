@@ -54,6 +54,21 @@ func start(t *testing.T) func() *Daemon {
 	return boot
 }
 
+// hasProc reports /proc, where pando reads what a process runs: Linux only.
+func hasProc() bool {
+	_, err := os.Stat("/proc/self/stat")
+	return err == nil
+}
+
+// needProc skips a test of what pando reads in /proc.
+func needProc(t *testing.T) {
+	t.Helper()
+
+	if !hasProc() {
+		t.Skip("no /proc here")
+	}
+}
+
 // waitFor polls cond until it holds. The deadline is generous: a CI runner
 // under -race takes seconds to start a shell, and a fallback waits out
 // quickExit first; a condition that holds returns at once either way.
@@ -322,14 +337,17 @@ func TestDaemon(t *testing.T) {
 
 		return len(ss) == 1 && ss[0].Title == "T1"
 	})
-	// What runs in the foreground reaches clients, and so does a rename,
-	// which a restart keeps.
-	waitFor(t, "program", func() bool {
-		var ss []proto.Session
-		call(t, "session.list", nil, &ss)
+	// What runs in the foreground reaches clients, where /proc tells, and so
+	// does a rename, which a restart keeps.
+	if hasProc() {
+		waitFor(t, "program", func() bool {
+			var ss []proto.Session
+			call(t, "session.list", nil, &ss)
 
-		return len(ss) == 1 && ss[0].Program == "sh"
-	})
+			return len(ss) == 1 && ss[0].Program == "sh"
+		})
+	}
+
 	call(t, "session.rename", map[string]string{"id": s.ID, "name": " build "}, nil)
 
 	// Shifted letters arrive as text; OSC 11 queries get the client's colors.
@@ -584,6 +602,8 @@ func TestConfig(t *testing.T) {
 }
 
 func TestResumeAgentAfterRestart(t *testing.T) {
+	needProc(t)
+
 	boot := start(t)
 	d := boot()
 	ws := t.TempDir()
@@ -651,6 +671,8 @@ func TestResumeAgentAfterRestart(t *testing.T) {
 // under it: a restart runs the command that continues it in place of a fresh
 // agent, rather than typing that command into one.
 func TestResumeAgentWithoutShell(t *testing.T) {
+	needProc(t)
+
 	boot := start(t)
 	d := boot()
 	ws := t.TempDir()
@@ -753,6 +775,8 @@ func fakeClaudeProc(t *testing.T, p claudeProcess) {
 }
 
 func TestResumeConversation(t *testing.T) {
+	needProc(t)
+
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 
 	conversations["myagent"] = claudeSource{}
@@ -1150,6 +1174,8 @@ func TestMoveSession(t *testing.T) {
 // TestRemoveLockedWorkspace is a worktree Claude Code locked: the lock of a
 // claude that is gone is lifted, one still running refuses with its name.
 func TestRemoveLockedWorkspace(t *testing.T) {
+	needProc(t)
+
 	boot := start(t)
 	boot()
 
@@ -1281,6 +1307,8 @@ func TestFocusResolvesSessionNames(t *testing.T) {
 // conversation lives there, so the restart looks there and types the
 // variable again before the command, quoted for any shell.
 func TestResumeKeepsConfigDir(t *testing.T) {
+	needProc(t)
+
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir()) // the daemon's and the shell's
 
 	conversations["myagent"] = claudeSource{}
@@ -1399,6 +1427,8 @@ func TestShellWord(t *testing.T) {
 // for a leftover to stop, though it inherited the session's PANDO_SESSION.
 // A job that ended by then is resumed by its conversation instead.
 func TestResumeBackgroundJob(t *testing.T) {
+	needProc(t)
+
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 
 	conversations["myagent"] = claudeSource{}
