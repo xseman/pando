@@ -1295,6 +1295,30 @@ func TestFilesAndAgentsFilter(t *testing.T) {
 	if len(m.ex.nodes) != 2 || m.filters[viewFiles].on {
 		t.Fatalf("esc restores the tree: %+v", m.ex.nodes)
 	}
+	// A click on the box keeps it; a click away closes it when empty, and
+	// leaves it filtering when it holds a query.
+	press(m, "ctrl+f")
+	top := m.bodyTop(viewFiles)
+	click(m, 5, top-2, tea.MouseLeft)
+
+	if !m.filters[viewFiles].on || !m.filters[viewFiles].editing {
+		t.Fatal("a click on the empty filter box closed it")
+	}
+
+	click(m, 5, top+1, tea.MouseLeft)
+
+	if m.filters[viewFiles].on {
+		t.Fatal("a click away leaves the empty filter open")
+	}
+
+	press(m, "ctrl+f", "x")
+	click(m, 5, top+1, tea.MouseLeft)
+
+	if !m.filters[viewFiles].on || m.query(viewFiles) != "x" {
+		t.Fatal("a click away closes a filter that holds a query")
+	}
+
+	press(m, "ctrl+f", "esc")
 
 	press(m, "3", "ctrl+f", "s", "h")
 

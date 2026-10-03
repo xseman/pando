@@ -2940,6 +2940,16 @@ func (m *Model) stopEditing() {
 	m.sr.blur()
 }
 
+// closeEmptyFilters closes every filter line left empty and not typed in: a
+// click away dismisses it.
+func (m *Model) closeEmptyFilters() {
+	for i := range m.filters {
+		if f := &m.filters[i]; f.on && !f.editing && f.input.Value() == "" {
+			m.clearFilter(view(i))
+		}
+	}
+}
+
 func (m *Model) cycleSession(d int) tea.Cmd {
 	ss := m.tabsOf(m.rootOf(m.sess))
 	if len(ss) == 0 {
@@ -3027,6 +3037,8 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 	}
 
 	if click {
+		defer m.closeEmptyFilters() // after the click lands in the layout it was aimed at
+
 		m.stopEditing()
 	}
 
