@@ -77,6 +77,8 @@ func TestReadClaudeTornWrite(t *testing.T) {
 // of the session before it still shows the same conversation and its file
 // sorts first.
 func TestHolderPrefersBackgroundJob(t *testing.T) {
+	needProc(t)
+
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 
 	a, b := sleeper(t), sleeper(t)
@@ -125,6 +127,8 @@ func TestClaudeProcessesSkipsTheGone(t *testing.T) {
 // resumes in it, whether or not pando can tell its conversation: the
 // variables [resume_env] names go before the command.
 func TestResumeCarriesAgentEnv(t *testing.T) {
+	needProc(t)
+
 	boot := start(t)
 
 	d := boot()

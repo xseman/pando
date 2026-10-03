@@ -20,6 +20,20 @@ jobs:
             - run: go build ./...
             - run: make test
 
+    # macOS's temp dir sits behind the /var -> /private/var symlink, which git
+    # resolves and pando does not, and its socket paths run past 104 bytes.
+    macos:
+        runs-on: macos-latest
+        env:
+            TMPDIR: /private/tmp
+        steps:
+            - uses: actions/checkout@v5
+            - uses: actions/setup-go@v6
+              with:
+                  go-version-file: go.mod
+                  cache: true
+            - run: make test
+
     lint:
         runs-on: ubuntu-latest
         steps:
