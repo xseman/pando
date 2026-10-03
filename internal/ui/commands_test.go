@@ -891,6 +891,35 @@ func TestSpacesSelectionFollowsSort(t *testing.T) {
 	}
 }
 
+// TestSpacesNewSession starts a session with n: only installed harnesses
+// are offered, never a shell.
+func TestSpacesNewSession(t *testing.T) {
+	m := testModel(t)
+	root, wt := m.ws, t.TempDir()
+	m.st.Agents = map[string][]string{"shell": {"sh"}, "terminal": {"sh"}, "sh-agent": {"sh"}, "gone": {"pando-no-such-harness"}}
+	m.Update(workspacesMsg{m.wss[0], {Path: wt, Project: root, Branch: "feat"}})
+	press(m, "3")
+
+	rows := m.ag.rows(m)
+	feat := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agWorkspace && r.ws.Path == wt })
+
+	m.ag.l.sel = feat
+	press(m, "n")
+
+	if m.modal == nil || m.modal.title != "New session in "+filepath.Base(wt) || !slices.Equal(labels(m), []string{"sh-agent"}) {
+		t.Fatalf("n on a worktree offers the installed harnesses: %v", labels(m))
+	}
+
+	// Nothing installed, nothing offered.
+	m.st.Agents = map[string][]string{"shell": {"sh"}, "gone": {"pando-no-such-harness"}}
+	m.modal = nil
+	press(m, "n")
+
+	if m.modal == nil || len(m.modal.items) != 0 {
+		t.Fatalf("no harness installed, an empty list: %+v", m.modal)
+	}
+}
+
 // TestSpacesDragWorktree drags a project's checkout below its linked
 // worktree: each takes its sessions along, a workspaces event mid-drag does
 // not undo it, and a press that never moves still switches to the worktree.

@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -889,21 +890,15 @@ func (m *Model) workspaceFor(r *agRow) string {
 	return r.ws.Path
 }
 
-// newSession opens a shell in the workspace at once: agents are started from
-// inside it, the way a terminal works. Pick a preset with newAgentSession.
+// newSession is n: it asks for the harness of a session in row r's worktree.
 func (a *agents) newSession(m *Model, r *agRow) tea.Cmd {
-	return m.newShell(m.workspaceFor(r), "shell")
+	return m.harnessPicker(m.workspaceFor(r))
 }
 
-// newShell starts a shell session of agent in ws: which shell, the shell
-// setting or what it falls back on, is the daemon's to pick.
-func (m *Model) newShell(ws, agent string) tea.Cmd {
-	return m.newSession(ws, agent, nil) // the daemon picks the shell: the shell setting, falling back on bash
-}
-
-func (a *agents) newAgentSession(m *Model, r *agRow) tea.Cmd {
-	ws := m.workspaceFor(r)
-	names := slices.Sorted(maps.Keys(m.st.Agents))
+// harnessPicker asks which harness a new session in ws runs: a session is an
+// agent, never a bare shell, and ends when it exits.
+func (m *Model) harnessPicker(ws string) tea.Cmd {
+	names := m.harnesses()
 
 	items := make([]item, len(names))
 	for i, name := range names {
@@ -915,6 +910,25 @@ func (a *agents) newAgentSession(m *Model, r *agRow) tea.Cmd {
 	m.modal = newPicker("New session in "+filepath.Base(ws), items)
 
 	return nil
+}
+
+// harnesses are the [agents] presets a session can run: the installed ones,
+// the shells of tabs and the Terminal panel aside. None installed, none.
+func (m *Model) harnesses() []string {
+	var out []string
+
+	for _, name := range slices.Sorted(maps.Keys(m.st.Agents)) {
+		argv := m.st.Agents[name]
+		if len(argv) == 0 || slices.Contains([]string{"shell", tabAgent, termAgent}, name) {
+			continue
+		}
+
+		if _, err := exec.LookPath(argv[0]); err == nil {
+			out = append(out, name)
+		}
+	}
+
+	return out
 }
 
 func (a *agents) newWorktree(m *Model, r *agRow) tea.Cmd {
@@ -1128,8 +1142,7 @@ func (a *agents) items(m *Model) []item {
 
 	items := []item{
 		{label: "Go to Agent or Worktree…", hint: "M-t", run: func(m *Model) tea.Cmd { return m.agentNavigator() }},
-		{label: "New Session", hint: "n", run: func(m *Model) tea.Cmd { return a.newSession(m, r) }},
-		{label: "New Agent Session…", run: func(m *Model) tea.Cmd { return a.newAgentSession(m, r) }},
+		{label: "New Session…", hint: "n", run: func(m *Model) tea.Cmd { return a.newSession(m, r) }},
 		{label: "New Worktree…", hint: "w", run: func(m *Model) tea.Cmd { return a.newWorktree(m, r) }},
 		{label: "Add Project…", hint: "a", run: func(m *Model) tea.Cmd { return a.key(m, tea.KeyPressMsg{Code: 'a', Text: "a"}) }},
 		{label: "Open Project…", run: func(m *Model) tea.Cmd { return m.projectPicker() }},

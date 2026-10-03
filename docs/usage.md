@@ -31,10 +31,14 @@ app                      project: pando ~/code/app, or `a` in Spaces
 | Key      | In Spaces                                                       |
 | -------- | --------------------------------------------------------------- |
 | `w`      | add a worktree to the selected project                          |
-| `n`      | open a shell in the worktree (or click `+`); run an agent in it |
+| `n`      | start an agent in the worktree (or click `+`)                   |
 | `x`      | kill a session, delete a worktree, or close a project           |
 | `o`      | filter, sort and group the list                                 |
 | `alt+↑↓` | reorder sessions and worktrees                                  |
+
+A session runs an agent: the picker lists the installed `[agents]` presets
+(claude, codex, gemini, opencode, …), empty when none is. The agent exiting
+closes its session; a failure stays listed as `exit N`.
 
 Deleting a worktree keeps its branch; closing a project never removes its
 checkout.

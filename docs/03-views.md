@@ -172,10 +172,13 @@ settings (`spaces_hide`, `spaces_sort`, `spaces_group`) read by
 
 ### Sessions and tabs
 
-A new session is a shell in the worktree; _New Agent Session…_ starts an
-`[agents]` preset. A session has tabs (`tabsOf`): `+` adds a shell that dies
-with it, `[` `]` cycle, middle click or `✕` kills after asking. A session
-with more than its own tab shows their count in its row (`icTabs`).
+A new session runs a harness, never a bare shell: an `[agents]` preset whose
+program is on the `PATH`, `shell` and `terminal` aside (`harnesses`); none
+installed, the picker is empty.
+
+A session has tabs (`tabsOf`): `+` adds a shell that dies with it, `[` `]`
+cycle, middle click or `✕` kills after asking. A session with more than its
+own tab shows their count in its row (`icTabs`).
 
 ## Terminal
 
