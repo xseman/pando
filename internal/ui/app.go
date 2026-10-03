@@ -4458,16 +4458,24 @@ var previewKeys = [][2]string{{"↑↓", "move"}, {"⇧↑↓", "select"}, {"^a"
 
 // keyRows lays key/description pairs out in two keycap columns.
 func keyRows(pairs [][2]string) []item {
-	cell := func(p [2]string) string {
-		return keycap(p[0]+blank(5-ansi.StringWidth(p[0]))) + " " + dim.Render(fmt.Sprintf("%-10s", p[1]))
+	kw, dw := 5, 10 // the widest key and the widest left-column description
+	for i, p := range pairs {
+		kw = max(kw, ansi.StringWidth(p[0]))
+		if i%2 == 0 {
+			dw = max(dw, ansi.StringWidth(p[1]))
+		}
+	}
+
+	cell := func(p [2]string, dw int) string {
+		return keycap(p[0]+blank(kw-ansi.StringWidth(p[0]))) + " " + dim.Render(p[1]+blank(dw-ansi.StringWidth(p[1])))
 	}
 
 	var out []item
 
 	for i := 0; i < len(pairs); i += 2 {
-		label := cell(pairs[i])
+		label := cell(pairs[i], dw)
 		if i+1 < len(pairs) {
-			label += " " + cell(pairs[i+1])
+			label += " " + cell(pairs[i+1], 0)
 		}
 
 		out = append(out, item{label: label, styled: true})
