@@ -29,3 +29,15 @@ jobs:
                   go-version-file: go.mod
                   cache: true
             - run: make lint
+
+    # Only the tests written for Windows: the rest drive sh, a pty and /proc.
+    windows:
+        runs-on: windows-latest
+        steps:
+            - uses: actions/checkout@v5
+            - uses: actions/setup-go@v6
+              with:
+                  go-version-file: go.mod
+                  cache: true
+            - run: go vet ./...
+            - run: go test -race -run "Windows|LockFile" . ./internal/daemon ./internal/git
