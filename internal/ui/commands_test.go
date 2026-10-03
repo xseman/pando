@@ -775,8 +775,8 @@ func TestSpacesProjectSort(t *testing.T) {
 }
 
 // TestSpacesFoldedSink folds a project: it sinks below the open ones, to the
-// top of the folded, with the selection on it, and unfolding brings it back
-// to its saved place.
+// top of the folded, with the selection on it, and unfolding puts it last
+// among the open ones, saved there.
 func TestSpacesFoldedSink(t *testing.T) {
 	m := testModel(t)
 	first, second, third := m.ws, t.TempDir(), t.TempDir()
@@ -824,17 +824,17 @@ func TestSpacesFoldedSink(t *testing.T) {
 		t.Fatal("a fold is saved")
 	}
 
-	if got := projects(); !slices.Equal(got, []string{first, second, third}) {
-		t.Fatalf("an unfolded project goes back to its place: %v", got)
+	if got := projects(); !slices.Equal(got, []string{second, first, third}) || !slices.Equal(m.st.Projects, []string{second, third, first}) {
+		t.Fatalf("an unfolded project goes last among the open: shown %v, saved %v", got, m.st.Projects)
 	}
 
 	m.ag.collapseAll(m)
 
-	if got := projects(); !slices.Equal(got, []string{first, second, third}) || !slices.Equal(m.ag.folded, []string{first, second, third}) {
+	if got := projects(); !slices.Equal(got, []string{second, first, third}) || !slices.Equal(m.ag.folded, []string{second, first, third}) {
 		t.Fatalf("collapse all keeps the order the list had: %v, folded %v", got, m.ag.folded)
 	}
 
-	if !slices.Equal(m.st.Projects, []string{first, second, third}) {
+	if !slices.Equal(m.st.Projects, []string{second, third, first}) {
 		t.Fatalf("folding leaves the saved order alone: %v", m.st.Projects)
 	}
 }

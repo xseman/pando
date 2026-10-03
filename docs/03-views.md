@@ -152,8 +152,8 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
 - _New Worktree…_ (`w`) offers a random branch (`workspace.new`).
 - Session reordering applies under Sort by Created + Group by Workspace only;
   an open project's under Sort Projects Manually only.
-- A folded project tops the folded list (`spaces_folded`) and returns to its
-  place when unfolded.
+- A folded project tops the folded list (`spaces_folded`); unfolded, it goes
+  last among the open ones, saved there (Sort Projects Manually only).
 - `alt+t` opens the agent navigator, a picker with `@blocked`, `@running`,
   `@done`, `@idle`, `@exited`, `@worktree` and `!agent` filters.
 

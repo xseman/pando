@@ -99,7 +99,7 @@ func (a *agents) rows(m *Model) []agRow {
 // treeRows are Group by Workspace's rows: project, worktree, session. A
 // folded project sinks below the open ones, to the top of the folded
 // (shownProjects), so the spaces in use stay together at the top; unfolded it
-// takes its place among the open again.
+// goes last among the open (unfold).
 func (a *agents) treeRows(m *Model, sessions []proto.Session, q string) []agRow {
 	var (
 		open   []agRow
@@ -393,6 +393,21 @@ func (a *agents) collapseAll(m *Model) tea.Cmd {
 	}
 
 	return a.saveFolds()
+}
+
+// unfold opens heading k. A project sorted manually goes last among the open
+// ones and is saved there: it does not go back to where it was.
+func (a *agents) unfold(m *Model, k string) tea.Cmd {
+	a.fold(k, false)
+
+	i := slices.Index(m.st.Projects, k)
+	if i < 0 || m.st.Settings.SpProj == "updated" {
+		return a.saveFolds()
+	}
+
+	m.st.Projects = append(slices.Delete(slices.Clone(m.st.Projects), i, i+1), k)
+
+	return tea.Batch(a.saveFolds(), do("project.move", proto.MoveParams{Path: k, To: len(m.st.Projects) - 1}))
 }
 
 // saveFolds sends the folded headings to state.json, so a restart keeps
@@ -701,8 +716,7 @@ func (a *agents) reveal(m *Model, path string) tea.Cmd {
 	var saved tea.Cmd
 
 	if w := m.workspace(path); w != nil && a.collapsed[w.Project] {
-		a.fold(w.Project, false)
-		saved = a.saveFolds()
+		saved = a.unfold(m, w.Project)
 	}
 
 	rows := a.rows(m)
@@ -829,11 +843,19 @@ func (a *agents) activate(m *Model, r *agRow) tea.Cmd {
 
 	switch r.kind {
 	case agProject, agTime:
-		a.fold(foldKey(*r), !a.collapsed[foldKey(*r)])
-		a.follow(m, r) // a folded project sinks below the open ones
+		var saved tea.Cmd
+
+		if k := foldKey(*r); a.collapsed[k] {
+			saved = a.unfold(m, k)
+		} else {
+			a.fold(k, true)
+			saved = a.saveFolds()
+		}
+
+		a.follow(m, r) // a folded project sinks below the open ones, an unfolded one goes last among them
 		a.l.snap(m.bodyH(viewAgents))
 
-		return a.saveFolds()
+		return saved
 
 	case agWorkspace:
 		return tea.Batch(m.switchWorkspace(r.ws.Path), m.refreshGit(), m.fetchScreen())
