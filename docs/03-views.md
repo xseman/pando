@@ -129,7 +129,8 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
 
 - Rows roll up the most demanding glyph of what they hold (`groupGlyph`).
 - `session_highlight` tints blocked, exited and done rows (`sessionTint`);
-  the tint pulses until the session is clicked or shown (`pulses`).
+  the tint pulses until the session is clicked or shown (`pulses`). A
+  session row carries its tabs' tint; selected, it still pulses for one.
   `"steady"` drops the pulse, `"off"` the tint.
 - `sounds = true` plays `sound_request` / `sound_done` for sessions out of
   view (`sound.go`).

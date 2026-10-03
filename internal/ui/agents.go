@@ -630,9 +630,13 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		tabs := m.tabsOf(r.s.ID)
 		glyph, c := groupGlyph(tabs)
 
+		// A selected row, as the session on screen usually is, still pulses
+		// for a tab out of view: the tint on the bright beat, the selection on
+		// the other.
+		sel := bg != nil
 		for _, t := range tabs {
-			if bg == nil {
-				bg = m.highlight(t)
+			if hl := m.highlight(t); hl != nil && (bg == nil || sel && m.pulses(t) && m.blinkOn) {
+				bg = hl
 			}
 		}
 

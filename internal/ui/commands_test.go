@@ -3151,3 +3151,50 @@ func TestTerminalPanelPerWorkspace(t *testing.T) {
 		t.Fatal("a worktree never visited follows the last state set: shut")
 	}
 }
+
+// TestTabPulseOnSelectedRow: a tab out of view coming to a state pulses on
+// its session's Spaces row even while that row is selected, as the session
+// on screen usually is; the selection shows on the pulse's other beat.
+func TestTabPulseOnSelectedRow(t *testing.T) {
+	m := testModel(t)
+	m.st.Settings.SessHi = "tint"
+	tab := proto.Session{SessionSpec: proto.SessionSpec{ID: "t1", Workspace: m.ws, Agent: tabAgent, Parent: "s1"}, Status: "running"}
+	m.Update(sessionsMsg{m.sessions[0], tab})
+	m.Update(focusSessionMsg("s1"))
+	press(m, "3")
+
+	tab.Status = "blocked" // after the click: news
+	m.Update(sessionsMsg{m.sessions[0], tab})
+
+	for i, r := range m.ag.rows(m) {
+		if r.kind == agSession && r.s.ID == "s1" {
+			m.ag.l.sel = i
+		}
+	}
+
+	row := func() string {
+		r := m.ag.rows(m)
+		lines := m.ag.lines(m, 40, len(r))
+
+		return lines[m.ag.l.sel-m.ag.l.top]
+	}
+
+	m.blinkOn = true
+
+	if !strings.Contains(row(), bgParams(pal.blockedBg)) {
+		t.Fatalf("the selected row hides its blocked tab's pulse: %q", row())
+	}
+
+	m.blinkOn = false
+
+	if strings.Contains(row(), bgParams(pal.blockedSoftBg)) {
+		t.Fatalf("the other beat shows the selection: %q", row())
+	}
+
+	m.acknowledge("t1")
+	m.blinkOn = true
+
+	if strings.Contains(row(), bgParams(pal.blockedBg)) {
+		t.Fatalf("a seen tab leaves the selection alone: %q", row())
+	}
+}
