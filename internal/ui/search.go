@@ -467,7 +467,7 @@ func runSearch(ctx context.Context, root string, o searchOpts, engine string) ([
 		}
 
 	default:
-		args = append([]string{"grep", "-rnIZ", "--exclude-dir=.git"}, grepFlags(o)...)
+		args = append([]string{"grep", "-rnI", "--null", "--exclude-dir=.git"}, grepFlags(o)...)
 		for _, g := range globs(o.include) {
 			args = append(args, "--include="+path.Base(g))
 		}
