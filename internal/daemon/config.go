@@ -44,7 +44,7 @@ func defaultConfig() config {
 			Hidden: true, Icons: "ascii", Width: 40, WidthR: 32, GitDeco: true, GitTree: true,
 			Theme: "vscode", DiffView: "inline", Borders: true, FmtSave: true,
 			ActBar: "top", TermPos: "bottom", TermH: 12, SessPos: "right", SessHi: "tint",
-			SpSort: "created", SpGroup: "workspace",
+			SpSort: "created", SpGroup: "workspace", ExSort: "name",
 			Sounds: true, SoundDone: done, SoundReq: req, Updates: true, Anim: true, Blanks: "selection", ClaudeBg: true, TabSize: 4, MDWidth: 80,
 			Drawers: []string{"Commits", "Graph", "Branches", "Stashes", "Remotes"},
 		},
@@ -177,6 +177,7 @@ func (c *config) encode() []byte {
 	kv("Icons: \"nerd\" needs a Nerd Font as the terminal font, \"emoji\" and \"ascii\" work everywhere.", "icons", s.Icons)
 	kv("Diffs: \"inline\" or \"split\" (side by side when the main area has 90 columns).", "diff_view", s.DiffView)
 	kv("Show dotfiles in Files.", "hidden", s.Hidden)
+	kv("Files sorts by \"name\" or by \"type\" (extension, then name), folders first,\nas VS Code's explorer.sortOrder.", "explorer_sort", s.ExSort)
 	kv("Color Files entries by their git status.", "git_deco", s.GitDeco)
 	kv("Show Source Control changes as a tree instead of a flat list.", "git_tree", s.GitTree)
 	kv("Group quick open (ctrl+p) results by directory.", "quick_open_tree", s.QuickTree)

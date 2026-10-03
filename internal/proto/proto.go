@@ -43,8 +43,9 @@ type Event struct {
 // Settings live in config.toml; the JSON names are the same as the TOML keys.
 type Settings struct {
 	Hidden    bool                `json:"hidden" toml:"hidden"`
-	Icons     string              `json:"icons" toml:"icons"` // "nerd" | "emoji" | "ascii"
-	Width     int                 `json:"width" toml:"width"` // left sidebar
+	ExSort    string              `json:"explorer_sort" toml:"explorer_sort"` // Explorer files by "name" or "type" (extension, then name), folders first
+	Icons     string              `json:"icons" toml:"icons"`                 // "nerd" | "emoji" | "ascii"
+	Width     int                 `json:"width" toml:"width"`                 // left sidebar
 	WidthR    int                 `json:"width_right" toml:"width_right"`
 	GitDeco   bool                `json:"git_deco" toml:"git_deco"`
 	Left      Columns             `json:"left" toml:"left"` // sidebar columns from the screen edge to main; unlisted views dock left

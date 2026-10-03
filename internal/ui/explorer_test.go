@@ -48,7 +48,7 @@ func TestExplorerContextMenu(t *testing.T) {
 			"Open Containing Folder", "Find in Folder…", "",
 			"Paste", "",
 			"Copy Name", "Copy Path", "",
-			"Refresh", "Show Hidden Files", "Collapse All",
+			"Refresh", "Show Hidden Files", "Sort by Type", "Collapse All",
 		}},
 	} {
 		click(m, 5, c.y, tea.MouseRight)
@@ -76,6 +76,42 @@ func TestExplorerContextMenu(t *testing.T) {
 
 	if got := m.modal.disp[m.modal.l.sel].label; got != "Open Containing Folder" {
 		t.Fatalf("down from New Folder… lands on %q", got)
+	}
+}
+
+// TestExplorerSortByType orders files by extension, then name, with folders
+// still first and a dotfile's name not taken for its type.
+func TestExplorerSortByType(t *testing.T) {
+	m := testModel(t)
+	for _, f := range []string{"b.go", "a.md", "c.go", ".env", "z"} {
+		mustWrite(t, filepath.Join(m.ws, "sorted", f), "")
+	}
+
+	m.ex.expanded[filepath.Join(m.ws, "sorted")] = true
+	m.st.Settings.Hidden = true
+	names := func() []string {
+		var out []string
+
+		for _, n := range m.ex.nodes {
+			if filepath.Base(filepath.Dir(n.path)) == "sorted" {
+				out = append(out, n.name)
+			}
+		}
+
+		return out
+	}
+
+	m.ex.rebuild(m)
+
+	if got := names(); !slices.Equal(got, []string{".env", "a.md", "b.go", "c.go", "z"}) {
+		t.Fatalf("by name: %q", got)
+	}
+
+	m.st.Settings.ExSort = "type"
+	m.ex.rebuild(m)
+
+	if got := names(); !slices.Equal(got, []string{".env", "z", "b.go", "c.go", "a.md"}) {
+		t.Fatalf("by type: %q", got)
 	}
 }
 

@@ -52,6 +52,7 @@ config.toml edited ───────────┘  └─ "state" event �
 | `width_right`       | `32`        | right                                                                          |
 | `left`, `right`     | `[]`        | sidebar columns: [Columns](#columns)                                           |
 | `hidden`            | `true`      | Explorer shows dotfiles                                                        |
+| `explorer_sort`     | `name`      | Explorer files by `name` or `type` (extension, then name), folders first       |
 | `git_deco`          | `true`      | Explorer colors entries by git status                                          |
 | `git_tree`          | `true`      | Source Control changes as a tree                                               |
 | `git_drawers`       | 5 drawers   | Commits, Graph, Branches, Stashes, Remotes; also File History, Worktrees, Tags |

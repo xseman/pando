@@ -92,8 +92,15 @@ func (e *explorer) walk(m *Model, dir string, depth int) {
 		nodes = append(nodes, exNode{path: p, name: name, depth: depth, dir: isDir})
 	}
 
+	byType := m.st.Settings.ExSort == "type"
+
 	slices.SortFunc(nodes, func(a, b exNode) int {
-		return cmp.Or(b2i(b.dir)-b2i(a.dir), strings.Compare(strings.ToLower(a.name), strings.ToLower(b.name)))
+		ext := 0
+		if byType && !a.dir && !b.dir {
+			ext = strings.Compare(fileType(a.name), fileType(b.name))
+		}
+
+		return cmp.Or(b2i(b.dir)-b2i(a.dir), ext, strings.Compare(strings.ToLower(a.name), strings.ToLower(b.name)))
 	})
 
 	for _, n := range nodes {
@@ -141,7 +148,12 @@ func (e *explorer) filtered(m *Model, q string) {
 			walk(t.dirs[name], p, depth+1)
 		}
 
-		for _, f := range t.sortedFiles() {
+		files := t.sortedFiles()
+		if m.st.Settings.ExSort == "type" {
+			slices.SortStableFunc(files, func(a, b string) int { return strings.Compare(fileType(a), fileType(b)) })
+		}
+
+		for _, f := range files {
 			e.nodes = append(e.nodes, exNode{path: filepath.Join(e.root, f), name: filepath.Base(f), depth: depth})
 		}
 	}
@@ -566,6 +578,7 @@ func (e *explorer) items(m *Model) []item {
 				{label: hiddenLabel(m), hint: ".", run: func(m *Model) tea.Cmd {
 					return m.setSettings(map[string]any{"hidden": !m.st.Settings.Hidden})
 				}},
+				{label: map[bool]string{true: "Sort by Name", false: "Sort by Type"}[m.st.Settings.ExSort == "type"], run: toggleSort},
 			})
 
 	case n.dir:
@@ -598,6 +611,22 @@ func (e *explorer) items(m *Model) []item {
 	}
 
 	return items
+}
+
+// fileType is name's extension for explorer_sort "type", lowercased; a
+// leading dot names a file, not its type, so .gitignore has none.
+func fileType(name string) string {
+	return strings.ToLower(filepath.Ext(strings.TrimLeft(filepath.Base(name), ".")))
+}
+
+// toggleSort switches explorer_sort between name and type.
+func toggleSort(m *Model) tea.Cmd {
+	next := "type"
+	if m.st.Settings.ExSort == "type" {
+		next = "name"
+	}
+
+	return m.setSettings(map[string]any{"explorer_sort": next})
 }
 
 // hiddenLabel names the dotfile toggle by what it will do.

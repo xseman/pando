@@ -33,7 +33,8 @@ items(m) ──▶ context menu + command palette
 ## Explorer
 
 The context menu (`m`, right click) follows VS Code's; groups are split by
-`separator()` rows. Right click below the tree acts on the root.
+`separator()` rows. Right click below the tree acts on the root, with Refresh,
+Show Hidden Files and Sort by Type / Name (`explorer_sort`) added.
 
 | Group     | File                                                           | Folder                                  |
 | --------- | -------------------------------------------------------------- | --------------------------------------- |
