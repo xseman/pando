@@ -169,6 +169,7 @@ Go and TypeScript work once `gopls` or `typescript-language-server` is on the
 ## Settings, keys, updates
 
 Settings live in `config.toml`, commented in the file. `ctrl+,` edits them,
+grouped as Appearance, Explorer, Source Control, Editor and Sessions,
 `pando set KEY VALUE` changes one from a shell, and every change applies live
 in every attached TUI. Keys remap in its `[keys]` table, by command id
 ([06-config.md](06-config.md#keys)); every default key:

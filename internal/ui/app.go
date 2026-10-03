@@ -4478,7 +4478,7 @@ func keyRows(pairs [][2]string) []item {
 
 func heading(s string) item { return item{label: bold.Render(s), styled: true} }
 
-// settingsItems are the Settings modal's toggles.
+// settingsItems are the Settings modal's toggles, grouped under headings.
 func settingsItems(m *Model) []item {
 	onOff := func(b bool) string {
 		if b {
@@ -4495,25 +4495,41 @@ func settingsItems(m *Model) []item {
 	}
 
 	return []item{
+		heading("Appearance"),
 		{label: "Color theme", hint: theme, run: func(m *Model) tea.Cmd {
 			next := themeNames[(slices.Index(themeNames, theme)+1)%len(themeNames)]
 			return m.setSettings(map[string]any{"color_theme": next})
 		}},
-		{label: "Diff view", hint: map[bool]string{true: "split", false: "inline"}[s.DiffView == "split"], run: func(m *Model) tea.Cmd { return m.toggleDiffView() }},
 		{label: "Icons", hint: s.Icons, run: func(m *Model) tea.Cmd {
 			next := iconSets[(slices.Index(iconSets, m.st.Settings.Icons)+1)%len(iconSets)]
 			return m.setSettings(map[string]any{"icons": next})
 		}},
-		{label: "Hidden files", hint: onOff(s.Hidden), run: func(m *Model) tea.Cmd { return m.setSettings(map[string]any{"hidden": !m.st.Settings.Hidden}) }},
-		{label: "Git decorations", hint: onOff(s.GitDeco), run: func(m *Model) tea.Cmd {
-			return tea.Batch(m.setSettings(map[string]any{"git_deco": !m.st.Settings.GitDeco}), m.refreshGit())
-		}},
-		{label: "Git changes as tree", hint: onOff(s.GitTree), run: func(m *Model) tea.Cmd {
-			return m.setSettings(map[string]any{"git_tree": !m.st.Settings.GitTree})
+		{label: "Activity bar", hint: map[bool]string{true: "side", false: "top"}[m.sideBar()], run: func(m *Model) tea.Cmd {
+			next := "side"
+			if m.sideBar() {
+				next = "top"
+			}
+
+			return tea.Batch(m.setSettings(map[string]any{"activity_bar": next}), m.fetchScreen())
 		}},
 		{label: "Panel borders", hint: onOff(s.Borders), run: func(m *Model) tea.Cmd {
 			return tea.Batch(m.setSettings(map[string]any{"panel_borders": !m.st.Settings.Borders}), m.fetchScreen())
 		}},
+		{},
+		heading("Explorer"),
+		{label: "Hidden files", hint: onOff(s.Hidden), run: func(m *Model) tea.Cmd { return m.setSettings(map[string]any{"hidden": !m.st.Settings.Hidden}) }},
+		{label: "Git decorations", hint: onOff(s.GitDeco), run: func(m *Model) tea.Cmd {
+			return tea.Batch(m.setSettings(map[string]any{"git_deco": !m.st.Settings.GitDeco}), m.refreshGit())
+		}},
+		{label: "Sort files by", hint: cmp.Or(s.ExSort, "name"), run: toggleSort},
+		{},
+		heading("Source Control"),
+		{label: "Git changes as tree", hint: onOff(s.GitTree), run: func(m *Model) tea.Cmd {
+			return m.setSettings(map[string]any{"git_tree": !m.st.Settings.GitTree})
+		}},
+		{label: "Diff view", hint: map[bool]string{true: "split", false: "inline"}[s.DiffView == "split"], run: func(m *Model) tea.Cmd { return m.toggleDiffView() }},
+		{},
+		heading("Editor"),
 		{label: "Format on save", hint: onOff(s.FmtSave), run: func(m *Model) tea.Cmd {
 			return m.setSettings(map[string]any{"format_on_save": !m.st.Settings.FmtSave})
 		}},
@@ -4521,8 +4537,9 @@ func settingsItems(m *Model) []item {
 			return m.setSettings(map[string]any{"vim_mode": !m.st.Settings.Vim})
 		}},
 		{label: "Word wrap", hint: onOff(s.Wrap), run: func(m *Model) tea.Cmd { return m.toggleWrap() }},
-		{label: "Claude in background", hint: onOff(s.ClaudeBg), run: func(m *Model) tea.Cmd {
-			return m.setSettings(map[string]any{"claude_background": !m.st.Settings.ClaudeBg})
+		{label: "Render whitespace", hint: cmp.Or(s.Blanks, "none"), run: func(m *Model) tea.Cmd {
+			next := blankModes[(slices.Index(blankModes, cmp.Or(m.st.Settings.Blanks, "none"))+1)%len(blankModes)]
+			return m.setSettings(map[string]any{"render_whitespace": next})
 		}},
 		{label: "Markdown width", hint: mdWidthHint(s.MDWidth), run: func(m *Model) tea.Cmd {
 			next := mdWidths[(slices.Index(mdWidths, m.st.Settings.MDWidth)+1)%len(mdWidths)]
@@ -4532,17 +4549,10 @@ func settingsItems(m *Model) []item {
 			next := edLimits[(slices.Index(edLimits, m.st.Settings.EdLimit)+1)%len(edLimits)]
 			return m.setSettings(map[string]any{"editor_limit": next})
 		}},
-		{label: "Render whitespace", hint: cmp.Or(s.Blanks, "none"), run: func(m *Model) tea.Cmd {
-			next := blankModes[(slices.Index(blankModes, cmp.Or(m.st.Settings.Blanks, "none"))+1)%len(blankModes)]
-			return m.setSettings(map[string]any{"render_whitespace": next})
-		}},
-		{label: "Activity bar", hint: map[bool]string{true: "side", false: "top"}[m.sideBar()], run: func(m *Model) tea.Cmd {
-			next := "side"
-			if m.sideBar() {
-				next = "top"
-			}
-
-			return tea.Batch(m.setSettings(map[string]any{"activity_bar": next}), m.fetchScreen())
+		{},
+		heading("Sessions"),
+		{label: "Claude in background", hint: onOff(s.ClaudeBg), run: func(m *Model) tea.Cmd {
+			return m.setSettings(map[string]any{"claude_background": !m.st.Settings.ClaudeBg})
 		}},
 	}
 }

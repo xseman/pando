@@ -371,7 +371,7 @@ func TestViewsModalsAndFocus(t *testing.T) {
 
 	press(m, "enter") // toggles hidden and stays open
 
-	if !m.st.Settings.Hidden || m.modal == nil || m.modal.items[3].hint != "on" {
+	if !m.st.Settings.Hidden || m.modal == nil || m.modal.disp[m.modal.l.sel].hint != "on" {
 		t.Fatalf("settings toggle: hidden=%v modal=%v", m.st.Settings.Hidden, m.modal)
 	}
 
