@@ -145,6 +145,8 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
 | `x`            | kill                     | linked: delete folder, keep branch; checkout: close | close (`project.remove`) |
 | drag, `alt+↑↓` | reorder (`session.move`) | reorder (`workspace.move`)                          | reorder (`project.move`) |
 
+- A click on a session opens its one tab with a new state (`newsTab`);
+  with several, the tab shown last, and again it puts the session away.
 - `x` kills the sessions in the way first (`killThen`), after asking.
 - _New Worktree…_ (`w`) offers a random branch (`workspace.new`).
 - Session reordering applies under Sort by Created + Group by Workspace only.

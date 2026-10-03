@@ -817,8 +817,12 @@ func (a *agents) activate(m *Model, r *agRow) tea.Cmd {
 	case agWorkspace:
 		return tea.Batch(m.switchWorkspace(r.ws.Path), m.refreshGit(), m.fetchScreen())
 	case agSession:
-		if m.rootOf(m.sess) == r.s.ID && m.inView(m.sess) { // a second click puts it away
+		if m.putsAway(r.s.ID) {
 			return m.hideSession()
+		}
+
+		if id := m.newsTab(r.s.ID); id != "" {
+			return m.openSession(id)
 		}
 
 		return m.openSession(m.lastTabOf(r.s.ID))
@@ -827,11 +831,36 @@ func (a *agents) activate(m *Model, r *agRow) tea.Cmd {
 	return nil
 }
 
+// newsTab is the one tab of session root out of view whose new state pulses,
+// the tab a click on its row opens; "" for none, or for several, where the
+// click goes back to the tab shown last.
+func (m *Model) newsTab(root string) string {
+	var news []string
+
+	for _, t := range m.tabsOf(root) {
+		if m.pulses(t) && !m.inView(t.ID) {
+			news = append(news, t.ID)
+		}
+	}
+
+	if len(news) != 1 {
+		return ""
+	}
+
+	return news[0]
+}
+
+// putsAway reports a click on session root's row hiding it: a second click,
+// with no single tab of it out of view to show instead.
+func (m *Model) putsAway(root string) bool {
+	return m.rootOf(m.sess) == root && m.inView(m.sess) && m.newsTab(root) == ""
+}
+
 // click is a left click's activate. A session it puts away leaves nothing
 // selected, so its row no longer reads as the one open; ↵ keeps the
 // selection for the keys that follow.
 func (a *agents) click(m *Model, r *agRow) tea.Cmd {
-	hides := r != nil && r.kind == agSession && m.rootOf(m.sess) == r.s.ID && m.inView(m.sess)
+	hides := r != nil && r.kind == agSession && m.putsAway(r.s.ID)
 
 	cmd := a.activate(m, r)
 	if hides {

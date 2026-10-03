@@ -3198,3 +3198,44 @@ func TestTabPulseOnSelectedRow(t *testing.T) {
 		t.Fatalf("a seen tab leaves the selection alone: %q", row())
 	}
 }
+
+// TestClickOpensNewsTab: a click on a session row whose one tab out of view
+// came to a new state opens that tab, rather than putting the session away;
+// with several, it goes back to the tab shown last, as before.
+func TestClickOpensNewsTab(t *testing.T) {
+	m := testModel(t)
+	m.st.Settings.SessHi = "tint"
+	tab := func(id, status string) proto.Session {
+		return proto.Session{SessionSpec: proto.SessionSpec{ID: id, Workspace: m.ws, Agent: tabAgent, Parent: "s1"}, Status: status}
+	}
+
+	m.Update(sessionsMsg{m.sessions[0], tab("t1", "running"), tab("t2", "running")})
+	m.Update(focusSessionMsg("s1"))
+	press(m, "3")
+
+	click := func() {
+		for _, r := range m.ag.rows(m) {
+			if r.kind == agSession && r.s.ID == "s1" {
+				m.ag.click(m, &r)
+			}
+		}
+	}
+
+	m.Update(sessionsMsg{m.sessions[0], tab("t1", "running"), tab("t2", "blocked")})
+	click()
+
+	if m.sess != "t2" || !m.inView("t2") {
+		t.Fatalf("the click opens the blocked tab: %q", m.sess)
+	}
+
+	m.Update(sessionsMsg{m.sessions[0], tab("t1", "blocked"), tab("t2", "blocked")})
+	m.Update(focusSessionMsg("s1"))
+	m.Update(sessionsMsg{m.sessions[0], tab("t1", "exited"), tab("t2", "idle")})
+	m.sessions[2].Attention = true // t2 done too
+
+	click()
+
+	if m.inView(m.sess) {
+		t.Fatalf("two tabs with news: the second click puts it away, as before: %q", m.sess)
+	}
+}
