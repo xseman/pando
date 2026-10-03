@@ -5,7 +5,7 @@ recorded.
 
 ```sh
 make test                              # go vet + go test -race ./... (CI)
-make lint                              # golangci-lint (CI)
+make lint                              # golangci-lint (CI), the Windows build too
 go test -short ./...                   # skip the PTY end-to-end test
 go test ./internal/ui -run TestName    # one test
 ```
@@ -30,6 +30,12 @@ go test ./internal/ui -run TestName    # one test
 
 `TestE2E` re-execs the test binary as `pando` (`PANDO_TEST_MAIN=1`) in a PTY,
 renders it with x/vt and asserts on the screen.
+
+`*_windows_test.go` run only on Windows:
+`go test -run 'Windows|LockFile' . ./internal/daemon ./internal/git` there
+covers ConPTY output, exit codes, input, resize, kill, the lock and the
+daemon over its socket. Elsewhere `make lint` only type-checks the Windows
+build.
 
 ## UI tests
 

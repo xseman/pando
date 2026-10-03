@@ -14,7 +14,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -519,15 +518,22 @@ func EnsureDaemon() error {
 
 	defer func() { _ = logf.Close() }() // the daemon keeps its own descriptor
 
-	cmd := exec.Command(exe, "serve")
-	cmd.Stdout, cmd.Stderr = logf, logf
-	cmd.Env = WithoutNoColor(os.Environ())
+	var cmd *exec.Cmd
+	for _, attr := range daemonAttrs() {
+		cmd = exec.Command(exe, "serve")
+		cmd.Stdout, cmd.Stderr = logf, logf
+		cmd.Env = WithoutNoColor(os.Environ())
+		cmd.SysProcAttr = attr
 
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		if err = cmd.Start(); err == nil {
+			break
+		}
+	}
 
-	if err := cmd.Start(); err != nil {
+	if err != nil {
 		return err
 	}
+
 	go func() { _ = cmd.Wait() }() // reap it if it exits while we run
 
 	for range 50 {

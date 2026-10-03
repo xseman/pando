@@ -420,10 +420,10 @@ func withID(t []string, id string) []string {
 // a negative pid is a process group, as for kill(2).
 func waitGone(pid int, d time.Duration) {
 	for deadline := time.Now().Add(d); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
-		if errors.Is(syscall.Kill(pid, 0), syscall.ESRCH) {
+		if errors.Is(kill(pid, 0), syscall.ESRCH) {
 			return
 		}
 	}
 
-	_ = syscall.Kill(pid, syscall.SIGKILL) // it had its chance
+	_ = kill(pid, syscall.SIGKILL) // it had its chance
 }

@@ -355,7 +355,7 @@ func addWorkspace(dir string) (string, []proto.Workspace, error) {
 
 	_ = proto.Call("workspace.list", nil, &wss) // the project was just added
 	for _, w := range wss {
-		if (dir == w.Path || strings.HasPrefix(dir, w.Path+"/")) && len(w.Path) >= len(ws) {
+		if (dir == w.Path || strings.HasPrefix(dir, w.Path+string(filepath.Separator))) && len(w.Path) >= len(ws) {
 			ws = w.Path
 		}
 	}

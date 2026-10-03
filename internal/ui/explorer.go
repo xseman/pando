@@ -170,7 +170,7 @@ func (e *explorer) selected() *exNode {
 
 // reveal expands the ancestors of path and selects it.
 func (e *explorer) reveal(m *Model, path string) {
-	if !strings.HasPrefix(path, e.root+"/") {
+	if !strings.HasPrefix(path, e.root+string(filepath.Separator)) {
 		return
 	}
 
@@ -473,7 +473,7 @@ func (e *explorer) action(key string) func(m *Model) tea.Cmd {
 				}
 
 				to := filepath.Join(filepath.Dir(path), v)
-				if to == path || strings.HasPrefix(to, path+"/") {
+				if to == path || strings.HasPrefix(to, path+string(filepath.Separator)) {
 					return flash("cannot duplicate "+name+" into itself", true)
 				}
 
@@ -692,7 +692,7 @@ func pasteFile(from, dir string, cut bool) tea.Cmd {
 			return flashMsg{"paste: " + err.Error(), true}
 		}
 
-		if dir == from || strings.HasPrefix(dir, from+"/") {
+		if dir == from || strings.HasPrefix(dir, from+string(filepath.Separator)) {
 			return flashMsg{"cannot paste " + name + " into itself", true}
 		}
 

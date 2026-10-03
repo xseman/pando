@@ -7,7 +7,6 @@ import (
 	"maps"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -19,9 +18,7 @@ import (
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/vt"
-	"github.com/creack/pty"
 	"github.com/xseman/pando/internal/proto"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -30,13 +27,14 @@ const (
 	viewedWindow = 2 * time.Second
 )
 
-// session is one PTY process plus the emulator holding its screen. The
-// plain Emulator is guarded by mu (not SafeEmulator) so scrollback reads are
-// consistent with writes; its output pipe is drained lock-free.
+// session is one process on a terminal of its own (a pty, a pseudo console
+// on Windows) plus the emulator holding its screen. The plain Emulator is
+// guarded by mu (not SafeEmulator) so scrollback reads are consistent with
+// writes; its output pipe is drained lock-free.
 type session struct {
 	spec proto.SessionSpec
 	cmd  *exec.Cmd
-	pty  *os.File
+	pty  *term
 	done chan struct{}
 
 	mu         sync.Mutex
@@ -78,7 +76,7 @@ func spawn(spec proto.SessionSpec, cols, rows int, onOutput, onExit func()) (*se
 		"TERM=xterm-256color", "COLORTERM=truecolor",
 		"PANDO_SESSION="+spec.ID, "PANDO_RUNTIME_DIR="+proto.Dir())
 
-	f, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)})
+	f, err := startTerm(cmd, cols, rows)
 	if err != nil {
 		return nil, err
 	}
@@ -143,15 +141,10 @@ func spawn(spec proto.SessionSpec, cols, rows int, onOutput, onExit func()) (*se
 			}
 		}
 
-		err := cmd.Wait()
+		code := f.wait()
 
 		s.mu.Lock()
-		s.exited = true
-
-		s.exitCode = cmd.ProcessState.ExitCode()
-		if err != nil && s.exitCode == 0 {
-			s.exitCode = -1
-		}
+		s.exited, s.exitCode = true, code
 		s.mu.Unlock()
 
 		_ = f.Close()
@@ -213,15 +206,16 @@ func (s *session) kill() {
 		pid := s.cmd.Process.Pid
 		fg, _ := s.foreground()
 
-		_ = syscall.Kill(-pid, syscall.SIGHUP)
+		s.pty.signal(syscall.SIGHUP)
+
 		if fg > 0 && fg != pid {
-			_ = syscall.Kill(-fg, syscall.SIGHUP)
+			_ = kill(-fg, syscall.SIGHUP)
 		}
 
 		select {
 		case <-s.done:
 		case <-time.After(2 * time.Second):
-			_ = syscall.Kill(-pid, syscall.SIGKILL)
+			s.pty.signal(syscall.SIGKILL)
 
 			<-s.done
 		}
@@ -244,51 +238,6 @@ func (s *session) kill() {
 	_ = c.Close()
 }
 
-// foreground is the program the session's terminal is running right now and
-// the leader of its process group: the agent the user started in the shell,
-// or the shell itself. The pid is 0 when the terminal is gone.
-// ponytail: /proc and one ioctl, no process tree walk.
-func (s *session) foreground() (int, string) {
-	// Through the raw conn, not Fd(): the reader may be closing the pty.
-	rc, err := s.pty.SyscallConn()
-	if err != nil {
-		return 0, ""
-	}
-
-	var pgrp int
-
-	cerr := rc.Control(func(fd uintptr) { pgrp, err = unix.IoctlGetInt(int(fd), unix.TIOCGPGRP) })
-	if cerr != nil || err != nil || pgrp <= 0 {
-		return 0, ""
-	}
-
-	b, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pgrp))
-	if err != nil {
-		return 0, ""
-	}
-
-	argv := strings.Split(strings.TrimSuffix(string(b), "\x00"), "\x00")
-
-	return pgrp, programOf(argv)
-}
-
-// runtimes run a script whose name is the program the user means.
-var runtimes = []string{"node", "bun", "deno", "python", "python3", "ruby", "perl", "sh", "bash"}
-
-// programOf names the program an argv runs: node cli.js is "cli".
-func programOf(argv []string) string {
-	if len(argv) == 0 || argv[0] == "" {
-		return ""
-	}
-
-	name := filepath.Base(argv[0])
-	if len(argv) > 1 && slices.Contains(runtimes, name) && !strings.HasPrefix(argv[1], "-") {
-		name = filepath.Base(argv[1])
-	}
-
-	return strings.TrimSuffix(name, filepath.Ext(name))
-}
-
 // resumeWith types a command into the session once its shell is listening, so
 // a restarted daemon brings the agent back instead of an empty prompt. A
 // leftover process still holding the conversation is stopped first.
@@ -308,7 +257,7 @@ func (s *session) resumeWith(argv []string, leftover int) {
 // it; 0 is none.
 func hangUp(pid int) {
 	if pid > 0 {
-		_ = syscall.Kill(pid, syscall.SIGHUP)
+		_ = kill(pid, syscall.SIGHUP)
 		waitGone(pid, 3*time.Second)
 	}
 }
@@ -515,7 +464,7 @@ func (s *session) screen(p proto.ScreenParams) proto.Screen {
 		s.emu.Resize(p.Cols, p.Rows)
 
 		if !s.exited {
-			_ = pty.Setsize(s.pty, &pty.Winsize{Cols: uint16(p.Cols), Rows: uint16(p.Rows)})
+			_ = s.pty.resize(p.Cols, p.Rows)
 		}
 	}
 

@@ -47,7 +47,7 @@ func loginShell() string {
 
 // shellCandidates are the commands a shell session tries, in order: the shell
 // setting, the agent's own [agents] preset, the shell preset, the login
-// shell, then bash and sh, which are what a broken setting falls back on.
+// shell, then the fallbackShells a broken setting falls back on.
 // d.mu is held.
 func (d *Daemon) shellCandidates(agent string) [][]string {
 	var out [][]string
@@ -62,8 +62,10 @@ func (d *Daemon) shellCandidates(agent string) [][]string {
 	add(d.state.Agents[agent])
 	add(d.state.Agents["shell"])
 	add(strings.Fields(loginShell()))
-	add([]string{"bash"})
-	add([]string{"/bin/sh"})
+
+	for _, sh := range fallbackShells {
+		add([]string{sh})
+	}
 
 	return out
 }

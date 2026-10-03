@@ -76,8 +76,18 @@ driving the API.
 
 ## Sessions
 
-- Each session is a `creack/pty` process and a `vt.Emulator`, one mutex each,
+- Each session is a process on a `term` and a `vt.Emulator`, one mutex each,
   with `PANDO_SESSION=<id>` and `PANDO_RUNTIME_DIR` set and `NO_COLOR` dropped.
+  The `term` is a `creack/pty` pty (`os_unix.go`), on Windows a pseudo console
+  (ConPTY, `os_windows.go`).
+- A pseudo console outlives its process: the daemon waits for the process and
+  closes the console then, which ends the console processes still on it
+  (`CTRL_CLOSE_EVENT`) and the output it reads. Windows has no process groups:
+  a kill closes the console, as closing a Windows Terminal tab does, then ends
+  the session's process after 2 s. A process on a console of its own (started
+  hidden or detached) outlives both, as a detached one outlives a pty.
+- `pando serve` on Windows runs on a hidden console of its own, out of its
+  starter's job where the job lets it (`CREATE_BREAKAWAY_FROM_JOB`).
 - A shell session tries `shellCandidates` in order; one failing within 2 s
   yields to the next.
 - Sessions resolve by id, by name (unique among live sessions), or an
@@ -124,7 +134,8 @@ driving the API.
   by the next tick. The worker is the foreground process, or, under `claude
   attach`, the background job's process. So a `run_in_background` shell keeps
   an idle claude running.
-- `/proc` is Linux only; elsewhere only the screen and output timing decide.
+- `/proc` is Linux only; elsewhere (macOS, Windows) only the screen and
+  output timing decide.
 
 ## Resume after a restart
 
