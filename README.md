@@ -30,6 +30,20 @@ from each of three tools:
 Named after [Pando](https://en.wikipedia.org/wiki/Pando_%28tree%29), the aspen
 colony with thousands of trunks on one root: many sessions, one daemon.
 
+## Install
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/xseman/pando/master/install.sh | sh
+```
+
+Linux and macOS. The script verifies the binary against `CHECKSUMS.txt` and
+installs it to `~/.local/bin` (`PANDO_VERSION` pins a release,
+`PANDO_INSTALL_DIR` moves it). From source: `make install` (Go 1.26).
+
+Needs git. Optional: `gh` for GitHub, `rg` for search, language servers
+(`gopls`, …), the `claude` CLI for commit messages, and a Nerd Font for
+`icons = "nerd"` (_Symbols Nerd Font Mono_ as a fallback font is enough).
+
 ![the editor beside its file tree: gopls's references to Total in a peek under the code, the one in main.go picked and shown](docs/demo/lsp.png)
 
 ## Features
@@ -50,20 +64,6 @@ colony with thousands of trunks on one root: many sessions, one daemon.
 - **Layout**: a terminal panel, draggable views and columns, VS Code's 2026
   themes, remappable keys.
 - **CLI and API**: JSON over a unix socket; self-update on Linux and macOS.
-
-## Install
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/xseman/pando/master/install.sh | sh
-```
-
-Linux and macOS. The script verifies the binary against `CHECKSUMS.txt` and
-installs it to `~/.local/bin` (`PANDO_VERSION` pins a release,
-`PANDO_INSTALL_DIR` moves it). From source: `make install` (Go 1.26).
-
-Needs git. Optional: `gh` for GitHub, `rg` for search, language servers
-(`gopls`, …), the `claude` CLI for commit messages, and a Nerd Font for
-`icons = "nerd"` (_Symbols Nerd Font Mono_ as a fallback font is enough).
 
 ## Quick start
 
