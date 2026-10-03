@@ -308,3 +308,40 @@ func TestWindowsRespawn(t *testing.T) {
 	call(t, "session.wait", proto.WaitParams{ID: s.ID, Match: `(?m)^42\s*$`, Timeout: 15000}, &s)
 }
 
+// TestWindowsResumeAgent: with no /proc to say what runs, an agent's session
+// is taken to run the agent, so a restarted daemon starts its resume in its
+// place.
+func TestWindowsResumeAgent(t *testing.T) {
+	boot := start(t)
+	d := boot()
+
+	d.mu.Lock()
+	d.state.Agents["fake"] = []string{"cmd", "/c", "echo AGENT UP & ping -n 600 127.0.0.1 >nul"}
+	d.state.Resume = map[string][]string{"fake": {"cmd", "/c", "echo RESUMED & ping -n 600 127.0.0.1 >nul"}}
+	d.mu.Unlock()
+
+	var s proto.Session
+	call(t, "session.new", map[string]any{"workspace": t.TempDir(), "agent": "fake"}, &s)
+	call(t, "session.wait", proto.WaitParams{ID: s.ID, Match: "AGENT UP", Timeout: 15000}, &s)
+
+	d.mu.Lock()
+	sess := d.sessions[s.ID]
+	d.mu.Unlock()
+
+	waitFor(t, "the resume to be remembered", func() bool { return remembered(d, sess).ResumeExec })
+
+	d.mu.Lock()
+	saveErr := d.save() // what the tick does once it remembers
+	d.mu.Unlock()
+
+	if saveErr != nil {
+		t.Fatal(saveErr)
+	}
+
+	d.Close()
+
+	d = boot()
+	defer d.Close()
+
+	call(t, "session.wait", proto.WaitParams{ID: s.ID, Match: "RESUMED", Timeout: 15000}, &s)
+}

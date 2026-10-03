@@ -188,6 +188,10 @@ func New(configDir, dataDir string) (*Daemon, error) {
 // records the job, to attach to again. It reports a change worth saving;
 // d.mu is held.
 func (d *Daemon) remember(s *session, pid int, prog string) bool {
+	if pid == 0 { // the terminal cannot tell what runs (no /proc): an agent's session runs the agent
+		pid, prog = s.ownAgent()
+	}
+
 	env := s.ownEnv(agentEnv(pid, d.state.ResumeEnv[prog])) // the config it runs in, which the shell does not set
 	own := pid == s.cmd.Process.Pid                         // no shell under it: a restart runs its resume instead
 

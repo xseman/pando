@@ -21,6 +21,11 @@ func defaultShell() string { return "powershell" }
 // was set to fails.
 var fallbackShells = []string{"powershell", "cmd"}
 
+// execLine runs resume command line argv as a session's own process, as it
+// is: without /proc no KEY=VALUE comes before the program, and there is no
+// shell to read one.
+func execLine(argv []string) []string { return argv }
+
 // kill stands in for kill(2) on one process: signal 0 asks whether pid runs,
 // any other ends it. Windows has no process groups; a session's term signals
 // what is on its console.

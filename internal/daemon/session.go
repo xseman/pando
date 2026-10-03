@@ -262,12 +262,6 @@ func hangUp(pid int) {
 	}
 }
 
-// execLine runs resume command line argv, written for a shell to read, as a
-// session's own process: env takes the KEY=VALUE before the program.
-func execLine(argv []string) []string {
-	return []string{"/bin/sh", "-c", "exec env " + strings.Join(argv, " ")}
-}
-
 // setResume records what would bring this session's agent back, the
 // conversation that is, when known, and whether the agent is the session's
 // own process; it reports a change worth saving.
@@ -283,6 +277,20 @@ func (s *session) setResume(argv []string, c *proto.Conversation, own bool) bool
 	s.spec.Resume, s.spec.Conversation, s.spec.ResumeExec = argv, c, own
 
 	return true
+}
+
+// ownAgent is the session's own process and the agent it runs, while it
+// runs and the session is an agent's, not a shell's: what foreground says
+// where the terminal cannot tell.
+func (s *session) ownAgent() (int, string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.exited || isShellAgent(s.spec.Agent) {
+		return 0, ""
+	}
+
+	return s.cmd.Process.Pid, s.spec.Agent
 }
 
 // failedAtOnce reports a shell that exited with an error as soon as it

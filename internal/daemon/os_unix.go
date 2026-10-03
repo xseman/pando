@@ -23,6 +23,12 @@ func defaultShell() string { return cmp.Or(os.Getenv("SHELL"), "/bin/sh") }
 // was set to fails.
 var fallbackShells = []string{"bash", "/bin/sh"}
 
+// execLine runs resume command line argv, written for a shell to read, as a
+// session's own process: env takes the KEY=VALUE before the program.
+func execLine(argv []string) []string {
+	return []string{"/bin/sh", "-c", "exec env " + strings.Join(argv, " ")}
+}
+
 // kill is kill(2): a negative pid is a process group.
 var kill = syscall.Kill
 

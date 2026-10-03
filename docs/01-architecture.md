@@ -135,7 +135,8 @@ driving the API.
   attach`, the background job's process. So a `run_in_background` shell keeps
   an idle claude running.
 - `/proc` is Linux only; elsewhere (macOS, Windows) only the screen and
-  output timing decide.
+  output timing decide, and an agent's session is taken to run the agent
+  itself (`ownAgent`): a restart runs its `[resume]` in its place.
 
 ## Resume after a restart
 
