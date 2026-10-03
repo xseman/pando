@@ -539,9 +539,9 @@ func (a *agents) lines(m *Model, w, h int) []string {
 	rows := a.rows(m)
 	a.l.clamp(len(rows), h)
 
-	hover := m.hoverRow(viewAgents)
+	hover, mx := m.hoverRow(viewAgents), m.mouseCol(viewAgents)
 	a.l.bar = m.barState("list:agents")
-	all, every := m.agentSessions(), m.mainSessions() // every: their tabs too, which roll up
+	every := m.mainSessions() // their tabs too, which roll up
 
 	return a.l.render(w, h, len(rows), func(i, rw int) string {
 		r := rows[i]
@@ -550,6 +550,11 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		}
 
 		bg, base := m.rowColors(viewAgents, i == a.l.sel, i-a.l.top == hover)
+
+		var plus []seg // the + under the pointer, or on the selection while Spaces has the keyboard
+		if i-a.l.top == hover || i == a.l.sel && m.focused(viewAgents) {
+			plus = drawActions(a.actions(r), mx)
+		}
 
 		switch r.kind {
 		case agTime:
@@ -589,7 +594,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 				}
 			}
 
-			return row(rw, bg, []seg{sg(" "+chevron(open), dim), sg(glyph, fg(c)), sg(agLabel(r), base.Bold(true))})
+			return row(rw, bg, append([]seg{sg(" "+chevron(open), dim), sg(glyph, fg(c)), sg(agLabel(r), base.Bold(true))}, plus...))
 
 		case agWorkspace:
 			// The project's own checkout, which only closes, in the accent and
@@ -603,22 +608,14 @@ func (a *agents) lines(m *Model, w, h int) []string {
 				nameSt = base.Foreground(pal.headerAccent).Bold(true)
 			}
 
-			n := 0
-
-			for _, s := range all {
-				if s.Workspace == r.ws.Path {
-					n++
-				}
-			}
-
 			var right []seg
-			if n > 0 {
+			if n := m.sessionCount(r.ws.Path); n > 0 {
 				right = append(right, sg(m.fx.text("wsn:"+r.ws.Path, strconv.Itoa(n))+" ", dim))
 			}
 
-			left := []seg{sg("   ", plain), sg(wtGlyph(r.ws).s()+" ", glyphSt)}
+			left := append([]seg{sg("   ", plain), sg(wtGlyph(r.ws).s()+" ", glyphSt)}, m.fx.segs("ws:"+r.ws.Path, wsName(r.ws), nameSt)...)
 
-			return row(rw, bg, append(left, m.fx.segs("ws:"+r.ws.Path, wsName(r.ws), nameSt)...), right...)
+			return row(rw, bg, append(left, plus...), right...)
 		}
 		// herdr's tree: sessions hang off their branch, the last one on └─.
 		conn := "   ├─ "
@@ -871,28 +868,50 @@ func (a *agents) click(m *Model, r *agRow) tea.Cmd {
 	return cmd
 }
 
-// workspaceFor picks the workspace a new session goes into.
+// workspaceFor picks the workspace a new session from row r goes into: a
+// worktree's or a session's own, else the one in view.
 func (m *Model) workspaceFor(r *agRow) string {
-	if r == nil || r.kind == agGap || r.kind == agTime || (r.kind == agProject && r.project == "") {
+	if r == nil || r.kind != agWorkspace && r.kind != agSession {
 		return m.ws
-	}
-
-	if r.kind == agProject {
-		for _, w := range m.wss {
-			if w.Project == r.project && w.Main {
-				return w.Path
-			}
-		}
-
-		return r.project
 	}
 
 	return r.ws.Path
 }
 
-// newSession is n: it asks for the harness of a session in row r's worktree.
+// newSession is n and a row's +: a project asks which of its worktrees, or a
+// new one, the session goes into; any other row asks only for the harness.
 func (a *agents) newSession(m *Model, r *agRow) tea.Cmd {
+	if r != nil && r.kind == agProject && r.project != "" {
+		return m.worktreePicker(r.project)
+	}
+
 	return m.harnessPicker(m.workspaceFor(r))
+}
+
+// worktreePicker asks which of project's worktrees a new session goes into,
+// or a new one, then which harness it runs.
+func (m *Model) worktreePicker(project string) tea.Cmd {
+	items := []item{{label: "New Worktree…", run: func(m *Model) tea.Cmd {
+		m.promptWorktree(project, git.RandomBranch(), true)
+
+		return nil
+	}}}
+
+	for _, w := range m.wss {
+		if w.Project != project {
+			continue
+		}
+
+		path := w.Path
+		items = append(items, item{
+			label: wtGlyph(w).s() + " " + wsName(w), hint: plural(m.sessionCount(path), "session"),
+			run: func(m *Model) tea.Cmd { return m.harnessPicker(path) },
+		})
+	}
+
+	m.modal = newPicker("New session in "+filepath.Base(project), items)
+
+	return nil
 }
 
 // harnessPicker asks which harness a new session in ws runs: a session is an
@@ -931,6 +950,16 @@ func (m *Model) harnesses() []string {
 	return out
 }
 
+// sessionCount is how many sessions worktree path holds, their tabs aside.
+func (m *Model) sessionCount(path string) int {
+	n := 0
+	for _, s := range m.agentSessions() {
+		n += b2i(s.Workspace == path)
+	}
+
+	return n
+}
+
 func (a *agents) newWorktree(m *Model, r *agRow) tea.Cmd {
 	project := ""
 	if r != nil {
@@ -947,19 +976,24 @@ func (a *agents) newWorktree(m *Model, r *agRow) tea.Cmd {
 		return flash("select a project first", true)
 	}
 
-	m.promptWorktree(project, git.RandomBranch())
+	m.promptWorktree(project, git.RandomBranch(), false)
 
 	return nil
 }
 
 // promptWorktree asks for the branch of a new worktree of project, offering
-// branch; ⏎ creates it and switches there.
-func (m *Model) promptWorktree(project, branch string) {
+// branch; ⏎ creates it and switches there, then with session asks for the
+// harness of a session in it.
+func (m *Model) promptWorktree(project, branch string, session bool) {
 	m.modal = newPrompt("New worktree branch in "+filepath.Base(project), branch, func(_ *Model, branch string) tea.Cmd {
 		return func() tea.Msg { // an emptied name gets a random one from the daemon
 			var w proto.Workspace
 			if err := proto.Call("workspace.new", map[string]string{"project": project, "branch": branch}, &w); err != nil {
 				return flashMsg{err.Error(), true}
+			}
+
+			if session {
+				return sessionWorktreeMsg(w)
 			}
 
 			return newWorkspaceMsg(w)
@@ -968,6 +1002,10 @@ func (m *Model) promptWorktree(project, branch string) {
 }
 
 type newWorkspaceMsg proto.Workspace
+
+// sessionWorktreeMsg is a worktree made for a new session: the harness
+// picker follows it.
+type sessionWorktreeMsg proto.Workspace
 
 func (a *agents) remove(m *Model, r *agRow) tea.Cmd {
 	if r == nil {
@@ -1082,6 +1120,21 @@ func removeLabel(r *agRow) string {
 	}
 
 	return ""
+}
+
+// actions are row r's hover buttons: the + right after a project's or a
+// worktree's name, that starts a session there (newSession).
+func (a *agents) actions(r agRow) []rowAction {
+	head := " " + chevron(!a.collapsed[r.project]) + "· " + agLabel(r) // any status glyph is a cell and a space
+
+	switch {
+	case r.kind == agWorkspace:
+		head = "   " + wtGlyph(r.ws).s() + " " + wsName(r.ws)
+	case r.kind != agProject || r.project == "":
+		return nil
+	}
+
+	return []rowAction{{g: icAdd, x: ansi.StringWidth(head), w: 2 + ansi.StringWidth(icAdd.s()), run: func(m *Model) tea.Cmd { return a.newSession(m, &r) }}}
 }
 
 // sessionsIn are the sessions to kill to empty workspaces paths. A Terminal
@@ -1254,7 +1307,7 @@ func (a *agents) filterMenu(m *Model, x, y int) tea.Cmd {
 	return nil
 }
 
-func (a *agents) mouse(m *Model, msg tea.MouseMsg, y int) tea.Cmd {
+func (a *agents) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 	mo := msg.Mouse()
 	rows := a.rows(m)
 	h := m.bodyH(viewAgents)
@@ -1271,6 +1324,10 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, y int) tea.Cmd {
 		a.l.sel = i
 		if mo.Button == tea.MouseRight {
 			return a.menu(m, mo.X, mo.Y)
+		}
+
+		if act, ok := hit(a.actions(rows[i]), x); ok && mo.Button == tea.MouseLeft {
+			return act.run(m)
 		}
 		// A project row drags up and down the list; a press that never leaves
 		// its row is the click that folds it, so the fold waits for the release.
@@ -1644,13 +1701,9 @@ func (m *Model) agentNavigator() tea.Cmd {
 	}
 
 	for _, w := range m.wss {
-		name, n := w.Branch, 0
+		name, n := w.Branch, m.sessionCount(w.Path)
 		if name == "" {
 			name = filepath.Base(w.Path)
-		}
-
-		for _, s := range m.agentSessions() {
-			n += b2i(s.Workspace == w.Path)
 		}
 
 		path := w.Path

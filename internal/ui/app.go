@@ -2529,6 +2529,8 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.onNewSession(proto.Session(msg))
 	case newWorkspaceMsg:
 		return m, m.onNewWorkspace(proto.Workspace(msg))
+	case sessionWorktreeMsg: // switched there first, then the harness of its session
+		return m, tea.Batch(m.onNewWorkspace(proto.Workspace(msg)), m.harnessPicker(msg.Path))
 	case focusSessionMsg:
 		m.focus = onMain
 		return m, m.switchSession(string(msg))
@@ -3398,7 +3400,7 @@ func (m *Model) viewMouse(v view, msg tea.MouseMsg, x, y int) tea.Cmd {
 	case viewGitHub:
 		return m.gh.mouse(m, msg, y)
 	default: // Agents.
-		return m.ag.mouse(m, msg, y)
+		return m.ag.mouse(m, msg, x, y)
 	}
 }
 

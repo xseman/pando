@@ -106,7 +106,7 @@ re-roots Explorer and Source Control to its worktree.
 
 ```text
 ▾ ◐ repo                project: most demanding session's glyph (· none)
-   ⌂ main           2   the project's own checkout, session count
+   ⌂ main +         2   the project's own checkout, + (hover), session count
    ├─ ◐ claude · fix   ⧉ 2 · running   tab count, with more than its own
    └─ ○ shell          idle
    ⑂ feat/x         1   linked worktree (dimmed)
@@ -144,6 +144,7 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
 | click          | open; again puts it away | switch                                              | fold                     |
 | `x`            | kill                     | linked: delete folder, keep branch; checkout: close | close (`project.remove`) |
 | drag, `alt+↑↓` | reorder (`session.move`) | reorder (`workspace.move`)                          | reorder (`project.move`) |
+| `n`, hover `+` | its worktree's harness   | the harness (`harnessPicker`)                       | a worktree or a new one  |
 
 - A click on a session opens its one tab with a new state (`newsTab`);
   with several, the tab shown last, and again it puts the session away.
@@ -174,7 +175,10 @@ settings (`spaces_hide`, `spaces_sort`, `spaces_group`) read by
 
 A new session runs a harness, never a bare shell: an `[agents]` preset whose
 program is on the `PATH`, `shell` and `terminal` aside (`harnesses`); none
-installed, the picker is empty.
+installed, the picker is empty. A project's `+` asks for its worktree first
+(`worktreePicker`), _New Worktree…_ included (`sessionWorktreeMsg`). The `+`
+follows the name of the row under the pointer, or of the selected one while
+Spaces has the keyboard (`agents.actions`).
 
 A session has tabs (`tabsOf`): `+` adds a shell that dies with it, `[` `]`
 cycle, middle click or `✕` kills after asking. A session with more than its

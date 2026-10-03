@@ -891,8 +891,9 @@ func TestSpacesSelectionFollowsSort(t *testing.T) {
 	}
 }
 
-// TestSpacesNewSession starts a session with n: only installed harnesses
-// are offered, never a shell.
+// TestSpacesNewSession starts a session from a row's +: a worktree's asks
+// for the harness, a project's for the worktree first, a new one included.
+// Only installed harnesses are offered, never a shell.
 func TestSpacesNewSession(t *testing.T) {
 	m := testModel(t)
 	root, wt := m.ws, t.TempDir()
@@ -910,9 +911,45 @@ func TestSpacesNewSession(t *testing.T) {
 		t.Fatalf("n on a worktree offers the installed harnesses: %v", labels(m))
 	}
 
+	m.modal = nil
+	checkWidths(t, m)
+
+	// The project row's + under the pointer opens the worktree picker, not a drag.
+	cs, _ := m.layout()
+	i := m.colOf(viewAgents)
+	acts := m.ag.actions(rows[0])
+	x, y := cs[i].x+m.barW(i)+acts[0].x+1, m.bodyTop(viewAgents)
+	m.Update(tea.MouseMotionMsg{X: x, Y: y})
+
+	if line := ansi.Strip(m.ag.lines(m, 40, len(rows))[0]); !strings.Contains(line, filepath.Base(root)+" + ") {
+		t.Fatalf("the hovered project row shows its + after its name: %q", line)
+	}
+
+	click(m, x, y, tea.MouseLeft)
+
+	if m.drag != nil || m.modal == nil || !slices.Equal(labels(m), []string{"New Worktree…", "⌂ main", "⑂ feat"}) {
+		t.Fatalf("the project's + asks for the worktree: drag %+v, %v", m.drag, labels(m))
+	}
+
+	m.modal.choose(m, 2)
+
+	if m.modal == nil || m.modal.title != "New session in "+filepath.Base(wt) || !slices.Equal(labels(m), []string{"sh-agent"}) {
+		t.Fatalf("a worktree picked, the harness next: %v", labels(m))
+	}
+
+	// A worktree made from the picker switches there and asks for the harness.
+	nw := t.TempDir()
+	m.modal = nil
+	m.Update(sessionWorktreeMsg{Path: nw, Project: root, Branch: "new"})
+
+	if m.ws != nw || m.modal == nil || m.modal.title != "New session in "+filepath.Base(nw) {
+		t.Fatalf("the new worktree %q opens the harness picker: %+v", m.ws, m.modal)
+	}
+
 	// Nothing installed, nothing offered.
 	m.st.Agents = map[string][]string{"shell": {"sh"}, "gone": {"pando-no-such-harness"}}
 	m.modal = nil
+	m.ag.l.sel = feat
 	press(m, "n")
 
 	if m.modal == nil || len(m.modal.items) != 0 {

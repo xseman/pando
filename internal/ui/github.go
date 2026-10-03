@@ -986,7 +986,7 @@ func (m *Model) onGHCheckout(msg ghCheckoutMsg) tea.Cmd {
 // startIssue is VS Code's Start Working on Issue: a new worktree on a
 // branch named after the issue, the name up to you.
 func (g *ghView) startIssue(m *Model, it git.Item) tea.Cmd {
-	m.promptWorktree(g.projectOf(m), "issue/"+strconv.Itoa(it.Number)+"-"+slug(it.Title))
+	m.promptWorktree(g.projectOf(m), "issue/"+strconv.Itoa(it.Number)+"-"+slug(it.Title), false)
 	return nil
 }
 

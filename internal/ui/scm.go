@@ -507,10 +507,10 @@ func (s *scmView) actions(r scmRow, w int) []rowAction {
 	return acts
 }
 
-// mouseCol is the mouse's column in the view's rows, as clicks count it: a
+// mouseCol is the mouse's column in view v's rows, as clicks count it: a
 // vertical activity bar on the left comes off.
-func (s *scmView) mouseCol(m *Model) int {
-	i := m.colOf(viewGit)
+func (m *Model) mouseCol(v view) int {
+	i := m.colOf(v)
 
 	mx := m.mouseX - m.colRect(i).x
 	if m.side(i) == 0 {
@@ -522,11 +522,14 @@ func (s *scmView) mouseCol(m *Model) int {
 
 // actionSegs draws row r's hover buttons, the one under the mouse raised.
 func (s *scmView) actionSegs(m *Model, r scmRow, w int) []seg {
-	mx := s.mouseCol(m)
+	return drawActions(s.actions(r, w), m.mouseCol(viewGit))
+}
 
+// drawActions draws hover buttons acts, the one under column mx raised.
+func drawActions(acts []rowAction, mx int) []seg {
 	var out []seg
 
-	for _, a := range s.actions(r, w) {
+	for _, a := range acts {
 		if mx >= a.x && mx < a.x+a.w {
 			out = append(out, sgOwn(" "+a.g.s()+" ", keycapHot()))
 
@@ -1168,7 +1171,7 @@ func (s *scmView) renderRow(m *Model, i, w int, hovered bool) string {
 
 		edge := map[int]string{b - 1: "▁", b: "", b + 1: "▔"}[i]
 
-		return s.commitRow(m, r.root, w, s.hovRow >= 0 && s.buttonOf(s.hovRow) == b, s.mouseCol(m), edge)
+		return s.commitRow(m, r.root, w, s.hovRow >= 0 && s.buttonOf(s.hovRow) == b, m.mouseCol(viewGit), edge)
 	}
 
 	bg, base := m.rowColors(viewGit, i == s.sel && !s.input.Focused(), hovered)
@@ -1384,7 +1387,7 @@ func (s *scmView) messageRow(m *Model, root string, line, w int, hovered bool) s
 	}
 
 	btn, sep, end := box, edge, edge
-	if mx := s.mouseCol(m); hovered && line == 0 && !suggesting && mx >= w-4 && mx < w-1 { // click's hit box
+	if mx := m.mouseCol(viewGit); hovered && line == 0 && !suggesting && mx >= w-4 && mx < w-1 { // click's hit box
 		// The raised button runs into the edge: ▕ only draws the cell's right
 		// sliver, so its own background would leave a gap before the border.
 		btn, sep, end = keycapHot(), sep.Background(pal.keycapBg), end.Background(pal.keycapBg)
