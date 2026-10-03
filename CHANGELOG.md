@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.5.0](https://github.com/xseman/pando/compare/v0.4.0...v0.5.0) (2026-10-03)
+
+
+### Features
+
+* **daemon:** session.screen reports the cursor style the app asked for ([b5c170c](https://github.com/xseman/pando/commit/b5c170c281b2dbb2726bf1f9bd213db8a9275985))
+* pando builds and runs on Windows ([#16](https://github.com/xseman/pando/issues/16)) ([20368fb](https://github.com/xseman/pando/commit/20368fb61091e0ea3ce4e738d76a9a36b94589c5))
+* **ui:** a + after a project's or a worktree's name starts a session ([b020a1a](https://github.com/xseman/pando/commit/b020a1a147812895e3762fe27e2135dab771951f))
+* **ui:** a click away closes an empty filter ([88c3e3a](https://github.com/xseman/pando/commit/88c3e3a3fa93ae80150b03da75e08ffba8c33ffb))
+* **ui:** a click on a session row opens its tab with the news ([aac7c1c](https://github.com/xseman/pando/commit/aac7c1c826c720c6014e3739e1e9d8512e6ed2f1))
+* **ui:** a new session runs an installed agent, never a bare shell ([fd0a4ff](https://github.com/xseman/pando/commit/fd0a4ff5844fd8a7c23e59db132a94a3a4382f9c))
+* **ui:** a session's Spaces row counts its tabs ([b2256af](https://github.com/xseman/pando/commit/b2256af096e511f9636bb487cd88eb91db46d784))
+* **ui:** a tab under the mouse tints in hover_bg ([b614371](https://github.com/xseman/pando/commit/b614371d4f28fb5ffb2f4310a2d2bb24d724b2d6))
+* **ui:** an unfolded space goes last among the open ones ([3863ceb](https://github.com/xseman/pando/commit/3863ceb795a4fdc7a7f6f9ca983cad2c105f6792))
+* **ui:** sort Explorer files by type, from its menu or explorer_sort ([6571271](https://github.com/xseman/pando/commit/65712712b12c84197b51b4ebb43cfd6844ad5adc))
+* **ui:** Spaces sorts projects manually or by their last output ([2a7b2b7](https://github.com/xseman/pando/commit/2a7b2b79c8c18bfbaa4a169edc4398dd83bfee0e))
+* **ui:** text boxes framed in a thin line, the accent while typing ([84d8f89](https://github.com/xseman/pando/commit/84d8f89bca894abb48bd5bbb4e2b70faca7c7dbc))
+* **ui:** the cursor is the terminal's, in text boxes and sessions too ([7b26e8b](https://github.com/xseman/pando/commit/7b26e8b03467cb5725b4c80966dc829789425df9))
+* **ui:** the Settings modal groups its toggles under headings ([e61ea0c](https://github.com/xseman/pando/commit/e61ea0c192a93df3932b10ef4bbf45bcbf2cb06d))
+
+
+### Bug Fixes
+
+* **ui:** a selected session row pulses for its tab's new state ([a8485b1](https://github.com/xseman/pando/commit/a8485b1ef7044f81f8c8f5e29affbb2a9dd45a7a))
+* **ui:** key hint columns fit their widest key and description ([4b71e64](https://github.com/xseman/pando/commit/4b71e6432b592555fdf18245079ab7a68f98eb75))
+
+
+### Documentation
+
+* **readme:** move install section before features ([bb53ef8](https://github.com/xseman/pando/commit/bb53ef82fc43e7d17a10a8f379dee2d7aafcde2c))
+
+
+### Maintenance
+
+* run make test on macOS ([#17](https://github.com/xseman/pando/issues/17)) ([e0e94f0](https://github.com/xseman/pando/commit/e0e94f0a6ab46e8ec459ebbea151e8a08b248c82))
+
+
+### Testing
+
+* the e2e session picks a harness of its own ([9c5d84a](https://github.com/xseman/pando/commit/9c5d84aaf7c8299d64794eed27ef570740a44585))
+
 ## [0.4.0](https://github.com/xseman/pando/compare/v0.3.0...v0.4.0) (2026-10-02)
 
 
