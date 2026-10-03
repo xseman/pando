@@ -2349,7 +2349,7 @@ func (p *preview) startReplace(m *Model) tea.Cmd {
 	}
 
 	cmd := p.startFind(m)
-	if cmd == nil {
+	if !p.find.editing { // nothing to find in
 		return nil
 	}
 
@@ -2792,7 +2792,7 @@ func findInput(m *Model, t *textinput.Model, field int) string {
 	t.SetStyles(inputStyles(m.dark))
 	t.SetWidth(max(field, 1))
 
-	text := t.View()
+	text := realCaret(t.View())
 	if pad := field - ansi.StringWidth(text); pad > 0 {
 		return text + lipgloss.NewStyle().Background(pal.inputBg).Render(blank(pad))
 	}

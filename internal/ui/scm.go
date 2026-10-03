@@ -1358,7 +1358,7 @@ func (s *scmView) messageRow(m *Model, root string, line, w int, hovered bool) s
 
 		lines := strings.Split(s.input.View(), "\n")
 		if line < len(lines) {
-			text = lines[line]
+			text = realCaret(lines[line])
 		}
 
 		if fx := s.boxFx(m, root, line, lines, box); fx != "" {

@@ -175,6 +175,9 @@ in every attached TUI. Keys remap in its `[keys]` table, by command id
 ([06-config.md](06-config.md#keys)); every default key:
 [09-keys.md](09-keys.md).
 
+The cursor's shape and blink are your terminal's, so set them there; an app in
+a session may change them, as it would outside pando.
+
 The daemon checks GitHub once a day (`update_check`). A newer version shows
 in the status bar; a click or `pando update` installs it, verified, for the
 next start.

@@ -16,6 +16,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -574,9 +575,64 @@ func inputStyles(dark bool) textinput.Styles {
 		ss.Text, ss.Placeholder, ss.Prompt = ss.Text.Background(pal.inputBg), ss.Placeholder.Background(pal.inputBg), ss.Prompt.Background(pal.inputBg)
 	}
 
-	st.Cursor.Color = nil // the text's color: the default, ANSI 7, is near white on a light theme
+	st.Cursor.Color = nil   // the text's color: the default, ANSI 7, is near white on a light theme
+	st.Cursor.Blink = false // realCaret: a blink would take the terminal's cursor away
 
 	return st
+}
+
+// caretMark is where realCaret puts the terminal's cursor: an APC string,
+// zero cells wide, that View takes out again.
+const caretMark = "\x1b_pando:caret\x1b\\"
+
+// realCaret turns the caret a text box draws, a reverse-video cell, into the
+// terminal's cursor, so the terminal decides its shape, blink and color: the
+// cell takes its neighbour's style and caretMark goes before it. The boxes
+// keep drawing the caret because bubbles' own real cursor counts runes from
+// the start of the value, not cells from where the box has scrolled to.
+func realCaret(line string) string {
+	w := ansi.StringWidth(line)
+	buf := uv.NewScreenBuffer(w, 1)
+	buf.Method = ansi.GraphemeWidth // as ansi.StringWidth counts
+	uv.NewStyledString(line).Draw(buf, buf.Bounds())
+
+	for x := range w {
+		c := buf.CellAt(x, 0)
+		if c == nil || c.Width == 0 || c.Style.Attrs&uv.AttrReverse == 0 {
+			continue
+		}
+
+		st := uv.Style{}
+		if next := buf.CellAt(x+c.Width, 0); next != nil {
+			st = next.Style
+		} else if x > 0 {
+			st = buf.CellAt(x-1, 0).Style
+		}
+
+		// The reset ends the reverse video the cut carries over.
+		return ansi.Cut(line, 0, x) + caretMark + ansi.ResetStyle + st.Styled(c.Content) + ansi.Cut(line, x+c.Width, w)
+	}
+
+	return line
+}
+
+// takeCaret takes every caretMark out of lines and reports the cell the
+// first one stood at.
+func takeCaret(lines []string) (x, y int, ok bool) {
+	for i, l := range lines {
+		j := strings.Index(l, caretMark)
+		if j < 0 {
+			continue
+		}
+
+		if !ok {
+			x, y, ok = ansi.StringWidth(l[:j]), i, true
+		}
+
+		lines[i] = strings.ReplaceAll(l, caretMark, "")
+	}
+
+	return x, y, ok
 }
 
 // newMessageArea is the commit message box: VS Code's grows with its text up
@@ -610,7 +666,7 @@ func areaStyles(dark bool) textarea.Styles {
 		p.a.Selection = lipgloss.NewStyle().Background(pal.textSelBg) // the editor's
 	}
 
-	st.Cursor.Color = nil // as inputStyles'
+	st.Cursor.Color, st.Cursor.Blink = nil, false // as inputStyles'
 
 	return st
 }
@@ -702,24 +758,29 @@ func (md *modal) dialogBody(iw int) (msg []string, hints [][]string, hintH int) 
 }
 
 func newPicker(title string, items []item) *modal {
-	md := &modal{title: title, items: items, filter: true, x: -1}
-	md.input = textinput.New()
-	md.input.Prompt = "› "
-	md.input.Focus()
+	md := &modal{title: title, items: items, filter: true, x: -1, input: modalInput()}
 	md.refilter()
 
 	return md
 }
 
 func newPrompt(title, value string, submit func(m *Model, v string) tea.Cmd) *modal {
-	md := &modal{title: title, submit: submit, x: -1}
-	md.input = textinput.New()
-	md.input.Prompt = "› "
+	md := &modal{title: title, submit: submit, x: -1, input: modalInput()}
 	md.input.SetValue(value)
 	md.input.CursorEnd()
-	md.input.Focus()
 
 	return md
+}
+
+func modalInput() textinput.Model {
+	in := textinput.New()
+	in.Prompt = "› "
+	st := in.Styles()
+	st.Cursor.Blink = false // as inputStyles'
+	in.SetStyles(st)
+	in.Focus()
+
+	return in
 }
 
 func (md *modal) refilter() {
@@ -1012,7 +1073,7 @@ func (md *modal) view(m *Model) (string, int, int) {
 
 	if md.hasInput() {
 		md.input.SetWidth(iw - 3)
-		lines = append(lines, side+fit(md.input.View(), iw)+side)
+		lines = append(lines, side+fit(realCaret(md.input.View()), iw)+side)
 	}
 
 	for _, r := range md.l.render(iw, rows, len(md.disp), func(i, rw int) string {

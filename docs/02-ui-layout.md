@@ -3,7 +3,7 @@
 How the TUI runs as a daemon client, and how its screen is divided, sized,
 hit-tested and dragged. The views themselves are in [03-views.md](03-views.md).
 
-[Client](#client) · [Screen](#screen) · [Columns](#columns) ·
+[Client](#client) · [Screen](#screen) · [Cursor](#cursor) · [Columns](#columns) ·
 [Activity bar](#activity-bar) · [Session column](#session-column) ·
 [Terminal panel](#terminal-panel) · [Short of room](#short-of-room) ·
 [Dragging](#dragging) · [Rows](#rows) · [Mouse](#mouse) ·
@@ -47,6 +47,23 @@ tick (2 s) ─▶ refreshGit, reloadIfLive, saveDrafts, saveEditors, …
   project switcher, the agent count the navigator.
 - Focus is a column index, `onMain` or `onPanel`; `ctrl+]` cycles left →
   main → panel → right (`cycleFocus`).
+
+## Cursor
+
+One terminal cursor, styled by the terminal unless an app asks otherwise:
+
+| Where it stands  | Style                                                     |
+| ---------------- | --------------------------------------------------------- |
+| editor           | the terminal's; a bar in vim insert mode                  |
+| session, shell   | what its app sent (`Screen.CursorStyle`, DECSCUSR)        |
+| a text box       | the terminal's, at the caret the box draws (`realCaret`)  |
+
+- Bubble Tea's plain cursor is DECSCUSR 1; `defaultCursor` (stdout) turns
+  it into 0, the terminal's own, which is also what pando leaves on exit.
+- Text boxes draw their caret, static, as a reverse cell: `realCaret` gives it
+  the next cell's style and a zero-width APC mark, `takeCaret` finds the mark
+  in the frame and puts the cursor there. Bubbles' own real cursor counts
+  runes from the value's start, not cells from where the box scrolled to.
 
 ## Columns
 

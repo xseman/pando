@@ -2209,3 +2209,56 @@ func TestMergeChanges(t *testing.T) {
 		t.Fatalf("C continues the merge: busy=%q msg=%q", m.scm.busy, m.msg)
 	}
 }
+
+// TestRealCaret: a text box's caret is the terminal's cursor, standing on the
+// cell the box scrolled to, and the drawn one is gone; a session's cursor
+// takes the style its app asked for.
+func TestRealCaret(t *testing.T) {
+	m := testModel(t)
+	m.modal = newPrompt("Rename", strings.Repeat("x", 200)+"ABCD", func(*Model, string) tea.Cmd { return nil })
+	m.View()                                // the box learns its width when drawn
+	press(m, "end", "left", "left", "left") // onto the B, the box scrolled to the end
+
+	v := m.View()
+	if strings.Contains(v.Content, caretMark) || slices.ContainsFunc(strings.Split(v.Content, "\n"), func(l string) bool { return realCaret(l) != l }) {
+		t.Fatalf("the drawn caret is left:\n%q", v.Content)
+	}
+
+	y := slices.IndexFunc(strings.Split(ansi.Strip(v.Content), "\n"), func(l string) bool { return strings.Contains(l, "ABCD") })
+	if y < 0 {
+		t.Fatalf("the box does not show its end:\n%s", ansi.Strip(v.Content))
+	}
+
+	l, _, _ := strings.Cut(strings.Split(ansi.Strip(v.Content), "\n")[y], "ABCD")
+	if x := ansi.StringWidth(l) + 1; v.Cursor == nil || v.Cursor.X != x || v.Cursor.Y != y {
+		t.Fatalf("the cursor is on the B at %d,%d: %+v", x, y, v.Cursor)
+	}
+
+	m.modal = nil
+	m.switchSession("s1")
+	m.focus = onMain
+	m.term = term{id: "s1", scr: proto.Screen{Lines: []string{"$ "}, CursorVisible: true, CursorStyle: 6}}
+
+	if c := m.View().Cursor; c == nil || c.Shape != tea.CursorBar || c.Blink {
+		t.Fatalf("the app's steady bar: %+v", c)
+	}
+}
+
+// TestDefaultCursor: Bubble Tea's plain cursor reaches the terminal as its own
+// (DECSCUSR 0); a style asked for passes untouched.
+func TestDefaultCursor(t *testing.T) {
+	f, err := os.CreateTemp(t.TempDir(), "out")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer func() { _ = f.Close() }()
+
+	if _, err := (defaultCursor{f}).WriteString("\x1b[1 qa\x1b[6 q"); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := mustRead(t, f.Name()); got != "\x1b[0 qa\x1b[6 q" {
+		t.Fatalf("wrote %q", got)
+	}
+}

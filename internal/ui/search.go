@@ -674,7 +674,7 @@ func (s *searchView) inputRow(m *Model, in *textinput.Model, w int) string {
 	in.SetStyles(inputStyles(m.dark))
 	in.SetWidth(field)
 
-	text := in.View()
+	text := realCaret(in.View())
 	if pad := field - ansi.StringWidth(text); pad > 0 {
 		text += box.Render(blank(pad))
 	} else {

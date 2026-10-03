@@ -305,9 +305,33 @@ func Run(dir string) error {
 		}
 	}()
 
-	_, err = tea.NewProgram(m, tea.WithEnvironment(proto.WithoutNoColor(os.Environ()))).Run()
+	_, err = tea.NewProgram(m, tea.WithEnvironment(proto.WithoutNoColor(os.Environ())), tea.WithOutput(defaultCursor{os.Stdout})).Run()
 
 	return err
+}
+
+// appCursor is a session's cursor at x, y in the style its app asked for
+// with DECSCUSR n; 0 and 1 leave it to the terminal (defaultCursor).
+func appCursor(x, y, n int) *tea.Cursor {
+	c := tea.NewCursor(x, y)
+	if n > 1 {
+		c.Shape, c.Blink = tea.CursorShape((n-1)/2), n%2 == 1
+	}
+
+	return c
+}
+
+// defaultCursor is stdout with the terminal's own cursor. Bubble Tea has no
+// way to ask for none: its plain cursor is a blinking block (DECSCUSR 1), so
+// that becomes DECSCUSR 0, the shape and blink the terminal is set to. It also
+// leaves the terminal at its default when pando exits.
+type defaultCursor struct{ *os.File }
+
+func (o defaultCursor) Write(b []byte) (int, error) { return o.WriteString(string(b)) }
+
+// WriteString replaces the file's own, which io.WriteString would call.
+func (o defaultCursor) WriteString(s string) (int, error) {
+	return o.File.WriteString(strings.ReplaceAll(s, "\x1b[1 q", "\x1b[0 q"))
 }
 
 // addWorkspace makes dir a project of its own and returns the workspace to
@@ -2531,7 +2555,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case sashMsg: // the pointer has rested: View lights the sash
 		return m, nil
 	}
-	// Cursor blink and other input messages.
+	// Other input messages.
 	var cmds []tea.Cmd
 
 	if m.modal != nil && m.modal.hasInput() {
@@ -3594,24 +3618,33 @@ func (m *Model) View() tea.View {
 		}
 	}
 
+	cx, cy, caret := takeCaret(lines)
+
 	switch {
 	case m.modal != nil:
 		box, x, y := m.modal.view(m)
 		m.overlayBox(lines, strings.Split(box, "\n"), x, y)
 
+		if x, y, ok := takeCaret(lines); ok {
+			v.Cursor = tea.NewCursor(x, b+y)
+		}
+
+	case caret: // a text box has the keyboard
+		v.Cursor = tea.NewCursor(cx, b+cy)
+
 	case m.focus == onPanel && m.termRows() > 1:
 		if m.tv.scr.CursorVisible && !m.tv.find.editing && m.tv.term.id == m.tv.id && m.tv.scr.CursorX >= m.tv.left {
-			v.Cursor = tea.NewCursor(c.x+m.tv.scr.CursorX-m.tv.left, b+m.mainH()+1+m.tv.scr.CursorY)
+			v.Cursor = appCursor(c.x+m.tv.scr.CursorX-m.tv.left, b+m.mainH()+1+m.tv.scr.CursorY, m.tv.scr.CursorStyle)
 		}
 
 	case m.focus == onMain && m.showsSession():
 		if m.term.scr.CursorVisible && m.term.id == m.sess && !m.term.find.editing {
-			v.Cursor = tea.NewCursor(c.x+m.term.scr.CursorX, b+1+m.stripH()+m.term.scr.CursorY)
+			v.Cursor = appCursor(c.x+m.term.scr.CursorX, b+1+m.stripH()+m.term.scr.CursorY, m.term.scr.CursorStyle)
 		}
 
 	case m.sessFocused():
 		if m.term.scr.CursorVisible && m.term.id == m.sess && !m.term.find.editing {
-			v.Cursor = tea.NewCursor(m.colRect(m.focus).x+m.term.scr.CursorX, b+m.bodyTop(viewSession)+1+m.term.scr.CursorY)
+			v.Cursor = appCursor(m.colRect(m.focus).x+m.term.scr.CursorX, b+m.bodyTop(viewSession)+1+m.term.scr.CursorY, m.term.scr.CursorStyle)
 		}
 
 	case m.focus == onMain && m.showsPreview() && !m.pv.scrollOnly(m):
@@ -3859,7 +3892,7 @@ func (m *Model) sidebarBody(s, w int) []string {
 
 		f.input.SetStyles(inputStyles(m.dark))
 		f.input.SetWidth(field)
-		text := ansi.Truncate(f.input.View(), field, "")
+		text := ansi.Truncate(realCaret(f.input.View()), field, "")
 		text += box.Render(blank(field - ansi.StringWidth(text)))
 		out = append(out, frameLine(w, 1, "▁", edge), " "+side.Render("▏")+box.Render(" "+text+" ")+side.Render("▕")+" ", frameLine(w, 1, "▔", edge))
 	}
