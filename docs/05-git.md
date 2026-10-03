@@ -19,7 +19,10 @@ errors.Is(err, context.DeadlineExceeded) // the 60 s timeout fired
 ## Projects and worktrees
 
 A project is a repository's main worktree, kept in `state.json`; each of its
-worktrees is a workspace, where sessions run.
+worktrees is a workspace, where sessions run. Paths are kept the way git
+prints them: `realPath` (`filepath.EvalSymlinks`) resolves what a client
+sends, macOS's `/var` symlink and Windows' short names (`RUNNER~1`) alike, so
+the two compare equal.
 
 ```text
  state.json  projects: [/src/repo, /src/notes]

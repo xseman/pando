@@ -602,7 +602,7 @@ func (d *Daemon) dispatch(method string, raw json.RawMessage) (any, error) {
 			return nil, err
 		}
 
-		spec := proto.SessionSpec{Workspace: p.Workspace, Agent: p.Agent, Name: strings.TrimSpace(p.Name), Parent: p.Parent, Cmd: p.Cmd, FG: p.FG, BG: p.BG}
+		spec := proto.SessionSpec{Workspace: realPath(p.Workspace), Agent: p.Agent, Name: strings.TrimSpace(p.Name), Parent: p.Parent, Cmd: p.Cmd, FG: p.FG, BG: p.BG}
 
 		return d.newSession(spec, p.Cols, p.Rows)
 
@@ -914,6 +914,7 @@ func (d *Daemon) addProject(path string) (string, error) {
 		return "", fmt.Errorf("%s is not a directory", abs)
 	}
 
+	abs = realPath(abs)
 	if root, err := git.MainRoot(abs); err == nil {
 		abs = root
 	}
@@ -1079,7 +1080,18 @@ func (d *Daemon) newWorkspace(project, branch string) (proto.Workspace, error) {
 
 	d.broadcast(proto.Event{Kind: "workspaces"})
 
-	return proto.Workspace{Path: path, Project: project, Branch: branch}, nil
+	return proto.Workspace{Path: realPath(path), Project: project, Branch: branch}, nil
+}
+
+// realPath is p the way git prints it, so the two compare equal: symlinks
+// resolved (macOS's /var), and on Windows long names for short ones
+// (RUNNER~1) and the case on disk. A p that does not resolve stays as it is.
+func realPath(p string) string {
+	if r, err := filepath.EvalSymlinks(p); err == nil {
+		return r
+	}
+
+	return p
 }
 
 func (d *Daemon) removeWorkspace(path string) error {

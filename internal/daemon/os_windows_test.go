@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -232,6 +233,53 @@ func TestWindowsSessionEndLeavesHiddenChildren(t *testing.T) {
 
 	if err := kill(child, 0); err != nil {
 		t.Fatalf("the hidden ping went with its session: %v", err)
+	}
+}
+
+// TestWindowsWorktreeLoop is pando's own loop: a project, a worktree for a
+// branch, a session in it, then the worktree gone from disk once the session
+// is killed.
+func TestWindowsWorktreeLoop(t *testing.T) {
+	d := start(t)()
+	defer d.Close()
+
+	repo := t.TempDir()
+	for _, a := range [][]string{{"init", "-q", "-b", "main"}, {"-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "i"}} {
+		mustGit(t, repo, a...)
+	}
+
+	var root string
+	call(t, "project.add", map[string]string{"path": repo}, &root)
+
+	var ws proto.Workspace
+	call(t, "workspace.new", map[string]string{"project": root, "branch": "feat/x"}, &ws)
+
+	if st, err := os.Stat(ws.Path); err != nil || !st.IsDir() || strings.Contains(ws.Path, "/") {
+		t.Fatalf("worktree %q: %v", ws.Path, err)
+	}
+
+	// The session is asked for in the form the data directory was given in,
+	// short names and all; it is the worktree's all the same.
+	given := filepath.Join(d.dataDir, "worktrees", filepath.Base(root), "feat-x")
+
+	var s proto.Session
+	call(t, "session.new", map[string]any{"workspace": given, "cmd": []string{"cmd", "/c", "cd & ping -n 600 127.0.0.1 >nul"}}, &s)
+	call(t, "session.wait", proto.WaitParams{ID: s.ID, Match: regexp.QuoteMeta(filepath.Base(ws.Path)), Timeout: 15000}, &s)
+
+	if err := proto.Call("workspace.remove", map[string]string{"path": ws.Path}, nil); err == nil {
+		t.Fatalf("removed the worktree under session %s (workspace %q, worktree %q)", s.ID, s.Workspace, ws.Path)
+	}
+
+	call(t, "session.kill", map[string]string{"id": s.ID}, nil)
+	call(t, "workspace.remove", map[string]string{"path": ws.Path}, nil)
+
+	if _, err := os.Stat(ws.Path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("the worktree is still on disk: %v", err)
+	}
+
+	var list []proto.Workspace
+	if call(t, "workspace.list", nil, &list); len(list) != 1 {
+		t.Fatalf("workspaces = %+v", list)
 	}
 }
 

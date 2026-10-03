@@ -346,6 +346,10 @@ func addWorkspace(dir string) (string, []proto.Workspace, error) {
 		}
 	}
 
+	if r, err := filepath.EvalSymlinks(dir); err == nil { // as git prints it, as the workspaces are
+		dir = r
+	}
+
 	var ws string
 	if err := proto.Call("project.add", map[string]string{"path": dir}, &ws); err != nil {
 		return "", nil, err
