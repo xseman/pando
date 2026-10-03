@@ -1566,6 +1566,39 @@ func TestAltScreenHasNoScrollback(t *testing.T) {
 	}
 }
 
+// TestCursorStyle: the cursor style an app asks for (DECSCUSR) reaches the
+// screen as sent, so the TUI can pass it on, and 0 stays 0: the terminal's own.
+func TestCursorStyle(t *testing.T) {
+	boot := start(t)
+
+	d := boot()
+	defer d.Close()
+
+	ws := t.TempDir()
+	script := filepath.Join(ws, "app")
+	mustWrite(t, script, "#!/bin/sh\nprintf '\\033[6 q'\nread go\nprintf '\\033[0 q'\nsleep 300\n")
+
+	if err := os.Chmod(script, 0o755); err != nil { // the test runs it
+		t.Fatalf("chmod %s: %v", script, err)
+	}
+
+	var s proto.Session
+	call(t, "session.new", map[string]any{"workspace": ws, "cmd": []string{script}}, &s)
+
+	style := func() int {
+		t.Helper()
+
+		var scr proto.Screen
+		call(t, "session.screen", proto.ScreenParams{ID: s.ID, Cols: 40, Rows: 8}, &scr)
+
+		return scr.CursorStyle
+	}
+
+	waitFor(t, "a steady bar", func() bool { return style() == 6 })
+	call(t, "session.input", proto.InputParams{ID: s.ID, Text: "\r"}, nil)
+	waitFor(t, "the terminal's own cursor", func() bool { return style() == 0 })
+}
+
 // TestXtermKey checks every special key with every modifier set a terminal
 // can send: what xtermKey writes decodes back to the same key, the way the
 // app in the session reads it, and what it leaves is what vt encodes itself.

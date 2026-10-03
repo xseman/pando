@@ -304,7 +304,8 @@ type Screen struct {
 	CursorX       int      `json:"cursor_x"`
 	CursorY       int      `json:"cursor_y"`
 	CursorVisible bool     `json:"cursor_visible"`
-	Mouse         bool     `json:"mouse"` // app enabled mouse reporting
+	CursorStyle   int      `json:"cursor_style,omitempty"` // DECSCUSR the app asked for: 0 the terminal's own, 1-6 block, underline, bar, each blinking then steady
+	Mouse         bool     `json:"mouse"`                  // app enabled mouse reporting
 	// Scrollback is the lines Scroll can page back into; 0 while the app
 	// draws on the alternate screen, which has none and scrolls itself.
 	Scrollback int  `json:"scrollback"`

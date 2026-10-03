@@ -58,6 +58,7 @@ type session struct {
 	jobName       string
 	jobPID        int
 	cursorVisible bool
+	cursorStyle   int // DECSCUSR the app sent last: one for both screens, as in xterm
 	mouse         map[int]bool
 	status        string
 	screenAt      time.Time // lastOutput when the screen was last classified
@@ -100,6 +101,13 @@ func spawn(spec proto.SessionSpec, cols, rows int, onOutput, onExit func()) (*se
 	notify := func([]byte) bool { s.attention = true; return true }
 	s.emu.RegisterOscHandler(9, notify)
 	s.emu.RegisterOscHandler(777, notify)
+	s.emu.RegisterCsiHandler(ansi.Command(0, ' ', 'q'), func(p ansi.Params) bool {
+		if n, _, _ := p.Param(0, 0); n <= 6 {
+			s.cursorStyle = n // as sent: the emulator reads 0, the terminal's own, as 1
+		}
+
+		return false // the emulator keeps its own
+	})
 	s.emu.SetCallbacks(vt.Callbacks{
 		Bell:             func() { s.attention = true },
 		Title:            func(t string) { s.title = strings.TrimSpace(t) },
@@ -538,8 +546,8 @@ func (s *session) screen(p proto.ScreenParams) proto.Screen {
 
 	return proto.Screen{
 		Lines: lines, CursorX: pos.X, CursorY: pos.Y,
-		CursorVisible: s.cursorVisible && scroll == 0 && !s.exited,
-		Mouse:         slices.Contains(slices.Collect(maps.Values(s.mouse)), true), Scrollback: back, AltScreen: alt,
+		CursorVisible: s.cursorVisible && scroll == 0 && !s.exited, CursorStyle: s.cursorStyle,
+		Mouse: slices.Contains(slices.Collect(maps.Values(s.mouse)), true), Scrollback: back, AltScreen: alt,
 	}
 }
 

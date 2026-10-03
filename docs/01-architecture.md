@@ -83,6 +83,8 @@ driving the API.
 - Sessions resolve by id, by name (unique among live sessions), or an
   unambiguous prefix. A `parent` session's Terminal shells die with it.
 - `xtermKey` encodes modified special keys vt drops (`ctrl+←`).
+- A DECSCUSR the app sends is kept as sent, 0 included (vt reads it as 1),
+  one for both screens as in xterm: `Screen.CursorStyle`.
 - Attention: bell, OSC 9/777, or, unseen, turning blocked or exited or
   ending a burst of 3 s or more.
 - Exit 0 closes a session; a failure stays listed with its code. A kill sends
