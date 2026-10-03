@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -873,7 +872,7 @@ func TestResumeConversation(t *testing.T) {
 	orphan := exec.Command("sleep", "60")
 
 	orphan.Env = append(os.Environ(), "PANDO_SESSION=gone00")
-	orphan.SysProcAttr = &syscall.SysProcAttr{Setsid: true} // no controlling terminal: its pty went with its daemon
+	orphan.SysProcAttr = detached() // no controlling terminal: its pty went with its daemon
 
 	for _, c := range []*exec.Cmd{other, leftover, orphan} {
 		if err := c.Start(); err != nil {
@@ -921,22 +920,6 @@ func TestResumeConversation(t *testing.T) {
 	for i, want := range map[int]string{1: "session " + ss[0].ID + " continues", 2: "process " + strconv.Itoa(other.Process.Pid) + " has"} {
 		if got := screen(ss[i].ID); !strings.Contains(got, want) || strings.Contains(got, "$ echo") {
 			t.Errorf("session %d after restart:\n%s\nwant %q", i, got, want)
-		}
-	}
-}
-
-func TestProgramOf(t *testing.T) {
-	for _, c := range []struct {
-		argv []string
-		want string
-	}{
-		{[]string{"/usr/bin/claude"}, "claude"},
-		{[]string{"node", "/home/u/.local/bin/claude.js"}, "claude"},
-		{[]string{"bash", "-l"}, "bash"},
-		{[]string{}, ""},
-	} {
-		if got := programOf(c.argv); got != c.want {
-			t.Errorf("programOf(%v) = %q, want %q", c.argv, got, c.want)
 		}
 	}
 }

@@ -111,7 +111,8 @@ the rest add. Resume: [01-architecture.md](01-architecture.md).
 Every terminal opens the first of `shellCandidates` that starts: `shell`; the
 kind's `[agents]` preset, then `shell`'s; `$SHELL` (else `/etc/passwd`);
 `bash`; `/bin/sh`. One that fails within two seconds hands over to the next in
-the same session (`fallBack`), which says so on screen.
+the same session (`fallBack`), which says so on screen. On Windows the `shell`
+preset is `powershell`, and `powershell`, `cmd` stand in for `bash`, `/bin/sh`.
 
 ## Columns
 

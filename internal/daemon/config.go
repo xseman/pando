@@ -29,10 +29,7 @@ type config struct {
 }
 
 func defaultConfig() config {
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		shell = "/bin/sh"
-	}
+	shell := defaultShell()
 	// The desktop's own event sounds, so nothing ships with pando.
 	done, req := "/usr/share/sounds/freedesktop/stereo/complete.oga", "/usr/share/sounds/freedesktop/stereo/dialog-information.oga"
 	if runtime.GOOS == "darwin" {

@@ -20,7 +20,8 @@ make demo               # re-record docs/demo/*.gif with vhs (slow, needs claude
 `make test` on macOS too.
 
 Go 1.26, stdlib + charm (bubbletea v2, lipgloss v2, x/vt), goldmark, chroma,
-BurntSushi/toml, creack/pty. No cgo, no libgit2: git is shelled out.
+BurntSushi/toml, creack/pty (ConPTY through x/sys on Windows). No cgo, no
+libgit2: git is shelled out.
 
 ## Layout
 

@@ -1,5 +1,3 @@
-//go:build unix
-
 package main
 
 import (
@@ -8,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
-	"syscall"
 )
 
 // claudeBackground is `pando claude ARGS`: claude as a background session,
@@ -27,7 +24,7 @@ func claudeBackground(args []string) error {
 	id := backgroundID(out)
 	if id == "" {
 		if bytes.Contains(out, []byte("unknown option")) {
-			return syscall.Exec(bin, append([]string{"claude"}, args...), os.Environ())
+			return execv(bin, append([]string{"claude"}, args...))
 		}
 
 		_, _ = os.Stderr.Write(out) // what claude said instead of an id
@@ -39,7 +36,7 @@ func claudeBackground(args []string) error {
 		return err
 	}
 
-	return syscall.Exec(bin, []string{"claude", "attach", id}, os.Environ())
+	return execv(bin, []string{"claude", "attach", id})
 }
 
 var (

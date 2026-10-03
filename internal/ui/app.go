@@ -346,6 +346,10 @@ func addWorkspace(dir string) (string, []proto.Workspace, error) {
 		}
 	}
 
+	if r, err := filepath.EvalSymlinks(dir); err == nil { // as git prints it, as the workspaces are
+		dir = r
+	}
+
 	var ws string
 	if err := proto.Call("project.add", map[string]string{"path": dir}, &ws); err != nil {
 		return "", nil, err
@@ -355,7 +359,7 @@ func addWorkspace(dir string) (string, []proto.Workspace, error) {
 
 	_ = proto.Call("workspace.list", nil, &wss) // the project was just added
 	for _, w := range wss {
-		if (dir == w.Path || strings.HasPrefix(dir, w.Path+"/")) && len(w.Path) >= len(ws) {
+		if (dir == w.Path || strings.HasPrefix(dir, w.Path+string(filepath.Separator))) && len(w.Path) >= len(ws) {
 			ws = w.Path
 		}
 	}

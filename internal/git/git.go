@@ -98,10 +98,11 @@ func run(dir string, stdin io.Reader, args ...string) (string, error) {
 	return out.String(), nil
 }
 
-// Root returns the top-level of the repository containing dir.
+// Root returns the top-level of the repository containing dir. Git writes it
+// with forward slashes everywhere, Git for Windows too.
 func Root(dir string) (string, error) {
 	out, err := Run(dir, "rev-parse", "--show-toplevel")
-	return strings.TrimSpace(out), err
+	return filepath.FromSlash(strings.TrimSpace(out)), err
 }
 
 // MainRoot returns the main worktree of the repository containing dir, so a
@@ -928,7 +929,7 @@ func Worktrees(root string) ([]Worktree, error) {
 
 		for line := range strings.SplitSeq(block, "\n") {
 			if p, ok := strings.CutPrefix(line, "worktree "); ok {
-				w.Path = p
+				w.Path = filepath.FromSlash(p)
 			}
 
 			if b, ok := strings.CutPrefix(line, "branch "); ok {

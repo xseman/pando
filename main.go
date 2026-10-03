@@ -1,5 +1,3 @@
-//go:build unix
-
 // pando: a terminal sidebar (files, git, agent sessions per worktree) with a
 // daemon-backed CLI API.
 package main
@@ -540,7 +538,7 @@ func serve() error {
 
 	defer func() { _ = lock.Close() }()
 
-	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+	if err := lockFile(lock); err != nil {
 		return errors.New("another pando daemon is running")
 	}
 

@@ -169,8 +169,8 @@ by id. Hit exactly that session:
    From here on use the `id`.
 2. **Prove.** Exactly one candidate; not `$PANDO_SESSION`; `program` not a
    shell (`bash`, `zsh`, `fish`…), which would run the text as a command —
-   with no `/proc`, as on macOS, it is empty and the screen must show the
-   agent. `running`: `session wait ID --timeout 120000` first.
+   with no `/proc`, as on macOS and Windows, it is empty and the screen must
+   show the agent. `running`: `session wait ID --timeout 120000` first.
    Then `session read ID --lines 40` must show what the user described, at its
    prompt with no approval or question, whatever `status` says. `blocked`, a
    timeout or any doubt: ask the user, listing the candidates by id, space and

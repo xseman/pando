@@ -3,7 +3,8 @@ PREFIX ?= $(HOME)/.local
 # against. A build without it reports "dev" and is never offered an update.
 VERSION ?= dev
 GOFUMPT ?= go run mvdan.cc/gofumpt@v0.12.0
-GOLANGCI ?= go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.0
+GOLANGCI_PKG ?= github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.0
+GOLANGCI ?= go run $(GOLANGCI_PKG)
 
 # The tapes, split by whether a recording of one can be moved somewhere else.
 # A parallel tape gets a repository and a daemon of its own, so several record
@@ -26,9 +27,12 @@ test:
 	go vet ./...
 	go test -race ./...
 
-# The style gate: gofumpt formatting plus the linters in .golangci.yml.
+# The style gate: gofumpt formatting plus the linters in .golangci.yml, then
+# the Windows build: built for this machine, run as if on Windows. Its tests
+# drive a unix daemon, so only the code is linted there.
 lint:
 	$(GOLANGCI) run
+	go run -exec "env GOOS=windows" $(GOLANGCI_PKG) run --tests=false
 
 fmt:
 	$(GOFUMPT) -w .
