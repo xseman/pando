@@ -150,7 +150,8 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
   with several, the tab shown last, and again it puts the session away.
 - `x` kills the sessions in the way first (`killThen`), after asking.
 - _New Worktree…_ (`w`) offers a random branch (`workspace.new`).
-- Session reordering applies under Sort by Created + Group by Workspace only.
+- Session reordering applies under Sort by Created + Group by Workspace only;
+  an open project's under Sort Projects Manually only.
 - A folded project tops the folded list (`spaces_folded`) and returns to its
   place when unfolded.
 - `alt+t` opens the agent navigator, a picker with `@blocked`, `@running`,
@@ -160,13 +161,14 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
 
 `o` or the header's sliders (`agents.viewMenu`). Filter, Sort and Group are
 settings (`spaces_hide`, `spaces_sort`, `spaces_group`) read by
-`listedSessions`.
+`listedSessions`; the projects' Sort (`spaces_project_sort`) by `projects`.
 
 | Option              | Effect                                               |
 | ------------------- | ---------------------------------------------------- |
 | Filter ›            | the states shown                                     |
 | Sort by Created     | creation order (`SessionSpec.Created`)               |
 | Sort by Updated     | newest output first (`Session.Updated`)              |
+| Sort Projects …     | saved order, or newest session output first          |
 | Group by Workspace  | the tree above                                       |
 | Group by Time       | `agTime` headings Today … Older; rows add the branch |
 | Collapse All Groups | folds every project or heading                       |

@@ -44,7 +44,7 @@ func defaultConfig() config {
 			Hidden: true, Icons: "ascii", Width: 40, WidthR: 32, GitDeco: true, GitTree: true,
 			Theme: "vscode", DiffView: "inline", Borders: true, FmtSave: true,
 			ActBar: "top", TermPos: "bottom", TermH: 12, SessPos: "right", SessHi: "tint",
-			SpSort: "created", SpGroup: "workspace", ExSort: "name",
+			SpSort: "created", SpGroup: "workspace", SpProj: "manual", ExSort: "name",
 			Sounds: true, SoundDone: done, SoundReq: req, Updates: true, Anim: true, Blanks: "selection", ClaudeBg: true, TabSize: 4, MDWidth: 80,
 			Drawers: []string{"Commits", "Graph", "Branches", "Stashes", "Remotes"},
 		},
@@ -223,6 +223,8 @@ func (c *config) encode() []byte {
 		"left out: blocked, running, done, idle, exited.", "spaces_sort", s.SpSort)
 	kv("", "spaces_group", s.SpGroup)
 	kv("", "spaces_hide", list(s.SpHide))
+	kv("Spaces: projects in their \"manual\" order (drag, alt+up/down) or by \"updated\",\n"+
+		"the one whose sessions printed last first.", "spaces_project_sort", s.SpProj)
 	b.WriteString("\n# Sidebar columns per side, from the screen edge toward main, each with its tabs\n" +
 		"# and optional width. Views: \"files\", \"git\", \"agents\", \"search\", \"session\"; unlisted\n" +
 		"# views join the left column next to main.\n")

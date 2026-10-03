@@ -116,7 +116,7 @@ func (a *agents) treeRows(m *Model, sessions []proto.Session, q string) []agRow 
 
 	known := map[string]bool{}
 
-	for _, p := range m.st.Projects {
+	for _, p := range m.projects() {
 		rows := []agRow{{kind: agProject, project: p}}
 		for _, w := range m.wss {
 			if w.Project != p {
@@ -164,10 +164,11 @@ func (a *agents) treeRows(m *Model, sessions []proto.Session, q string) []agRow 
 }
 
 // shownProjects are the projects in the order Spaces lists them: the open
-// ones in their saved order, then the folded ones, the one folded last first.
+// ones in the project Sort's order, then the folded ones, the one folded last
+// first.
 func (a *agents) shownProjects(m *Model) []string {
-	open := slices.DeleteFunc(slices.Clone(m.st.Projects), func(p string) bool { return a.collapsed[p] })
-	folded := slices.DeleteFunc(slices.Clone(m.st.Projects), func(p string) bool { return !a.collapsed[p] })
+	open := slices.DeleteFunc(m.projects(), func(p string) bool { return a.collapsed[p] })
+	folded := slices.DeleteFunc(m.projects(), func(p string) bool { return !a.collapsed[p] })
 	slices.SortStableFunc(folded, func(x, y string) int { return cmp.Compare(a.foldRank(x), a.foldRank(y)) })
 
 	return append(open, folded...)
@@ -249,6 +250,28 @@ func (m *Model) listedSessions() []proto.Session {
 	if st.SpSort == "updated" || st.SpGroup == "time" {
 		slices.SortStableFunc(out, func(a, b proto.Session) int { return m.sessionTime(b).Compare(m.sessionTime(a)) })
 	}
+
+	return out
+}
+
+// projects are the projects in the project Sort's order: their saved one, or
+// by Updated the one whose sessions printed last first, the rest saved.
+func (m *Model) projects() []string {
+	out := slices.Clone(m.st.Projects)
+	if m.st.Settings.SpProj != "updated" {
+		return out
+	}
+
+	last := map[string]time.Time{}
+
+	for _, s := range m.agentSessions() {
+		p := m.projectOf(s.Workspace)
+		if t := m.rollup(s).Updated; t.After(last[p]) {
+			last[p] = t
+		}
+	}
+
+	slices.SortStableFunc(out, func(a, b string) int { return last[b].Compare(last[a]) })
 
 	return out
 }
@@ -1209,7 +1232,7 @@ func (a *agents) items(m *Model) []item {
 			item{label: "Move Worktree Down", hint: "M-↓", run: func(m *Model) tea.Cmd { return a.shiftWorkspace(m, path, 1) }})
 	}
 
-	if r != nil && r.project != "" && r.kind == agProject && len(m.st.Projects) > 1 {
+	if r != nil && r.project != "" && r.kind == agProject && len(m.st.Projects) > 1 && a.projectMovable(m, r.project) {
 		// What a drag does, for the keyboard: the project keeps its place in
 		// config, so the order survives a restart either way.
 		items = append(items,
@@ -1252,7 +1275,8 @@ func checked(on bool, label string) string {
 }
 
 // viewMenu is VS Code's agent sessions view menu: Filter, Sort, Group, Collapse
-// All Groups. Sort and Group are settings, so every window lists the same way.
+// All Groups, and the projects' Sort. Sort and Group are settings, so every
+// window lists the same way.
 func (a *agents) viewMenu(m *Model, x, y int) tea.Cmd {
 	st := m.st.Settings
 	set := func(key, v string) func(*Model) tea.Cmd {
@@ -1269,6 +1293,9 @@ func (a *agents) viewMenu(m *Model, x, y int) tea.Cmd {
 		{},
 		{label: checked(st.SpSort != "updated", "Sort by Created"), run: set("spaces_sort", "created")},
 		{label: checked(st.SpSort == "updated", "Sort by Updated"), run: set("spaces_sort", "updated")},
+		{},
+		{label: checked(st.SpProj != "updated", "Sort Projects Manually"), run: set("spaces_project_sort", "manual")},
+		{label: checked(st.SpProj == "updated", "Sort Projects by Updated"), run: set("spaces_project_sort", "updated")},
 		{},
 		{label: checked(st.SpGroup != "time", "Group by Workspace"), run: set("spaces_group", "workspace")},
 		{label: checked(st.SpGroup == "time", "Group by Time"), run: set("spaces_group", "time")},
@@ -1331,7 +1358,7 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 		}
 		// A project row drags up and down the list; a press that never leaves
 		// its row is the click that folds it, so the fold waits for the release.
-		if p := rows[i].project; mo.Button == tea.MouseLeft && rows[i].kind == agProject && p != "" && len(m.st.Projects) > 1 {
+		if p := rows[i].project; mo.Button == tea.MouseLeft && rows[i].kind == agProject && p != "" && len(m.st.Projects) > 1 && a.projectMovable(m, p) {
 			m.drag = &drag{kind: dragRow, proj: p, from: slices.Index(m.st.Projects, p), y0: mo.Y}
 			return nil
 		}
@@ -1418,6 +1445,11 @@ func (a *agents) dragRowTo(m *Model, d *drag, y int, release bool) tea.Cmd {
 // shiftProject moves a project d places and saves it at once: the menu's and
 // alt+↑↓'s half of the drag.
 func (a *agents) shiftProject(m *Model, path string, d int) tea.Cmd {
+	if !a.projectMovable(m, path) {
+		m.flash("sort projects manually to reorder them", false)
+		return nil
+	}
+
 	order := a.shownProjects(m)
 	i := slices.Index(order, path)
 
@@ -1433,6 +1465,12 @@ func (a *agents) shiftProject(m *Model, path string, d int) tea.Cmd {
 	}
 
 	return do("project.move", proto.MoveParams{Path: path, To: slices.Index(m.st.Projects, path)})
+}
+
+// projectMovable says whether project p moves by hand: the folded keep an
+// order of their own, the open sorted by Updated the clock's.
+func (a *agents) projectMovable(m *Model, p string) bool {
+	return a.collapsed[p] || m.st.Settings.SpProj != "updated"
 }
 
 // projectAt is the project the list row at screen row y belongs to, "" off

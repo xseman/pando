@@ -546,7 +546,7 @@ func TestConfig(t *testing.T) {
 			Hidden: false, Icons: "ascii", Width: 41, WidthR: 33, GitDeco: false,
 			Left: proto.Columns{{Views: []string{"agents"}, Width: 24}, {Views: []string{"files"}}}, Right: proto.Columns{{Views: []string{"git"}}}, GitTree: false,
 			GitPanes: map[string]proto.Pane{"File History": {Open: true, H: 4}}, QuickTree: true,
-			Drawers: []string{"Graph", "Tags"}, SpSort: "updated", SpGroup: "time", SpHide: []string{"exited"},
+			Drawers: []string{"Graph", "Tags"}, SpSort: "updated", SpGroup: "time", SpHide: []string{"exited"}, SpProj: "updated",
 			Theme: "terminal", DiffView: "split", ActBar: "top", TermPos: "right", TermH: 14, TermOpen: true, Borders: false, Colors: map[string]string{"accent": "#ff8800", "ok": "2"}, Keys: map[string]string{"ctrl+g": "view.showSearch"},
 			LSP: map[string][]string{"go": {"gopls"}}, Format: map[string][]string{"ts": {"prettier", "--stdin-filepath", "$FILE"}}, FmtSave: true, Wrap: true, EdLimit: 7, TabSize: 3, Spaces: true, MDWidth: 90,
 			Sounds: true, SoundDone: "/a.oga", SoundReq: "",

@@ -719,6 +719,61 @@ func TestSpacesDragReorder(t *testing.T) {
 	}
 }
 
+// TestSpacesProjectSort sorts the projects by Updated from the view menu: the
+// one whose session printed last goes first, and no open project moves by
+// hand until they are sorted manually again.
+func TestSpacesProjectSort(t *testing.T) {
+	m := testModel(t)
+	first, other := m.ws, t.TempDir()
+	m.st.Projects = append(m.st.Projects, other)
+	m.wss = append(m.wss, proto.Workspace{Path: other, Project: other, Branch: "main", Main: true})
+	now := time.Now()
+	sess := func(id, ws string, ago time.Duration) proto.Session {
+		return proto.Session{SessionSpec: proto.SessionSpec{ID: id, Workspace: ws, Agent: "shell"}, Status: "idle", Updated: now.Add(-ago)}
+	}
+	m.Update(sessionsMsg{sess("s1", first, time.Hour), sess("s2", other, time.Minute)})
+	press(m, "3")
+
+	choose := func(label string) {
+		t.Helper()
+		press(m, "o")
+
+		i := slices.IndexFunc(m.modal.disp, func(it item) bool { return strings.TrimSpace(strings.TrimPrefix(it.label, "✓")) == label })
+		if i < 0 {
+			t.Fatalf("no %q in the view menu: %+v", label, m.modal.disp)
+		}
+
+		m.modal.choose(m, i)
+	}
+
+	choose("Sort Projects by Updated")
+
+	if got := m.ag.shownProjects(m); !slices.Equal(got, []string{other, first}) || !slices.Equal(m.st.Projects, []string{first, other}) {
+		t.Fatalf("by updated, the saved order kept: shown %v, saved %v", got, m.st.Projects)
+	}
+
+	checkWidths(t, m)
+
+	m.ag.l.sel = 0
+	press(m, "alt+down")
+
+	if got := m.ag.shownProjects(m); got[0] != other || !slices.Equal(m.st.Projects, []string{first, other}) {
+		t.Fatalf("alt+down leaves a project sorted by updated: shown %v, saved %v", got, m.st.Projects)
+	}
+
+	m.Update(sessionsMsg{sess("s1", first, 0), sess("s2", other, time.Minute)})
+
+	if r := m.ag.selected(m); r == nil || r.kind != agProject || r.project != other {
+		t.Fatalf("the selection follows the project down: %+v", r)
+	}
+
+	choose("Sort Projects Manually")
+
+	if got := m.ag.shownProjects(m); !slices.Equal(got, []string{first, other}) {
+		t.Fatalf("manually, the saved order: %v", got)
+	}
+}
+
 // TestSpacesFoldedSink folds a project: it sinks below the open ones, to the
 // top of the folded, with the selection on it, and unfolding brings it back
 // to its saved place.
