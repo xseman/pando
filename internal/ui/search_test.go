@@ -87,7 +87,7 @@ func TestSearchView(t *testing.T) {
 	}
 
 	rc := m.colRect(m.colOf(viewSearch))
-	click(m, rc.x+m.sr.toggles(rc.w, &m.sr.query)[2].x+1, m.bodyTop(viewSearch)+1, tea.MouseLeft) // the query row, under the blank one
+	click(m, rc.x+m.sr.toggles(rc.w, &m.sr.query)[2].x+1, m.bodyTop(viewSearch)+1, tea.MouseLeft) // the query row, under its frame
 
 	if !m.sr.regex || !m.sr.busy {
 		t.Fatal("clicking .* turns on regex and searches again")

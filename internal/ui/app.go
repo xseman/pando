@@ -1113,7 +1113,7 @@ func (m *Model) mainW() int { _, c := m.layout(); return c.w }
 
 // bodyTop is the first list row of view v, below the activity bar, the view
 // header and the filter line.
-func (m *Model) bodyTop(v view) int { return m.barH(m.colOf(v)) + 1 + b2i(m.filters[v].on) }
+func (m *Model) bodyTop(v view) int { return m.barH(m.colOf(v)) + 1 + 3*b2i(m.filters[v].on) }
 
 // barH is column i's activity bar height; a column with a single tab has none.
 func (m *Model) barH(i int) int {
@@ -3293,7 +3293,7 @@ func (m *Model) sideMouse(s int, rc rect, msg tea.MouseMsg) tea.Cmd {
 
 	y -= bar + 1
 	if m.filters[v].on {
-		if y == 0 {
+		if y < 3 { // the box and its frame
 			if click {
 				m.filters[v].editing = true
 				return m.filters[v].input.Focus()
@@ -3302,7 +3302,7 @@ func (m *Model) sideMouse(s int, rc rect, msg tea.MouseMsg) tea.Cmd {
 			return nil
 		}
 
-		y--
+		y -= 3
 	}
 
 	if v != viewGit && click {
@@ -3837,9 +3837,19 @@ func (m *Model) sidebarBody(s, w int) []string {
 	}
 
 	out = append(out, m.viewHeader(s, active, w))
-	if f := &m.filters[active]; f.on {
-		f.input.SetWidth(max(w-4, 1))
-		out = append(out, fit(f.input.View(), w))
+	if f := &m.filters[active]; f.on { // a framed box, as Search's
+		edge := fg(pal.inputBorder)
+		if f.editing {
+			edge = fg(pal.accent)
+		}
+
+		box, side, field := lipgloss.NewStyle().Background(pal.inputBg), edge.Background(pal.inputBg), max(w-6, 1)
+
+		f.input.SetStyles(inputStyles(m.dark))
+		f.input.SetWidth(field)
+		text := ansi.Truncate(f.input.View(), field, "")
+		text += box.Render(blank(field - ansi.StringWidth(text)))
+		out = append(out, frameLine(w, 1, "▁", edge), " "+side.Render("▏")+box.Render(" "+text+" ")+side.Render("▕")+" ", frameLine(w, 1, "▔", edge))
 	}
 
 	h := m.bodyH(active)

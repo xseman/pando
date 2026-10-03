@@ -936,14 +936,14 @@ func TestCommitSplitHover(t *testing.T) {
 	if label() || !menu() {
 		t.Fatalf("the ∨ alone darkens under the mouse: %q", line())
 	}
-	// The blank rows around it are its taller edges: slivers in its colors
-	// that hover with it.
+	// The row above is the message box's frame; the one below is the
+	// button's taller edge, a sliver in its colors that hovers with it.
 	rows := strings.Split(m.View().Content, "\n")
-	if !strings.Contains(rows[top-1], "▁") || !strings.Contains(rows[top+1], "▔") {
+	if !strings.Contains(rows[top-1], "▔") || strings.Contains(rows[top-1], "▁") || !strings.Contains(rows[top+1], "▔") {
 		t.Fatalf("no edges around the button:\n%s\n%s\n%s", rows[top-1], line(), rows[top+1])
 	}
 
-	m.Update(tea.MouseMotionMsg{X: rc.x + 5, Y: top - 1})
+	m.Update(tea.MouseMotionMsg{X: rc.x + 5, Y: top + 1})
 
 	if !label() {
 		t.Fatalf("the label does not darken with the mouse on its edge: %q", line())

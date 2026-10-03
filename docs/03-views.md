@@ -28,7 +28,7 @@ items(m) ──▶ context menu + command palette
 | Terminal       | `5` | `agents.go`   | shells under the editor or in a sidebar          |
 | GitHub         | `6` | `github.go`   | pull requests, notifications, issues; needs `gh` |
 
-`ctrl+f` filters a list (`startFilter`).
+`ctrl+f` filters a list (`startFilter`) from a framed box under the header.
 
 ## Explorer
 
@@ -56,7 +56,9 @@ Show Hidden Files and Sort by Type / Name (`explorer_sort`) added.
 
 ```text
  SOURCE CONTROL                repo · main
+ ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   input boxes framed in input_border
  ▏Message (⏎ to commit on "main")       ▏∨▕   message box, ∨ suggest menu
+ ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔   accent while focused
                ✓ Commit                 ▏∨    action button
  ▾ Merge Changes                       [1]   only while conflicts exist
    main.go · both modified       src +   !
@@ -189,10 +191,14 @@ Workspace search 250 ms after the last key, capped at `maxSearchMatches`.
 Engine: `rg --json`, else `git grep`, else `grep -rnIZ`.
 
 ```text
+  ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
  ▾▏ query                       Aa ab .* ▕   ▾ opens replace (ctrl+h)
   ▏ replace                        AB ⇄ ▕   AB preserve case, ⇄ replace all
+  ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔   one frame round both
     files to include                        ⋯ opens include / exclude
+  ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
   ▏ e.g. *.ts, src/**                   ▕
+  ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
  2 results in 1 file              tree  ⋯   tree groups by folder
  ▾ main.go                             [2]
      println("hello world")                ⏎ opens with the match selected

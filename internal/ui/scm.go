@@ -327,7 +327,8 @@ func (s *scmView) build(m *Model) {
 				continue
 			}
 		}
-		// Blank rows around the message box and the button, like VS Code's padding.
+		// Rows around the message box and the button, like VS Code's padding:
+		// the box's frame, then the button's taller bottom edge.
 		s.rows = append(s.rows, scmRow{kind: rowGap, root: root})
 		for i := range s.msgLines(root) {
 			s.rows = append(s.rows, scmRow{kind: rowMsg, root: root, line: i})
@@ -897,9 +898,14 @@ func (s *scmView) ancestors(c int) []int {
 // the gaps between them, which the scrollbar never runs beside.
 // buttonOf is the action button row i belongs to: i itself, or a blank row
 // right above or below it, where the button draws its taller edges. -1 when
-// i is not part of a button.
+// i is not part of a button: the row between the message box and the button
+// is the box's frame.
 func (s *scmView) buttonOf(i int) int {
 	for _, j := range []int{i, i + 1, i - 1} {
+		if j == i+1 && i > 0 && s.rows[i-1].kind == rowMsg {
+			continue
+		}
+
 		if j >= 0 && j < len(s.rows) && s.rows[j].kind == rowCommit && (j == i || s.rows[i].kind == rowGap) {
 			return j
 		}
@@ -1157,7 +1163,7 @@ func (s *scmView) renderRow(m *Model, i, w int, hovered bool) string {
 	case rowGap, rowCommit:
 		b := s.buttonOf(i)
 		if b < 0 {
-			return blank(w)
+			return s.frameRow(i, w)
 		}
 
 		edge := map[int]string{b - 1: "▁", b: "", b + 1: "▔"}[i]
@@ -1293,6 +1299,19 @@ func (s *scmView) edge(root string) lipgloss.Style {
 	}
 
 	return fg(pal.inputBorder)
+}
+
+// frameRow is gap row i: the message box's frame when the box is right
+// below (▁) or above (▔) it, blank otherwise.
+func (s *scmView) frameRow(i, w int) string {
+	switch {
+	case i+1 < len(s.rows) && s.rows[i+1].kind == rowMsg:
+		return frameLine(w, 1, "▁", s.edge(s.rows[i].root))
+	case i > 0 && s.rows[i-1].kind == rowMsg:
+		return frameLine(w, 1, "▔", s.edge(s.rows[i].root))
+	}
+
+	return blank(w)
 }
 
 // messageRow is line of a repository's message box like VS Code's input:

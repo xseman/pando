@@ -101,6 +101,13 @@ func fit(s string, w int) string {
 
 func blank(w int) string { return strings.Repeat(" ", max(w, 0)) }
 
+// frameLine is the row above (▁) or below (▔) an input box whose ▏ edge
+// sits at column x and whose ▕ one cell before the row's end: with the edges
+// it frames the box in one thin line, as VS Code's input.border does.
+func frameLine(w, x int, glyph string, st lipgloss.Style) string {
+	return blank(x) + st.Render(strings.Repeat(glyph, max(w-x-1, 0))) + blank(min(w, 1))
+}
+
 // center places s in the middle of w cells.
 func center(s string, w int) string {
 	sw := ansi.StringWidth(s)
@@ -479,7 +486,7 @@ type filter struct {
 
 func newFilter() filter {
 	f := filter{input: textinput.New()}
-	f.input.Prompt = " / "
+	f.input.Prompt = "/ "
 	f.input.Placeholder = "filter · esc clears"
 
 	return f
@@ -567,6 +574,8 @@ func inputStyles(dark bool) textinput.Styles {
 		ss.Text, ss.Placeholder, ss.Prompt = ss.Text.Background(pal.inputBg), ss.Placeholder.Background(pal.inputBg), ss.Prompt.Background(pal.inputBg)
 	}
 
+	st.Cursor.Color = nil // the text's color: the default, ANSI 7, is near white on a light theme
+
 	return st
 }
 
@@ -600,6 +609,8 @@ func areaStyles(dark bool) textarea.Styles {
 		p.a.EndOfBuffer = lipgloss.NewStyle().Background(pal.inputBg)
 		p.a.Selection = lipgloss.NewStyle().Background(pal.textSelBg) // the editor's
 	}
+
+	st.Cursor.Color = nil // as inputStyles'
 
 	return st
 }

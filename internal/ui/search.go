@@ -176,9 +176,10 @@ func (s *searchView) clear() {
 	s.l = list{sel: -1}
 }
 
-// headH is the rows above the results: a blank row, the query box, the
-// replace box and the include/exclude details when open, and the summary.
-func (s *searchView) headH() int { return 3 + b2i(s.showReplace) + 4*b2i(s.showDetails) }
+// headH is the rows above the results: the query box framed with the
+// replace box when open, the framed include/exclude boxes under their labels
+// when open, and the summary.
+func (s *searchView) headH() int { return 4 + b2i(s.showReplace) + 8*b2i(s.showDetails) }
 
 // rows lists the result rows: files with their matching lines, grouped under
 // directories in tree mode.
@@ -609,14 +610,27 @@ func parseSearchLine(engine string, b []byte, re *regexp.Regexp) (string, search
 }
 
 func (s *searchView) lines(m *Model, w, h int) []string {
-	out := []string{blank(w), s.inputRow(m, &s.query, w)}
+	frame := func(glyph string, focused bool) string {
+		if focused {
+			return frameLine(w, 2, glyph, fg(pal.accent))
+		}
+
+		return frameLine(w, 2, glyph, fg(pal.inputBorder))
+	}
+
+	top := s.query.Focused() || s.replace.Focused()
+
+	out := []string{frame("▁", top), s.inputRow(m, &s.query, w)}
 	if s.showReplace {
 		out = append(out, s.inputRow(m, &s.replace, w))
 	}
 
+	out = append(out, frame("▔", top))
+
 	if s.showDetails {
-		out = append(out, row(w, nil, []seg{sg("   files to include", dim)}), s.inputRow(m, &s.include, w),
-			row(w, nil, []seg{sg("   files to exclude", dim)}), s.inputRow(m, &s.exclude, w))
+		in, ex := s.include.Focused(), s.exclude.Focused()
+		out = append(out, row(w, nil, []seg{sg("   files to include", dim)}), frame("▁", in), s.inputRow(m, &s.include, w), frame("▔", in),
+			row(w, nil, []seg{sg("   files to exclude", dim)}), frame("▁", ex), s.inputRow(m, &s.exclude, w), frame("▔", ex))
 	}
 
 	out = append(out, s.summary(m, w))
@@ -1205,7 +1219,7 @@ func (s *searchView) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 	w := m.colRect(m.colOf(viewSearch)).w
 
 	switch {
-	case y == 0: // the blank row above the boxes
+	case y == 0: // the frame above the boxes
 		return nil
 	case y == 1:
 		if x < 2 {
@@ -1229,11 +1243,11 @@ func (s *searchView) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 
 		return s.replace.Focus()
 
-	case s.showDetails && y == hh-4, s.showDetails && y == hh-3:
+	case s.showDetails && y >= hh-8 && y <= hh-6: // the include box and its frame
 		s.blur()
 		return s.include.Focus()
 
-	case s.showDetails && y == hh-2:
+	case s.showDetails && y >= hh-4 && y <= hh-2:
 		s.blur()
 		return s.exclude.Focus()
 
