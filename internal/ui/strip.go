@@ -56,6 +56,33 @@ func (m *Model) stripTabs(s int) []stripTab {
 	return out
 }
 
+// tabAt is the id of strip s's tab at strip column x, the session's own
+// included; "" over its + or past its tabs.
+func (m *Model) tabAt(s, x int) string {
+	if s == stripEditor {
+		for _, t := range m.editorTabs(m.mainW()) {
+			if x >= t.x && x < t.x+t.w {
+				return m.editors[t.i].id()
+			}
+		}
+
+		return ""
+	}
+
+	tabs := m.termTabs(m.termStripW())
+	if s == stripSession {
+		tabs = m.sessionTabs(m.sessW())
+	}
+
+	for _, t := range tabs {
+		if !t.plus && x >= t.x && x < t.x+t.w {
+			return t.id
+		}
+	}
+
+	return ""
+}
+
 // stripOrder is every movable tab of strip s, shown or not, in its order.
 func (m *Model) stripOrder(s int) []string {
 	var ss []proto.Session

@@ -630,7 +630,12 @@ func (m *Model) editorStrip(w int) string {
 	var segs []seg
 
 	for _, t := range m.editorTabs(w) {
-		segs = append(segs, tabChip(t.label, t.active, nil)...)
+		var bg color.Color
+		if m.editors[t.i].id() == m.overTab {
+			bg = pal.hoverBg
+		}
+
+		segs = append(segs, tabChip(t.label, t.active, bg)...)
 	}
 
 	return m.stripMark(row(w, nil, segs), stripEditor, 0, nil)

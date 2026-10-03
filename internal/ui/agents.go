@@ -2245,10 +2245,11 @@ func (m *Model) renameSession(id string) tea.Cmd {
 }
 
 func (m *Model) sessionStrip(w int) string {
-	return m.stripMark(row(w, nil, tabSegs(m.sessionTabs(w))), stripSession, 0, nil)
+	return m.stripMark(row(w, nil, tabSegs(m.sessionTabs(w), m.overTab)), stripSession, 0, nil)
 }
 
-func tabSegs(tabs []sessTab) []seg {
+// tabSegs draws a strip's tabs, tab over in hover_bg.
+func tabSegs(tabs []sessTab, over string) []seg {
 	var segs []seg
 
 	for _, t := range tabs {
@@ -2257,7 +2258,12 @@ func tabSegs(tabs []sessTab) []seg {
 			continue
 		}
 
-		segs = append(segs, tabChip(t.label, t.active, t.bg)...)
+		bg := t.bg
+		if t.id == over {
+			bg = pal.hoverBg
+		}
+
+		segs = append(segs, tabChip(t.label, t.active, bg)...)
 	}
 
 	return segs
@@ -2776,7 +2782,7 @@ func (m *Model) termPanelLines(w, h int) []string {
 
 	left := []seg{sg(" "+icTerminal.s()+" ", st)}
 	if tabs := m.termTabs(m.termStripW()); len(tabs) > 0 {
-		left = append([]seg{sg(" ", plain)}, tabSegs(tabs)...)
+		left = append([]seg{sg(" ", plain)}, tabSegs(tabs, m.overTab)...)
 	}
 
 	closer := sg(" "+icClose.s()+" ", dim)
@@ -2789,7 +2795,7 @@ func (m *Model) termPanelLines(w, h int) []string {
 
 // termLines are the panel: its tab strip, then the terminal screen.
 func (m *Model) termLines(w, h int) []string {
-	return append([]string{m.stripMark(row(w, nil, tabSegs(m.termTabs(w))), stripTerm, 0, nil)}, m.termScreen(w, h-1)...)
+	return append([]string{m.stripMark(row(w, nil, tabSegs(m.termTabs(w), m.overTab)), stripTerm, 0, nil)}, m.termScreen(w, h-1)...)
 }
 
 // termScreen is the shell's screen, padded to h rows.

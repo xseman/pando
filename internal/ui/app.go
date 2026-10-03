@@ -178,6 +178,7 @@ type Model struct {
 	mouseX    int  // last mouse position (content rows) for hover
 	mouseY    int
 	overBar   barPoint  // the scrollbar cell under the mouse: its slider hovers
+	overTab   string    // the tab under the mouse, in any strip: its chip hovers
 	sashAt    sash      // the divider under the mouse, noSash for none
 	sashSince time.Time // when the mouse came onto it
 	mouseAt   time.Time
@@ -3036,6 +3037,7 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 
 	m.mouseX, m.mouseY, m.mouseAt = mo.X, mo.Y, time.Now()
 	m.overBar = barPoint{} // the bar under it, if any, notes it again below
+	m.overTab = ""         // so does the tab
 
 	_, click := msg.(tea.MouseClickMsg)
 	if m.drag != nil {
@@ -3100,7 +3102,9 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 		case y > 0:
 			return m.termPanelMouse(msg, mo.X-c.x, y-1)
 		case !click:
+			m.overTab = m.tabAt(stripTerm, mo.X-c.x-1)
 			return nil
+
 		case mo.X >= c.x+c.w-3:
 			return m.toggleTerminal()
 		}
@@ -3122,6 +3126,13 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 	}
 
 	strip := m.stripH()
+	if strip > 0 && mo.Y == 0 {
+		m.overTab = m.tabAt(stripEditor, mo.X-c.x)
+		if m.showsSession() {
+			m.overTab = m.tabAt(stripSession, mo.X-c.x)
+		}
+	}
+
 	if strip > 0 && click && mo.Y == 0 && (mo.Button == tea.MouseLeft || mo.Button == tea.MouseMiddle || mo.Button == tea.MouseRight && m.showsSession()) {
 		if m.showsSession() {
 			return m.sessionStripMouse(mo.X-c.x, mo.Button)
@@ -3377,6 +3388,7 @@ func (m *Model) viewMouse(v view, msg tea.MouseMsg, x, y int) tea.Cmd {
 		return m.sr.mouse(m, msg, x, y)
 	case viewTerm:
 		if y == 0 { // the tab strip
+			m.overTab = m.tabAt(stripTerm, x)
 			if click && (mo.Button == tea.MouseLeft || mo.Button == tea.MouseMiddle || mo.Button == tea.MouseRight) {
 				return m.termStripMouse(x, mo.Button)
 			}
@@ -3388,6 +3400,7 @@ func (m *Model) viewMouse(v view, msg tea.MouseMsg, x, y int) tea.Cmd {
 
 	case viewSession:
 		if y == 0 { // its tabs
+			m.overTab = m.tabAt(stripSession, x)
 			if click {
 				return m.sessionStripMouse(x, mo.Button)
 			}

@@ -245,6 +245,19 @@ func TestTabChips(t *testing.T) {
 		t.Fatalf("a click on the first tab shows it: %d", m.edIdx)
 	}
 
+	// The mouse over a tab tints it in hover_bg, and only while it is there.
+	m.Update(tea.MouseMotionMsg{X: m.mainX() + tabs[1].x + 1, Y: 0})
+
+	if s := m.editorStrip(m.mainW()); !strings.Contains(s, bgParams(pal.hoverBg)) {
+		t.Fatalf("a hovered tab is not tinted: %q", s)
+	}
+
+	m.Update(tea.MouseMotionMsg{X: m.mainX() + tabs[1].x + 1, Y: 5})
+
+	if s := m.editorStrip(m.mainW()); strings.Contains(s, bgParams(pal.hoverBg)) {
+		t.Fatalf("the tint stays once the mouse leaves: %q", s)
+	}
+
 	// Session tabs, and the Terminal's, are framed the same way.
 	ss2 := []proto.Session{
 		{SessionSpec: proto.SessionSpec{ID: "a", Agent: "shell"}},
@@ -252,7 +265,7 @@ func TestTabChips(t *testing.T) {
 	}
 
 	ss := m.tabsFor(100, ss2, "a")
-	if ss[1].x != ss[0].w+tabGap || !strings.Contains(row(100, nil, tabSegs(ss)), bgParams(pal.tabBg)) {
+	if ss[1].x != ss[0].w+tabGap || !strings.Contains(row(100, nil, tabSegs(ss, "")), bgParams(pal.tabBg)) {
 		t.Fatalf("session tabs: %+v", ss)
 	}
 
