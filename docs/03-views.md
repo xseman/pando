@@ -107,7 +107,7 @@ re-roots Explorer and Source Control to its worktree.
 ```text
 ▾ ◐ repo                project: most demanding session's glyph (· none)
    ⌂ main           2   the project's own checkout, session count
-   ├─ ◐ claude · fix   running
+   ├─ ◐ claude · fix   ⧉ 2 · running   tab count, with more than its own
    └─ ○ shell          idle
    ⑂ feat/x         1   linked worktree (dimmed)
    └─ ○ shell          idle
@@ -171,7 +171,8 @@ settings (`spaces_hide`, `spaces_sort`, `spaces_group`) read by
 
 A new session is a shell in the worktree; _New Agent Session…_ starts an
 `[agents]` preset. A session has tabs (`tabsOf`): `+` adds a shell that dies
-with it, `[` `]` cycle, middle click or `✕` kills after asking.
+with it, `[` `]` cycle, middle click or `✕` kills after asking. A session
+with more than its own tab shows their count in its row (`icTabs`).
 
 ## Terminal
 

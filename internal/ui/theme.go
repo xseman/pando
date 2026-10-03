@@ -369,12 +369,13 @@ var (
 	icDetach     = glyph{"debug-disconnect", "\uead0", "◇", ""}
 	icMainWt     = glyph{"home", "\ueb06", "⌂", ""}           // a project's own checkout
 	icLinkedWt   = glyph{"source-control", "\uea68", "⑂", ""} // a linked worktree of it
+	icTabs       = glyph{"window", "\ueb7f", "⧉", ""}         // a session's tab count in Spaces
 	allGlyphs    = []glyph{
 		icFiles, icGit, icSpaces, icAgents, icGear, icNewFile, icNewDir, icRefresh, icCollapse, icTree, icList,
 		icAdd, icRemove, icDiscard, icWorktree, icSparkle, icCheck, icChevron, icClose, icBranch, icPublish, icSync, icSplit, icInline,
 		icSearch, icCase, icWord, icRegex, icEllipsis, icClearAll, icOptions, icPreview, icSource,
 		icPrevRev, icNextRev, icUp, icDown, icHistory, icTag, icDetach, icReplace, icPreserve, icReplaceAll, icTerminal, icDot,
-		icMainWt, icLinkedWt, icWrap, icGitHub, icPR, icPRDraft, icPRNew, icIssue, icBell, icCheckAll,
+		icMainWt, icLinkedWt, icTabs, icWrap, icGitHub, icPR, icPRDraft, icPRNew, icIssue, icBell, icCheckAll,
 	}
 )
 

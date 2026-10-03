@@ -655,6 +655,10 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			status = where + " · " + status
 		}
 
+		if len(tabs) > 1 { // its own and the ones + opened
+			status = icTabs.s() + " " + strconv.Itoa(len(tabs)) + " · " + status
+		}
+
 		left := append([]seg{sg(conn, dim), sg(glyph, fg(c))}, m.fx.segs("sess:"+r.s.ID, sessionName(r.s), nameSt)...)
 
 		return row(rw, bg, append(left, sg(titleAfter(r.s), nameSt)), sg(" "+status+" ", dim))

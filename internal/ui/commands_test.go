@@ -2954,6 +2954,10 @@ func TestSessionTabs(t *testing.T) {
 		t.Fatalf("Spaces tree %v:\n%s", tree, ansi.Strip(lines))
 	}
 
+	if n := strings.Count(ansi.Strip(lines), icTabs.s()+" 2 · "); n != 1 {
+		t.Fatalf("s1 alone counts its 2 tabs, %d rows do:\n%s", n, ansi.Strip(lines))
+	}
+
 	m.cycleSession(1)
 
 	if m.sess != "t1" || m.rootOf(m.sess) != "s1" {
