@@ -488,6 +488,10 @@ func TestMessages(t *testing.T) {
 	if msgs := Messages(root); !slices.Equal(msgs, []string{"two\n\nwith a body", "one"}) {
 		t.Fatalf("messages: %q", msgs)
 	}
+
+	if msg, err := Message(root, "HEAD~1"); err != nil || msg != "one" {
+		t.Fatalf("message: %q %v", msg, err)
+	}
 }
 
 func TestRefs(t *testing.T) {

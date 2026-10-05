@@ -109,7 +109,8 @@ A branch checked out in another worktree opens that worktree instead.
 ## Commit and sync
 
 - `Commit`, `Amend` (`--no-edit` with no message).
-- `Messages`: the last 100 messages of `log`, the message box's `↑` history.
+- `Messages`: the last 100 messages of `log`, the message box's `↑` history;
+  `Message`: one commit's, for a drawer line's tip and copy.
 - `Sync`: `pull --rebase --autostash`, then `push`.
 - `Publish`: `remote add` when given a URL, then `push -u REMOTE HEAD`.
   Commit & Sync publishes instead while the branch has no upstream.

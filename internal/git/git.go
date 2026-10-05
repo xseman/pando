@@ -803,6 +803,12 @@ func Messages(root string) []string {
 	return msgs
 }
 
+// Message is commit rev's full message.
+func Message(root, rev string) (string, error) {
+	out, err := Run(root, "show", "-s", "--format=%B", rev)
+	return strings.TrimSpace(out), err
+}
+
 // Amend rewrites the last commit with the staged changes, keeping its
 // message when msg is empty.
 func Amend(root, msg string) error {

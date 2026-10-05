@@ -2517,7 +2517,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.onActions(msg)
 	case appliedMsg:
 		return m, m.onApplied(msg)
-	case scmMsg, drawerMsg, modalMsg, stageMsg, pastMsg:
+	case scmMsg, drawerMsg, modalMsg, stageMsg, pastMsg, tipMsg:
 		return m, m.scm.onMsg(m, msg)
 	case previewMsg:
 		m.pv.onLoad(m, msg)
@@ -2563,7 +2563,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.PasteMsg:
 		return m, m.paste(msg)
 	case tea.MouseMsg:
-		return m, tea.Batch(m.mouse(msg), m.trackSash())
+		return m, tea.Batch(m.mouse(msg), m.trackSash(), m.scm.hoverTip(m, msg))
 	case sashMsg: // the pointer has rested: View lights the sash
 		return m, nil
 	}
@@ -3633,6 +3633,10 @@ func (m *Model) View() tea.View {
 	}
 
 	if box, x, y, ok := m.pv.compBox(m); ok && m.modal == nil {
+		m.overlayBox(lines, box, x, y)
+	}
+
+	if box, x, y, ok := m.scm.tipBox(m); ok && m.modal == nil {
 		m.overlayBox(lines, box, x, y)
 	}
 

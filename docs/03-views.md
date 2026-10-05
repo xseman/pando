@@ -105,6 +105,9 @@ A Commit with nothing staged is muted too, and a click on it does nothing.
 - Drawers stack like Spaces' projects (`flipDrawer`): open ones above closed
   ones, an opened drawer on top, a closed one on top of the closed, in
   `git_drawers` order.
+- A commit line (Graph, Commits, File History) shows its whole message in a
+  box by the mouse after `tipDelay` (`tipBox`); its right-click menu has
+  _Copy Commit Message_.
 
 ## Spaces
 

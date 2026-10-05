@@ -114,7 +114,8 @@ aider = ["aider", "--restore-chat-history"]
 
 Source Control (`2`) follows VS Code: Merge / Staged / Changes / Untracked,
 a message box, and drawers for the graph, commits, file history, branches,
-worktrees, remotes, stashes and tags.
+worktrees, remotes, stashes and tags. A commit in a drawer shows its whole
+message when the mouse rests on it; right click copies it.
 
 | Key       | In Source Control                                          |
 | --------- | ---------------------------------------------------------- |

@@ -1200,6 +1200,61 @@ func TestDrawerStack(t *testing.T) {
 	checkWidths(t, m)
 }
 
+// TestDrawerCommitMessage shows a drawer commit's whole message once the
+// mouse rests on it, and copies it from the line's right-click menu.
+func TestDrawerCommitMessage(t *testing.T) {
+	board := fakeClipboard(t)
+	m := gitModel(t)
+
+	for _, a := range [][]string{
+		{"init", "-q", "-b", "main"},
+		{"config", "user.email", "t@t"},
+		{"config", "user.name", "t"},
+		{"commit", "-q", "--allow-empty", "-m", "fix: a\n\nthe body"},
+	} {
+		mustGit(t, m.ws, a...)
+	}
+
+	h, _ := git.Run(m.ws, "rev-parse", "--short", "HEAD")
+	m.st.Settings.GitPanes = map[string]proto.Pane{"Commits": {Open: true, H: 4}}
+	m.scm.drawers["Commits"] = []string{strings.TrimSpace(h) + " 2026-10-05 fix: a"}
+	m.scm.build(m)
+
+	_, ds := m.scm.geometry(m, m.scm.paneH(m))
+	y := m.bodyTop(viewGit) + ds[slices.IndexFunc(m.drawers(), func(d git.Drawer) bool { return d.Title == "Commits" })].body
+	x := m.colRect(m.colOf(viewGit)).x + 5
+	tip := func() bool { return strings.Contains(ansi.Strip(m.View().Content), "│ the body") }
+
+	m.Update(tea.MouseMotionMsg{X: x, Y: y})
+
+	if m.scm.tip.hash != strings.TrimSpace(h) || tip() {
+		t.Fatalf("the tip waits for the mouse to rest: %+v", m.scm.tip)
+	}
+
+	_, cmd := m.Update(m.scm.tip) // tipDelay has passed
+	fire(m, cmd)
+
+	if out := checkWidths(t, m); !tip() || !strings.Contains(ansi.Strip(out), "│ fix: a") {
+		t.Fatalf("no tip:\n%s", ansi.Strip(out))
+	}
+
+	m.Update(tea.MouseMotionMsg{X: x, Y: y - 1})
+
+	if tip() {
+		t.Fatal("the tip stays off the commit")
+	}
+
+	m.scm.sel = slices.IndexFunc(m.scm.rows, func(r scmRow) bool { return r.kind == rowLine && r.title == "Commits" })
+	m.scm.menu(m, 0, 0)
+
+	i := slices.IndexFunc(m.modal.disp, func(it item) bool { return it.label == "Copy Commit Message" })
+	runAll(m.modal.choose(m, i))
+
+	if got := mustRead(t, board); got != "fix: a\n\nthe body" {
+		t.Fatalf("clipboard %q", got)
+	}
+}
+
 func TestQuitConfirmation(t *testing.T) {
 	m := testModel(t)
 	// A filter is what esc clears first; only then does it offer to quit.

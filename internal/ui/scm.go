@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"charm.land/bubbles/v2/textarea"
@@ -68,6 +69,7 @@ type scmView struct {
 	last     *git.SuggestOpts // the last suggestion's request, for Regenerate
 	lastMsg  string           // and what it came back with
 	past     []string         // the draft, then the commit messages ↑ walks back through
+	tip      tipMsg           // the drawer commit under the mouse, with its message once loaded
 	hovRow   int              // row under the mouse in the frame being drawn, -1 = none
 }
 
@@ -76,6 +78,13 @@ type scmView struct {
 type pastMsg struct {
 	root, draft string
 	msgs        []string
+}
+
+// tipMsg wakes the drawers once the mouse has rested on commit hash, then
+// brings its message.
+type tipMsg struct {
+	root, hash, msg string
+	loaded          bool
 }
 
 type scmMsg struct {
@@ -1010,6 +1019,18 @@ func (s *scmView) onMsg(m *Model, msg tea.Msg) tea.Cmd {
 			}
 
 			s.step(m, 0, 1)
+		}
+
+	case tipMsg:
+		switch {
+		case msg.hash != s.tip.hash:
+		case msg.loaded:
+			s.tip = msg
+		default:
+			return func() tea.Msg {
+				text, _ := git.Message(msg.root, msg.hash) // no message, no tip
+				return tipMsg{root: msg.root, hash: msg.hash, msg: text, loaded: true}
+			}
 		}
 
 	case modalMsg:
@@ -2365,16 +2386,106 @@ func (s *scmView) createBranch(m *Model, root, name, from string) tea.Cmd {
 
 var hashRe = regexp.MustCompile(`\b[0-9a-f]{7,40}\b`)
 
+// commit is the hash on a Graph, Commits or File History line, "" on any
+// other row.
+func (r scmRow) commit() string {
+	if r.kind != rowLine || !slices.Contains([]string{"Graph", "Commits", "File History"}, r.title) {
+		return ""
+	}
+
+	return hashRe.FindString(r.text)
+}
+
+// commitAt is the commit on the drawer line at view row y, "" off one.
+func (s *scmView) commitAt(m *Model, y int) string {
+	if y < 0 || len(s.repos) == 0 {
+		return ""
+	}
+
+	_, ds := s.geometry(m, s.paneH(m))
+	for j, d := range ds {
+		if j < len(s.heads) && y >= d.body && y < d.body+d.h {
+			l := list{top: s.tops[m.drawers()[j].Title]}
+			if i := l.at(y-d.body, s.drawerEnd(j)-s.heads[j]-1); i >= 0 {
+				return s.rows[s.heads[j]+1+i].commit()
+			}
+		}
+	}
+
+	return ""
+}
+
+// tipDelay is how long the mouse rests on a commit before its message
+// shows, VS Code's workbench.hover.delay.
+const tipDelay = 500 * time.Millisecond
+
+// hoverTip follows the commit under the mouse: a move onto one wakes the
+// drawers after tipDelay, any other mouse event hides the tip.
+func (s *scmView) hoverTip(m *Model, msg tea.MouseMsg) tea.Cmd {
+	h := ""
+	if _, ok := msg.(tea.MouseMotionMsg); ok {
+		h = s.commitAt(m, m.hoverRow(viewGit))
+	}
+
+	if h == s.tip.hash {
+		return nil
+	}
+
+	s.tip = tipMsg{root: s.root(), hash: h}
+	if h == "" {
+		return nil
+	}
+
+	tip := s.tip
+
+	return tea.Tick(tipDelay, func(time.Time) tea.Msg { return tip })
+}
+
+// tipBox is the hovered commit's whole message, in a box by the mouse.
+func (s *scmView) tipBox(m *Model) (box []string, x, y int, ok bool) {
+	if !s.tip.loaded || s.tip.msg == "" || s.commitAt(m, m.hoverRow(viewGit)) != s.tip.hash {
+		return nil, 0, 0, false
+	}
+
+	lines := strings.Split(ansi.Wrap(s.tip.msg, max(min(72, m.w-6), 10), ""), "\n")
+	lines = lines[:min(len(lines), m.panelH()-2)]
+
+	iw := 0
+	for _, l := range lines {
+		iw = max(iw, ansi.StringWidth(l)+2)
+	}
+
+	side := dim.Render("│")
+	box = append(box, dim.Render("╭"+strings.Repeat("─", iw)+"╮"))
+
+	for i, l := range lines {
+		st := plain
+		if i == 0 {
+			st = st.Bold(true) // the subject
+		}
+
+		box = append(box, side+row(iw, nil, []seg{sg(" "+l, st)})+side)
+	}
+
+	box = append(box, dim.Render("╰"+strings.Repeat("─", iw)+"╯"))
+
+	x, y = max(min(m.mouseX+2, m.w-iw-2), 0), m.mouseY+1
+	if y+len(box) > m.panelH() {
+		y = max(m.mouseY-len(box), 0) // above the pointer instead
+	}
+
+	return box, x, y, true
+}
+
 func (s *scmView) lineAction(m *Model, r *scmRow) tea.Cmd {
 	root := s.root()
 
+	if h := r.commit(); h != "" {
+		return m.openShow(root, h)
+	}
+
 	text := strings.TrimSpace(r.text)
 	switch r.title {
-	case "Graph", "Commits", "File History":
-		if h := hashRe.FindString(r.text); h != "" {
-			return m.openShow(root, h)
-		}
-
 	case "Stashes":
 		ref, _, _ := strings.Cut(text, ":")
 		return m.openShow(root, ref)
@@ -2489,6 +2600,21 @@ func (s *scmView) items(m *Model) []item {
 		if e.Letter != 'D' {
 			items = append(items, item{label: "Edit in $EDITOR", run: func(m *Model) tea.Cmd { return m.edit(filepath.Join(root, e.Path)) }})
 		}
+	}
+
+	if r != nil && r.commit() != "" {
+		root, h := s.root(), r.commit()
+
+		items = append(items, item{label: "Copy Commit Message", run: func(*Model) tea.Cmd {
+			return func() tea.Msg {
+				msg, err := git.Message(root, h)
+				if err != nil {
+					return flashMsg{"copy: " + err.Error(), true}
+				}
+
+				return setClipboard(msg, "copied the commit message")()
+			}
+		}})
 	}
 
 	if r != nil && r.kind == rowDir {
