@@ -89,6 +89,8 @@ The action button (`scmView.action`):
 | ahead or behind                          | _Sync Changes_                          |
 | otherwise                                | muted Commit                            |
 
+A Commit with nothing staged is muted too, and a click on it does nothing.
+
 - Publish (`git.publish`): one remote pushes, several open a picker, none
   offers _Publish to GitHub_ via `gh`.
 - During a merge or cherry-pick an empty box commits `MERGE_MSG`.

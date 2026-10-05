@@ -754,15 +754,13 @@ func TestGitLayoutTreeAndPanes(t *testing.T) {
 		t.Fatalf("collapsed a still shows its files: %v", got)
 	}
 
-	// Clicking Commit with an empty message focuses the box instead of committing.
+	// Clicking Commit with nothing staged does nothing.
 	top := m.bodyTop(viewGit)
 	click(m, 10, top+rowIndex(&m.scm, rowCommit, ""), tea.MouseLeft)
 
-	if m.scm.busy != "" || !m.scm.input.Focused() {
-		t.Fatalf("empty commit: busy=%q focused=%v", m.scm.busy, m.scm.input.Focused())
+	if m.scm.busy != "" || m.scm.input.Focused() || m.msg != "" {
+		t.Fatalf("unstaged commit: busy=%q focused=%v msg=%q", m.scm.busy, m.scm.input.Focused(), m.msg)
 	}
-
-	m.scm.input.Blur()
 	// ∨ opens the commit menu.
 	l := m.colRect(0)
 	click(m, l.w-2, top+rowIndex(&m.scm, rowCommit, ""), tea.MouseLeft)
@@ -917,6 +915,7 @@ func TestCommitMessageSelect(t *testing.T) {
 // button's edges in the blank rows around it.
 func TestCommitSplitHover(t *testing.T) {
 	m := gitModel(t)
+	m.scm.onGit(m, gitMsg{ws: m.ws, repos: []string{m.ws}, status: map[string]git.Status{m.ws: {Branch: "main", Staged: []git.Entry{{Path: "a.go", Letter: 'M', Staged: true}}}}})
 	top := m.bodyTop(viewGit) + rowIndex(&m.scm, rowCommit, m.ws)
 	rc := m.colRect(m.colOf(viewGit))
 	hot := bgParams(pal.buttonHoverBg)
@@ -1110,8 +1109,14 @@ func TestGitActionButton(t *testing.T) {
 
 	show(git.Status{Branch: "main", Changes: []git.Entry{{Path: "a.go", Letter: 'M'}}})
 
+	if !strings.Contains(m.View().Content, bgParams(pal.mutedButtonBg)) {
+		t.Fatal("a Commit button with nothing staged is muted")
+	}
+
+	show(git.Status{Branch: "main", Staged: []git.Entry{{Path: "a.go", Letter: 'M', Staged: true}}})
+
 	if strings.Contains(m.View().Content, bgParams(pal.mutedButtonBg)) {
-		t.Fatal("a Commit button with changes is not muted")
+		t.Fatal("a Commit button with staged changes is not muted")
 	}
 	// Clicking the button runs what it shows; the in-flight label follows.
 	show(git.Status{Branch: "main", Upstream: "origin/main", Behind: 1})

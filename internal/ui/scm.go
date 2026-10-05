@@ -1512,7 +1512,7 @@ func (s *scmView) action(root string) string {
 // split ✓ Commit with a separator and the ∨ menu, or Publish Branch / Sync
 // Changes once nothing is left to commit. The hovered half of the button
 // darkens, the label or the ∨ at mouse column mx; an inactive repository's
-// button, or a Commit with nothing to commit, is muted. A non-empty edge
+// button, or a Commit with nothing staged, is muted. A non-empty edge
 // draws the blank row above (▁) or below (▔) the button as a sliver of its
 // colors, so it stands a few pixels taller than one cell.
 func (s *scmView) commitRow(m *Model, root string, w int, hovered bool, mx int, edge string) string {
@@ -1547,9 +1547,8 @@ func (s *scmView) commitRow(m *Model, root string, w int, hovered bool, mx int, 
 		text = icCheck.s() + " Commit"
 	}
 
-	idle := act == actCommit && st.Op == "" && len(st.Staged)+len(st.Changes)+len(st.Conflicts) == 0
 	bgc, fgc, sep := pal.buttonBg, pal.buttonFg, pal.buttonSep
-	muted := root != s.root() || idle
+	muted := root != s.root() || s.unstaged(root)
 
 	if muted {
 		bgc, fgc, sep = pal.mutedButtonBg, pal.mutedButtonFg, pal.mutedButtonFg
@@ -1603,6 +1602,14 @@ func (s *scmView) commitRow(m *Model, root string, w int, hovered bool, mx int, 
 	}
 
 	return " " + face(w-5) + bar + part(menu, 2, icChevron.s()+" ") + " "
+}
+
+// unstaged reports whether root's button is a Commit with nothing staged:
+// it is muted and a click on its label does nothing.
+func (s *scmView) unstaged(root string) bool {
+	st := s.status[root]
+
+	return s.action(root) == actCommit && st.Op == "" && len(st.Staged) == 0
 }
 
 // press runs the action button of the active repository.
@@ -2582,6 +2589,10 @@ func (s *scmView) click(m *Model, i, x, w int, mo tea.Mouse) tea.Cmd {
 		cmd := s.setRepo(m, r.root)
 		if x >= w-4 && x < w-1 && s.action(r.root) == actCommit {
 			s.commitMenu(m, mo.X, mo.Y)
+			return cmd
+		}
+
+		if s.unstaged(r.root) {
 			return cmd
 		}
 
