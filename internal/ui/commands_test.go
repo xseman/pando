@@ -1247,6 +1247,10 @@ func TestDrawerCommitMessage(t *testing.T) {
 	m.scm.sel = slices.IndexFunc(m.scm.rows, func(r scmRow) bool { return r.kind == rowLine && r.title == "Commits" })
 	m.scm.menu(m, 0, 0)
 
+	if slices.ContainsFunc(m.modal.disp, func(it item) bool { return it.label == "View as Tree" || it.label == "Collapse All" }) {
+		t.Fatalf("a drawer line offers the changes' view: %v", labels(m))
+	}
+
 	i := slices.IndexFunc(m.modal.disp, func(it item) bool { return it.label == "Copy Commit Message" })
 	runAll(m.modal.choose(m, i))
 

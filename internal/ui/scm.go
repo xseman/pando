@@ -2659,7 +2659,16 @@ func (s *scmView) items(m *Model) []item {
 	return items
 }
 
-func (s *scmView) menu(m *Model, x, y int) tea.Cmd { return m.menuOf(s.items(m), x, y) }
+// menu is the selected row's context menu. A drawer line's leaves out what
+// shapes the changes: a drawer is always a list.
+func (s *scmView) menu(m *Model, x, y int) tea.Cmd {
+	items := s.items(m)
+	if r := s.selected(); r != nil && r.kind == rowLine {
+		items = slices.DeleteFunc(items, func(it item) bool { return strings.HasPrefix(it.label, "View as ") || it.label == "Collapse All" })
+	}
+
+	return m.menuOf(items, x, y)
+}
 
 func (s *scmView) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 	mo := msg.Mouse()
