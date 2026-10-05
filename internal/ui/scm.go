@@ -1439,19 +1439,15 @@ func suggestPhrase(width int) string {
 // scrambleGlyphs is the noise a scrambled character cycles through.
 const scrambleGlyphs = `!#$%&*+-/<=>?@[\]^_{|}~01`
 
-// scramble renders phrase at frame of a loop that mixes it out of ASCII
-// noise: characters settle one by one (each a few frames off its neighbour),
-// the phrase holds with dots counting up, then it dissolves back into noise.
-// Settled characters take the accent, noise stays faint.
-func scramble(phrase string, frame int, box lipgloss.Style) string {
+// scramble renders phrase p frames into mixing it out of ASCII noise once:
+// characters settle one by one (each a few frames off its neighbour), then
+// the phrase holds with dots counting up. Settled characters take the
+// accent, noise stays faint.
+func scramble(phrase string, p int, box lipgloss.Style) string {
 	rs := []rune(phrase)
 	n := len(rs)
 
-	const jitter, hold, rest = 6, 24, 6
-
-	period := 2*(n+jitter) + hold + rest
-	p := frame % period
-	dissolve := n + jitter + hold
+	const jitter = 6
 
 	on := fg(pal.accent).Background(pal.inputBg).Bold(true)
 	off := dim.Background(pal.inputBg)
@@ -1460,7 +1456,7 @@ func scramble(phrase string, frame int, box lipgloss.Style) string {
 
 	for i, r := range rs {
 		at := i + fxHash(i, 0)%jitter
-		settled := p >= at && p < dissolve+at
+		settled := p >= at
 
 		switch {
 		case settled:
@@ -1472,7 +1468,7 @@ func scramble(phrase string, frame int, box lipgloss.Style) string {
 		}
 	}
 
-	if p >= n+jitter && p < dissolve {
+	if p >= n+jitter {
 		b.WriteString(on.Render(strings.Repeat(".", (p-n-jitter)/6%4)))
 	}
 
