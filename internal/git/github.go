@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -222,4 +224,41 @@ func CheckoutPR(dir string, n int, branch, temp string) error {
 	_, err := Run(dir, "branch", "-D", temp)
 
 	return err
+}
+
+// FetchPR fetches pull request n's head, and its base branch so that is
+// current, from the remote that holds the pull request's repository, and
+// returns the range of what the pull request changes: base...head.
+func FetchPR(root string, n int) (string, error) {
+	out, err := GH(root, "pr", "view", strconv.Itoa(n), "--json", "baseRefName,headRefOid,url")
+	if err != nil {
+		return "", err
+	}
+
+	var pr struct{ BaseRefName, HeadRefOid, URL string }
+	if err := json.Unmarshal([]byte(out), &pr); err != nil {
+		return "", err
+	}
+
+	repo, _, _ := strings.Cut(pr.URL, "/pull/")
+	slug := path.Base(path.Dir(repo)) + "/" + path.Base(repo) // owner/name
+
+	rs, err := Remotes(root)
+	if err != nil {
+		return "", err
+	}
+
+	i := slices.IndexFunc(rs, func(r Remote) bool {
+		u := strings.ToLower(strings.TrimSuffix(strings.TrimSuffix(r.URL, "/"), ".git"))
+		return strings.HasSuffix(u, "/"+strings.ToLower(slug)) || strings.HasSuffix(u, ":"+strings.ToLower(slug))
+	})
+	if i < 0 {
+		return "", fmt.Errorf("no remote for %s", slug)
+	}
+
+	if _, err := Run(root, "fetch", "-q", rs[i].Name, pr.BaseRefName, "refs/pull/"+strconv.Itoa(n)+"/head"); err != nil {
+		return "", err
+	}
+
+	return rs[i].Name + "/" + pr.BaseRefName + "..." + pr.HeadRefOid, nil
 }

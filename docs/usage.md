@@ -117,6 +117,12 @@ a message box, and drawers for the graph, commits, file history, branches,
 worktrees, remotes, stashes and tags. A commit in a drawer shows its whole
 message when the mouse rests on it; right click copies it.
 
+⏎ on a commit lists the files it changed in the Compare drawer, read-only,
+as GitLens does; ⏎ on a file opens its diff. A commit's right-click menu
+compares it with HEAD, with the working tree, or with a commit picked by
+_Select for Compare_; _Open Changed Files_ on a pull request in GitHub does
+the same for the pull request.
+
 | Key       | In Source Control                                          |
 | --------- | ---------------------------------------------------------- |
 | `⏎`       | stage or unstage the file; `o` opens its diff              |

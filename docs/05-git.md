@@ -111,6 +111,11 @@ A branch checked out in another worktree opens that worktree instead.
 - `Commit`, `Amend` (`--no-edit` with no message).
 - `Messages`: the last 100 messages of `log`, the message box's `↑` history;
   `Message`: one commit's, for a drawer line's tip and copy.
+- `Compare`: `diff --name-status -z -M RANGE` (`parseNameStatus`, fuzzed);
+  `CompareDiff` one file of it, a rename with its source. `CommitRange` is a
+  commit's own range, from the empty tree for a root commit. `FetchPR` reads
+  base and head with `gh pr view`, fetches both from the remote whose URL ends
+  in the PR's `owner/repo`, and returns `REMOTE/base...head`.
 - `Sync`: `pull --rebase --autostash`, then `push`.
 - `Publish`: `remote add` when given a URL, then `push -u REMOTE HEAD`.
   Commit & Sync publishes instead while the branch has no upstream.

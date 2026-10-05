@@ -241,3 +241,38 @@ fi`)
 		}
 	}
 }
+
+// TestFetchPR fetches a pull request's head from the remote of its
+// repository, not another, and compares it from where it left its base.
+func TestFetchPR(t *testing.T) {
+	root := repo(t)
+	mustWrite(t, filepath.Join(root, "a.txt"), "a\n")
+	must(t, "stage", StageAll(root))
+	must(t, "commit", Commit(root, "one"))
+
+	srv := filepath.Join(t.TempDir(), "owner", "repo")
+	mustGit(t, root, "clone", "-q", "--bare", root, srv)
+	mustGit(t, root, "switch", "-q", "-c", "feature")
+	mustWrite(t, filepath.Join(root, "b.txt"), "b\n")
+	must(t, "stage", StageAll(root))
+	must(t, "commit", Commit(root, "two"))
+	mustGit(t, root, "push", "-q", srv, "feature:refs/pull/7/head")
+
+	head, _ := Run(root, "rev-parse", "HEAD")
+	head = strings.TrimSpace(head)
+
+	mustGit(t, root, "switch", "-q", "main")
+	mustGit(t, root, "branch", "-q", "-D", "feature") // only the remote has it now
+	mustGit(t, root, "remote", "add", "fork", srv+"2")
+	mustGit(t, root, "remote", "add", "up", srv)
+	fakeGH(t, `echo '{"baseRefName":"main","headRefOid":"`+head+`","url":"https://github.com/Owner/repo/pull/7"}'`)
+
+	spec, err := FetchPR(root, 7)
+	if err != nil || spec != "up/main..."+head {
+		t.Fatalf("spec %q, %v", spec, err)
+	}
+
+	if es, err := Compare(root, spec); err != nil || len(es) != 1 || es[0].Path != "b.txt" {
+		t.Fatalf("pull request files: %v %+v", err, es)
+	}
+}

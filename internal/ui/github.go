@@ -1027,6 +1027,7 @@ func (g *ghView) items(m *Model) []item {
 
 		add("Open Description", "⏎", func(m *Model) tea.Cmd { return m.openGH("pr", it.Number) })
 		add("Open Changes", "d", func(m *Model) tea.Cmd { return m.openGHDiff(it.Number) })
+		add("Open Changed Files", "", func(m *Model) tea.Cmd { return m.comparePR(it.Number) })
 		link()
 
 		out = append(out, separator())
@@ -1052,6 +1053,11 @@ func (g *ghView) items(m *Model) []item {
 		n := r.note
 
 		add("Open", "⏎", func(m *Model) tea.Cmd { return m.gh.activate(m, r) })
+
+		if n.Type == "PullRequest" && n.Number > 0 {
+			add("Open Changed Files", "", func(m *Model) tea.Cmd { return m.comparePR(n.Number) })
+		}
+
 		link()
 		add("Mark as Read", "", func(m *Model) tea.Cmd { return m.gh.markRead(m, n) })
 		add("Mark as Done", "x", func(m *Model) tea.Cmd { return m.gh.markDone(m, n) })
@@ -1064,6 +1070,14 @@ func (g *ghView) items(m *Model) []item {
 	add("Collapse All", "C", func(m *Model) tea.Cmd { m.gh.collapseAll(); return nil })
 
 	return out
+}
+
+// comparePR shows Source Control with pull request n's files in its
+// Compare drawer, once its head is fetched.
+func (m *Model) comparePR(n int) tea.Cmd {
+	label := "PR #" + strconv.Itoa(n)
+
+	return tea.Batch(m.showView(viewGit), m.scm.compare(label, func(root string) (string, error) { return git.FetchPR(root, n) }))
 }
 
 func (g *ghView) key(m *Model, k tea.KeyPressMsg) tea.Cmd {

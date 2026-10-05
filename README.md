@@ -51,7 +51,8 @@ Needs git. Optional: `gh` for GitHub, `rg` for search, language servers
 - **Agent sessions**: projects → worktrees → sessions, each with shell tabs,
   marked when they need you, resumed after a daemon restart.
 - **Source Control**: VS Code's view — line-level staging, Commit & Sync,
-  Publish, AI commit messages, history drawers.
+  Publish, AI commit messages, history drawers, GitLens-style commit and pull
+  request comparisons.
 - **Diffs**: inline or side by side, word-level highlights, a file's
   revisions stepped through like GitLens.
 - **Editor**: undo, find & replace, suggestions, format on save, vim mode,

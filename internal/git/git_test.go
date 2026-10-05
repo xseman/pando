@@ -494,6 +494,84 @@ func TestMessages(t *testing.T) {
 	}
 }
 
+func TestCompare(t *testing.T) {
+	root := repo(t)
+	long := strings.Repeat("a line that keeps the rename similar\n", 20)
+
+	mustWrite(t, filepath.Join(root, "a.txt"), "a\n")
+	mustWrite(t, filepath.Join(root, "b.txt"), "b\n")
+	mustWrite(t, filepath.Join(root, "d.txt"), long)
+	must(t, "stage all", StageAll(root))
+	must(t, "commit one", Commit(root, "one"))
+
+	first, _ := Run(root, "rev-parse", "HEAD")
+	first = strings.TrimSpace(first)
+
+	spec, err := CommitRange(root, first)
+	if es, _ := Compare(root, spec); err != nil || len(es) != 3 || es[0] != (Entry{Path: "a.txt", Letter: 'A'}) {
+		t.Fatalf("root commit %q: %v %+v", spec, err, es)
+	}
+
+	mustWrite(t, filepath.Join(root, "a.txt"), "a\nmore\n")
+	mustGit(t, root, "rm", "-q", "b.txt")
+	mustGit(t, root, "mv", "d.txt", "e.txt")
+	mustWrite(t, filepath.Join(root, "c.txt"), "c\n")
+	must(t, "stage all", StageAll(root))
+	must(t, "commit two", Commit(root, "two"))
+
+	spec, err = CommitRange(root, "HEAD")
+	if err != nil || spec != "HEAD^..HEAD" {
+		t.Fatalf("range %q %v", spec, err)
+	}
+
+	es, err := Compare(root, spec)
+	want := []Entry{{Path: "a.txt", Letter: 'M'}, {Path: "b.txt", Letter: 'D'}, {Path: "c.txt", Letter: 'A'}, {Path: "e.txt", Orig: "d.txt", Letter: 'R'}}
+
+	if err != nil || !slices.Equal(es, want) {
+		t.Fatalf("second commit: %v %+v", err, es)
+	}
+
+	if d, err := CompareDiff(root, spec, es[3]); err != nil || !strings.Contains(d, "rename from d.txt") {
+		t.Fatalf("rename diff: %v %q", err, d)
+	}
+
+	mustWrite(t, filepath.Join(root, "c.txt"), "c\nlocal\n")
+
+	if es, err := Compare(root, first); err != nil || len(es) != 4 { // the working tree against the first commit
+		t.Fatalf("against the working tree: %v %+v", err, es)
+	}
+
+	if d, _ := CompareDiff(root, "HEAD", Entry{Path: "c.txt"}); !strings.Contains(d, "+local") {
+		t.Fatalf("working tree diff %q", d)
+	}
+}
+
+func FuzzParseNameStatus(f *testing.F) {
+	for _, s := range []string{"M\x00a.go\x00", "R100\x00old\x00new\x00A\x00b\x00", "C075\x00x\x00", "", "\x00\x00", "D"} {
+		f.Add(s)
+	}
+	// What it parsed, written back as git would, parses the same.
+	f.Fuzz(func(t *testing.T, s string) {
+		es := parseNameStatus(s)
+
+		var b strings.Builder
+
+		for _, e := range es {
+			b.WriteString(string([]byte{e.Letter}) + "\x00")
+
+			if e.Orig != "" {
+				b.WriteString(e.Orig + "\x00")
+			}
+
+			b.WriteString(e.Path + "\x00")
+		}
+
+		if again := parseNameStatus(b.String()); !slices.Equal(again, es) {
+			t.Fatalf("%q: %+v, written back %q: %+v", s, es, b.String(), again)
+		}
+	})
+}
+
 func TestRefs(t *testing.T) {
 	root := repo(t)
 	mustWrite(t, filepath.Join(root, "f"), "1\n")

@@ -26,6 +26,7 @@ editable, and `editable` also refuses a truncated file and a rendering.
 | `diff`   | working tree or index diff of one file         | Source Control ⏎ / `o`             |
 | `show`   | a whole commit, `git show`                     | a drawer line (hash)               |
 | `rev`    | what one revision changed in the open file     | header `←` `→`, `H`                |
+| `cmp`    | one file of a range, `git diff RANGE -- file`  | a Compare drawer file              |
 | `gh`     | a pull request or issue, rendered Markdown     | GitHub ⏎                           |
 | `ghdiff` | a pull request's changes, `gh pr diff`         | GitHub `d`                         |
 

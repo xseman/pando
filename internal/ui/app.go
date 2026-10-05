@@ -2517,7 +2517,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.onActions(msg)
 	case appliedMsg:
 		return m, m.onApplied(msg)
-	case scmMsg, drawerMsg, modalMsg, stageMsg, pastMsg, tipMsg:
+	case scmMsg, drawerMsg, modalMsg, stageMsg, pastMsg, tipMsg, cmpMsg:
 		return m, m.scm.onMsg(m, msg)
 	case previewMsg:
 		m.pv.onLoad(m, msg)

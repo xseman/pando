@@ -99,15 +99,26 @@ A Commit with nothing staged is muted too, and a click on it does nothing.
   `claude` writes, the box draws `scramble`.
 - `↑` on the box's top line walks back through `git.Messages`, the draft
   first in `scmView.past`; `↓` on the bottom line walks forward to it.
-- Drawers (`Graph`, `Commits`, `File History`, `Branches`, `Worktrees`,
-  `Remotes`, `Stashes`, `Tags`) run one git command each; shown, open and
-  height live in `git_panes`.
+- Drawers (`Graph`, `Commits`, `File History`, `Compare`, `Branches`,
+  `Worktrees`, `Remotes`, `Stashes`, `Tags`) run one git command each; shown,
+  open and height live in `git_panes`.
 - Drawers stack like Spaces' projects (`flipDrawer`): open ones above closed
   ones, an opened drawer on top, a closed one on top of the closed, in
   `git_drawers` order.
 - A commit line (Graph, Commits, File History) shows its whole message in a
   box by the mouse after `tipDelay` (`tipBox`); its right-click menu has
   _Copy Commit Message_.
+- `Compare` lists, read-only, the files one git diff range changes
+  (`scmView.cmp`, `git.Compare`), as a tree or a list like the changes; ⏎ on a
+  file opens preview kind `cmp`. One comparison at a time, not saved:
+
+| Source                                    | Range                        |
+| ----------------------------------------- | ---------------------------- |
+| ⏎ or click on a commit line               | `git.CommitRange`            |
+| Compare with HEAD                         | `h..HEAD`                    |
+| Compare Working Tree to Here              | `h`                          |
+| Select for Compare, then Compare with `s` | `s..h`                       |
+| Open Changed Files on a PR or its notice  | `git.FetchPR`: `base...head` |
 
 ## Spaces
 
@@ -256,6 +267,7 @@ without gh the view does not exist.
 | -------------------------- | -------------------------------------------------------- |
 | Description (⏎)            | preview kind `gh` (`ghMarkdown`)                         |
 | Changes (`d`)              | preview kind `ghdiff`, `gh pr diff`                      |
+| Changed Files              | Source Control's Compare drawer (`comparePR`)            |
 | Checkout in worktree (`w`) | the branch's worktree, else a new one (`git.CheckoutPR`) |
 | Start working (`w`, issue) | New Worktree prompt with `issue/<n>-<slug>`              |
 | Merge…                     | `gh pr merge --match-head-commit`                        |

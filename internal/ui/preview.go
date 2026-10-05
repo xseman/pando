@@ -46,6 +46,7 @@ const (
 	pvDiff = "diff" // one entry's working-tree or index diff
 	pvShow = "show" // a commit, as `git show` prints it
 	pvRev  = "rev"  // one revision of a file out of its history
+	pvCmp  = "cmp"  // one file of a comparison: rev is the range, entry the file
 	// A pull request or an issue as gh shows it, rendered as Markdown; rev
 	// is "pr/12" or "issue/5".
 	pvGH     = "gh"
@@ -176,6 +177,13 @@ func (p *preview) label(ws string) (name, context string) {
 
 	case pvShow:
 		return "git show " + p.rev, filepath.Base(p.root)
+	case pvCmp:
+		if dir := filepath.Dir(p.path); dir != "." {
+			return filepath.Base(p.path), dir + " — " + p.rev
+		}
+
+		return filepath.Base(p.path), p.rev
+
 	case pvGH:
 		kind, n, _ := strings.Cut(p.rev, "/")
 		return map[string]string{"pr": "PR", "issue": "Issue"}[kind] + " #" + n, "description"
@@ -694,6 +702,11 @@ func (m *Model) openDiff(root string, e git.Entry) tea.Cmd {
 	return m.setPreview(preview{kind: pvDiff, root: root, path: e.Path, entry: e})
 }
 
+// openCompare opens what file e of a Compare drawer changed across spec.
+func (m *Model) openCompare(root, spec string, e git.Entry) tea.Cmd {
+	return m.setPreview(preview{kind: pvCmp, root: root, path: e.Path, rev: spec, entry: e})
+}
+
 func (m *Model) openShow(root, rev string) tea.Cmd {
 	return m.setPreview(preview{kind: pvShow, root: root, rev: rev})
 }
@@ -825,6 +838,14 @@ func (p *preview) fetch() (string, error) {
 
 	case pvShow:
 		return git.Run(p.root, "show", "--stat", "--patch", p.rev)
+	case pvCmp:
+		out, err := git.CompareDiff(p.root, p.rev, p.entry)
+		if err == nil && out == "" {
+			out = "(no changes)"
+		}
+
+		return out, err
+
 	case pvGH:
 		kind, n, _ := strings.Cut(p.rev, "/")
 		return ghDocument(p.root, kind, n)

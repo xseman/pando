@@ -70,6 +70,8 @@ type scmView struct {
 	lastMsg  string           // and what it came back with
 	past     []string         // the draft, then the commit messages ↑ walks back through
 	tip      tipMsg           // the drawer commit under the mouse, with its message once loaded
+	cmp      cmpMsg           // what the Compare drawer compares, and the files that differ
+	cmpSel   string           // the commit Select for Compare picked
 	hovRow   int              // row under the mouse in the frame being drawn, -1 = none
 }
 
@@ -78,6 +80,19 @@ type scmView struct {
 type pastMsg struct {
 	root, draft string
 	msgs        []string
+}
+
+// cmpTitle is the drawer that lists, read-only, the files two revisions
+// differ in.
+const cmpTitle = "Compare"
+
+// cmpMsg is a comparison for the Compare drawer: a git diff range, how its
+// header names it, and the files that differ; open marks a new one.
+type cmpMsg struct {
+	root, spec, label string
+	files             []git.Entry
+	err               error
+	open              bool
 }
 
 // tipMsg wakes the drawers once the mouse has rested on commit hash, then
@@ -302,7 +317,7 @@ func (s *scmView) setRepo(m *Model, root string) tea.Cmd {
 
 	s.last, s.lastMsg = nil, "" // Regenerate belongs to the repository it wrote for
 
-	s.drawers, s.history = map[string][]string{}, ""
+	s.drawers, s.history, s.cmp, s.cmpSel = map[string][]string{}, "", cmpMsg{}, ""
 	for k := range s.tops {
 		if k != "" {
 			delete(s.tops, k)
@@ -363,14 +378,8 @@ func (s *scmView) build(m *Model) {
 			}
 
 			s.rows = append(s.rows, scmRow{kind: rowSection, root: root, title: title, text: strconv.Itoa(len(entries))})
-			switch {
-			case s.closed[sectionKey(root, title)]:
-			case m.st.Settings.GitTree:
-				s.rows = append(s.rows, treeRows(root, title, entries, s.closed)...)
-			default:
-				for _, e := range entries {
-					s.rows = append(s.rows, scmRow{kind: rowFile, root: root, title: title, entry: e})
-				}
+			if !s.closed[sectionKey(root, title)] {
+				s.rows = append(s.rows, s.fileRows(m, root, title, entries)...)
 			}
 		}
 		tracked, untracked := splitUntracked(st.Changes)
@@ -390,6 +399,13 @@ func (s *scmView) build(m *Model) {
 			continue
 		}
 
+		if d.Title == cmpTitle && s.cmp.spec != "" {
+			files := slices.DeleteFunc(slices.Clone(s.cmp.files), func(e git.Entry) bool { return q != "" && fuzzy(q, e.Path) < 0 })
+			s.rows = append(s.rows, s.fileRows(m, s.cmp.root, cmpTitle, files)...)
+
+			continue
+		}
+
 		for _, l := range s.drawers[d.Title] {
 			if lq == "" || strings.Contains(strings.ToLower(l), lq) {
 				s.rows = append(s.rows, scmRow{kind: rowLine, title: d.Title, text: l})
@@ -400,6 +416,77 @@ func (s *scmView) build(m *Model) {
 	if s.sel >= len(s.rows) || (s.sel >= 0 && s.rows[s.sel].widget()) {
 		s.sel = -1
 	}
+}
+
+// compare fills the Compare drawer with the range spec works out in the
+// active repository, named label in its header.
+func (s *scmView) compare(label string, spec func(root string) (string, error)) tea.Cmd {
+	root := s.root()
+
+	return func() tea.Msg {
+		sp, err := spec(root)
+		if err != nil {
+			return cmpMsg{root: root, err: err, open: true}
+		}
+
+		files, err := git.Compare(root, sp)
+
+		return cmpMsg{root: root, spec: sp, label: label, files: files, err: err, open: true}
+	}
+}
+
+// onCompare takes a comparison in: a new one opens the drawer, a reload of
+// the one shown refreshes its files. The selected row stays selected as the
+// drawer's rows come and go above it.
+func (s *scmView) onCompare(m *Model, msg cmpMsg) tea.Cmd {
+	switch {
+	case msg.root != s.root(), !msg.open && msg.spec != s.cmp.spec:
+		return nil
+	case msg.err != nil:
+		return flash(msg.err.Error(), true)
+	}
+
+	var was *scmRow
+	if r := s.selected(); r != nil {
+		was = new(*r)
+	}
+
+	if msg.open {
+		s.tops[cmpTitle] = 0
+	}
+
+	s.cmp = msg
+
+	var cmd tea.Cmd
+
+	shown := slices.ContainsFunc(m.drawers(), func(d git.Drawer) bool { return d.Title == cmpTitle })
+	if msg.open && (!shown || !m.pane(cmpTitle).Open) {
+		cmd = s.setDrawer(m, cmpTitle, true)
+	} else {
+		s.build(m)
+	}
+
+	if was != nil {
+		if i := slices.Index(s.rows, *was); i >= 0 {
+			s.sel = i
+		}
+	}
+
+	return cmd
+}
+
+// fileRows lays entries out as a tree or a list, as git_tree says.
+func (s *scmView) fileRows(m *Model, root, title string, entries []git.Entry) []scmRow {
+	if m.st.Settings.GitTree {
+		return treeRows(root, title, entries, s.closed)
+	}
+
+	rows := make([]scmRow, len(entries))
+	for i, e := range entries {
+		rows[i] = scmRow{kind: rowFile, root: root, title: title, entry: e}
+	}
+
+	return rows
 }
 
 // splitUntracked separates untracked files from other unstaged changes.
@@ -469,6 +556,10 @@ func (s *scmView) actions(r scmRow, w int) []rowAction {
 
 	add := func(g glyph, run func(*Model) tea.Cmd) { acts = append(acts, rowAction{g: g, run: run}) }
 	tail := 3 // " M "
+
+	if r.title == cmpTitle { // read-only: nothing to stage or discard
+		return nil
+	}
 
 	switch r.kind {
 	case rowSection:
@@ -979,12 +1070,20 @@ func (s *scmView) loadDrawers(m *Model) tea.Cmd {
 			continue
 		}
 
-		title, args, file := d.Title, d.Args, s.history
+		title, args, file, c := d.Title, d.Args, s.history, s.cmp
 
 		cmds = append(cmds, func() tea.Msg {
 			switch {
 			case args != nil:
 				return drawerMsg{root, title, git.Lines(root, args...)}
+			case title == cmpTitle && c.spec == "":
+				return drawerMsg{root, title, []string{"select a commit to see the files it changed"}}
+			case title == cmpTitle:
+				c.open = false
+				c.files, c.err = git.Compare(root, c.spec)
+
+				return c
+
 			case file == "":
 				return drawerMsg{root, title, []string{"select a file to follow its history"}}
 			}
@@ -1021,6 +1120,8 @@ func (s *scmView) onMsg(m *Model, msg tea.Msg) tea.Cmd {
 			s.step(m, 0, 1)
 		}
 
+	case cmpMsg:
+		return s.onCompare(m, msg)
 	case tipMsg:
 		switch {
 		case msg.hash != s.tip.hash:
@@ -1301,6 +1402,10 @@ func (s *scmView) renderRow(m *Model, i, w int, hovered bool) string {
 		left := []seg{sg(" "+chevron(p.Open), base.Bold(true)), sg(r.title, base.Bold(true))}
 		if r.title == "File History" && s.history != "" {
 			left = append(left, sg("  "+path.Base(s.history), dim))
+		}
+
+		if r.title == cmpTitle && s.cmp.label != "" {
+			left = append(left, sg("  "+s.cmp.label+" · "+strconv.Itoa(len(s.cmp.files)), dim))
 		}
 
 		var right []seg
@@ -2096,6 +2201,10 @@ func (s *scmView) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	case "enter", "space":
 		return s.activate(m, r, false)
 	case "o":
+		if r != nil && r.kind == rowFile && r.title == cmpTitle {
+			return s.activate(m, r, false)
+		}
+
 		if r != nil && r.kind == rowFile {
 			return m.openDiff(r.root, r.entry)
 		}
@@ -2150,6 +2259,10 @@ func (s *scmView) activate(m *Model, r *scmRow, click bool) tea.Cmd {
 
 	case rowFile:
 		e := r.entry
+		if r.title == cmpTitle {
+			return m.openCompare(s.cmp.root, s.cmp.spec, e)
+		}
+
 		if e.Letter == '!' {
 			switch {
 			case click && e.XY == "DD":
@@ -2182,8 +2295,13 @@ func (s *scmView) activate(m *Model, r *scmRow, click bool) tea.Cmd {
 // group, as Spaces folds a project: opened it tops every drawer, closed it
 // tops the closed ones. A selected header stays selected.
 func (s *scmView) flipDrawer(m *Model, title string) tea.Cmd {
+	return s.setDrawer(m, title, !m.pane(title).Open)
+}
+
+// setDrawer shows drawer title, open or closed, where flipDrawer puts it.
+func (s *scmView) setDrawer(m *Model, title string, open bool) tea.Cmd {
 	p := m.pane(title)
-	p.Open = !p.Open
+	p.Open = open
 	r := s.selected()
 	sel := r != nil && r.kind == rowDrawer && r.title == title
 
@@ -2481,7 +2599,7 @@ func (s *scmView) lineAction(m *Model, r *scmRow) tea.Cmd {
 	root := s.root()
 
 	if h := r.commit(); h != "" {
-		return m.openShow(root, h)
+		return tea.Batch(m.openShow(root, h), s.compare(h, func(root string) (string, error) { return git.CommitRange(root, h) }))
 	}
 
 	text := strings.TrimSpace(r.text)
@@ -2581,7 +2699,16 @@ func (s *scmView) items(m *Model) []item {
 
 	var items []item
 
-	if r != nil && r.kind == rowFile {
+	if r != nil && r.kind == rowFile && r.title == cmpTitle {
+		e, root, spec := r.entry, r.root, s.cmp.spec
+
+		items = append(items, item{label: "Open Changes", hint: "o", run: func(m *Model) tea.Cmd { return m.openCompare(root, spec, e) }})
+		if e.Letter != 'D' {
+			items = append(items, item{label: "Open File", hint: "O", run: func(m *Model) tea.Cmd { return m.openFile(filepath.Join(root, e.Path)) }})
+		}
+	}
+
+	if r != nil && r.kind == rowFile && r.title != cmpTitle {
 		e, root, row := r.entry, r.root, *r
 
 		items = append(items, item{label: "Open Changes", hint: "o", run: func(m *Model) tea.Cmd { return m.openDiff(root, e) }},
@@ -2615,9 +2742,22 @@ func (s *scmView) items(m *Model) []item {
 				return setClipboard(msg, "copied the commit message")()
 			}
 		}})
+
+		with := func(label, spec string) func(*Model) tea.Cmd {
+			return func(*Model) tea.Cmd { return s.compare(label, func(string) (string, error) { return spec, nil }) }
+		}
+
+		items = append(items,
+			item{label: "Compare with HEAD", run: with(h+" ↔ HEAD", h+"..HEAD")},
+			item{label: "Compare Working Tree to Here", run: with(h+" ↔ working tree", h)},
+			item{label: "Select for Compare", run: func(*Model) tea.Cmd { s.cmpSel = h; return flash("selected "+h+" for compare", false) }})
+
+		if sel := s.cmpSel; sel != "" && sel != h {
+			items = append(items, item{label: "Compare with " + sel, run: with(sel+" ↔ "+h, sel+".."+h)})
+		}
 	}
 
-	if r != nil && r.kind == rowDir {
+	if r != nil && r.kind == rowDir && r.title != cmpTitle {
 		dir, root := git.Entry{Path: r.path}, r.root
 		switch r.title {
 		case "Merge Changes":

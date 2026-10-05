@@ -809,6 +809,56 @@ func Message(root, rev string) (string, error) {
 	return strings.TrimSpace(out), err
 }
 
+// CommitRange is the diff range of what commit h changed: from its first
+// parent, or from the empty tree for a root commit.
+func CommitRange(root, h string) (string, error) {
+	if _, err := Run(root, "rev-parse", "--verify", "-q", h+"^"); err == nil {
+		return h + "^.." + h, nil
+	}
+
+	empty, err := run(root, strings.NewReader(""), "hash-object", "-t", "tree", "--stdin")
+
+	return strings.TrimSpace(empty) + ".." + h, err
+}
+
+// Compare lists the files that differ across spec, any range git diff
+// takes: "a..b", "a...b", or a lone revision against the working tree.
+func Compare(root, spec string) ([]Entry, error) {
+	out, err := Run(root, "diff", "--name-status", "-z", "-M", spec, "--")
+	return parseNameStatus(out), err
+}
+
+// CompareDiff is the patch of one file Compare listed, a rename with its
+// source so git pairs them.
+func CompareDiff(root, spec string, e Entry) (string, error) {
+	args := []string{"diff", "--no-color", "--no-ext-diff", "-M", spec, "--", e.Path}
+	if e.Orig != "" {
+		args = append(args, e.Orig)
+	}
+
+	return Run(root, args...)
+}
+
+// parseNameStatus reads `git diff --name-status -z`: a status, then one path,
+// or two (source, then destination) for a rename or a copy.
+func parseNameStatus(out string) []Entry {
+	f := strings.Split(out, "\x00")
+
+	var es []Entry
+
+	for i := 0; i+1 < len(f) && f[i] != ""; i += 2 {
+		e := Entry{Letter: f[i][0], Path: f[i+1]}
+		if (e.Letter == 'R' || e.Letter == 'C') && i+2 < len(f) && f[i+1] != "" && f[i+2] != "" {
+			e.Orig, e.Path = e.Path, f[i+2]
+			i++
+		}
+
+		es = append(es, e)
+	}
+
+	return es
+}
+
 // Amend rewrites the last commit with the staged changes, keeping its
 // message when msg is empty.
 func Amend(root, msg string) error {
@@ -899,6 +949,7 @@ var Drawers = []Drawer{
 	{"Graph", []string{"log", "--graph", "--oneline", "--decorate=short", "-n", "200", "--all"}},
 	{"Commits", []string{"log", "--format=%h %ad %s", "--date=short", "-n", "200"}},
 	{"File History", nil},
+	{"Compare", nil},
 	{"Branches", []string{"branch", "-a", "--format=%(HEAD) %(refname:short) %(upstream:track)"}},
 	{"Worktrees", []string{"worktree", "list"}},
 	{"Remotes", []string{"remote", "-v"}},

@@ -1259,6 +1259,131 @@ func TestDrawerCommitMessage(t *testing.T) {
 	}
 }
 
+// TestCompareDrawer is GitLens' commit view in the Compare drawer: a click
+// on a commit lists the files it changed, read-only, with the commit line
+// still selected; a file opens its diff, and the line's menu compares it
+// with HEAD or with a commit selected before.
+func TestCompareDrawer(t *testing.T) {
+	m := gitModel(t)
+	for _, a := range [][]string{
+		{"init", "-q", "-b", "main"},
+		{"config", "user.email", "t@t"},
+		{"config", "user.name", "t"},
+		{"add", "-A"},
+		{"commit", "-qm", "one"},
+	} {
+		mustGit(t, m.ws, a...)
+	}
+
+	mustWrite(t, filepath.Join(m.ws, "README.md"), "# hi\nmore\n")
+	mustWrite(t, filepath.Join(m.ws, "src", "new.go"), "package src\n")
+	mustGit(t, m.ws, "add", "-A")
+	mustGit(t, m.ws, "commit", "-qm", "two")
+
+	short := func(rev string) string {
+		out, _ := git.Run(m.ws, "rev-parse", "--short", rev)
+		return strings.TrimSpace(out)
+	}
+	one, two := short("HEAD~1"), short("HEAD")
+
+	m.st.Settings.GitPanes = map[string]proto.Pane{"Commits": {Open: true, H: 6}}
+	m.scm.drawers["Commits"] = []string{two + " 2026-10-05 two", one + " 2026-10-05 one"}
+	m.scm.build(m)
+
+	// update feeds key k and every message its commands bring back.
+	update := func(k string) {
+		_, cmd := m.Update(keyMsg(k))
+		for _, msg := range runAll(cmd) {
+			m.Update(msg)
+		}
+	}
+	line := func(title, text string) int {
+		return slices.IndexFunc(m.scm.rows, func(r scmRow) bool { return r.title == title && strings.Contains(r.text+r.entry.Path, text) })
+	}
+	files := func() (out []string) {
+		for _, r := range m.scm.rows {
+			if r.title == cmpTitle && r.kind == rowFile {
+				out = append(out, string(r.entry.Letter)+" "+r.entry.Path)
+			}
+		}
+
+		return out
+	}
+
+	m.scm.sel = line("Commits", two)
+
+	update("enter")
+
+	if d := m.drawers(); d[0].Title != cmpTitle || !m.pane(cmpTitle).Open {
+		t.Fatalf("the Compare drawer opens on top: %v", d)
+	}
+
+	if got := files(); !slices.Equal(got, []string{"M README.md", "A src/new.go"}) {
+		t.Fatalf("files %v", got)
+	}
+
+	if r := m.scm.selected(); r == nil || !strings.HasPrefix(r.text, two) {
+		t.Fatalf("the commit stays selected: %+v", r)
+	}
+
+	if out := ansi.Strip(checkWidths(t, m)); !strings.Contains(out, "Compare  "+two+" · 2") {
+		t.Fatalf("header names the commit:\n%s", out)
+	}
+
+	m.scm.sel = line(cmpTitle, "README.md")
+	if acts := m.scm.actions(m.scm.rows[m.scm.sel], 40); acts != nil {
+		t.Fatalf("a compared file has buttons: %+v", acts)
+	}
+
+	m.scm.menu(m, 0, 0)
+
+	if l := labels(m); !slices.Contains(l, "Open Changes") || slices.Contains(l, "Stage") || slices.Contains(l, "Discard Changes…") {
+		t.Fatalf("compared file menu: %v", l)
+	}
+
+	m.modal = nil
+
+	update("enter")
+
+	if m.pv.kind != pvCmp || !strings.Contains(m.pv.text(), "more") {
+		t.Fatalf("diff %s: %q", m.pv.kind, m.pv.text())
+	}
+	// The first commit against HEAD, then against the second one picked first.
+	m.scm.sel = line("Commits", one)
+	m.scm.menu(m, 0, 0)
+
+	choose := func(label string) {
+		t.Helper()
+
+		i := slices.IndexFunc(m.modal.disp, func(it item) bool { return it.label == label })
+		if i < 0 {
+			t.Fatalf("menu lacks %q: %v", label, labels(m))
+		}
+
+		for _, msg := range runAll(m.modal.choose(m, i)) {
+			m.Update(msg)
+		}
+	}
+
+	choose("Compare with HEAD")
+
+	if m.scm.cmp.spec != one+"..HEAD" || len(files()) != 2 {
+		t.Fatalf("with HEAD: %q %v", m.scm.cmp.spec, files())
+	}
+
+	m.scm.sel = line("Commits", two)
+	m.scm.menu(m, 0, 0)
+	choose("Select for Compare")
+
+	m.scm.sel = line("Commits", one)
+	m.scm.menu(m, 0, 0)
+	choose("Compare with " + two)
+
+	if m.scm.cmp.spec != two+".."+one || !slices.Equal(files(), []string{"M README.md", "D src/new.go"}) {
+		t.Fatalf("with the selected: %q %v", m.scm.cmp.spec, files())
+	}
+}
+
 func TestQuitConfirmation(t *testing.T) {
 	m := testModel(t)
 	// A filter is what esc clears first; only then does it offer to quit.
