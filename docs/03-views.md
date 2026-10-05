@@ -97,6 +97,8 @@ A Commit with nothing staged is muted too, and a click on it does nothing.
 - The box grows to `maxMsgLines` (10). The `∨` opens `suggestMenu`
   (`git.SuggestOpts`): Generate Commit Message (`A`) and variants; while
   `claude` writes, the box draws `scramble`.
+- `↑` on the box's top line walks back through `git.Messages`, the draft
+  first in `scmView.past`; `↓` on the bottom line walks forward to it.
 - Drawers (`Graph`, `Commits`, `File History`, `Branches`, `Worktrees`,
   `Remotes`, `Stashes`, `Tags`) run one git command each; shown, open and
   height live in `git_panes`.

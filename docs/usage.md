@@ -122,6 +122,7 @@ worktrees, remotes, stashes and tags.
 | `a` / `u` | stage / unstage all; `U` stages the untracked              |
 | `d`       | discard the file or the section, after asking              |
 | `c`       | focus the message box; `A` has `claude` write the message  |
+| `↑` / `↓` | in the message box: older / newer commit messages          |
 | `C`       | commit                                                     |
 | `S`       | sync, or publish a branch with no upstream                 |
 

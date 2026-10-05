@@ -77,8 +77,9 @@ T: also in a terminal; the rest are the shell's there.
 | GitHub         | `⏎` open, `d` pull request diff, `w` worktree (issue: start one), `o` github.com, `y` copy link, `x` mark done, `ctrl+r` refresh, `C` collapse                                                                                                                                                              |
 
 Commit message: `⏎` commits, `shift+⏎` `alt+⏎` new line, `esc` `tab` leave,
-`ctrl+a` all, `home` line start, `ctrl+c` `ctrl+x` copy, cut. Search boxes: `⏎`
-`↓` to the results, `tab` next box.
+`ctrl+a` all, `home` line start, `ctrl+c` `ctrl+x` copy, cut, `↑` on the top
+line an older commit message, `↓` on the bottom line a newer one. Search
+boxes: `⏎` `↓` to the results, `tab` next box.
 
 ## Terminals
 

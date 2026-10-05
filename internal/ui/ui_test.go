@@ -862,6 +862,49 @@ func TestCommitMessageLines(t *testing.T) {
 	checkWidths(t, m)
 }
 
+// TestCommitMessageHistory walks the message box through the commit
+// messages: ↑ on its top line goes back, ↓ on its bottom line forward to the
+// draft, and in between the arrows move the caret.
+func TestCommitMessageHistory(t *testing.T) {
+	m := gitModel(t)
+	for _, a := range [][]string{
+		{"init", "-q", "-b", "main"},
+		{"config", "user.email", "t@t"},
+		{"config", "user.name", "t"},
+		{"commit", "-q", "--allow-empty", "-m", "one"},
+		{"commit", "-q", "--allow-empty", "-m", "two\n\nbody"},
+		{"commit", "-q", "--allow-empty", "-m", "one"}, // a repeat is walked once
+	} {
+		mustGit(t, m.ws, a...)
+	}
+
+	walk := func(k, want string) {
+		t.Helper()
+		pressFire(m, k)
+
+		if got := m.scm.input.Value(); got != want {
+			t.Fatalf("%s: box %q, want %q", k, got, want)
+		}
+	}
+
+	press(m, "c", "w", "i", "p")
+	walk("up", "one")
+	walk("up", "two\n\nbody")
+
+	for range 3 { // up the body to the subject, then nothing older
+		walk("up", "two\n\nbody")
+	}
+
+	for range 2 {
+		walk("down", "two\n\nbody")
+	}
+
+	walk("down", "one")
+	walk("down", "wip")
+	walk("down", "wip")
+	checkWidths(t, m)
+}
+
 // TestCommitMessageSelect is the message box's selection, as in the editor:
 // ctrl+a selects everything and typing replaces it, ctrl+x cuts it, ctrl+c
 // copies only a selection, and a mouse drag selects across lines.

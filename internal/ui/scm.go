@@ -67,7 +67,15 @@ type scmView struct {
 	frame    int              // frames the busy work has run: the scramble while ✦ writes a message, the shimmer of the button
 	last     *git.SuggestOpts // the last suggestion's request, for Regenerate
 	lastMsg  string           // and what it came back with
+	past     []string         // the draft, then the commit messages ↑ walks back through
 	hovRow   int              // row under the mouse in the frame being drawn, -1 = none
+}
+
+// pastMsg answers an ↑ from the message box's draft: the commit messages to
+// walk back through.
+type pastMsg struct {
+	root, draft string
+	msgs        []string
 }
 
 type scmMsg struct {
@@ -989,6 +997,19 @@ func (s *scmView) onMsg(m *Model, msg tea.Msg) tea.Cmd {
 
 			s.drawers[msg.title] = msg.lines
 			s.build(m)
+		}
+
+	case pastMsg:
+		if msg.root == s.root() && msg.draft == s.input.Value() {
+			s.past = []string{msg.draft}
+
+			for _, p := range msg.msgs {
+				if !slices.Contains(s.past, p) { // a repeat would bounce ↑ back to its first
+					s.past = append(s.past, p)
+				}
+			}
+
+			s.step(m, 0, 1)
 		}
 
 	case modalMsg:
@@ -1938,12 +1959,50 @@ func (s *scmView) inputKey(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		return nil // the suggestion replaces the box: typing now would be lost unseen
 	}
 
+	li := s.input.LineInfo()
+
+	switch {
+	case k.String() == "up" && s.input.Line() == 0 && li.RowOffset == 0:
+		return s.recall(m, 1)
+	case k.String() == "down" && s.input.Line() == s.input.LineCount()-1 && li.RowOffset == li.Height-1:
+		return s.recall(m, -1)
+	}
+
 	var cmd tea.Cmd
 
 	s.input, cmd = s.input.Update(k)
 	s.fit(m)
 
 	return cmd
+}
+
+// recall walks the message box through s.past from its top or bottom line:
+// ↑ (d = 1) to an older commit message, ↓ (d = -1) to a newer one and back
+// to the draft. An ↑ from the draft, or from text the walk did not show,
+// starts over with what git has now.
+func (s *scmView) recall(m *Model, d int) tea.Cmd {
+	cur := s.input.Value()
+	i := slices.Index(s.past, cur)
+
+	if d > 0 && i <= 0 {
+		root := s.root()
+
+		return func() tea.Msg { return pastMsg{root, cur, git.Messages(root)} }
+	}
+
+	s.step(m, i, d)
+
+	return nil
+}
+
+// step shows s.past[i+d] in the message box, when there is one.
+func (s *scmView) step(m *Model, i, d int) {
+	if i < 0 || i+d < 0 || i+d >= len(s.past) {
+		return
+	}
+
+	s.input.SetValue(s.past[i+d])
+	s.fit(m)
 }
 
 // focusMessage focuses the active repository's message box and scrolls it into view.

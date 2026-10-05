@@ -787,6 +787,22 @@ func Continue(root, op, msg string) error {
 	return Commit(root, msg)
 }
 
+// Messages is the last 100 commit messages on HEAD, newest first: the
+// message box's ↑ history.
+func Messages(root string) []string {
+	out, _ := Run(root, "log", "-n", "100", "--format=%B%x00") // no commits yet: no history
+
+	var msgs []string
+
+	for msg := range strings.SplitSeq(out, "\x00") {
+		if msg = strings.TrimSpace(msg); msg != "" {
+			msgs = append(msgs, msg)
+		}
+	}
+
+	return msgs
+}
+
 // Amend rewrites the last commit with the staged changes, keeping its
 // message when msg is empty.
 func Amend(root, msg string) error {

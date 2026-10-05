@@ -475,6 +475,21 @@ func TestRevisions(t *testing.T) {
 	}
 }
 
+func TestMessages(t *testing.T) {
+	root := repo(t)
+	if msgs := Messages(root); msgs != nil {
+		t.Fatalf("unborn: %q", msgs)
+	}
+
+	for _, msg := range []string{"one", "two\n\nwith a body"} {
+		mustGit(t, root, "commit", "-q", "--allow-empty", "-m", msg)
+	}
+
+	if msgs := Messages(root); !slices.Equal(msgs, []string{"two\n\nwith a body", "one"}) {
+		t.Fatalf("messages: %q", msgs)
+	}
+}
+
 func TestRefs(t *testing.T) {
 	root := repo(t)
 	mustWrite(t, filepath.Join(root, "f"), "1\n")
