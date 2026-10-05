@@ -1382,6 +1382,21 @@ func TestCompareDrawer(t *testing.T) {
 	if m.scm.cmp.spec != two+".."+one || !slices.Equal(files(), []string{"M README.md", "D src/new.go"}) {
 		t.Fatalf("with the selected: %q %v", m.scm.cmp.spec, files())
 	}
+	// The ✕ on the header drops the comparison; the drawer stays.
+	_, ds := m.scm.geometry(m, m.scm.paneH(m))
+	head := m.bodyTop(viewGit) + ds[0].head
+
+	if l := strings.Split(ansi.Strip(m.View().Content), "\n")[head]; !strings.Contains(l, icClose.s()+" ⇕") {
+		t.Fatalf("no ✕ on the header %q", l)
+	}
+
+	click(m, m.colRect(m.colOf(viewGit)).x+m.scm.cmpCloseX(m), head, tea.MouseLeft)
+
+	if m.scm.cmp.spec != "" || len(files()) != 0 || m.drawers()[0].Title != cmpTitle {
+		t.Fatalf("after ✕: %q %v", m.scm.cmp.spec, files())
+	}
+
+	checkWidths(t, m)
 }
 
 func TestQuitConfirmation(t *testing.T) {

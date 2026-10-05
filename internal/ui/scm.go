@@ -475,6 +475,20 @@ func (s *scmView) onCompare(m *Model, msg cmpMsg) tea.Cmd {
 	return cmd
 }
 
+// cmpCloseX is the column of the ✕ on the Compare drawer's header: before
+// the ⇕ of an open drawer, else last.
+func (s *scmView) cmpCloseX(m *Model) int {
+	return m.colRect(m.colOf(viewGit)).w - 2 - 2*b2i(m.pane(cmpTitle).Open)
+}
+
+// closeCompare drops the comparison the Compare drawer shows.
+func (s *scmView) closeCompare(m *Model) tea.Cmd {
+	s.cmp = cmpMsg{}
+	s.build(m)
+
+	return s.loadDrawers(m)
+}
+
 // fileRows lays entries out as a tree or a list, as git_tree says.
 func (s *scmView) fileRows(m *Model, root, title string, entries []git.Entry) []scmRow {
 	if m.st.Settings.GitTree {
@@ -1409,8 +1423,12 @@ func (s *scmView) renderRow(m *Model, i, w int, hovered bool) string {
 		}
 
 		var right []seg
+		if r.title == cmpTitle && s.cmp.spec != "" {
+			right = []seg{sg(icClose.s()+" ", dim)} // closes the comparison: cmpCloseX
+		}
+
 		if p.Open {
-			right = []seg{sg("⇕ ", dim)} // the header is the resize handle
+			right = append(right, sg("⇕ ", dim)) // the header is the resize handle
 			left = append(left, m.sashRule(paneSash(viewGit, r.title), w, left, right)...)
 		}
 
@@ -2329,6 +2347,10 @@ func (s *scmView) drawerMenu(m *Model, title string, x, y int) tea.Cmd {
 	}
 
 	var items []item
+	if title == cmpTitle && s.cmp.spec != "" {
+		items = append(items, item{label: "Close Comparison", run: s.closeCompare})
+	}
+
 	if title != "" {
 		items = append(items, item{label: "Hide '" + title + "'", run: toggle(title)}, item{})
 	}
@@ -2839,6 +2861,10 @@ func (s *scmView) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 				s.sel = s.heads[j]
 				if mo.Button == tea.MouseRight {
 					return s.drawerMenu(m, m.drawers()[j].Title, mo.X, mo.Y)
+				}
+
+				if t := m.drawers()[j].Title; t == cmpTitle && s.cmp.spec != "" && abs(x-s.cmpCloseX(m)) <= 1 {
+					return s.closeCompare(m)
 				}
 
 				m.drag = &drag{kind: dragPane, v: viewGit, pane: m.drawers()[j].Title, y0: mo.Y, h0: d.h}

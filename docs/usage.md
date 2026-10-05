@@ -121,7 +121,7 @@ message when the mouse rests on it; right click copies it.
 as GitLens does; ⏎ on a file opens its diff. A commit's right-click menu
 compares it with HEAD, with the working tree, or with a commit picked by
 _Select for Compare_; _Open Changed Files_ on a pull request in GitHub does
-the same for the pull request.
+the same for the pull request. The ✕ on the drawer's header clears it.
 
 | Key       | In Source Control                                          |
 | --------- | ---------------------------------------------------------- |
