@@ -2721,10 +2721,20 @@ func (s *scmView) items(m *Model) []item {
 
 	var items []item
 
+	// group starts a new part of the menu, after a separator.
+	group := func(its ...item) {
+		if len(items) > 0 {
+			items = append(items, separator())
+		}
+
+		items = append(items, its...)
+	}
+
 	if r != nil && r.kind == rowFile && r.title == cmpTitle {
 		e, root, spec := r.entry, r.root, s.cmp.spec
 
-		items = append(items, item{label: "Open Changes", hint: "o", run: func(m *Model) tea.Cmd { return m.openCompare(root, spec, e) }})
+		group(item{label: "Open Changes", hint: "o", run: func(m *Model) tea.Cmd { return m.openCompare(root, spec, e) }})
+
 		if e.Letter != 'D' {
 			items = append(items, item{label: "Open File", hint: "O", run: func(m *Model) tea.Cmd { return m.openFile(filepath.Join(root, e.Path)) }})
 		}
@@ -2733,7 +2743,7 @@ func (s *scmView) items(m *Model) []item {
 	if r != nil && r.kind == rowFile && r.title != cmpTitle {
 		e, root, row := r.entry, r.root, *r
 
-		items = append(items, item{label: "Open Changes", hint: "o", run: func(m *Model) tea.Cmd { return m.openDiff(root, e) }},
+		group(item{label: "Open Changes", hint: "o", run: func(m *Model) tea.Cmd { return m.openDiff(root, e) }},
 			item{label: "Open File", hint: "O", run: func(m *Model) tea.Cmd { return m.openFile(filepath.Join(root, e.Path)) }})
 
 		switch {
@@ -2754,7 +2764,7 @@ func (s *scmView) items(m *Model) []item {
 	if r != nil && r.commit() != "" {
 		root, h := s.root(), r.commit()
 
-		items = append(items, item{label: "Copy Commit Message", run: func(*Model) tea.Cmd {
+		group(item{label: "Copy Commit Message", run: func(*Model) tea.Cmd {
 			return func() tea.Msg {
 				msg, err := git.Message(root, h)
 				if err != nil {
@@ -2769,8 +2779,7 @@ func (s *scmView) items(m *Model) []item {
 			return func(*Model) tea.Cmd { return s.compare(label, func(string) (string, error) { return spec, nil }) }
 		}
 
-		items = append(items,
-			item{label: "Compare with HEAD", run: with(h+" ↔ HEAD", h+"..HEAD")},
+		group(item{label: "Compare with HEAD", run: with(h+" ↔ HEAD", h+"..HEAD")},
 			item{label: "Compare Working Tree to Here", run: with(h+" ↔ working tree", h)},
 			item{label: "Select for Compare", run: func(*Model) tea.Cmd { s.cmpSel = h; return flash("selected "+h+" for compare", false) }})
 
@@ -2783,40 +2792,38 @@ func (s *scmView) items(m *Model) []item {
 		dir, root := git.Entry{Path: r.path}, r.root
 		switch r.title {
 		case "Merge Changes":
-			items = append(items, item{label: "Stage Folder", run: func(m *Model) tea.Cmd { return s.stageConflicts(m, root, dir.Path) }})
+			group(item{label: "Stage Folder", run: func(m *Model) tea.Cmd { return s.stageConflicts(m, root, dir.Path) }})
 		case "Staged Changes":
-			items = append(items, item{label: "Unstage Folder", run: func(_ *Model) tea.Cmd {
+			group(item{label: "Unstage Folder", run: func(_ *Model) tea.Cmd {
 				return s.run(root, "unstaging", func(root string) scmMsg { return scmMsg{err: git.Unstage(root, dir)} })
 			}})
 
 		default:
-			items = append(items, item{label: "Stage Folder", run: func(_ *Model) tea.Cmd {
+			group(item{label: "Stage Folder", run: func(_ *Model) tea.Cmd {
 				return s.run(root, "staging", func(root string) scmMsg { return scmMsg{err: git.Stage(root, dir)} })
 			}})
 		}
 	}
-
-	items = append(items, item{label: "Switch Branch…", hint: "B", run: s.branchPicker},
-		item{label: "History Drawers…", run: func(m *Model) tea.Cmd { return s.drawerMenu(m, "", 0, m.bodyH(viewGit)/2) }})
 
 	mode := "View as Tree"
 	if m.st.Settings.GitTree {
 		mode = "View as List"
 	}
 
-	items = append(items,
-		item{label: "Commit", hint: "C", run: s.commit},
+	group(item{label: "Commit", hint: "C", run: s.commit},
 		item{label: "Commit & Sync", run: func(*Model) tea.Cmd { return s.commitWith(false, true) }},
 		item{label: "Commit (Amend)", run: func(*Model) tea.Cmd { return s.commitWith(true, false) }},
-		item{label: icSparkle.text + " Suggest Message", hint: "A", run: s.suggest},
-		item{label: "Stage All", hint: "a", run: func(m *Model) tea.Cmd { return s.key(m, tea.KeyPressMsg{Code: 'a', Text: "a"}) }},
+		item{label: icSparkle.text + " Suggest Message", hint: "A", run: s.suggest})
+	group(item{label: "Stage All", hint: "a", run: func(m *Model) tea.Cmd { return s.key(m, tea.KeyPressMsg{Code: 'a', Text: "a"}) }},
 		item{label: "Unstage All", hint: "u", run: func(m *Model) tea.Cmd { return s.key(m, tea.KeyPressMsg{Code: 'u', Text: "u"}) }},
 		item{label: "Stage Untracked", hint: "U", run: func(m *Model) tea.Cmd { return s.stageUntracked(s.root())(m) }},
-		item{label: "Stage All Merge Changes", run: func(m *Model) tea.Cmd { return s.stageConflicts(m, s.root(), "") }},
-		item{label: "Sync", hint: "S", run: s.sync},
+		item{label: "Stage All Merge Changes", run: func(m *Model) tea.Cmd { return s.stageConflicts(m, s.root(), "") }})
+	group(item{label: "Sync", hint: "S", run: s.sync},
 		item{label: "Publish Branch", run: s.publish},
-		item{label: mode, hint: "t", run: s.toggleTree},
-		item{label: "Collapse All", run: func(m *Model) tea.Cmd { s.collapseAll(m); return nil }})
+		item{label: "Switch Branch…", hint: "B", run: s.branchPicker})
+	group(item{label: mode, hint: "t", run: s.toggleTree},
+		item{label: "Collapse All", run: func(m *Model) tea.Cmd { s.collapseAll(m); return nil }},
+		item{label: "History Drawers…", run: func(m *Model) tea.Cmd { return s.drawerMenu(m, "", 0, m.bodyH(viewGit)/2) }})
 
 	return items
 }
