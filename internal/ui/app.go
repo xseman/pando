@@ -550,8 +550,8 @@ func (m *Model) refreshGit() tea.Cmd {
 	}
 }
 
-// drawers are the Source Control history drawers the settings show, in
-// git.Drawers order.
+// drawers are the Source Control history drawers the settings show, top to
+// bottom: open ones above closed ones, each in git_drawers order.
 func (m *Model) drawers() []git.Drawer {
 	want := m.st.Settings.Drawers
 	if want == nil {
@@ -560,24 +560,29 @@ func (m *Model) drawers() []git.Drawer {
 
 	var out []git.Drawer
 
-	for _, d := range git.Drawers {
-		if slices.Contains(want, d.Title) {
-			out = append(out, d)
+	for _, t := range want {
+		if i := slices.IndexFunc(git.Drawers, func(d git.Drawer) bool { return d.Title == t }); i >= 0 {
+			out = append(out, git.Drawers[i])
 		}
 	}
+
+	slices.SortStableFunc(out, func(a, b git.Drawer) int { return b2i(m.pane(b.Title).Open) - b2i(m.pane(a.Title).Open) })
 
 	return out
 }
 
-// toggleDrawer shows or hides one history drawer.
+// toggleDrawer shows a history drawer at the bottom, or hides it.
 func (m *Model) toggleDrawer(title string) tea.Cmd {
 	var want []string
 
-	for _, d := range git.Drawers {
-		shown := slices.ContainsFunc(m.drawers(), func(x git.Drawer) bool { return x.Title == d.Title })
-		if shown != (d.Title == title) {
+	for _, d := range m.drawers() {
+		if d.Title != title {
 			want = append(want, d.Title)
 		}
+	}
+
+	if len(want) == len(m.drawers()) {
+		want = append(want, title)
 	}
 
 	return tea.Batch(m.setSettings(map[string]any{"git_drawers": want}), m.scm.loadDrawers(m))

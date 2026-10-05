@@ -1162,6 +1162,44 @@ func TestDrawerVisibility(t *testing.T) {
 	checkWidths(t, m)
 }
 
+// TestDrawerStack stacks the drawers as Spaces does its projects: an opened
+// drawer tops them all, a closed one tops the closed ones, and the selection
+// follows the header it toggled.
+func TestDrawerStack(t *testing.T) {
+	m := gitModel(t)
+	flip := func(title string, want ...string) {
+		t.Helper()
+
+		m.scm.sel = m.scm.heads[slices.IndexFunc(m.drawers(), func(d git.Drawer) bool { return d.Title == title })]
+		press(m, "enter")
+
+		var got []string
+		for _, d := range m.drawers() {
+			got = append(got, d.Title)
+		}
+
+		if !slices.Equal(got, want) {
+			t.Fatalf("toggled %s: %v, want %v", title, got, want)
+		}
+
+		if r := m.scm.selected(); r == nil || r.title != title {
+			t.Fatalf("toggled %s: selected %+v", title, r)
+		}
+	}
+
+	flip("Branches", "Branches", "Graph", "Commits", "Remotes", "Stashes")
+	flip("Remotes", "Remotes", "Branches", "Graph", "Commits", "Stashes")
+	flip("Branches", "Remotes", "Branches", "Graph", "Commits", "Stashes")
+	flip("Stashes", "Stashes", "Remotes", "Branches", "Graph", "Commits")
+	flip("Remotes", "Stashes", "Remotes", "Branches", "Graph", "Commits")
+
+	if !m.pane("Stashes").Open || m.pane("Remotes").Open {
+		t.Fatalf("panes %+v", m.st.Settings.GitPanes)
+	}
+
+	checkWidths(t, m)
+}
+
 func TestQuitConfirmation(t *testing.T) {
 	m := testModel(t)
 	// A filter is what esc clears first; only then does it offer to quit.
@@ -3192,6 +3230,7 @@ func TestSashHover(t *testing.T) {
 func TestPaneSashHover(t *testing.T) {
 	m := gitModel(t)
 	m.st.Settings.GitPanes = map[string]proto.Pane{"Commits": {Open: true, H: 4}}
+	m.scm.build(m)
 
 	j := slices.IndexFunc(m.drawers(), func(d git.Drawer) bool { return d.Title == "Commits" })
 	_, ds := m.scm.geometry(m, m.scm.paneH(m))

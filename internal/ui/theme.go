@@ -132,7 +132,7 @@ var (
 
 	// themeNames is the Settings cycle order; "vscode" follows the terminal background.
 	// defaultDrawers are the Source Control drawers shown without a setting.
-	defaultDrawers = []string{"Commits", "Graph", "Branches", "Stashes", "Remotes"}
+	defaultDrawers = []string{"Graph", "Commits", "Branches", "Remotes", "Stashes"}
 
 	themeNames = []string{"vscode", "vscode-dark", "vscode-light", "terminal"}
 

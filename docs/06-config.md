@@ -55,7 +55,7 @@ config.toml edited ───────────┘  └─ "state" event �
 | `explorer_sort`       | `name`      | Explorer files by `name` or `type` (extension, then name), folders first       |
 | `git_deco`            | `true`      | Explorer colors entries by git status                                          |
 | `git_tree`            | `true`      | Source Control changes as a tree                                               |
-| `git_drawers`         | 5 drawers   | Commits, Graph, Branches, Stashes, Remotes; also File History, Worktrees, Tags |
+| `git_drawers`         | 5 drawers   | Graph, Commits, Branches, Remotes, Stashes; also File History, Worktrees, Tags |
 | `git_panes`           | none        | per drawer: `open`, `h` rows; the TUI writes it                                |
 | `diff_view`           | `inline`    | `inline`, `split` (from 90 columns)                                            |
 | `quick_open_tree`     | `false`     | quick open groups by directory                                                 |

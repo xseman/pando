@@ -102,6 +102,9 @@ A Commit with nothing staged is muted too, and a click on it does nothing.
 - Drawers (`Graph`, `Commits`, `File History`, `Branches`, `Worktrees`,
   `Remotes`, `Stashes`, `Tags`) run one git command each; shown, open and
   height live in `git_panes`.
+- Drawers stack like Spaces' projects (`flipDrawer`): open ones above closed
+  ones, an opened drawer on top, a closed one on top of the closed, in
+  `git_drawers` order.
 
 ## Spaces
 

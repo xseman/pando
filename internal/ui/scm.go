@@ -2125,10 +2125,7 @@ func (s *scmView) activate(m *Model, r *scmRow, click bool) tea.Cmd {
 	case rowDir:
 		return fold(sectionKey(r.root, r.title) + "/" + r.path)
 	case rowDrawer:
-		p := m.pane(r.title)
-		p.Open = !p.Open
-
-		return tea.Batch(m.setPane(r.title, p), s.loadDrawers(m))
+		return s.flipDrawer(m, r.title)
 
 	case rowFile:
 		e := r.entry
@@ -2158,6 +2155,31 @@ func (s *scmView) activate(m *Model, r *scmRow, click bool) tea.Cmd {
 	}
 
 	return nil
+}
+
+// flipDrawer opens or closes drawer title and moves it to the top of its
+// group, as Spaces folds a project: opened it tops every drawer, closed it
+// tops the closed ones. A selected header stays selected.
+func (s *scmView) flipDrawer(m *Model, title string) tea.Cmd {
+	p := m.pane(title)
+	p.Open = !p.Open
+	r := s.selected()
+	sel := r != nil && r.kind == rowDrawer && r.title == title
+
+	order := []string{title}
+
+	for _, d := range m.drawers() {
+		if d.Title != title {
+			order = append(order, d.Title)
+		}
+	}
+
+	cmd := m.setSettings(map[string]any{"git_panes": map[string]proto.Pane{title: p}, "git_drawers": order})
+	if sel {
+		s.sel = s.heads[slices.IndexFunc(m.drawers(), func(d git.Drawer) bool { return d.Title == title })]
+	}
+
+	return tea.Batch(cmd, s.loadDrawers(m))
 }
 
 // drawerMenu hides the drawer under the pointer or toggles any other, like
@@ -2688,8 +2710,7 @@ func (s *scmView) dragPane(m *Model, d *drag, y int, release bool) tea.Cmd {
 
 	switch {
 	case !d.moved:
-		p.Open = !p.Open
-		return tea.Batch(m.setPane(d.pane, p), s.loadDrawers(m))
+		return s.flipDrawer(m, d.pane)
 
 	case p.Open:
 		return m.setPane(d.pane, p)
