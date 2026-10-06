@@ -33,7 +33,7 @@ func TestMoveTab(t *testing.T) {
 
 	m.focus = onMain
 	for _, f := range []string{"README.md", ".env"} {
-		fire(m, m.openFile(filepath.Join(m.ws, f)))
+		fire(m, m.openFile(filepath.Join(m.ws, f), false))
 	}
 
 	names := func() string {
@@ -124,7 +124,7 @@ func TestDragEditorTab(t *testing.T) {
 	mustWrite(t, filepath.Join(m.ws, "a-much-longer-name.txt"), "x\n")
 
 	for _, f := range []string{"README.md", ".env", "a-much-longer-name.txt"} {
-		fire(m, m.openFile(filepath.Join(m.ws, f)))
+		fire(m, m.openFile(filepath.Join(m.ws, f), false))
 	}
 
 	names := func() string {

@@ -81,7 +81,10 @@ type preview struct {
 	cur    pos
 	anchor *pos // selection start; nil = no selection
 	reveal bool // center the cursor once the content loads
-	used   int  // when the editor was last shown, Model.edUsed's count: editor_limit closes the lowest
+	// transient is VS Code's preview editor, its tab in italics: the next
+	// editor opened transient takes its tab over, until pin keeps it.
+	transient bool
+	used      int // when the editor was last shown, Model.edUsed's count: editor_limit closes the lowest
 	// Markdown files: md is 0 for source, 1 rendered, 2 source and rendered
 	// side by side. While rendered, lines and plain hold the rendering and
 	// src and srcPlain the source.
@@ -224,6 +227,7 @@ func (p *preview) snapshot() preview {
 		root: p.root, entry: p.entry, rev: p.rev,
 		repo: p.repo, revs: p.revs, revIdx: p.revIdx, md: p.md,
 		cur: p.cur, top: p.top, left: p.left, buf: p.buf, trunc: p.trunc, used: p.used,
+		transient: p.transient,
 	}
 }
 
@@ -236,8 +240,12 @@ func (m *Model) setPreview(p preview) tea.Cmd {
 	p.used = m.edUsed
 
 	i := slices.IndexFunc(m.editors, func(e preview) bool { return e.id() == p.id() })
+	t := slices.IndexFunc(m.editors, func(e preview) bool { return e.transient })
+
 	switch {
 	case i >= 0:
+		p.transient = p.transient && m.editors[i].transient // opened pinned, it stays pinned
+
 		if !p.reveal && p.cur == (pos{}) { // reopening: back to where the cursor was
 			e := m.editors[i]
 			p.cur, p.top, p.left, p.md = e.cur, e.top, e.left, e.md
@@ -247,6 +255,8 @@ func (m *Model) setPreview(p preview) tea.Cmd {
 
 	case m.edIdx >= 0 && m.edIdx < len(m.editors) && sameFile(m.editors[m.edIdx], p):
 		m.editors[m.edIdx] = p.snapshot() // a revision of the open file stays in its tab
+	case p.transient && t >= 0:
+		m.editors[t], m.edIdx = p.snapshot(), t
 	default:
 		m.editors = append(m.editors, p.snapshot())
 		m.edIdx = len(m.editors) - 1
@@ -314,12 +324,21 @@ func (m *Model) limitEditors() {
 	}
 }
 
-func (m *Model) openFile(path string) tea.Cmd {
+// pin keeps the active editor's tab, VS Code's Keep Editor: an edit or a
+// double click on the tab or on what opened it.
+func (m *Model) pin() {
+	m.pv.transient = false
+	m.saveSpot()
+}
+
+// openFile opens path; transient opens it in the preview tab, as a click in
+// Explorer, Search or Source Control does.
+func (m *Model) openFile(path string, transient bool) tea.Cmd {
 	if st, err := os.Stat(path); err != nil || st.IsDir() {
 		return flash("cannot preview "+path, true)
 	}
 
-	return m.setPreview(preview{kind: pvFile, path: path})
+	return m.setPreview(preview{kind: pvFile, path: path, transient: transient})
 }
 
 // saveSpot remembers where the cursor is in the active editor and in the
@@ -643,7 +662,12 @@ func (m *Model) editorStrip(w int) string {
 			bg = pal.hoverBg
 		}
 
-		segs = append(segs, tabChip(t.label, t.active, bg)...)
+		chip := tabChip(t.label, t.active, bg)
+		if m.editors[t.i].transient {
+			chip[0].st = chip[0].st.Italic(true)
+		}
+
+		segs = append(segs, chip...)
 	}
 
 	return m.stripMark(row(w, nil, segs), stripEditor, 0, nil)
@@ -651,7 +675,7 @@ func (m *Model) editorStrip(w int) string {
 
 // stripMouse handles a click on the editor strip: the middle button and the
 // active tab's ✕ close, anything else activates, and the left button picks
-// the tab up to drag it along the strip.
+// the tab up to drag it along the strip; a double click pins it.
 func (m *Model) stripMouse(x int, button tea.MouseButton) tea.Cmd {
 	for _, t := range m.editorTabs(m.mainW()) {
 		if x < t.x || x >= t.x+t.w {
@@ -666,7 +690,12 @@ func (m *Model) stripMouse(x int, button tea.MouseButton) tea.Cmd {
 			m.grabTab(stripEditor, m.editors[t.i].id(), x)
 		}
 
-		return m.showEditor(t.i)
+		cmd := m.showEditor(t.i)
+		if button == tea.MouseLeft && m.clicks.double(x, 0) {
+			m.pin()
+		}
+
+		return cmd
 	}
 
 	return nil
@@ -685,12 +714,12 @@ func (p *preview) gotoLine(m *Model, line, col int) {
 
 // openFileAt previews path with the cursor on line (0-based) and n runes
 // from col selected, as a search result opens.
-func (m *Model) openFileAt(path string, line, col, n int) tea.Cmd {
+func (m *Model) openFileAt(path string, line, col, n int, transient bool) tea.Cmd {
 	if st, err := os.Stat(path); err != nil || st.IsDir() {
 		return flash("cannot preview "+path, true)
 	}
 
-	p := preview{kind: pvFile, path: path, cur: pos{line, col + n}, reveal: true}
+	p := preview{kind: pvFile, path: path, cur: pos{line, col + n}, reveal: true, transient: transient}
 	if n > 0 {
 		p.anchor = &pos{line, col}
 	}
@@ -698,13 +727,13 @@ func (m *Model) openFileAt(path string, line, col, n int) tea.Cmd {
 	return m.setPreview(p)
 }
 
-func (m *Model) openDiff(root string, e git.Entry) tea.Cmd {
-	return m.setPreview(preview{kind: pvDiff, root: root, path: e.Path, entry: e})
+func (m *Model) openDiff(root string, e git.Entry, transient bool) tea.Cmd {
+	return m.setPreview(preview{kind: pvDiff, root: root, path: e.Path, entry: e, transient: transient})
 }
 
 // openCompare opens what file e of a Compare drawer changed across spec.
-func (m *Model) openCompare(root, spec string, e git.Entry) tea.Cmd {
-	return m.setPreview(preview{kind: pvCmp, root: root, path: e.Path, rev: spec, entry: e})
+func (m *Model) openCompare(root, spec string, e git.Entry, transient bool) tea.Cmd {
+	return m.setPreview(preview{kind: pvCmp, root: root, path: e.Path, rev: spec, entry: e, transient: transient})
 }
 
 func (m *Model) openShow(root, rev string) tea.Cmd {
@@ -2940,7 +2969,7 @@ func (p *preview) openHere(m *Model) tea.Cmd {
 		line = max(p.meta[c].b, p.meta[c].a)
 	}
 
-	return m.openFileAt(path, max(line-1, 0), 0, 0)
+	return m.openFileAt(path, max(line-1, 0), 0, 0, false)
 }
 
 // items are the preview's commands. Diffs of tracked files stage, unstage

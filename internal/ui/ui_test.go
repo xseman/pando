@@ -541,7 +541,7 @@ func TestNarrowScreen(t *testing.T) {
 	m.st.Settings.Right = proto.Columns{{Views: []string{"session"}, Width: 55}, {Views: []string{"agents"}, Width: 63}}
 	m.st.Settings.SessPos = "right"
 	m.switchSession("s1")
-	fire(m, m.openFile(filepath.Join(m.ws, "README.md")))
+	fire(m, m.openFile(filepath.Join(m.ws, "README.md"), false))
 	fire(m, m.pv.load(m))
 
 	spaces := func() int { return m.colRect(m.colOf(viewAgents)).w }
@@ -585,7 +585,7 @@ func TestNarrowScreen(t *testing.T) {
 	// A file opens in front of the session rather than docking it; the
 	// session comes back from Spaces.
 	m.preview = false
-	fire(m, m.openFile(filepath.Join(m.ws, ".env")))
+	fire(m, m.openFile(filepath.Join(m.ws, ".env"), false))
 	fire(m, m.pv.load(m))
 
 	if m.sessDocked() || !m.showsPreview() {

@@ -161,6 +161,9 @@ Merge is in the `m` menu and merges only the head the list showed.
 - Undo, find & replace, quick open (`ctrl+p`, `:` line, `@` symbol),
   suggestions, merge-conflict _Accept_ actions.
 - `ctrl+shift+v` renders Markdown, `alt+v` beside the source.
+- A file opened from Explorer, Search or Source Control takes the preview
+  tab, in italics, which the next one replaces; an edit or a double click
+  (on the file or the tab) keeps it, as in VS Code.
 - `vim_mode = true` adds motions, operators and visual mode.
 - Unsaved text is kept as a draft and comes back with its tab; a file changed
   on disk is never overwritten silently.

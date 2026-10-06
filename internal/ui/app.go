@@ -2728,7 +2728,7 @@ func (m *Model) onEvent(ev proto.Event) tea.Cmd {
 		}
 
 		if f.Open != "" {
-			cmds = append(cmds, m.openFile(f.Open))
+			cmds = append(cmds, m.openFile(f.Open, false))
 		}
 
 		return tea.Batch(cmds...)

@@ -2144,7 +2144,7 @@ func TestCloseOtherEditors(t *testing.T) {
 	for _, f := range []string{"a.txt", "b.txt", "c.txt"} {
 		p := filepath.Join(m.ws, f)
 		mustWrite(t, p, f+"\n")
-		fire(m, m.openFile(p))
+		fire(m, m.openFile(p, false))
 	}
 
 	send(m, keyMsg("alt+2"))
@@ -2622,7 +2622,7 @@ func TestSessionDock(t *testing.T) {
 	m.sessions = []proto.Session{{SessionSpec: proto.SessionSpec{ID: "s1", Workspace: m.ws, Agent: "claude", Cmd: []string{"claude"}}, Status: "idle"}}
 	f := filepath.Join(m.ws, "a.txt")
 	mustWrite(t, f, "hello docked\n")
-	fire(m, m.openFile(f))
+	fire(m, m.openFile(f, false))
 	m.focus = onMain
 	m.switchSession("s1")
 
@@ -2778,7 +2778,7 @@ func TestSessionOpensDocked(t *testing.T) {
 	}
 	// Stretched over the editor again, opening a file docks it back on its side.
 	m.undockSession()
-	fire(m, m.openFile(filepath.Join(m.ws, "README.md")))
+	fire(m, m.openFile(filepath.Join(m.ws, "README.md"), false))
 	fire(m, m.pv.load(m))
 
 	j := m.colOf(viewSession)

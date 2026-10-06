@@ -281,14 +281,14 @@ func (e *explorer) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		if n != nil && n.dir {
 			e.toggle(m, n)
 		} else if n != nil {
-			return m.openFile(n.path)
+			return m.openFile(n.path, true)
 		}
 
 	case "l", "right":
 		if n != nil && n.dir && !e.expanded[n.path] {
 			e.toggle(m, n)
 		} else if n != nil && !n.dir {
-			return m.openFile(n.path)
+			return m.openFile(n.path, true)
 		}
 
 	case "h", "left":
@@ -369,7 +369,7 @@ func (e *explorer) action(key string) func(m *Model) tea.Cmd {
 				e.reveal(m, p)
 
 				if !folder {
-					return m.openFile(p)
+					return m.openFile(p, false)
 				}
 
 				return nil
@@ -670,7 +670,12 @@ func (e *explorer) mouse(m *Model, msg tea.MouseMsg, y int) tea.Cmd {
 			return nil
 		}
 
-		return m.openFile(n.path)
+		cmd := m.openFile(n.path, true)
+		if m.clicks.double(mo.X, mo.Y) {
+			m.pin()
+		}
+
+		return cmd
 	}
 
 	return nil
@@ -879,10 +884,10 @@ func (m *Model) quickOpen(msg indexMsg) {
 			m.ex.reveal(m, p)
 
 			if line, col := parseLineCol(lineSuffix(md.input.Value())); line > 0 {
-				return m.openFileAt(p, line-1, max(col-1, 0), 0)
+				return m.openFileAt(p, line-1, max(col-1, 0), 0, false)
 			}
 
-			return m.openFile(p)
+			return m.openFile(p, false)
 		}}
 	}
 

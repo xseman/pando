@@ -509,7 +509,7 @@ func (m *Model) openLocation(l lsp.Location) tea.Cmd {
 		end = displayCol(raw, lsp.RuneCol(raw, l.EndCol))
 	}
 
-	return m.openFileAt(l.Path, l.Line, col, max(end-col, 0))
+	return m.openFileAt(l.Path, l.Line, col, max(end-col, 0), false)
 }
 
 // A file's columns and the preview's differ: the preview shows a tab as

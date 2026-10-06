@@ -17,13 +17,13 @@ func TestEditorStripAndHistory(t *testing.T) {
 	m.focus = onMain
 	many := filepath.Join(m.ws, "many.go")
 	mustWrite(t, many, strings.Repeat("line\n", 10))
-	fire(m, m.openFile(filepath.Join(m.ws, "README.md")))
+	fire(m, m.openFile(filepath.Join(m.ws, "README.md"), false))
 
 	if m.stripH() != 1 {
 		t.Fatal("a single editor still has its strip")
 	}
 
-	fire(m, m.openFile(many))
+	fire(m, m.openFile(many, false))
 
 	if len(m.editors) != 2 || m.edIdx != 1 || m.stripH() != 1 {
 		t.Fatalf("editors=%d active=%d strip=%d", len(m.editors), m.edIdx, m.stripH())
@@ -184,7 +184,7 @@ func TestEditorMiddleClickAndSuperArrows(t *testing.T) {
 
 	m.focus = onMain
 	for _, f := range []string{"README.md", ".env"} {
-		fire(m, m.openFile(filepath.Join(m.ws, f)))
+		fire(m, m.openFile(filepath.Join(m.ws, f), false))
 	}
 
 	send(m, tea.KeyPressMsg{Code: tea.KeyLeft, Mod: tea.ModSuper})
@@ -215,7 +215,7 @@ func TestTabChips(t *testing.T) {
 	m.focus = onMain
 
 	for _, f := range []string{"README.md", ".env"} {
-		fire(m, m.openFile(filepath.Join(m.ws, f)))
+		fire(m, m.openFile(filepath.Join(m.ws, f), false))
 	}
 
 	strip := m.editorStrip(m.mainW())
@@ -330,8 +330,8 @@ func TestEditorsPersist(t *testing.T) {
 	m.focus = onMain
 	readme, many := filepath.Join(m.ws, "README.md"), filepath.Join(m.ws, "many.go")
 	mustWrite(t, many, strings.Repeat("line\n", 10))
-	fire(m, m.openFile(readme))
-	fire(m, m.openFile(many))
+	fire(m, m.openFile(readme, false))
+	fire(m, m.openFile(many, false))
 	press(m, "down", "down", "down")
 
 	if m.saveEditors() == nil {
@@ -394,5 +394,77 @@ func TestEditorsPersist(t *testing.T) {
 
 	if !m3.preview || m3.pv.path != readme {
 		t.Fatalf("ctrl+tab brings a restored tab up: %v %s", m3.preview, m3.pv.path)
+	}
+}
+
+// TestTransientEditor is VS Code's preview editor: a file opened transient
+// takes the transient tab over, and an edit or a double click on its tab
+// keeps it.
+func TestTransientEditor(t *testing.T) {
+	m := testModelSized(t, 120, 24)
+	m.focus = onMain
+
+	for _, f := range []string{"a.txt", "b.txt", "c.txt", "d.txt"} {
+		mustWrite(t, filepath.Join(m.ws, f), f+"\n")
+	}
+
+	names := func() string {
+		var out []string
+
+		for _, e := range m.editors {
+			n := filepath.Base(e.path)
+			if e.transient {
+				n += "*"
+			}
+
+			out = append(out, n)
+		}
+
+		return strings.Join(out, " ")
+	}
+
+	fire(m, m.openFile(filepath.Join(m.ws, "a.txt"), true))
+	fire(m, m.openFile(filepath.Join(m.ws, "b.txt"), true))
+	fire(m, m.openFile(filepath.Join(m.ws, "c.txt"), false))
+
+	if got := names(); got != "b.txt* c.txt" {
+		t.Fatalf("b takes a's tab, c opens pinned: %s", got)
+	}
+
+	fire(m, m.openFile(filepath.Join(m.ws, "c.txt"), true))
+	fire(m, m.openFile(filepath.Join(m.ws, "a.txt"), true))
+
+	if got := names(); got != "a.txt* c.txt" || m.edIdx != 0 {
+		t.Fatalf("a pinned tab stays pinned, a takes b's tab: %s, active %d", got, m.edIdx)
+	}
+
+	press(m, "x")
+	fire(m, m.openFile(filepath.Join(m.ws, "b.txt"), true))
+
+	if got := names(); got != "a.txt c.txt b.txt*" {
+		t.Fatalf("an edit keeps a: %s", got)
+	}
+
+	tabs := m.editorTabs(m.mainW())
+	x := m.mainX() + tabs[2].x + 1
+	click(m, x, 0, tea.MouseLeft)
+	click(m, x, 0, tea.MouseLeft)
+	fire(m, m.openFile(filepath.Join(m.ws, "d.txt"), true))
+
+	if got := names(); got != "a.txt c.txt b.txt d.txt*" {
+		t.Fatalf("a double click keeps b: %s", got)
+	}
+
+	readme := m.bodyTop(viewFiles) + 1 // row 0 is src
+	click(m, 5, readme, tea.MouseLeft)
+
+	if got := names(); got != "a.txt c.txt b.txt README.md*" {
+		t.Fatalf("a click in Explorer opens transient: %s", got)
+	}
+
+	click(m, 5, readme, tea.MouseLeft)
+
+	if got := names(); got != "a.txt c.txt b.txt README.md" {
+		t.Fatalf("a double click in Explorer keeps it: %s", got)
 	}
 }

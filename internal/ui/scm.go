@@ -610,7 +610,7 @@ func (s *scmView) actions(r scmRow, w int) []rowAction {
 	case rowFile:
 		e := r.entry
 		if e.Letter != 'D' && e.XY != "DD" {
-			add(icSource, func(m *Model) tea.Cmd { return m.openFile(filepath.Join(root, e.Path)) })
+			add(icSource, func(m *Model) tea.Cmd { return m.openFile(filepath.Join(root, e.Path), false) })
 		}
 
 		switch {
@@ -2224,14 +2224,14 @@ func (s *scmView) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		}
 
 		if r != nil && r.kind == rowFile {
-			return m.openDiff(r.root, r.entry)
+			return m.openDiff(r.root, r.entry, true)
 		}
 
 	case "B":
 		return s.branchPicker(m)
 	case "O":
 		if r != nil && r.kind == rowFile {
-			return m.openFile(filepath.Join(r.root, r.entry.Path))
+			return m.openFile(filepath.Join(r.root, r.entry.Path), false)
 		}
 
 	case "d": // the row's own discard button, wherever it has one
@@ -2278,7 +2278,7 @@ func (s *scmView) activate(m *Model, r *scmRow, click bool) tea.Cmd {
 	case rowFile:
 		e := r.entry
 		if r.title == cmpTitle {
-			return m.openCompare(s.cmp.root, s.cmp.spec, e)
+			return m.openCompare(s.cmp.root, s.cmp.spec, e, true)
 		}
 
 		if e.Letter == '!' {
@@ -2286,14 +2286,14 @@ func (s *scmView) activate(m *Model, r *scmRow, click bool) tea.Cmd {
 			case click && e.XY == "DD":
 				return flash(e.Path+" was deleted on both sides", false)
 			case click: // VS Code opens the conflicted file itself, not a diff
-				return m.openFile(filepath.Join(r.root, e.Path))
+				return m.openFile(filepath.Join(r.root, e.Path), true)
 			}
 
 			return s.stageConflict(m, r.root, e)
 		}
 
 		if click {
-			return m.openDiff(r.root, e)
+			return m.openDiff(r.root, e, true)
 		}
 
 		if e.Staged {
@@ -2734,18 +2734,18 @@ func (s *scmView) items(m *Model) []item {
 	if r != nil && r.kind == rowFile && r.title == cmpTitle {
 		e, root, spec := r.entry, r.root, s.cmp.spec
 
-		group(item{label: "Open Changes", hint: "o", run: func(m *Model) tea.Cmd { return m.openCompare(root, spec, e) }})
+		group(item{label: "Open Changes", hint: "o", run: func(m *Model) tea.Cmd { return m.openCompare(root, spec, e, false) }})
 
 		if e.Letter != 'D' {
-			items = append(items, item{label: "Open File", hint: "O", run: func(m *Model) tea.Cmd { return m.openFile(filepath.Join(root, e.Path)) }})
+			items = append(items, item{label: "Open File", hint: "O", run: func(m *Model) tea.Cmd { return m.openFile(filepath.Join(root, e.Path), false) }})
 		}
 	}
 
 	if r != nil && r.kind == rowFile && r.title != cmpTitle {
 		e, root, row := r.entry, r.root, *r
 
-		group(item{label: "Open Changes", hint: "o", run: func(m *Model) tea.Cmd { return m.openDiff(root, e) }},
-			item{label: "Open File", hint: "O", run: func(m *Model) tea.Cmd { return m.openFile(filepath.Join(root, e.Path)) }})
+		group(item{label: "Open Changes", hint: "o", run: func(m *Model) tea.Cmd { return m.openDiff(root, e, false) }},
+			item{label: "Open File", hint: "O", run: func(m *Model) tea.Cmd { return m.openFile(filepath.Join(root, e.Path), false) }})
 
 		switch {
 		case e.Letter == '!':
@@ -2992,7 +2992,12 @@ func (s *scmView) click(m *Model, i, x, w int, mo tea.Mouse) tea.Cmd {
 	s.input.Blur()
 	cmd := s.onSelect(m)
 
-	return tea.Batch(cmd, s.activate(m, &s.rows[i], true))
+	cmd = tea.Batch(cmd, s.activate(m, &s.rows[i], true))
+	if m.clicks.double(mo.X, mo.Y) && s.rows[i].kind == rowFile {
+		m.pin()
+	}
+
+	return cmd
 }
 
 // dragPane resizes an open drawer by its header, or toggles it on a plain click.

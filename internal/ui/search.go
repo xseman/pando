@@ -1036,7 +1036,7 @@ func (s *searchView) open(m *Model, rows []srRow) tea.Cmd {
 		n = utf8.RuneCountInString(expandTabs(ln.text[a:b]))
 	}
 
-	return m.openFileAt(filepath.Join(s.ws, f.path), ln.line-1, col, n)
+	return m.openFileAt(filepath.Join(s.ws, f.path), ln.line-1, col, n, true)
 }
 
 func (s *searchView) inputKey(m *Model, k tea.KeyPressMsg) tea.Cmd {
@@ -1275,5 +1275,10 @@ func (s *searchView) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 
 	s.l.sel = i
 
-	return s.open(m, rows)
+	cmd := s.open(m, rows)
+	if m.clicks.double(mo.X, mo.Y) && rows[i].line >= 0 {
+		m.pin()
+	}
+
+	return cmd
 }

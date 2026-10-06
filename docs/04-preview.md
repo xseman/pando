@@ -67,6 +67,10 @@ vrow{line, from, to}   screen rows; wrapped when wrap is on
 ## Editors and editing
 
 The strip above the main area lists open editors (`●` unsaved).
+A `transient` editor (VS Code's preview editor, italic) is what Explorer,
+Search and Source Control open: `setPreview` puts the next transient one in
+its tab. `pin` keeps it: `editRaw`, or a double click on the tab or the row.
+Quick open, F12 and menus open pinned; `editorsSpec` drops the flag.
 `editor_limit` closes the tab with the lowest `used`, never the active or a
 dirty one. Every jump is a history entry with cursor and scroll for Go Back.
 `saveEditors` sends `editorsSpec` (`file` and `rev` tabs only) to the daemon;

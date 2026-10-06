@@ -211,7 +211,7 @@ func TestDoubleClickEmptyPanelStartsAFile(t *testing.T) {
 func TestDraftsSurviveRestart(t *testing.T) {
 	m := untitledModel(t, "draft text")
 	readme := filepath.Join(m.ws, "README.md")
-	fire(m, m.openFile(readme))
+	fire(m, m.openFile(readme, false))
 	press(m, "X") // unsaved edit to a file that exists
 
 	// What the tick sends the daemon.
@@ -366,7 +366,7 @@ func TestStripLRUSkipsUnsavedEditors(t *testing.T) {
 	for i := range 25 {
 		p := filepath.Join(m.ws, fmt.Sprintf("f%d.go", i))
 		mustWrite(t, p, "package f\n")
-		fire(m, m.openFile(p))
+		fire(m, m.openFile(p, false))
 	}
 
 	if len(m.editors) != 20 {
@@ -391,7 +391,7 @@ func TestStripLRUSkipsUnsavedEditors(t *testing.T) {
 func TestCloseAllKeepsUnsavedEditors(t *testing.T) {
 	m := untitledModel(t, "wip")
 	readme := filepath.Join(m.ws, "README.md")
-	fire(m, m.openFile(readme))
+	fire(m, m.openFile(readme, false))
 	fire(m, m.closeEditors())
 
 	if len(m.editors) != 1 || m.editors[0].name != "Untitled-1" {
@@ -463,7 +463,7 @@ func TestEditorLimit(t *testing.T) {
 	open := func(name string) {
 		p := filepath.Join(m.ws, name)
 		mustWrite(t, p, "package f\n")
-		fire(m, m.openFile(p))
+		fire(m, m.openFile(p, false))
 	}
 	names := func() []string {
 		var out []string

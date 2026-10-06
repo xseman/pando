@@ -322,6 +322,9 @@ func (p *preview) editRaw(m *Model, a, z pos, text string) tea.Cmd {
 	}
 
 	p.typed = true // VS Code cancels its word highlighter on every change
+	if p.transient {
+		m.pin()
+	}
 
 	a, z = p.buf.clamp(a), p.buf.clamp(z)
 	if !posLE(a, z) {
