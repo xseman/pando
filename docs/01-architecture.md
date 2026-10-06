@@ -48,6 +48,9 @@ connection open and streams events instead.
 ← {"error":"unknown session \"zz\""}
 ```
 
+`session.new` takes `cmd` over the agent's preset and `env`, `KEY=VALUE`
+over the daemon's environment, kept with the session for its restarts.
+
 Methods (`Daemon.dispatch`; `subscribe` in `Daemon.handle`):
 
 - daemon: `ping` `shutdown` `subscribe` `focus`
@@ -171,7 +174,9 @@ Scrollback is lost. A claude resumes by id from its `sessions/<pid>.json`
 - A leftover (`Daemon.ours`) ran under this runtime directory and belongs to a
   respawned session or lost its terminal.
 - `[resume_env]` variables the agent had and its shell lacks
-  (`CLAUDE_CONFIG_DIR`, …) go before the command (`agentEnv`).
+  (`CLAUDE_CONFIG_DIR`, …) go before the command (`agentEnv`). An agent that
+  is the session's own process has no shell: those it has beyond the daemon's
+  environment count, such as `session.new`'s `env` (`ownEnv`).
 - `pando claude ARGS` runs `claude --bg ARGS` and execs `claude attach ID`, so
   the conversation lives in Claude Code's daemon and a restart stops only the
   attach. With `claude_background` on, resumes by id go through it too.

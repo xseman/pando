@@ -4514,7 +4514,7 @@ func welcome(w, h int, sess bool) []string {
 		first,
 		"",
 		"double click or ^n   new file",
-		"3  Spaces panel      n  new agent session",
+		"3  Spaces panel      n  new session",
 		"w  new worktree      a  add project",
 		"^p quick open        ^] cycle sidebar / main focus",
 	}

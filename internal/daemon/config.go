@@ -250,6 +250,10 @@ func (c *config) encode() []byte {
 	table(&b, s.Colors)
 	b.WriteString("\n# Agent presets: the command a new session of that agent runs.\n[agents]\n")
 	table(&b, c.Agents)
+	b.WriteString("\n# Profiles: what a new session of an agent can run with besides its default, each\n" +
+		"# KEY=VALUE set on it, e.g. [profiles.claude] work = [\"CLAUDE_CONFIG_DIR=~/.claude-work\"].\n" +
+		"# The configs pando saw an agent run in ([resume_env]) are offered after these.\n")
+	table(&b, map[string]any{"profiles": s.Profiles})
 	b.WriteString("\n# Continuing an agent: when pando restarts it types this into the session's\n" +
 		"# shell instead of leaving an empty prompt, keyed by the program it saw running.\n[resume]\n")
 	table(&b, c.Resume)

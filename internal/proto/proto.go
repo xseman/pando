@@ -86,6 +86,9 @@ type Settings struct {
 	SpGroup   string              `json:"spaces_group" toml:"spaces_group"`               // Spaces rows: "workspace" (the project tree) or "time" (Today, Yesterday, …)
 	SpProj    string              `json:"spaces_project_sort" toml:"spaces_project_sort"` // Spaces projects in their "manual" order or by "updated" (their sessions' last output)
 	SpHide    []string            `json:"spaces_hide" toml:"spaces_hide"`                 // session states Spaces leaves out: blocked, running, done, idle, exited
+	// Profiles is per agent preset what a new session of it can run with:
+	// profile name to KEY=VALUE, such as CLAUDE_CONFIG_DIR=~/.claude-work.
+	Profiles map[string]map[string][]string `json:"profiles" toml:"profiles"`
 }
 
 // Column is one sidebar column: views shown as tabs, and its width in cells
@@ -165,6 +168,9 @@ type State struct {
 	// a time heading, so a restart keeps them shut. Its order is the folded
 	// projects', the one folded last first.
 	Folded []string `json:"spaces_folded,omitempty"`
+	// Seen is per program the [resume_env] variables pando saw it run with,
+	// KEY=VALUE: a new session of it offers them after its Profiles.
+	Seen map[string][][]string `json:"seen_env,omitempty"`
 }
 
 // Editors is a workspace's tab strip as state.json keeps it, VS Code's
@@ -229,6 +235,7 @@ type SessionSpec struct {
 	Workspace string   `json:"workspace"`
 	Agent     string   `json:"agent"`
 	Cmd       []string `json:"cmd"`
+	Env       []string `json:"env,omitempty"`    // KEY=VALUE over the daemon's environment, e.g. CLAUDE_CONFIG_DIR for another claude config
 	Resume    []string `json:"resume,omitempty"` // what a restarted daemon types to bring the agent back
 	// ResumeExec is an agent that was the session's own process, no shell
 	// under it to type Resume into: a restart runs Resume in place of Cmd.

@@ -31,15 +31,27 @@ app                      project: pando ~/code/app, or `a` in Spaces
 | Key      | In Spaces                                                       |
 | -------- | --------------------------------------------------------------- |
 | `w`      | add a worktree to the selected project                          |
-| `n`      | start an agent in the worktree, or a row's `+` under the mouse  |
+| `n`      | start an agent or a terminal in the worktree, or a row's `+`    |
 | `x`      | kill a session, delete a worktree, or close a project           |
 | `o`      | filter, sort and group the list                                 |
 | `alt+↑↓` | reorder sessions and worktrees                                  |
 
 A session runs an agent: the picker lists the installed `[agents]` presets
-(claude, codex, gemini, opencode, …), empty when none is. A project's `+`
-asks for one of its worktrees, or a new one, first. The agent exiting closes
-its session; a failure stays listed as `exit N`.
+(claude, codex, gemini, opencode, …), then _terminal_, a plain shell. An
+agent with profiles asks which one next: _default_, the `[profiles]` in
+`config.toml`, then every config pando saw it run in, such as a claude
+started as `CLAUDE_CONFIG_DIR=~/.claude-work claude` in a session.
+
+```toml
+[profiles.claude]
+work = ["CLAUDE_CONFIG_DIR=~/.claude-work"]
+
+[profiles.codex]
+client = ["CODEX_HOME=~/codex-client"]
+```
+
+A project's `+` asks for one of its worktrees, or a new one, first. The agent exiting closes its session;
+a failure stays listed as `exit N`.
 
 Deleting a worktree keeps its branch; closing a project never removes its
 checkout.

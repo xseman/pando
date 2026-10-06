@@ -198,9 +198,12 @@ settings (`spaces_hide`, `spaces_sort`, `spaces_group`) read by
 
 ### Sessions and tabs
 
-A new session runs a harness, never a bare shell: an `[agents]` preset whose
-program is on the `PATH`, `shell` and `terminal` aside (`harnesses`); none
-installed, the picker is empty. A project's `+` asks for its worktree first
+A new session runs a harness: an `[agents]` preset whose program is on the
+`PATH`, `shell` and `terminal` aside (`harnesses`), then _terminal_, a `shell`
+session that opens the `shell` setting. An agent with profiles asks which
+(`profilePicker`): _default_, its `[profiles.<agent>]`, then the configs the
+daemon saw it run in (`seen_env`) that no profile sets; the choice goes in
+`session.new`'s `env`. A project's `+` asks for its worktree first
 (`worktreePicker`), _New Worktree…_ included (`sessionWorktreeMsg`). The `+`
 follows the name of the row under the pointer, or of the selected one while
 Spaces has the keyboard (`agents.actions`).

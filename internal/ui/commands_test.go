@@ -948,7 +948,7 @@ func TestSpacesSelectionFollowsSort(t *testing.T) {
 
 // TestSpacesNewSession starts a session from a row's +: a worktree's asks
 // for the harness, a project's for the worktree first, a new one included.
-// Only installed harnesses are offered, never a shell.
+// Only installed harnesses are offered, and a terminal.
 func TestSpacesNewSession(t *testing.T) {
 	m := testModel(t)
 	root, wt := m.ws, t.TempDir()
@@ -962,8 +962,8 @@ func TestSpacesNewSession(t *testing.T) {
 	m.ag.l.sel = feat
 	press(m, "n")
 
-	if m.modal == nil || m.modal.title != "New session in "+filepath.Base(wt) || !slices.Equal(labels(m), []string{"sh-agent"}) {
-		t.Fatalf("n on a worktree offers the installed harnesses: %v", labels(m))
+	if m.modal == nil || m.modal.title != "New session in "+filepath.Base(wt) || !slices.Equal(labels(m), []string{"sh-agent", "terminal"}) {
+		t.Fatalf("n on a worktree offers the installed harnesses and a terminal: %v", labels(m))
 	}
 
 	m.modal = nil
@@ -988,7 +988,7 @@ func TestSpacesNewSession(t *testing.T) {
 
 	m.modal.choose(m, 2)
 
-	if m.modal == nil || m.modal.title != "New session in "+filepath.Base(wt) || !slices.Equal(labels(m), []string{"sh-agent"}) {
+	if m.modal == nil || m.modal.title != "New session in "+filepath.Base(wt) || !slices.Equal(labels(m), []string{"sh-agent", "terminal"}) {
 		t.Fatalf("a worktree picked, the harness next: %v", labels(m))
 	}
 
@@ -1001,20 +1001,64 @@ func TestSpacesNewSession(t *testing.T) {
 		t.Fatalf("the new worktree %q opens the harness picker: %+v", m.ws, m.modal)
 	}
 
-	// Nothing installed, nothing offered.
+	// Nothing installed, only the terminal.
 	m.st.Agents = map[string][]string{"shell": {"sh"}, "gone": {"pando-no-such-harness"}}
 	m.modal = nil
 	m.ag.l.sel = feat
 	press(m, "n")
 
-	if m.modal == nil || len(m.modal.items) != 0 {
-		t.Fatalf("no harness installed, an empty list: %+v", m.modal)
+	if m.modal == nil || !slices.Equal(labels(m), []string{"terminal"}) {
+		t.Fatalf("no harness installed, only the terminal: %v", labels(m))
 	}
 }
 
+// TestNewSessionProfile picks an agent with profiles: its default, its
+// [profiles] by name, then the configs pando saw it run in that no profile
+// sets, a ~ in a profile matching the home directory it stands for.
+func TestNewSessionProfile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
+
+	m := testModel(t)
+	m.st.Agents = map[string][]string{"claude": {"sh"}}
+
+	newClaude := func() {
+		t.Helper()
+
+		m.modal = nil
+		press(m, "3")
+		press(m, "n")
+
+		if m.modal == nil || !slices.Equal(labels(m), []string{"claude", "terminal"}) {
+			t.Fatalf("the harness picker: %v", labels(m))
+		}
+
+		m.modal.choose(m, 0)
+	}
+
+	newClaude()
+
+	if m.modal != nil {
+		t.Fatalf("no profile, no profile picker: %v", labels(m))
+	}
+
+	m.st.Settings.Profiles = map[string]map[string][]string{"claude": {"work": {"CLAUDE_CONFIG_DIR=~/.claude-work"}}}
+	m.st.Seen = map[string][][]string{"claude": {{"CLAUDE_CONFIG_DIR=" + filepath.Join(home, ".claude-work")}, {"CLAUDE_CONFIG_DIR=/opt/nike"}}}
+
+	newClaude()
+
+	if m.modal == nil || m.modal.title != "claude profile" || !slices.Equal(labels(m), []string{"default", "work", "CLAUDE_CONFIG_DIR=/opt/nike"}) {
+		t.Fatalf("claude asks for the profile: %+v", m.modal)
+	}
+
+	checkWidths(t, m)
+}
+
 // TestSpacesDragWorktree drags a project's checkout below its linked
-// worktree: each takes its sessions along, a workspaces event mid-drag does
-// not undo it, and a press that never moves still switches to the worktree.
+// worktree: the slot is marked under that worktree's last session, a
+// workspaces event mid-drag keeps it, the release moves each with its
+// sessions, and a press that never moves still switches to the worktree.
 func TestSpacesDragWorktree(t *testing.T) {
 	m := testModel(t)
 	root, wt := m.ws, t.TempDir()

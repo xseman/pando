@@ -1278,7 +1278,7 @@ func (g *ghView) dragPane(m *Model, d *drag, y int, release bool) tea.Cmd {
 // as the shell's command, so a restarted daemon brings back a shell, not
 // the command again.
 func (m *Model) ghTerminal(line string) tea.Cmd {
-	return tea.Batch(m.showTerminal(), m.spawn(m.ws, termAgent, m.rootOf(m.sess), nil, line))
+	return tea.Batch(m.showTerminal(), m.spawn(m.ws, termAgent, m.rootOf(m.sess), nil, line, nil))
 }
 
 // ghDoc is a pull request or an issue as gh view prints it.

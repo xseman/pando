@@ -98,6 +98,7 @@ rewrites the file: no line, never saved), a `settingsItems` toggle if any.
 | `[colors]`     | palette key to `#rrggbb` or ANSI 0–255                                              |
 | `[lsp]`        | extension or language id to server; go, typescript, javascript built in             |
 | `[format]`     | extension or language id to formatter; go: `gofmt` built in                         |
+| `[profiles]`   | per preset, profile name to the `KEY=VALUE` a new session of it can run with        |
 | `[agents]`     | preset to a new session's command: claude, codex, gemini, opencode, shell, terminal |
 | `[resume]`     | program to its "continue last": claude, codex, opencode                             |
 | `[resume_id]`  | program to its "continue `{id}`": claude                                            |
@@ -192,6 +193,7 @@ tick, on leaving the workspace and on quitting.
 | `session_views`  | per workspace, session `position` and `width` (0: half); `null` |
 | `last_workspace` | reopened when pando starts outside a repository                 |
 | `spaces_folded`  | folded Spaces headings, paths and `time:…`; sent whole          |
+| `seen_env`       | per program, the `[resume_env]` values seen; never, edit it out |
 
 ```json
 "editors": { "/home/me/app": { "active": 0, "open": [

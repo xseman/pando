@@ -72,7 +72,7 @@ type session struct {
 func spawn(spec proto.SessionSpec, cols, rows int, onOutput, onExit func()) (*session, error) {
 	cmd := exec.Command(spec.Cmd[0], spec.Cmd[1:]...)
 	cmd.Dir = spec.Workspace
-	cmd.Env = append(proto.WithoutNoColor(os.Environ()),
+	cmd.Env = append(append(proto.WithoutNoColor(os.Environ()), spec.Env...),
 		"TERM=xterm-256color", "COLORTERM=truecolor",
 		"PANDO_SESSION="+spec.ID, "PANDO_RUNTIME_DIR="+proto.Dir())
 
@@ -308,15 +308,23 @@ func (s *session) size() (cols, rows int) {
 	return s.emu.Width(), s.emu.Height()
 }
 
-// ownEnv is the part of env, KEY=VALUE an agent ran with, that the
+// ownEnv is the part of env, KEY=VALUE agent process pid ran with, that the
 // session's shell does not set the same way: what was typed before the
-// agent's name, and has to be again.
-func (s *session) ownEnv(env []string) []string {
+// agent's name, and has to be again. An agent that is the session's own
+// process has no shell: what it got beyond the daemon's environment counts,
+// such as the session's Env.
+func (s *session) ownEnv(pid int, env []string) []string {
 	var out []string
 
 	for _, kv := range env {
 		k, v, _ := strings.Cut(kv, "=")
-		if envOf(s.cmd.Process.Pid, k) != v {
+
+		set := envOf(s.cmd.Process.Pid, k)
+		if pid == s.cmd.Process.Pid {
+			set = os.Getenv(k)
+		}
+
+		if set != v {
 			out = append(out, kv)
 		}
 	}

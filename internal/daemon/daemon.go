@@ -185,15 +185,16 @@ func New(configDir, dataDir string) (*Daemon, error) {
 // remember records what would bring session s's agent back after a restart:
 // the conversation process pid of program prog has open, when the agent says
 // which, else its latest. A process that only attaches to a background job
-// records the job, to attach to again. It reports a change worth saving;
-// d.mu is held.
-func (d *Daemon) remember(s *session, pid int, prog string) bool {
+// records the job, to attach to again. It reports a change worth saving, and
+// a config the program runs in that d.state.Seen did not have; d.mu is held.
+func (d *Daemon) remember(s *session, pid int, prog string) (dirty, saw bool) {
 	if pid == 0 { // the terminal cannot tell what runs (no /proc): an agent's session runs the agent
 		pid, prog = s.ownAgent()
 	}
 
-	env := s.ownEnv(agentEnv(pid, d.state.ResumeEnv[prog])) // the config it runs in, which the shell does not set
-	own := pid == s.cmd.Process.Pid                         // no shell under it: a restart runs its resume instead
+	env := s.ownEnv(pid, agentEnv(pid, d.state.ResumeEnv[prog])) // the config it runs in, which the shell does not set
+	own := pid == s.cmd.Process.Pid                              // no shell under it: a restart runs its resume instead
+	saw = d.see(prog, env)
 
 	if src, t := conversations[prog], d.state.ResumeID[prog]; src != nil && len(t) > 0 && pid > 0 {
 		id, job, name, worker := src.open(pid)
@@ -211,13 +212,29 @@ func (d *Daemon) remember(s *session, pid int, prog string) bool {
 				argv = withID(jt, job)
 			}
 
-			return s.setResume(withEnv(c.Env, argv), c, own)
+			return s.setResume(withEnv(c.Env, argv), c, own) || saw, saw
 		}
 	}
 
 	s.setJob(false, "", 0)
 
-	return s.setResume(withEnv(env, d.state.Resume[prog]), nil, own)
+	return s.setResume(withEnv(env, d.state.Resume[prog]), nil, own) || saw, saw
+}
+
+// see records env, the [resume_env] variables program prog runs with, in
+// d.state.Seen; it reports one it had not seen. d.mu is held.
+func (d *Daemon) see(prog string, env []string) bool {
+	if len(env) == 0 || slices.ContainsFunc(d.state.Seen[prog], func(e []string) bool { return slices.Equal(e, env) }) {
+		return false
+	}
+
+	if d.state.Seen == nil {
+		d.state.Seen = map[string][][]string{}
+	}
+
+	d.state.Seen[prog] = append(d.state.Seen[prog], env)
+
+	return true
 }
 
 // byID is the command that continues conversation id of prog, [resume_id].
@@ -318,7 +335,7 @@ func (d *Daemon) Serve(ln net.Listener) error {
 	go func() {
 		for now := range t.C {
 			d.mu.Lock()
-			changed, dirty := false, false
+			changed, dirty, saw := false, false, false
 
 			for _, s := range d.sessions {
 				if d.closing { // a killed agent is not a left one: keep its resume
@@ -329,7 +346,8 @@ func (d *Daemon) Serve(ln net.Listener) error {
 				s.setCommands(commandsUnder(s.worker(pid)))
 				changed = s.tick(now) || changed
 				changed = s.setProgram(prog) || changed
-				dirty = d.remember(s, pid, prog) || dirty
+				r, seen := d.remember(s, pid, prog)
+				dirty, saw = r || dirty, seen || saw
 			}
 
 			if dirty {
@@ -339,6 +357,10 @@ func (d *Daemon) Serve(ln net.Listener) error {
 
 			if changed {
 				d.broadcast(proto.Event{Kind: "sessions"})
+			}
+
+			if saw { // a new session offers it
+				d.broadcast(proto.Event{Kind: "state"})
 			}
 
 			d.reloadConfig()
@@ -599,14 +621,20 @@ func (d *Daemon) dispatch(method string, raw json.RawMessage) (any, error) {
 	case "session.new":
 		p, err := parse[struct {
 			Workspace, Agent, Name, Parent, FG, BG string
-			Cmd                                    []string
+			Cmd, Env                               []string
 			Cols, Rows                             int
 		}](raw)
 		if err != nil {
 			return nil, err
 		}
 
-		spec := proto.SessionSpec{Workspace: realPath(p.Workspace), Agent: p.Agent, Name: strings.TrimSpace(p.Name), Parent: p.Parent, Cmd: p.Cmd, FG: p.FG, BG: p.BG}
+		for _, kv := range p.Env {
+			if k, _, ok := strings.Cut(kv, "="); !ok || k == "" {
+				return nil, fmt.Errorf("env %q is not KEY=VALUE", kv)
+			}
+		}
+
+		spec := proto.SessionSpec{Workspace: realPath(p.Workspace), Agent: p.Agent, Name: strings.TrimSpace(p.Name), Parent: p.Parent, Cmd: p.Cmd, Env: p.Env, FG: p.FG, BG: p.BG}
 
 		return d.newSession(spec, p.Cols, p.Rows)
 
@@ -733,7 +761,8 @@ func (d *Daemon) save() error {
 		Worktrees map[string][]string          `json:"worktrees,omitempty"`
 		Last      string                       `json:"last_workspace,omitempty"`
 		Folded    []string                     `json:"spaces_folded,omitempty"`
-	}{d.state.Projects, d.state.Drafts, d.state.Editors, d.state.Terminals, d.state.SessionViews, d.state.Sessions, d.state.Worktrees, d.state.LastWorkspace, d.state.Folded}, "", "  ")
+		Seen      map[string][][]string        `json:"seen_env,omitempty"`
+	}{d.state.Projects, d.state.Drafts, d.state.Editors, d.state.Terminals, d.state.SessionViews, d.state.Sessions, d.state.Worktrees, d.state.LastWorkspace, d.state.Folded, d.state.Seen}, "", "  ")
 	if err != nil {
 		return err
 	}

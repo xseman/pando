@@ -76,7 +76,7 @@ pando ~/code/app   # add a project and open it; plain `pando` reopens the last
 | -------- | -------------------------------------------------------------- |
 | `3`      | Spaces: your projects, worktrees and sessions                  |
 | `w`      | a new worktree for the selected project                        |
-| `n`      | a new session in the worktree: pick an installed agent         |
+| `n`      | a new session in the worktree: an installed agent or a shell   |
 | `ctrl+]` | move focus out of the session; inside it every key goes to it  |
 | `2`      | Source Control for the session's worktree: review and commit   |
 | `?`      | every key of every view                                        |

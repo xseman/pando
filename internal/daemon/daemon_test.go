@@ -567,6 +567,7 @@ func TestConfig(t *testing.T) {
 			Theme: "terminal", DiffView: "split", ActBar: "top", TermPos: "right", TermH: 14, TermOpen: true, Borders: false, Colors: map[string]string{"accent": "#ff8800", "ok": "2"}, Keys: map[string]string{"ctrl+g": "view.showSearch"},
 			LSP: map[string][]string{"go": {"gopls"}}, Format: map[string][]string{"ts": {"prettier", "--stdin-filepath", "$FILE"}}, FmtSave: true, Wrap: true, EdLimit: 7, TabSize: 3, Spaces: true, MDWidth: 90,
 			Sounds: true, SoundDone: "/a.oga", SoundReq: "",
+			Profiles: map[string]map[string][]string{"my agent": {"work": {"MY_AGENT_HOME=~/w"}}},
 		}, Agents: map[string][]string{"my agent": {"x", "y \"z\""}},
 		Resume:    map[string][]string{"my agent": {"x", "--continue"}},
 		ResumeID:  map[string][]string{"my agent": {"x", "--resume", "{id}"}},
@@ -1365,6 +1366,18 @@ func TestResumeKeepsConfigDir(t *testing.T) {
 		t.Fatalf("resume = %q", got.Resume)
 	}
 
+	// A new session of it offers the config, across a restart too.
+	seen := func() [][]string {
+		d.mu.Lock()
+		defer d.mu.Unlock()
+
+		return d.state.Seen["myagent"]
+	}
+
+	if want := [][]string{{"CLAUDE_CONFIG_DIR=" + custom}}; !reflect.DeepEqual(seen(), want) {
+		t.Fatalf("seen %v, want %v", seen(), want)
+	}
+
 	d.mu.Lock()
 	saveErr := d.save()
 	d.mu.Unlock()
@@ -1387,6 +1400,96 @@ func TestResumeKeepsConfigDir(t *testing.T) {
 	if strings.Contains(screen(s.ID), "FRESH") {
 		t.Fatal("the transcript was looked for in the default config")
 	}
+
+	if len(seen()) != 1 {
+		t.Fatalf("seen after the restart: %v", seen())
+	}
+}
+
+// TestNewSessionEnv is a session whose agent is its own process, started
+// with a config of its own in session.new's env: the agent runs in it, and
+// the restart looks for its conversation there and continues it there.
+func TestNewSessionEnv(t *testing.T) {
+	needProc(t)
+
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir()) // the daemon's
+
+	conversations["myagent"] = claudeSource{}
+
+	t.Cleanup(func() { delete(conversations, "myagent") })
+
+	custom := filepath.Join(t.TempDir(), "work config")
+
+	boot := start(t)
+	d := boot()
+	ws := t.TempDir()
+	agent := filepath.Join(ws, "myagent")
+	mustWrite(t, agent, "#!/bin/sh\necho AGENT IN \"$CLAUDE_CONFIG_DIR\"\nsleep 300\n")
+
+	if err := os.Chmod(agent, 0o755); err != nil { // the test runs it
+		t.Fatalf("chmod %s: %v", agent, err)
+	}
+
+	d.mu.Lock()
+	d.state.ResumeID = map[string][]string{"myagent": {"sh", "-c", "'echo RESUMED IN $CLAUDE_CONFIG_DIR; sleep 300'"}}
+	d.state.ResumeEnv = map[string][]string{"myagent": {"CLAUDE_CONFIG_DIR"}}
+	cfgErr := d.saveConfig()
+	d.mu.Unlock()
+
+	if cfgErr != nil {
+		t.Fatal(cfgErr)
+	}
+
+	if err := proto.Call("session.new", map[string]any{"workspace": ws, "cmd": []string{agent}, "env": []string{"=x"}}, nil); err == nil {
+		t.Fatal("an env entry without a key is taken")
+	}
+
+	screen := func(id string) string {
+		t.Helper()
+
+		var scr proto.Screen
+		call(t, "session.screen", proto.ScreenParams{ID: id, Cols: 100, Rows: 8}, &scr)
+
+		return strings.Join(scr.Lines, "\n")
+	}
+
+	var s proto.Session
+	call(t, "session.new", map[string]any{"workspace": ws, "cmd": []string{agent}, "env": []string{"CLAUDE_CONFIG_DIR=" + custom}}, &s)
+	waitFor(t, "the agent to start in its config", func() bool { return strings.Contains(screen(s.ID), "AGENT IN "+custom) })
+
+	sess := d.sessions[s.ID]
+	pid := sess.cmd.Process.Pid
+
+	b, err := json.Marshal(claudeProcess{PID: pid, SessionID: "conv-e", ProcStart: startTime(pid)})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mustWrite(t, filepath.Join(custom, "sessions", strconv.Itoa(pid)+".json"), string(b))
+	mustWrite(t, filepath.Join(custom, "projects", "-ws", "conv-e.jsonl"), "{}\n")
+
+	waitFor(t, "the conversation to be remembered", func() bool { return remembered(d, sess).Conversation != nil })
+
+	if got := remembered(d, sess); !got.ResumeExec || !slices.Equal(got.Conversation.Env, []string{"CLAUDE_CONFIG_DIR=" + custom}) {
+		t.Fatalf("remembered %+v, conversation %+v", got, got.Conversation)
+	}
+
+	d.mu.Lock()
+	saveErr := d.save()
+	d.mu.Unlock()
+
+	if saveErr != nil {
+		t.Fatal(saveErr)
+	}
+
+	d.Close()
+
+	d = boot()
+	defer d.Close()
+
+	waitFor(t, "the conversation to resume in its own config", func() bool {
+		return strings.Contains(screen(s.ID), "RESUMED IN "+custom)
+	})
 }
 
 func TestShellWord(t *testing.T) {

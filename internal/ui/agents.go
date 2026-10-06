@@ -959,21 +959,75 @@ func (m *Model) worktreePicker(project string) tea.Cmd {
 	return nil
 }
 
-// harnessPicker asks which harness a new session in ws runs: a session is an
-// agent, never a bare shell, and ends when it exits.
+// harnessPicker asks what a new session in ws runs: an installed agent, or
+// a terminal, the shell a tab opens. The session ends when it exits. An
+// agent with profiles asks for the profile next.
 func (m *Model) harnessPicker(ws string) tea.Cmd {
-	names := m.harnesses()
+	var items []item
 
-	items := make([]item, len(names))
-	for i, name := range names {
-		items[i] = item{label: name, hint: strings.Join(m.st.Agents[name], " "), run: func(m *Model) tea.Cmd {
+	for _, name := range m.harnesses() {
+		items = append(items, item{label: name, hint: strings.Join(m.st.Agents[name], " "), run: func(m *Model) tea.Cmd {
+			if m.profilePicker(ws, name) {
+				return nil
+			}
+
 			return m.newSession(ws, name, nil)
-		}}
+		}})
 	}
+
+	items = append(items, item{label: "terminal", hint: cmp.Or(m.st.Settings.Shell, strings.Join(m.st.Agents["shell"], " ")), run: func(m *Model) tea.Cmd {
+		return m.newSession(ws, "shell", nil) // the daemon picks the shell
+	}})
 
 	m.modal = newPicker("New session in "+filepath.Base(ws), items)
 
 	return nil
+}
+
+// profilePicker asks which profile a new session of agent in ws runs with:
+// its default, which sets nothing, its [profiles], then each config pando saw
+// it run in that none of them sets. It reports whether there was a choice.
+func (m *Model) profilePicker(ws, agent string) bool {
+	run := func(env []string) func(*Model) tea.Cmd {
+		return func(m *Model) tea.Cmd { return m.spawn(ws, agent, "", nil, "", env) }
+	}
+
+	items := []item{{label: "default", hint: strings.Join(m.st.Agents[agent], " "), run: run(nil)}}
+
+	var set [][]string
+
+	profiles := m.st.Settings.Profiles[agent]
+	for _, name := range slices.Sorted(maps.Keys(profiles)) {
+		env := homeEnv(profiles[name])
+		set = append(set, env)
+		items = append(items, item{label: name, hint: strings.Join(profiles[name], " "), run: run(env)})
+	}
+
+	for _, env := range m.st.Seen[agent] {
+		if !slices.ContainsFunc(set, func(e []string) bool { return slices.Equal(e, env) }) {
+			items = append(items, item{label: strings.Join(env, " "), hint: "seen", run: run(env)})
+		}
+	}
+
+	if len(items) == 1 {
+		return false
+	}
+
+	m.modal = newPicker(agent+" profile", items)
+
+	return true
+}
+
+// homeEnv is KEY=VALUE env with a leading ~ in each value expanded, as a
+// shell does: no shell runs between a profile and the agent.
+func homeEnv(env []string) []string {
+	out := make([]string, len(env))
+	for i, kv := range env {
+		k, v, _ := strings.Cut(kv, "=")
+		out[i] = k + "=" + expandHome(v)
+	}
+
+	return out
 }
 
 // harnesses are the [agents] presets a session can run: the installed ones,
@@ -2139,7 +2193,7 @@ func (m *Model) newTab() tea.Cmd {
 		return m.ag.newSession(m, nil)
 	}
 
-	return m.spawn(root.Workspace, tabAgent, root.ID, nil, "") // the daemon picks the shell
+	return m.spawn(root.Workspace, tabAgent, root.ID, nil, "", nil) // the daemon picks the shell
 }
 
 // termSessions are the shells of the Terminal panel: the shown session's own,
@@ -2946,7 +3000,7 @@ func (m *Model) cycleTerm(d int) tea.Cmd {
 }
 
 func (m *Model) newTerm() tea.Cmd {
-	return m.spawn(m.ws, termAgent, m.rootOf(m.sess), nil, "") // the daemon picks the shell
+	return m.spawn(m.ws, termAgent, m.rootOf(m.sess), nil, "", nil) // the daemon picks the shell
 }
 
 // toggleTerminal is ⌃`: it opens the terminal where it is docked and focuses
