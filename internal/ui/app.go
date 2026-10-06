@@ -87,8 +87,7 @@ type drag struct {
 	proj   string // dragRow: the project being moved in the Spaces list
 	sess   string // dragRow: the session being moved under its worktree instead
 	ws     string // dragRow: the worktree being moved under its project instead
-	to     string // dragRow, sess or ws: the one whose place it takes, "" where it started
-	from   int    // dragRow: the index it was picked up from
+	to     string // dragRow: the one of its kind whose place it would take on release, "" none
 	strip  int    // dragStrip: the tab strip, stripEditor and on
 	tab    string // dragStrip: the tab being moved, an editor's or a session's id
 	org    int    // dragStrip: the screen column of the strip's first cell
@@ -2409,9 +2408,6 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.onUpdate(proto.Update(msg))
 	case workspacesMsg:
 		m.wss = msg
-		if d := m.drag; d != nil && d.kind == dragRow && d.ws != "" && d.to != "" { // so does a worktree
-			m.ag.moveWorkspace(m, d.ws, d.to)
-		}
 
 		return m, nil
 
@@ -2438,9 +2434,6 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		sel := m.ag.selected(m)
 
 		m.sessions = msg
-		if d := m.drag; d != nil && d.kind == dragRow && d.sess != "" && d.to != "" { // a session held mid-drag stays under the pointer
-			m.ag.moveSession(m, d.sess, d.to)
-		}
 
 		m.ag.follow(m, sel)
 

@@ -149,10 +149,13 @@ dragged divider stops at `minEditor`.
 | Source Control drawer, GitHub pane header | the pane's top edge                        |
 | tab onto a bar, or the half facing main   | slot between chips (`slotAt`, `placeView`) |
 | tab below a bar, toward the screen edge   | a new column                               |
+| Spaces project, worktree or session row   | an accent line marks the slot (`dropSlot`) |
 
-`dropAt` picks the target, `dropBox` draws it. A sash lights after
-`sashDelay` (300 ms) in `sash_hover`, the accent while dragged (`trackSash`,
-`sashUnder`, `sashRule`).
+`dropAt` picks the target, `dropBox` draws it. A Spaces row moves only on
+release, onto the row of its kind under the pointer (`dropOn`); let go
+anywhere else, it stays. A sash lights after `sashDelay` (300 ms) in
+`sash_hover`, the accent while dragged (`trackSash`, `sashUnder`,
+`sashRule`).
 
 ## Rows
 

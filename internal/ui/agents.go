@@ -580,8 +580,9 @@ func (a *agents) lines(m *Model, w, h int) []string {
 	hover, mx := m.hoverRow(viewAgents), m.mouseCol(viewAgents)
 	a.l.bar = m.barState("list:agents")
 	every := m.mainSessions() // their tabs too, which roll up
+	slot := a.dropSlot(m, rows)
 
-	return a.l.render(w, h, len(rows), func(i, rw int) string {
+	draw := func(i, rw int) string {
 		r := rows[i]
 		if r.kind == agGap {
 			return blank(rw)
@@ -702,6 +703,14 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		left := append([]seg{sg(conn, dim), sg(glyph, fg(c))}, m.fx.segs("sess:"+r.s.ID, sessionName(r.s), nameSt)...)
 
 		return row(rw, bg, append(left, sg(titleAfter(r.s), nameSt)), sg(" "+status+" ", dim))
+	}
+
+	return a.l.render(w, h, len(rows), func(i, rw int) string {
+		if i == slot {
+			return underline(draw(i, rw), pal.accent)
+		}
+
+		return draw(i, rw)
 	})
 }
 
@@ -1435,7 +1444,7 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 		// A project row drags up and down the list; a press that never leaves
 		// its row is the click that folds it, so the fold waits for the release.
 		if p := rows[i].project; mo.Button == tea.MouseLeft && rows[i].kind == agProject && p != "" && len(m.st.Projects) > 1 && a.projectMovable(m, p) {
-			m.drag = &drag{kind: dragRow, proj: p, from: slices.Index(m.st.Projects, p), y0: mo.Y}
+			m.drag = &drag{kind: dragRow, proj: p, y0: mo.Y}
 			return nil
 		}
 		// A worktree drags the same way among its project's, taking its
@@ -1443,14 +1452,14 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 		// never leaves its row switches to it on the release.
 		if w := rows[i].ws.Path; mo.Button == tea.MouseLeft && rows[i].kind == agWorkspace {
 			if wts := m.worktreesOf(rows[i].project); len(wts) > 1 {
-				m.drag = &drag{kind: dragRow, ws: w, from: slices.Index(wts, w), y0: mo.Y}
+				m.drag = &drag{kind: dragRow, ws: w, y0: mo.Y}
 				return nil
 			}
 		}
 
 		if id := rows[i].s.ID; mo.Button == tea.MouseLeft && rows[i].kind == agSession && m.sessionsMovable() {
 			if sibs := m.siblings(id); len(sibs) > 1 {
-				m.drag = &drag{kind: dragRow, sess: id, from: slices.Index(sibs, id), y0: mo.Y}
+				m.drag = &drag{kind: dragRow, sess: id, y0: mo.Y}
 				return nil
 			}
 		}
@@ -1461,31 +1470,17 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 	return nil
 }
 
-// dragRowTo moves the dragged project, worktree or session to wherever the
-// pointer is: the tree reorders under it row by row, and the release tells the
-// daemon where it landed. A press that never left its row is a click instead.
+// dragRowTo marks where the dragged project, worktree or session would land,
+// a line on its slot (dropSlot), and the release moves it there and tells the
+// daemon. Let go anywhere else it stays; a press that never left its row is a
+// click instead.
 func (a *agents) dragRowTo(m *Model, d *drag, y int, release bool) tea.Cmd {
 	if y != d.y0 {
 		d.moved = true
 	}
 
-	switch {
-	case d.moved && d.ws != "":
-		if over := a.workspaceAt(m, m.hoverRow(viewAgents)); over != "" && over != d.ws && slices.Contains(m.worktreesOf(m.projectOf(d.ws)), over) {
-			a.moveWorkspace(m, d.ws, over)
-			d.to = target(m.worktreesOf(m.projectOf(d.ws)), d.ws, d.from)
-		}
-
-	case d.moved && d.sess != "":
-		if over := a.sessionAt(m, m.hoverRow(viewAgents)); over != "" && over != d.sess && slices.Contains(m.siblings(d.sess), over) {
-			a.moveSession(m, d.sess, over)
-			d.to = target(m.siblings(d.sess), d.sess, d.from)
-		}
-
-	case d.moved:
-		if over := a.projectAt(m, m.hoverRow(viewAgents)); over != "" && over != d.proj && a.collapsed[over] == a.collapsed[d.proj] {
-			a.moveProject(m, d.proj, over)
-		}
+	if d.moved {
+		d.to = a.dropOn(m, d)
 	}
 
 	if !release {
@@ -1498,24 +1493,98 @@ func (a *agents) dragRowTo(m *Model, d *drag, y int, release bool) tea.Cmd {
 	}
 
 	switch {
-	case d.ws != "" && d.to == "", d.sess != "" && d.to == "":
+	case d.to == "":
 		return nil
 	case d.ws != "":
+		a.moveWorkspace(m, d.ws, d.to)
+
 		return do("workspace.move", proto.MoveParams{Path: d.ws, To: slices.Index(m.worktreesOf(m.projectOf(d.ws)), d.ws)})
+
 	case d.sess != "":
+		a.moveSession(m, d.sess, d.to)
+
 		return do("session.move", proto.SessionMoveParams{ID: d.sess, To: d.to})
 	}
+
+	a.moveProject(m, d.proj, d.to)
 
 	if a.collapsed[d.proj] { // the folded keep an order of their own, saved with them
 		return a.saveFolds()
 	}
 
-	to := slices.Index(m.st.Projects, d.proj)
-	if to < 0 || to == d.from {
-		return nil
+	return do("project.move", proto.MoveParams{Path: d.proj, To: slices.Index(m.st.Projects, d.proj)})
+}
+
+// dropOn is the row under the pointer whose place drag d would take: one of
+// its kind and among its own, a session's worktree's or a worktree's
+// project's, a project folded or open as it is; "" for none or its own.
+func (a *agents) dropOn(m *Model, d *drag) string {
+	y := m.hoverRow(viewAgents)
+
+	var (
+		over string
+		ok   bool
+	)
+
+	switch {
+	case d.ws != "":
+		over = a.workspaceAt(m, y)
+		ok = slices.Contains(m.worktreesOf(m.projectOf(d.ws)), over)
+
+	case d.sess != "":
+		over = a.sessionAt(m, y)
+		ok = slices.Contains(m.siblings(d.sess), over)
+
+	default:
+		over = a.projectAt(m, y)
+		ok = over != "" && a.collapsed[over] == a.collapsed[d.proj]
 	}
 
-	return do("project.move", proto.MoveParams{Path: d.proj, To: to})
+	if !ok || over == cmp.Or(d.ws, d.sess, d.proj) {
+		return ""
+	}
+
+	return over
+}
+
+// dropSlot is the row the dragged row would land under, drawn underlined:
+// the last row of the one it takes the place of, with what hangs off it,
+// moving down; the row above that one moving up. -1 with no drop.
+func (a *agents) dropSlot(m *Model, rows []agRow) int {
+	d := m.drag
+	if d == nil || d.kind != dragRow || d.to == "" {
+		return -1
+	}
+
+	key := func(r agRow) string {
+		switch {
+		case d.sess != "" && r.kind == agSession:
+			return r.s.ID
+		case d.ws != "" && r.kind == agWorkspace:
+			return r.ws.Path
+		case d.proj != "" && r.kind == agProject:
+			return r.project
+		}
+
+		return ""
+	}
+
+	from := slices.IndexFunc(rows, func(r agRow) bool { return key(r) == cmp.Or(d.ws, d.sess, d.proj) })
+	to := slices.IndexFunc(rows, func(r agRow) bool { return key(r) == d.to })
+
+	if from < 0 || to < 0 {
+		return -1
+	}
+
+	if to < from {
+		return to - 1
+	}
+
+	for k := rows[to].kind; to+1 < len(rows) && rows[to+1].kind > k && rows[to+1].kind <= agSession; { // the tree under it
+		to++
+	}
+
+	return to
 }
 
 // shiftProject moves a project d places and saves it at once: the menu's and
@@ -1567,8 +1636,7 @@ func (a *agents) projectAt(m *Model, y int) string {
 }
 
 // moveProject puts from where to sits now and keeps the moved row selected.
-// It reorders the model's own copy so the tree follows the pointer; the
-// daemon is told once, on release.
+// It reorders the model's own copy, which the daemon is then told of.
 func (a *agents) moveProject(m *Model, from, to string) {
 	order := &m.st.Projects
 	if a.collapsed[from] { // among the folded: their own order
@@ -1631,22 +1699,6 @@ func (a *agents) sessionAt(m *Model, y int) string {
 	}
 
 	return ""
-}
-
-// target is the entry whose place x, picked up at index from, takes in the
-// order the daemon still has: the one now just above it when it
-// went down, just below it when it went up, "" back where it started. Moved
-// onto it in the daemon's order, x lands where it is now.
-func target(order []string, x string, from int) string {
-	k := slices.Index(order, x)
-	switch {
-	case k < 0 || k == from:
-		return ""
-	case k > from:
-		return order[k-1]
-	}
-
-	return order[k+1]
 }
 
 // worktreesOf are the paths of project's worktrees, in the tree's order.

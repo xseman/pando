@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -98,6 +99,17 @@ func fit(s string, w int) string {
 	}
 
 	return s + "\x1b[m" + strings.Repeat(" ", w-sw)
+}
+
+// sgr is an SGR escape, what styles a run of cells.
+var sgr = regexp.MustCompile(`\x1b\[[0-9;:]*m`)
+
+// underline draws a line in c under every cell of styled line s, the slot a
+// dragged row drops into: each of its own styles takes the line along.
+func underline(s string, c color.Color) string {
+	on := ansi.Style{}.Underline(true).UnderlineColor(c).String()
+
+	return on + sgr.ReplaceAllString(s, "${0}"+on) + "\x1b[m"
 }
 
 func blank(w int) string { return strings.Repeat(" ", max(w, 0)) }

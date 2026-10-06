@@ -617,7 +617,7 @@ func TestTimeBucket(t *testing.T) {
 }
 
 // TestSpacesDragReorder drags a project down the Spaces list: the tree
-// reorders under the pointer, the release saves the order, and a press that
+// stays put under the pointer, the release moves it and saves the order, and a press that
 // never moves is still the click that folds the project.
 // A project folded in Spaces stays folded when pando opens again, even the
 // one holding the workspace it opens on, and a fold is saved.
@@ -665,18 +665,22 @@ func TestSpacesDragReorder(t *testing.T) {
 
 	m.Update(tea.MouseMotionMsg{X: x, Y: top + 1, Button: tea.MouseLeft})
 
-	// The folded keep an order of their own: the saved project order stays.
-	if got := m.ag.shownProjects(m); !slices.Equal(got, []string{other, first}) || !slices.Equal(m.st.Projects, []string{first, other}) {
-		t.Fatalf("the project follows the pointer: shown %v, saved %v", got, m.st.Projects)
-	}
-
-	if r := m.ag.selected(m); r == nil || r.project != first {
-		t.Fatalf("the moved row stays selected: %+v", r)
+	if got := m.ag.shownProjects(m); !slices.Equal(got, []string{first, other}) || m.drag.to != other {
+		t.Fatalf("the list stays put while the drop is marked: shown %v, to %q", got, m.drag.to)
 	}
 
 	_, cmd := m.Update(tea.MouseReleaseMsg{X: x, Y: top + 1, Button: tea.MouseLeft})
 	if cmd == nil || m.drag != nil {
 		t.Fatalf("the release saves the order: cmd %v drag %+v", cmd != nil, m.drag)
+	}
+
+	// The folded keep an order of their own: the saved project order stays.
+	if got := m.ag.shownProjects(m); !slices.Equal(got, []string{other, first}) || !slices.Equal(m.st.Projects, []string{first, other}) {
+		t.Fatalf("the release moves the project: shown %v, saved %v", got, m.st.Projects)
+	}
+
+	if r := m.ag.selected(m); r == nil || r.project != first {
+		t.Fatalf("the moved row stays selected: %+v", r)
 	}
 	// A press and release on the same row is a click, and unfolds.
 	click(m, x, top, tea.MouseLeft)
@@ -839,10 +843,10 @@ func TestSpacesFoldedSink(t *testing.T) {
 	}
 }
 
-// TestSpacesDragSession drags a session down its worktree: it follows the
-// pointer with its tab, a sessions event mid-drag does not undo it, the
-// release names the session whose place it took, and a press that never
-// moves still opens it.
+// TestSpacesDragSession drags a session down its worktree: the tree stays
+// put while a line marks where it would land, a sessions event mid-drag
+// keeps the mark, the release moves it there with its tab and names the
+// session whose place it took, and a press that never moves still opens it.
 func TestSpacesDragSession(t *testing.T) {
 	m := testModel(t)
 	sess := func(id, parent string) proto.Session {
@@ -876,23 +880,35 @@ func TestSpacesDragSession(t *testing.T) {
 
 	m.Update(tea.MouseMotionMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
 
-	if got := ids(); got != "s2 s2t s1 s3" || m.drag.to != "s2" {
-		t.Fatalf("the session follows the pointer past s2 and its tab: %q, to %q", got, m.drag.to)
+	if got := ids(); got != "s1 s2 s2t s3" || m.drag.to != "s2" || m.ag.dropSlot(m, m.ag.rows(m)) != 3 {
+		t.Fatalf("the tree stays put, the slot under s2: %q, to %q, slot %d", got, m.drag.to, m.ag.dropSlot(m, m.ag.rows(m)))
+	}
+
+	if line := strings.Split(m.View().Content, "\n")[top+3]; !strings.Contains(line, "\x1b[4;") {
+		t.Fatalf("the slot is drawn as a line under s2: %q", line)
+	}
+
+	m.Update(daemon)
+
+	if got := ids(); got != "s1 s2 s2t s3" || m.drag.to != "s2" {
+		t.Fatalf("a sessions event mid-drag keeps the mark: %q, to %q", got, m.drag.to)
+	}
+
+	_, cmd := m.Update(tea.MouseReleaseMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
+	if cmd == nil || m.drag != nil || ids() != "s2 s2t s1 s3" {
+		t.Fatalf("the release moves it past s2 and its tab and saves: cmd %v drag %+v, %q", cmd != nil, m.drag, ids())
 	}
 
 	if r := m.ag.selected(m); r == nil || r.s.ID != "s1" {
 		t.Fatalf("the moved row stays selected: %+v", r)
 	}
 
-	m.Update(daemon)
+	// Let go off the list, nothing moves.
+	m.Update(tea.MouseClickMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: x, Y: top + 2, Button: tea.MouseLeft})
 
-	if got := ids(); got != "s2 s2t s1 s3" {
-		t.Fatalf("a sessions event mid-drag keeps the held session in place: %q", got)
-	}
-
-	_, cmd := m.Update(tea.MouseReleaseMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
-	if cmd == nil || m.drag != nil {
-		t.Fatalf("the release saves the order: cmd %v drag %+v", cmd != nil, m.drag)
+	if _, cmd := m.Update(tea.MouseReleaseMsg{X: x, Y: top + 15, Button: tea.MouseLeft}); cmd != nil || ids() != "s2 s2t s1 s3" {
+		t.Fatalf("a drop off the list moves nothing: %q", ids())
 	}
 
 	press(m, "alt+up")
@@ -1095,19 +1111,19 @@ func TestSpacesDragWorktree(t *testing.T) {
 
 	m.Update(tea.MouseMotionMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
 
-	if got := tree(); got != "feat s2 main s1" || m.drag.to != wt {
-		t.Fatalf("the worktree follows the pointer with its session: %q, to %q", got, m.drag.to)
+	if got := tree(); got != "main s1 feat s2" || m.drag.to != wt || m.ag.dropSlot(m, m.ag.rows(m)) != 4 {
+		t.Fatalf("the tree stays put, the slot under feat's session: %q, to %q, slot %d", got, m.drag.to, m.ag.dropSlot(m, m.ag.rows(m)))
 	}
 
 	m.Update(daemon)
 
-	if got := tree(); got != "feat s2 main s1" {
-		t.Fatalf("a workspaces event mid-drag keeps the held worktree in place: %q", got)
+	if got := tree(); got != "main s1 feat s2" || m.drag.to != wt {
+		t.Fatalf("a workspaces event mid-drag keeps the mark: %q", got)
 	}
 
 	_, cmd := m.Update(tea.MouseReleaseMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
-	if cmd == nil || m.drag != nil {
-		t.Fatalf("the release saves the order: cmd %v drag %+v", cmd != nil, m.drag)
+	if cmd == nil || m.drag != nil || tree() != "feat s2 main s1" {
+		t.Fatalf("the release moves it with its session and saves: cmd %v drag %+v, %q", cmd != nil, m.drag, tree())
 	}
 
 	press(m, "alt+up")
