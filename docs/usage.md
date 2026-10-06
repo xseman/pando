@@ -124,6 +124,9 @@ _Select for Compare_; _Open Changed Files_ on a pull request in GitHub does
 the same for the pull request. The ✕ on the drawer's header clears it. Each
 project keeps its own comparison.
 
+A diff shows the changes with three lines around them; `z` (or the header's
+fold button) shows the whole file, for every diff until toggled back.
+
 | Key       | In Source Control                                          |
 | --------- | ---------------------------------------------------------- |
 | `⏎`       | stage or unstage the file; `o` opens its diff              |

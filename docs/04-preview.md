@@ -110,6 +110,10 @@ inline                                side by side (diff_view = "split")
   string opened on a context line colors both sides.
 - `splitRows` pairs each deletion run with the additions after it; under
   `splitMinW` (90 cells) the split falls back to inline.
+- A file's diff (`fileDiff`: kinds `diff`, `cmp`, `rev`, not untracked) shows
+  the changes with git's three lines of context, or with `diff_full` the
+  whole file (`--unified=1000000000`). `z`, the header's unfold/fold button
+  and Toggle Collapse Unchanged Regions flip it (`toggleDiffFull`).
 - The cursor is a whole diff line in both views. `m` (or `shift+F10`) opens the
   context menu; a diff of a tracked file (not `U` or `!`) adds Stage Selected
   Ranges and Revert Selected Ranges… (asks first, `confirmRevert`), a staged

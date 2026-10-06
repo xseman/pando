@@ -347,6 +347,8 @@ var (
 	icSync       = glyph{"sync", "\uea77", "⇅", ""}
 	icSplit      = glyph{"split-horizontal", "", "split", ""}
 	icInline     = glyph{"diff", "", "inline", ""}
+	icUnfold     = glyph{"unfold", "\ueb73", "full", ""}
+	icFold       = glyph{"fold", "\ueaf5", "changes", ""}
 	icSearch     = glyph{"search", "\uea6d", "Search", "🔍"}
 	icCase       = glyph{"case-sensitive", "\ueab1", "Aa", ""}
 	icWord       = glyph{"whole-word", "\ueb7e", "ab", ""}
@@ -372,7 +374,7 @@ var (
 	icTabs       = glyph{"window", "\ueb7f", "⧉", ""}         // a session's tab count in Spaces
 	allGlyphs    = []glyph{
 		icFiles, icGit, icSpaces, icAgents, icGear, icNewFile, icNewDir, icRefresh, icCollapse, icTree, icList,
-		icAdd, icRemove, icDiscard, icWorktree, icSparkle, icCheck, icChevron, icClose, icBranch, icPublish, icSync, icSplit, icInline,
+		icAdd, icRemove, icDiscard, icWorktree, icSparkle, icCheck, icChevron, icClose, icBranch, icPublish, icSync, icSplit, icInline, icUnfold, icFold,
 		icSearch, icCase, icWord, icRegex, icEllipsis, icClearAll, icOptions, icPreview, icSource,
 		icPrevRev, icNextRev, icUp, icDown, icHistory, icTag, icDetach, icReplace, icPreserve, icReplaceAll, icTerminal, icDot,
 		icMainWt, icLinkedWt, icTabs, icWrap, icGitHub, icPR, icPRDraft, icPRNew, icIssue, icBell, icCheckAll,

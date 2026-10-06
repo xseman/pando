@@ -2388,6 +2388,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case draftsMsg:
 		return m, m.onDrafts(msg)
 	case stateMsg:
+		full := m.st.Settings.DiffFull
 		m.st = proto.State(msg)
 		m.look()
 		m.resize()
@@ -2397,7 +2398,12 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.scm.build(m)
 		m.fixFocus()
 
-		return m, m.syncTabs()
+		var reload tea.Cmd
+		if m.st.Settings.DiffFull != full && m.pv.fileDiff() { // diff_full set elsewhere
+			reload = m.pv.load(m)
+		}
+
+		return m, tea.Batch(m.syncTabs(), reload)
 
 	case updateMsg:
 		return m, m.onUpdate(proto.Update(msg))
@@ -4621,6 +4627,7 @@ func settingsItems(m *Model) []item {
 			return m.setSettings(map[string]any{"git_tree": !m.st.Settings.GitTree})
 		}},
 		{label: "Diff view", hint: map[bool]string{true: "split", false: "inline"}[s.DiffView == "split"], run: func(m *Model) tea.Cmd { return m.toggleDiffView() }},
+		{label: "Diff whole file", hint: onOff(s.DiffFull), run: func(m *Model) tea.Cmd { return m.toggleDiffFull() }},
 		{},
 		heading("Editor"),
 		{label: "Format on save", hint: onOff(s.FmtSave), run: func(m *Model) tea.Cmd {

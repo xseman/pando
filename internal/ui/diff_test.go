@@ -231,3 +231,27 @@ func TestHorizontalWheel(t *testing.T) {
 		}
 	}
 }
+
+// TestDiffFullToggle flips diff_full from a file's diff, by z or the header
+// button, which offers the other mode; a commit's diff has neither.
+func TestDiffFullToggle(t *testing.T) {
+	applyLook("vscode", true, "ascii", nil)
+
+	m := diffModel(t, 100, 20)
+	if out := checkWidths(t, m); !strings.Contains(strings.Split(out, "\n")[0], "full") {
+		t.Fatalf("the header offers the whole file:\n%s", out)
+	}
+
+	press(m, "z")
+
+	if !m.st.Settings.DiffFull || !strings.Contains(strings.Split(checkWidths(t, m), "\n")[0], "changes") {
+		t.Fatalf("z shows the whole file: diff_full = %v", m.st.Settings.DiffFull)
+	}
+
+	m.pv.kind = pvShow
+	press(m, "z")
+
+	if !m.st.Settings.DiffFull || slices.ContainsFunc(m.pv.buttons(m, 80), func(a rowAction) bool { return a.g == icFold }) {
+		t.Fatal("a commit's diff has no whole-file mode")
+	}
+}

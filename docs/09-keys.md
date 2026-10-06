@@ -124,7 +124,8 @@ Editable only:
 
 Read-only views add letters: `hjkl` `0` `$` move, `b` `f` `space` page, `g`
 `G` top, bottom, `n` `N` matches, `y` copy, `w` wrap, `.` quick fix, `s` inline
-or split diff (Markdown: side by side), `p` rendered Markdown, `O` open the
+or split diff (Markdown: side by side), `z` whole file or only the changes in a
+file's diff, `p` rendered Markdown, `O` open the
 diffed file at the cursor, `H` pick a revision (header `←` `→` step), `e`
 `$EDITOR`, `o` system app, `m` menu, `q` close.
 

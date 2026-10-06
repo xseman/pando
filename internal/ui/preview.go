@@ -764,7 +764,7 @@ func (p *preview) load(m *Model) tea.Cmd {
 
 	p.closeComp()
 
-	cp, dark, key := *p, m.dark, p.id()
+	cp, dark, key, full := *p, m.dark, p.id(), m.st.Settings.DiffFull
 	if p.draft != "" {
 		cp.raw = "" // force a render: the draft, not the file, is what shows
 	}
@@ -791,7 +791,7 @@ func (p *preview) load(m *Model) tea.Cmd {
 			cp.repo, msg.repo, msg.revs = root, root, cp.revs
 		}
 
-		raw, err := cp.fetch()
+		raw, err := cp.fetch(full)
 		msg.raw, msg.err = raw, err
 
 		if cp.kind == pvFile {
@@ -833,7 +833,7 @@ func (p *preview) editable() bool {
 	return p.kind == pvFile && p.ready && p.buf != nil && !p.trunc && p.md != 1
 }
 
-func (p *preview) fetch() (string, error) {
+func (p *preview) fetch(full bool) (string, error) {
 	switch p.kind {
 	case pvFile:
 		f, err := os.Open(p.path)
@@ -858,7 +858,7 @@ func (p *preview) fetch() (string, error) {
 		return s, nil
 
 	case pvDiff:
-		out, err := git.Diff(p.root, p.entry)
+		out, err := git.Diff(p.root, p.entry, full)
 		if err == nil && out == "" {
 			out = "(no changes)"
 		}
@@ -868,7 +868,7 @@ func (p *preview) fetch() (string, error) {
 	case pvShow:
 		return git.Run(p.root, "show", "--stat", "--patch", p.rev)
 	case pvCmp:
-		out, err := git.CompareDiff(p.root, p.rev, p.entry)
+		out, err := git.CompareDiff(p.root, p.rev, p.entry, full)
 		if err == nil && out == "" {
 			out = "(no changes)"
 		}
@@ -886,7 +886,7 @@ func (p *preview) fetch() (string, error) {
 			return "", errors.New("no such revision")
 		}
 
-		out, err := git.RevisionDiff(p.repo, p.revs[p.revIdx])
+		out, err := git.RevisionDiff(p.repo, p.revs[p.revIdx], full)
 		if err == nil && out == "" {
 			out = "(no changes)"
 		}
@@ -2092,7 +2092,7 @@ func (p *preview) sideBody(m *Model, w, h int) []string {
 }
 
 // buttons are the preview header's actions, right-aligned: Markdown
-// rendering, the diff layout, and the file's revisions.
+// rendering, the diff's context and layout, and the file's revisions.
 func (p *preview) buttons(m *Model, w int) []rowAction {
 	var acts []rowAction
 
@@ -2111,6 +2111,10 @@ func (p *preview) buttons(m *Model, w int) []rowAction {
 		acts = append(acts,
 			rowAction{g: pick(p.md == 1, icPreview, icSource), run: func(m *Model) tea.Cmd { return m.toggleRendered() }},
 			rowAction{g: pick(p.md == 2, icSplit, icInline), run: func(m *Model) tea.Cmd { return m.pv.toggleMarkdown(m, 2) }})
+	}
+
+	if p.fileDiff() { // the whole file or the changes
+		add(pick(m.st.Settings.DiffFull, icUnfold, icFold), tea.KeyPressMsg{Code: 'z', Text: "z"})
 	}
 
 	if p.meta != nil { // the file itself, then inline ↔ side by side
@@ -2335,6 +2339,21 @@ func (p *preview) hbar(m *Model, w int) vbar {
 	p.rows(w)
 
 	return vbar{p.wide + 1, max(w-p.gutter(), 1), p.left} // +1: the cursor stands past the line end
+}
+
+// fileDiff reports a diff of one file, which diff_full shows whole; a
+// commit's or a pull request's spans many files, an untracked file's is
+// whole already.
+func (p *preview) fileDiff() bool {
+	return p.meta != nil && p.entry.Letter != 'U' && (p.kind == pvDiff || p.kind == pvCmp || p.kind == pvRev)
+}
+
+// toggleDiffFull is VS Code's Toggle Collapse Unchanged Regions: a file's
+// diff shows the whole file, or the changes with three lines around them.
+func (m *Model) toggleDiffFull() tea.Cmd {
+	m.pv.top, m.pv.cur, m.pv.anchor = 0, pos{}, nil // the lines move under the cursor
+
+	return tea.Batch(m.setSettings(map[string]any{"diff_full": !m.st.Settings.DiffFull}), m.pv.load(m))
 }
 
 // toggleWrap is VS Code's Toggle Word Wrap. It flips the word_wrap setting,
@@ -3009,6 +3028,10 @@ func (p *preview) items(m *Model) []item {
 		items = append(items, item{label: "Open File at This Line", hint: "O", run: func(m *Model) tea.Cmd { return m.pv.openHere(m) }})
 	}
 
+	if p.fileDiff() {
+		items = append(items, item{label: "Toggle Collapse Unchanged Regions", hint: "z", run: key('z')})
+	}
+
 	if p.kind == pvFile && isMarkdown(p.path) {
 		items = append(items,
 			item{label: "Toggle Rendered Markdown", hint: "^⇧v", run: func(m *Model) tea.Cmd { return m.toggleRendered() }},
@@ -3455,6 +3478,11 @@ func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 
 	case "O":
 		return p.openHere(m)
+	case "z":
+		if p.fileDiff() {
+			return m.toggleDiffFull()
+		}
+
 	case "s":
 		if p.kind == pvFile && isMarkdown(p.path) {
 			return p.toggleMarkdown(m, 2)

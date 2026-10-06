@@ -499,7 +499,7 @@ const (
 // it rebuilds the whole target file from a full-context diff instead of
 // editing patches, so there are no hunk offsets to get wrong.
 func ApplyLines(root string, e Entry, op LineOp, dels, adds map[int]bool) error {
-	args := []string{"diff", "--no-ext-diff", "--no-color", "--unified=1000000000"}
+	args := []string{"diff", "--no-ext-diff", "--no-color", fullContext}
 	if op == UnstageLines {
 		args = append(args, "--cached")
 	}
@@ -747,19 +747,31 @@ func Revisions(root, path string) ([]Revision, error) {
 	return revs, nil
 }
 
+// fullContext makes a diff carry the whole file as context.
+const fullContext = "--unified=1000000000"
+
+// withContext puts fullContext after the subcommand of args when full is set.
+func withContext(full bool, args ...string) []string {
+	if full {
+		return slices.Insert(args, 1, fullContext)
+	}
+
+	return args
+}
+
 // RevisionDiff is what revision r changed in its file; a merge compares
-// with its first parent.
-func RevisionDiff(root string, r Revision) (string, error) {
+// with its first parent. full diffs the whole file.
+func RevisionDiff(root string, r Revision, full bool) (string, error) {
 	switch {
 	case r.Hash != "":
-		return Run(root, "show", "--format=", "--no-color", "--no-ext-diff", "--diff-merges=first-parent", r.Hash, "--", r.Path)
+		return Run(root, withContext(full, "show", "--format=", "--no-color", "--no-ext-diff", "--diff-merges=first-parent", r.Hash, "--", r.Path)...)
 	case !hasHead(root):
 		// No HEAD to diff against, so the whole file reads as added.
 		out, err := Run(root, "diff", "--no-color", "--no-ext-diff", "--no-index", "--", "/dev/null", r.Path)
 		return out, noIndex(err)
 	}
 
-	return Run(root, "diff", "--no-color", "--no-ext-diff", "HEAD", "--", r.Path)
+	return Run(root, withContext(full, "diff", "--no-color", "--no-ext-diff", "HEAD", "--", r.Path)...)
 }
 
 // noIndex drops the exit status 1 that `git diff --no-index` returns when the
@@ -840,9 +852,9 @@ func Compare(root, spec string) ([]Entry, error) {
 }
 
 // CompareDiff is the patch of one file Compare listed, a rename with its
-// source so git pairs them.
-func CompareDiff(root, spec string, e Entry) (string, error) {
-	args := []string{"diff", "--no-color", "--no-ext-diff", "-M", spec, "--", e.Path}
+// source so git pairs them. full diffs the whole file.
+func CompareDiff(root, spec string, e Entry, full bool) (string, error) {
+	args := withContext(full, "diff", "--no-color", "--no-ext-diff", "-M", spec, "--", e.Path)
 	if e.Orig != "" {
 		args = append(args, e.Orig)
 	}
@@ -930,8 +942,9 @@ func Remotes(root string) ([]Remote, error) {
 	return rs, nil
 }
 
-// Diff returns the patch for one entry (untracked files diff against /dev/null).
-func Diff(root string, e Entry) (string, error) {
+// Diff returns the patch for one entry (untracked files diff against
+// /dev/null); full diffs the whole file.
+func Diff(root string, e Entry, full bool) (string, error) {
 	switch {
 	case e.Letter == 'U':
 		out, err := Run(root, "diff", "--no-index", "--", "/dev/null", e.Path)
@@ -940,11 +953,11 @@ func Diff(root string, e Entry) (string, error) {
 	case e.Letter == '!':
 		// The working tree against our side (stage 2): a plain two-way diff
 		// where `git diff` alone would print a combined one.
-		return Run(root, "diff", "--ours", "--", e.Path)
+		return Run(root, withContext(full, "diff", "--ours", "--", e.Path)...)
 	case e.Staged:
-		return Run(root, "diff", "--cached", "--", e.Path)
+		return Run(root, withContext(full, "diff", "--cached", "--", e.Path)...)
 	default:
-		return Run(root, "diff", "--", e.Path)
+		return Run(root, withContext(full, "diff", "--", e.Path)...)
 	}
 }
 

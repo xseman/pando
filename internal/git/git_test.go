@@ -145,7 +145,7 @@ func TestWorkflow(t *testing.T) {
 		t.Errorf("decorations: %v", deco)
 	}
 
-	if d, _ := Diff(root, st.Changes[0]); d == "" {
+	if d, _ := Diff(root, st.Changes[0], false); d == "" {
 		t.Error("untracked diff empty")
 	}
 
@@ -305,7 +305,7 @@ func TestMergeConflict(t *testing.T) {
 		t.Fatal("conflict markers")
 	}
 
-	if d, err := Diff(root, st.Conflicts[0]); err != nil || !strings.Contains(d, "+<<<<<<<") || strings.Contains(d, "++<<<<<<<") {
+	if d, err := Diff(root, st.Conflicts[0], false); err != nil || !strings.Contains(d, "+<<<<<<<") || strings.Contains(d, "++<<<<<<<") {
 		t.Fatalf("diff --ours: %v\n%s", err, d)
 	}
 
@@ -335,6 +335,38 @@ func TestMergeConflict(t *testing.T) {
 
 	if out, _ := Run(root, "log", "-1", "--format=%B"); strings.TrimSpace(out) != "Merge branch 'feat'" {
 		t.Fatalf("merge commit: %q", out)
+	}
+}
+
+// TestFullDiff checks full carries the whole file into a file's diffs, and
+// that without it a line far from the change stays out.
+func TestFullDiff(t *testing.T) {
+	root := repo(t)
+	f := filepath.Join(root, "f.txt")
+	lines := strings.Repeat("same\n", 20)
+	mustWrite(t, f, "first\n"+lines)
+	mustGit(t, root, "add", ".")
+	mustGit(t, root, "commit", "-qm", "one")
+	mustWrite(t, f, "first\n"+lines+"last\n")
+	mustGit(t, root, "commit", "-qam", "two")
+	mustWrite(t, f, "first\n"+lines+"last\nmore\n")
+
+	revs, err := Revisions(root, "f.txt")
+	if err != nil || len(revs) != 3 {
+		t.Fatalf("revisions: %v %+v", err, revs)
+	}
+
+	for name, diff := range map[string]func(bool) (string, error){
+		"Diff":         func(full bool) (string, error) { return Diff(root, Entry{Path: "f.txt"}, full) },
+		"CompareDiff":  func(full bool) (string, error) { return CompareDiff(root, "HEAD~1", Entry{Path: "f.txt"}, full) },
+		"RevisionDiff": func(full bool) (string, error) { return RevisionDiff(root, revs[1], full) },
+	} {
+		for _, full := range []bool{false, true} {
+			d, err := diff(full)
+			if err != nil || strings.Contains(d, "\n first\n") != full {
+				t.Errorf("%s full=%v: %v %q", name, full, err, d)
+			}
+		}
 	}
 }
 
@@ -490,11 +522,11 @@ func TestRevisions(t *testing.T) {
 		t.Fatalf("revisions: %v %+v", err, revs)
 	}
 
-	if d, _ := RevisionDiff(root, revs[0]); !strings.Contains(d, "+more") {
+	if d, _ := RevisionDiff(root, revs[0], false); !strings.Contains(d, "+more") {
 		t.Fatalf("uncommitted diff: %q", d)
 	}
 
-	if d, _ := RevisionDiff(root, revs[3]); !strings.Contains(d, "+v") || strings.Contains(d, "more") {
+	if d, _ := RevisionDiff(root, revs[3], false); !strings.Contains(d, "+v") || strings.Contains(d, "more") {
 		t.Fatalf("root commit diff: %q", d)
 	}
 }
@@ -555,7 +587,7 @@ func TestCompare(t *testing.T) {
 		t.Fatalf("second commit: %v %+v", err, es)
 	}
 
-	if d, err := CompareDiff(root, spec, es[3]); err != nil || !strings.Contains(d, "rename from d.txt") {
+	if d, err := CompareDiff(root, spec, es[3], false); err != nil || !strings.Contains(d, "rename from d.txt") {
 		t.Fatalf("rename diff: %v %q", err, d)
 	}
 
@@ -565,7 +597,7 @@ func TestCompare(t *testing.T) {
 		t.Fatalf("against the working tree: %v %+v", err, es)
 	}
 
-	if d, _ := CompareDiff(root, "HEAD", Entry{Path: "c.txt"}); !strings.Contains(d, "+local") {
+	if d, _ := CompareDiff(root, "HEAD", Entry{Path: "c.txt"}, false); !strings.Contains(d, "+local") {
 		t.Fatalf("working tree diff %q", d)
 	}
 }
@@ -760,7 +792,7 @@ func TestRevisionsUnborn(t *testing.T) {
 		t.Fatalf("unborn branch: %v %+v", err, revs)
 	}
 
-	if d, err := RevisionDiff(root, revs[0]); err != nil || !strings.Contains(d, "+hello") {
+	if d, err := RevisionDiff(root, revs[0], false); err != nil || !strings.Contains(d, "+hello") {
 		t.Fatalf("unborn diff: %v %q", err, d)
 	}
 

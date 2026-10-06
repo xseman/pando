@@ -173,6 +173,7 @@ func (c *config) encode() []byte {
 	kv("Color theme: \"vscode\" follows the terminal background, \"vscode-dark\",\n\"vscode-light\", or \"terminal\" for the terminal profile's ANSI colors.", "color_theme", s.Theme)
 	kv("Icons: \"nerd\" needs a Nerd Font as the terminal font, \"emoji\" and \"ascii\" work everywhere.", "icons", s.Icons)
 	kv("Diffs: \"inline\" or \"split\" (side by side when the main area has 90 columns).", "diff_view", s.DiffView)
+	kv("A file's diff shows the whole file, not only the changes and three lines around\nthem. z in a diff toggles it.", "diff_full", s.DiffFull)
 	kv("Show dotfiles in Files.", "hidden", s.Hidden)
 	kv("Files sorts by \"name\" or by \"type\" (extension, then name), folders first,\nas VS Code's explorer.sortOrder.", "explorer_sort", s.ExSort)
 	kv("Color Files entries by their git status.", "git_deco", s.GitDeco)

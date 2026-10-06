@@ -1888,7 +1888,7 @@ func TestDiffLineMenu(t *testing.T) {
 	// A right click inside the selection keeps it and opens the menu.
 	click(m, m.mainX()+m.pv.gutter()+2, 3, tea.MouseRight)
 
-	if m.modal == nil || m.pv.anchor == nil || !slices.Equal(labels(m), []string{"Stage Selected Ranges", "Revert Selected Ranges…", "Open File at This Line", "Copy", "Go to Line…", "Edit in $EDITOR"}) {
+	if m.modal == nil || m.pv.anchor == nil || !slices.Equal(labels(m), []string{"Stage Selected Ranges", "Revert Selected Ranges…", "Open File at This Line", "Toggle Collapse Unchanged Regions", "Copy", "Go to Line…", "Edit in $EDITOR"}) {
 		t.Fatalf("menu = %v, selection kept = %v", m.modal, m.pv.anchor != nil)
 	}
 

@@ -58,6 +58,7 @@ config.toml edited ───────────┘  └─ "state" event �
 | `git_drawers`         | 5 drawers   | Graph, Commits, Branches, Remotes, Stashes; top to bottom, any drawer's title  |
 | `git_panes`           | none        | per drawer: `open`, `h` rows; the TUI writes it                                |
 | `diff_view`           | `inline`    | `inline`, `split` (from 90 columns)                                            |
+| `diff_full`           | `false`     | a file's diff shows the whole file, not only the changes (`z`)                 |
 | `quick_open_tree`     | `false`     | quick open groups by directory                                                 |
 | `terminal_position`   | `bottom`    | `bottom`, `left`, `right`                                                      |
 | `terminal_height`     | `12`        | bottom panel rows                                                              |

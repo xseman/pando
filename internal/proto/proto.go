@@ -55,6 +55,7 @@ type Settings struct {
 	QuickTree bool                `json:"quick_open_tree" toml:"quick_open_tree"`
 	Theme     string              `json:"color_theme" toml:"color_theme"`             // "vscode" (dark or light by background) | "vscode-dark" | "vscode-light" | "terminal"
 	DiffView  string              `json:"diff_view" toml:"diff_view"`                 // "inline" | "split"
+	DiffFull  bool                `json:"diff_full" toml:"diff_full"`                 // a file's diff shows the whole file, not only the changes and three lines around them
 	Borders   bool                `json:"panel_borders" toml:"panel_borders"`         // frame each panel with a titled border
 	ActBar    string              `json:"activity_bar" toml:"activity_bar"`           // "top" (a row of chips) | "side" (icons down the outer edge)
 	TermPos   string              `json:"terminal_position" toml:"terminal_position"` // "bottom" (a panel under the editor) | "left" | "right"
