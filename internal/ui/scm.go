@@ -2500,9 +2500,10 @@ func (s *scmView) checkout(root string, refs []git.Ref, r git.Ref, detach bool) 
 }
 
 // createBranch asks for a name when there is none, then creates the branch
-// at from (HEAD when "") and switches to it.
+// at from (HEAD when "") and switches to it. The name is sanitized as VS Code
+// does: "fix the login" makes fix-the-login.
 func (s *scmView) createBranch(m *Model, root, name, from string) tea.Cmd {
-	if name = strings.TrimSpace(name); name == "" {
+	if name = git.SanitizeBranch(name); name == "" {
 		title := "New branch name"
 		if from != "" {
 			title += " (from " + from + ")"

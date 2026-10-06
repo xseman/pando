@@ -354,6 +354,30 @@ func TestRandomBranch(t *testing.T) {
 	}
 }
 
+func TestSanitizeBranch(t *testing.T) {
+	root := repo(t)
+
+	for in, want := range map[string]string{
+		"feat/login":        "feat/login",
+		"  fix the login  ": "fix-the-login",
+		"--x":               "x",
+		"a..b~c^d:e":        "a-b-c-d-e",
+		"what? *now* [1]":   "what---now---1-",
+		"x@{1}\\y.lock":     "x-1}-y-",
+		".hidden/.dot/":     "hidden-dot-",
+		"end.":              "end-",
+	} {
+		got := SanitizeBranch(in)
+		if got != want {
+			t.Errorf("SanitizeBranch(%q) = %q, want %q", in, got, want)
+		}
+
+		if _, err := Run(root, "check-ref-format", "--branch", got); err != nil {
+			t.Errorf("%q is not a branch name: %v", got, err)
+		}
+	}
+}
+
 // FuzzMergeMessage checks the cleanup is git's: every line that does not
 // start with "#" is kept, in order, and nothing else; no blank edges. " #" is
 // text to git, not a comment.

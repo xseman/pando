@@ -687,6 +687,17 @@ func CreateBranch(root, name, from string) error {
 	return err
 }
 
+// badBranchRe is VS Code's sanitizeBranchName pattern, plus the "?", "@{" and
+// control characters git also refuses.
+var badBranchRe = regexp.MustCompile(`^\.|/\.|\.\.|~|\^|:|/$|\.lock$|\.lock/|\\|\*|\?|@\{|\s|[[:cntrl:]]|\.$|\[|\]$`)
+
+// SanitizeBranch turns a typed name into a branch name as VS Code does:
+// trimmed, whitespace and what git refuses as "-", leading dashes dropped,
+// after the replacing so ".x" does not leave "-x".
+func SanitizeBranch(name string) string {
+	return strings.TrimLeft(badBranchRe.ReplaceAllString(strings.TrimSpace(name), "-"), "-")
+}
+
 // Revision is a commit that changed a file; Hash "" stands for the file's
 // uncommitted changes. Path is the file's name in that commit.
 type Revision struct{ Hash, Short, When, Subject, Path string }

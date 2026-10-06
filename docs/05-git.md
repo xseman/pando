@@ -106,6 +106,10 @@ checkout: branch → git switch NAME
 
 A branch checked out in another worktree opens that worktree instead.
 
+_Create new branch…_ runs `git switch -c` on `SanitizeBranch`'s name, as VS
+Code's `sanitizeBranchName`: whitespace and what git refuses become `-`,
+leading dashes go, so "fix the login?" makes `fix-the-login-`.
+
 ## Commit and sync
 
 - `Commit`, `Amend` (`--no-edit` with no message).
