@@ -65,14 +65,15 @@ type scmView struct {
 	tops     map[string]int // scroll offset per pane, "" = changes
 	busy     string
 	busyRoot string
-	frame    int              // frames the busy work has run: the scramble while ✦ writes a message, the shimmer of the button
-	last     *git.SuggestOpts // the last suggestion's request, for Regenerate
-	lastMsg  string           // and what it came back with
-	past     []string         // the draft, then the commit messages ↑ walks back through
-	tip      tipMsg           // the drawer commit under the mouse, with its message once loaded
-	cmp      cmpMsg           // what the Compare drawer compares, and the files that differ
-	cmpSel   string           // the commit Select for Compare picked
-	hovRow   int              // row under the mouse in the frame being drawn, -1 = none
+	frame    int               // frames the busy work has run: the scramble while ✦ writes a message, the shimmer of the button
+	last     *git.SuggestOpts  // the last suggestion's request, for Regenerate
+	lastMsg  string            // and what it came back with
+	past     []string          // the draft, then the commit messages ↑ walks back through
+	tip      tipMsg            // the drawer commit under the mouse, with its message once loaded
+	cmp      cmpMsg            // what the Compare drawer compares, and the files that differ
+	cmps     map[string]cmpMsg // the comparison of each project not shown, by workspace
+	cmpSel   string            // the commit Select for Compare picked
+	hovRow   int               // row under the mouse in the frame being drawn, -1 = none
 }
 
 // pastMsg answers an ↑ from the message box's draft: the commit messages to
@@ -147,6 +148,7 @@ const defaultPaneH = 8
 func (s *scmView) init() {
 	s.input = newMessageArea()
 	s.styleInput(true)
+	s.cmps = map[string]cmpMsg{}
 	s.reset()
 }
 

@@ -110,8 +110,9 @@ A Commit with nothing staged is muted too, and a click on it does nothing.
   _Copy Commit Message_.
 - `Compare` lists, read-only, the files one git diff range changes
   (`scmView.cmp`, `git.Compare`), as a tree or a list like the changes; ⏎ on a
-  file opens preview kind `cmp`. One comparison at a time, not saved; the ✕
-  on the header (`cmpCloseX`) or its right-click menu drops it:
+  file opens preview kind `cmp`. One comparison per project (`scmView.cmps`
+  keeps the others while another project shows), not saved; the ✕ on the
+  header (`cmpCloseX`) or its right-click menu drops it:
 
 | Source                                    | Range                        |
 | ----------------------------------------- | ---------------------------- |

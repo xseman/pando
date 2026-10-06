@@ -1382,6 +1382,20 @@ func TestCompareDrawer(t *testing.T) {
 	if m.scm.cmp.spec != two+".."+one || !slices.Equal(files(), []string{"M README.md", "D src/new.go"}) {
 		t.Fatalf("with the selected: %q %v", m.scm.cmp.spec, files())
 	}
+	// Each project keeps its own comparison.
+	root, other := m.ws, t.TempDir()
+	m.switchWorkspace(other)
+
+	if m.scm.cmp.spec != "" || m.scm.cmpSel != "" {
+		t.Fatalf("another project shows this one's comparison: %q, selected %q", m.scm.cmp.spec, m.scm.cmpSel)
+	}
+
+	m.switchWorkspace(root)
+	fire(m, m.refreshGit())
+
+	if m.scm.cmp.spec != two+".."+one || len(files()) != 2 {
+		t.Fatalf("back, the comparison is gone: %q %v", m.scm.cmp.spec, files())
+	}
 	// The ✕ on the header drops the comparison; the drawer stays.
 	_, ds := m.scm.geometry(m, m.scm.paneH(m))
 	head := m.bodyTop(viewGit) + ds[0].head

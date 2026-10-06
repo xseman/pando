@@ -2148,9 +2148,11 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 	saved := tea.Batch(unfolded, m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts())
 	m.savedDrafts = nil
 	open := m.termOpen()
+	m.scm.cmps[m.ws] = m.scm.cmp
 	m.ws = path
 	m.ex.setRoot(m, path)
 	m.scm.reset()
+	m.scm.cmp, m.scm.cmpSel = m.scm.cmps[path], "" // each project compares on its own
 	m.sr.clear()
 	m.pk = nil
 	m.gh.sync(m) // another project's repository: its own lists
