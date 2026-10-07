@@ -575,12 +575,14 @@ func groupGlyph(ss []proto.Session) (string, color.Color) {
 
 func (a *agents) lines(m *Model, w, h int) []string {
 	rows := a.rows(m)
-	a.l.clamp(len(rows), h)
+
+	slot, mark, band := a.dropSlot(m, rows) // the drop mark takes rows of its own
+	n := len(rows) + mark
+	a.l.clamp(n, h)
 
 	hover, mx := m.hoverRow(viewAgents), m.mouseCol(viewAgents)
 	a.l.bar = m.barState("list:agents")
 	every := m.mainSessions() // their tabs too, which roll up
-	slot := a.dropSlot(m, rows)
 
 	draw := func(i, rw int) string {
 		r := rows[i]
@@ -588,10 +590,15 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			return blank(rw)
 		}
 
-		bg, base := m.rowColors(viewAgents, i == a.l.sel, i-a.l.top == hover)
+		y := i - a.l.top
+		if slot >= 0 && i >= slot {
+			y += mark
+		}
+
+		bg, base := m.rowColors(viewAgents, i == a.l.sel, y == hover)
 
 		var plus []seg // the + under the pointer, or on the selection while Spaces has the keyboard
-		if i-a.l.top == hover || i == a.l.sel && m.focused(viewAgents) {
+		if y == hover || i == a.l.sel && m.focused(viewAgents) {
 			plus = drawActions(a.actions(r), mx)
 		}
 
@@ -705,12 +712,17 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		return row(rw, bg, append(left, sg(titleAfter(r.s), nameSt)), sg(" "+status+" ", dim))
 	}
 
-	return a.l.render(w, h, len(rows), func(i, rw int) string {
-		if i == slot {
-			return underline(draw(i, rw), pal.accent)
+	return a.l.render(w, h, n, func(i, rw int) string {
+		switch {
+		case slot < 0 || i < slot:
+			return draw(i, rw)
+		case i == slot+band: // a band in the selection's tint, thick enough to see while dragging
+			return row(rw, pal.selBg, nil)
+		case i < slot+mark:
+			return blank(rw)
 		}
 
-		return draw(i, rw)
+		return draw(i-mark, rw)
 	})
 }
 
@@ -1471,7 +1483,7 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 }
 
 // dragRowTo marks where the dragged project, worktree or session would land,
-// a line on its slot (dropSlot), and the release moves it there and tells the
+// a tinted row between the rows (dropSlot), and the release moves it there and tells the
 // daemon. Let go anywhere else it stays; a press that never left its row is a
 // click instead.
 func (a *agents) dragRowTo(m *Model, d *drag, y int, release bool) tea.Cmd {
@@ -1517,9 +1529,18 @@ func (a *agents) dragRowTo(m *Model, d *drag, y int, release bool) tea.Cmd {
 
 // dropOn is the row under the pointer whose place drag d would take: one of
 // its kind and among its own, a session's worktree's or a worktree's
-// project's, a project folded or open as it is; "" for none or its own.
+// project's, a project folded or open as it is (projectDrop); "" for none
+// or its own.
 func (a *agents) dropOn(m *Model, d *drag) string {
 	y := m.hoverRow(viewAgents)
+	// Over the drop mark it stays; the rows below it sit lower by its rows.
+	if at, mark, _ := a.dropSlot(m, a.rows(m)); at >= 0 && y >= 0 && a.l.top+y >= at {
+		if a.l.top+y < at+mark {
+			return d.to
+		}
+
+		y -= mark
+	}
 
 	var (
 		over string
@@ -1535,9 +1556,11 @@ func (a *agents) dropOn(m *Model, d *drag) string {
 		over = a.sessionAt(m, y)
 		ok = slices.Contains(m.siblings(d.sess), over)
 
+	case y < 0:
+		return ""
+
 	default:
-		over = a.projectAt(m, y)
-		ok = over != "" && a.collapsed[over] == a.collapsed[d.proj]
+		return a.projectDrop(m, d.proj, a.rows(m), a.l.top+y)
 	}
 
 	if !ok || over == cmp.Or(d.ws, d.sess, d.proj) {
@@ -1547,14 +1570,18 @@ func (a *agents) dropOn(m *Model, d *drag) string {
 	return over
 }
 
-// dropSlot is the row the dragged row would land under, drawn underlined:
-// the last row of the one it takes the place of, with what hangs off it,
-// moving down; the row above that one moving up. -1 with no drop.
-func (a *agents) dropSlot(m *Model, rows []agRow) int {
+// dropSlot is the row the drop mark goes before, the dragged row's new
+// place, the rows the mark takes and which of them is the band: past the
+// one it takes the place of, with what hangs off it, moving down; that one
+// itself moving up. An open project's band sits apart as a project would,
+// a blank row below it, or above it at the end. -1, 0, 0 with no drop.
+func (a *agents) dropSlot(m *Model, rows []agRow) (at, h, band int) {
 	d := m.drag
 	if d == nil || d.kind != dragRow || d.to == "" {
-		return -1
+		return -1, 0, 0
 	}
+
+	open := d.proj != "" && !a.collapsed[d.proj]
 
 	key := func(r agRow) string {
 		switch {
@@ -1572,19 +1599,29 @@ func (a *agents) dropSlot(m *Model, rows []agRow) int {
 	from := slices.IndexFunc(rows, func(r agRow) bool { return key(r) == cmp.Or(d.ws, d.sess, d.proj) })
 	to := slices.IndexFunc(rows, func(r agRow) bool { return key(r) == d.to })
 
-	if from < 0 || to < 0 {
-		return -1
-	}
-
-	if to < from {
-		return to - 1
+	switch {
+	case from < 0 || to < 0:
+		return -1, 0, 0
+	case to < from && open:
+		return to, 2, 0
+	case to < from:
+		return to, 1, 0
 	}
 
 	for k := rows[to].kind; to+1 < len(rows) && rows[to+1].kind > k && rows[to+1].kind <= agSession; { // the tree under it
 		to++
 	}
 
-	return to
+	switch {
+	case !open:
+		return to + 1, 1, 0
+	case to+1 == len(rows):
+		return to + 1, 2, 1
+	case rows[to+1].kind == agGap:
+		to++
+	}
+
+	return to + 1, 2, 0
 }
 
 // shiftProject moves a project d places and saves it at once: the menu's and
@@ -1618,21 +1655,58 @@ func (a *agents) projectMovable(m *Model, p string) bool {
 	return a.collapsed[p] || m.st.Settings.SpProj != "updated"
 }
 
-// projectAt is the project the list row at screen row y belongs to, "" off
-// the list, on a blank row or on the "other" group, which is not a project.
-func (a *agents) projectAt(m *Model, y int) string {
-	if y < 0 {
-		return ""
+// projectDrop is the project whose place dragged project p takes with the
+// pointer on row i, one folded or open as p is: on a project's upper half p
+// goes above it, on its lower half below, and a one-row project, a folded
+// one, is taken whole. On a gap, or past the end, p goes where the gap is:
+// above the project below it, else below the one above it. "" for none or
+// p's own place.
+func (a *agents) projectDrop(m *Model, p string, rows []agRow, i int) string {
+	order := slices.DeleteFunc(a.shownProjects(m), func(x string) bool { return a.collapsed[x] != a.collapsed[p] })
+	from := slices.Index(order, p)
+	gap := -1 // p goes before order[gap], past the end at len(order)
+
+	switch {
+	case i >= len(rows) || rows[i].kind == agGap:
+		below, above := i, min(i, len(rows))-1
+		for below < len(rows) && rows[below].kind != agProject {
+			below++
+		}
+
+		for above >= 0 && rows[above].kind != agProject {
+			above--
+		}
+
+		if below < len(rows) && slices.Contains(order, rows[below].project) {
+			gap = slices.Index(order, rows[below].project)
+		} else if above >= 0 && slices.Contains(order, rows[above].project) {
+			gap = slices.Index(order, rows[above].project) + 1
+		}
+
+	case rows[i].kind <= agSession:
+		start, end := i, i
+		for start > 0 && rows[start].kind != agProject {
+			start--
+		}
+
+		for end+1 < len(rows) && rows[end+1].kind > agProject && rows[end+1].kind <= agSession {
+			end++
+		}
+
+		gap = slices.Index(order, rows[start].project)
+		if gap >= 0 && (end == start && gap > from || end > start && 2*(i-start) >= end-start+1) {
+			gap++
+		}
 	}
 
-	rows := a.rows(m)
-
-	i := a.l.at(y, len(rows))
-	if i < 0 {
+	switch {
+	case gap < 0 || from < 0 || gap == from || gap == from+1:
 		return ""
+	case gap < from:
+		return order[gap]
 	}
 
-	return rows[i].project
+	return order[gap-1]
 }
 
 // moveProject puts from where to sits now and keeps the moved row selected.

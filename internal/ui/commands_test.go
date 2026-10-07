@@ -843,6 +843,93 @@ func TestSpacesFoldedSink(t *testing.T) {
 	}
 }
 
+// dropRow is the row the Spaces drag's mark goes before.
+func dropRow(m *Model) int {
+	at, _, _ := m.ag.dropSlot(m, m.ag.rows(m))
+
+	return at
+}
+
+// TestSpacesDragProjectMark drags an open project down: a project's upper
+// half puts it above, the lower half below, a gap where the gap is; its band
+// sits apart as a project would, past the gap after the next project with a
+// blank row below it, past the last with one above it.
+func TestSpacesDragProjectMark(t *testing.T) {
+	m := testModel(t)
+	first := m.ws
+
+	for range 2 {
+		p := t.TempDir()
+		m.st.Projects = append(m.st.Projects, p)
+		m.wss = append(m.wss, proto.Workspace{Path: p, Project: p, Branch: "main", Main: true})
+	}
+
+	press(m, "3")
+
+	for _, p := range m.st.Projects {
+		m.ag.fold(p, false)
+	}
+
+	checkWidths(t, m)
+	cs, _ := m.layout()
+	x, top := cs[m.colOf(viewAgents)].x+1, m.bodyTop(viewAgents)
+	second, third := m.st.Projects[1], m.st.Projects[2]
+	to := func(dy int) string {
+		m.Update(tea.MouseMotionMsg{X: x, Y: top + dy, Button: tea.MouseLeft})
+
+		return m.drag.to
+	}
+
+	m.Update(tea.MouseClickMsg{X: x, Y: top, Button: tea.MouseLeft}) // first: project, main, its session, gap
+
+	if m.drag == nil || m.drag.proj != first {
+		t.Fatalf("a press on a project row starts a drag: %+v", m.drag)
+	}
+
+	if got := to(4); got != "" {
+		t.Fatalf("the second's upper half is the first's own place: to %q", got)
+	}
+
+	if got := to(5); got != second {
+		t.Fatalf("the second's lower half puts it below: to %q", got)
+	}
+
+	if at, mark, _ := m.ag.dropSlot(m, m.ag.rows(m)); at != 7 || mark != 2 {
+		t.Fatalf("the mark goes past the gap after the second: at %d, rows %d", at, mark)
+	}
+
+	lines := strings.Split(m.View().Content, "\n")
+	if !strings.Contains(lines[top+7], bgParams(pal.selBg)) || strings.Contains(lines[top+8], bgParams(pal.selBg)) {
+		t.Fatalf("the band, then a blank row before the next project:\n%q\n%q", lines[top+7], lines[top+8])
+	}
+
+	if got := to(6); got != second {
+		t.Fatalf("the gap above the third puts it there: to %q", got)
+	}
+
+	if got := to(8); got != second {
+		t.Fatalf("over the mark it stays: to %q", got)
+	}
+
+	if got := to(9); got != second {
+		t.Fatalf("the third's upper half puts it above the third: to %q", got)
+	}
+
+	if got := to(10); got != third {
+		t.Fatalf("the third's lower half puts it below: to %q", got)
+	}
+
+	lines = strings.Split(m.View().Content, "\n")
+	if at, mark, _ := m.ag.dropSlot(m, m.ag.rows(m)); at != 9 || mark != 2 ||
+		strings.Contains(lines[top+9], bgParams(pal.selBg)) || !strings.Contains(lines[top+10], bgParams(pal.selBg)) {
+		t.Fatalf("past the last, a blank row keeps the gap above the mark: at %d, rows %d\n%q\n%q", at, mark, lines[top+9], lines[top+10])
+	}
+
+	if got := to(12); got != third {
+		t.Fatalf("past the end of the list it goes last: to %q", got)
+	}
+}
+
 // TestSpacesDragSession drags a session down its worktree: the tree stays
 // put while a line marks where it would land, a sessions event mid-drag
 // keeps the mark, the release moves it there with its tab and names the
@@ -880,13 +967,27 @@ func TestSpacesDragSession(t *testing.T) {
 
 	m.Update(tea.MouseMotionMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
 
-	if got := ids(); got != "s1 s2 s2t s3" || m.drag.to != "s2" || m.ag.dropSlot(m, m.ag.rows(m)) != 3 {
-		t.Fatalf("the tree stays put, the slot under s2: %q, to %q, slot %d", got, m.drag.to, m.ag.dropSlot(m, m.ag.rows(m)))
+	if got := ids(); got != "s1 s2 s2t s3" || m.drag.to != "s2" || dropRow(m) != 4 {
+		t.Fatalf("the tree stays put, the slot under s2: %q, to %q, slot %d", got, m.drag.to, dropRow(m))
 	}
 
-	if line := strings.Split(m.View().Content, "\n")[top+3]; !strings.Contains(line, "\x1b[4;") {
-		t.Fatalf("the slot is drawn as a line under s2: %q", line)
+	if line := strings.Split(m.View().Content, "\n")[top+4]; !strings.Contains(line, bgParams(pal.selBg)) {
+		t.Fatalf("the slot is drawn as a band of its own under s2: %q", line)
 	}
+
+	m.Update(tea.MouseMotionMsg{X: x, Y: top + 4, Button: tea.MouseLeft})
+
+	if m.drag.to != "s2" {
+		t.Fatalf("over the line the mark stays: to %q", m.drag.to)
+	}
+
+	m.Update(tea.MouseMotionMsg{X: x, Y: top + 5, Button: tea.MouseLeft})
+
+	if m.drag.to != "s3" {
+		t.Fatalf("below the line the rows sit a line lower: to %q", m.drag.to)
+	}
+
+	m.Update(tea.MouseMotionMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
 
 	m.Update(daemon)
 
@@ -1111,8 +1212,8 @@ func TestSpacesDragWorktree(t *testing.T) {
 
 	m.Update(tea.MouseMotionMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
 
-	if got := tree(); got != "main s1 feat s2" || m.drag.to != wt || m.ag.dropSlot(m, m.ag.rows(m)) != 4 {
-		t.Fatalf("the tree stays put, the slot under feat's session: %q, to %q, slot %d", got, m.drag.to, m.ag.dropSlot(m, m.ag.rows(m)))
+	if got := tree(); got != "main s1 feat s2" || m.drag.to != wt || dropRow(m) != 5 {
+		t.Fatalf("the tree stays put, the slot under feat's session: %q, to %q, slot %d", got, m.drag.to, dropRow(m))
 	}
 
 	m.Update(daemon)
