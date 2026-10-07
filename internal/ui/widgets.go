@@ -587,6 +587,8 @@ func inputStyles(dark bool) textinput.Styles {
 		ss.Text, ss.Placeholder, ss.Prompt = ss.Text.Background(pal.inputBg), ss.Placeholder.Background(pal.inputBg), ss.Prompt.Background(pal.inputBg)
 	}
 
+	st.Blurred.Text = st.Focused.Text // VS Code's input keeps its text's color without focus, bubbles' greys it
+
 	st.Cursor.Color = nil   // the text's color: the default, ANSI 7, is near white on a light theme
 	st.Cursor.Blink = false // realCaret: a blink would take the terminal's cursor away
 

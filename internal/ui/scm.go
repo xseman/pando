@@ -1462,10 +1462,11 @@ func commitPlaceholder(st git.Status, width int) string {
 	return ""
 }
 
-// edge is the message box border: VS Code's input border, accent on focus.
+// edge is the message box border: VS Code's input border, on focus a shade
+// off the accent, as Dark's translucent focusBorder.
 func (s *scmView) edge(root string) lipgloss.Style {
 	if root == s.root() && s.input.Focused() {
-		return fg(pal.accent)
+		return fg(pal.sashHover)
 	}
 
 	return fg(pal.inputBorder)
