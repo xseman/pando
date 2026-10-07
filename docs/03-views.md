@@ -151,6 +151,9 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
 `attention`; an `exited` row is a failure, shown as `exit N`.
 
 - Rows roll up the most demanding glyph of what they hold (`groupGlyph`).
+- A tab strip draws the glyph on the agent's tab only: a shell tab or a
+  Terminal panel tab reads its screen like an agent's, so a server's logs
+  would show as working.
 - `session_highlight` tints blocked, exited and done rows (`sessionTint`);
   the tint pulses until the session is clicked or shown (`pulses`). A
   session row carries its tabs' tint; selected, it still pulses for one.

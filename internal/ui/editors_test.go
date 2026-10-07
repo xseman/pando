@@ -323,6 +323,18 @@ func TestTabChips(t *testing.T) {
 	if got := m.tabsFor(25, long, "c"); !strings.Contains(got[0].label, "…") {
 		t.Fatalf("the long name is cut: %q", got[0].label)
 	}
+
+	// A shell's tab has no status glyph: a server's logs are not an agent at work.
+	busy := []proto.Session{
+		{SessionSpec: proto.SessionSpec{ID: "a", Agent: "claude"}, Status: "running"},
+		{SessionSpec: proto.SessionSpec{ID: "b", Agent: tabAgent}, Status: "running"},
+		{SessionSpec: proto.SessionSpec{ID: "c", Agent: termAgent}, Status: "running"},
+	}
+
+	got := m.tabsFor(100, busy, "a")
+	if !strings.Contains(got[0].label, "◐") || strings.Contains(got[1].label, "◐") || strings.Contains(got[2].label, "◐") {
+		t.Fatalf("only the agent's tab shows its state: %q", []string{got[0].label, got[1].label, got[2].label})
+	}
 }
 
 func TestEditorsPersist(t *testing.T) {

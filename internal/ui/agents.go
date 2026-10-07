@@ -2386,7 +2386,14 @@ func (m *Model) tabsFor(w int, sessions []proto.Session, active string) []sessTa
 	labels, widths, total, at := make([]string, len(sessions)), make([]int, len(sessions)), 0, -1
 
 	for i, s := range sessions {
-		glyph, _ := sessionGlyph(s)
+		// A shell's screen says nothing about an agent's state: a server
+		// printing logs would read as working. Only the agent shows a glyph.
+		glyph := ""
+
+		if s.Agent != termAgent && s.Agent != tabAgent {
+			g, _ := sessionGlyph(s)
+			glyph = g + " "
+		}
 
 		name, end := m.fx.text("sess:"+s.ID, sessionName(s)), " "+tabClose(s.ID == active)
 		if s.ID == active {
@@ -2394,12 +2401,12 @@ func (m *Model) tabsFor(w int, sessions []proto.Session, active string) []sessTa
 		}
 		// A name too long for the strip on its own is cut, so every tab,
 		// the active one above all, can show.
-		frame := ansi.StringWidth(" "+glyph+" "+end) + tabGap
+		frame := ansi.StringWidth(" "+glyph+end) + tabGap
 		if ansi.StringWidth(name) > room-frame {
 			name = ansi.Truncate(name, max(room-frame, 1), "…")
 		}
 
-		labels[i] = " " + glyph + " " + name + end
+		labels[i] = " " + glyph + name + end
 		widths[i] = ansi.StringWidth(labels[i])
 		total += widths[i] + tabGap
 	}
