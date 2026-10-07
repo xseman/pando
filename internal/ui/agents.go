@@ -439,12 +439,15 @@ func agLabel(r agRow) string {
 }
 
 // sessionGlyph is herdr's status symbol set: × blocked on a permission or a
-// question, ◐ working, ✓ done (idle, unseen since it finished), ○ idle, and
-// ✕ for a process that exited with a code.
+// question, ◐ working (in the accent's blue on a shell command), ✓ done
+// (idle, unseen since it finished), ○ idle, and ✕ for a process that exited
+// with a code.
 func sessionGlyph(s proto.Session) (string, color.Color) {
 	switch {
 	case s.Status == "blocked":
 		return "× ", pal.errc
+	case s.Shell:
+		return "◐ ", pal.accent
 	case s.Status == "running":
 		return "◐ ", pal.warn
 	case s.Status == "exited":
@@ -690,8 +693,11 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		}
 
 		status := r.s.Status
-		if r.s.Status == "exited" {
+		switch {
+		case r.s.Status == "exited":
 			status = fmt.Sprintf("exit %d", r.s.ExitCode)
+		case r.s.Shell:
+			status = "shell"
 		}
 
 		if m.st.Settings.SpGroup == "time" { // no project tree to say where it runs
@@ -1910,7 +1916,7 @@ func (a *agents) moveSession(m *Model, id, to string) {
 
 // agentNavigator is a quick pick of every session and worktree, like
 // herdr-navigator: blocked sessions first, then running, done, idle and
-// exited ones. "@blocked", "@running", "@done", "@idle", "@exited",
+// exited ones. "@blocked", "@running", "@shell", "@done", "@idle", "@exited",
 // "@worktree" narrow by kind and "!claude" by agent.
 func (m *Model) agentNavigator() tea.Cmd {
 	ss := m.agentSessions()
@@ -1922,8 +1928,11 @@ func (m *Model) agentNavigator() tea.Cmd {
 		glyph, _ := sessionGlyph(s)
 
 		status := s.Status
-		if s.Attention && status == "idle" {
+		switch {
+		case s.Attention && status == "idle":
 			status = "done"
+		case s.Shell:
+			status = "shell"
 		}
 
 		where := filepath.Base(s.Workspace)

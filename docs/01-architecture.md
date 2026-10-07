@@ -109,7 +109,8 @@ driving the API.
 ## Status
 
 `Session.Status` is `blocked`, `running`, `idle` or `exited`; the TUI shows
-`idle` with `attention` as done. Each tick, `session.tick` decides:
+`idle` with `attention` as done, and `running` with `shell` (a shell command
+under the worker) as shell, its ◐ blue. Each tick, `session.tick` decides:
 
 ```text
  process gone? ────────────────────────────────yes─▶ exited
@@ -119,7 +120,7 @@ driving the API.
    ├─ running: esc to interrupt, ✻ Doing… ─────────▶ running
    └─ idle (claude at an empty ❯), or "" (no rule)
         │
- shell command under the worker on 2 ticks? ───yes─▶ running
+ shell command under the worker on 2 ticks? ───yes─▶ running, shell
         │ no
  the screen said idle? ────────────────────────yes─▶ idle
         │ no: unknown program, or a ◯ background row

@@ -343,7 +343,7 @@ func (d *Daemon) Serve(ln net.Listener) error {
 				}
 
 				pid, prog := s.foreground()
-				s.setCommands(commandsUnder(s.worker(pid)))
+				changed = s.setCommands(commandsUnder(s.worker(pid))) || changed
 				changed = s.tick(now) || changed
 				changed = s.setProgram(prog) || changed
 				r, seen := d.remember(s, pid, prog)

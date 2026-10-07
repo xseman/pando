@@ -137,15 +137,15 @@ func TestCommandKeepsRunning(t *testing.T) {
 	s.setCommands([]int{42})
 	s.tick(now)
 
-	if s.status != "running" {
-		t.Fatalf("a command seen twice: %q, want running", s.status)
+	if s.status != "running" || !s.info().Shell {
+		t.Fatalf("a command seen twice: %q shell=%v, want running on a shell", s.status, s.info().Shell)
 	}
 
 	s.seen = "blocked"
 	s.tick(now)
 
-	if s.status != "blocked" {
-		t.Fatalf("a prompt over a running command: %q, want blocked", s.status)
+	if s.status != "blocked" || s.info().Shell {
+		t.Fatalf("a prompt over a running command: %q shell=%v, want blocked", s.status, s.info().Shell)
 	}
 
 	s.seen = "idle"

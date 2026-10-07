@@ -91,7 +91,8 @@ checkout.
 | Mark | State     | Means                                                     |
 | ---- | --------- | --------------------------------------------------------- |
 | `×`  | `blocked` | waits for you: a permission or a question                 |
-| `◐`  | `running` | works; a shell command it runs, in the background too     |
+| `◐`  | `running` | works                                                     |
+| `◐`  | `shell`   | running a shell command, in the background too (blue)     |
 | `✓`  | `done`    | finished, not looked at yet                               |
 | `○`  | `idle`    | at its prompt                                             |
 | `✕`  | `exited`  | failed (`exit N`); a clean exit closes the session        |

@@ -412,7 +412,10 @@ func (s *session) info() proto.Session {
 		updated = s.spec.Created
 	}
 
-	return proto.Session{SessionSpec: s.spec, Status: status, ExitCode: s.exitCode, Attention: s.attention, Title: s.shownTitle(), Program: s.program, Updated: updated}
+	return proto.Session{
+		SessionSpec: s.spec, Status: status, ExitCode: s.exitCode, Attention: s.attention, Shell: status == "running" && s.command,
+		Title: s.shownTitle(), Program: s.program, Updated: updated,
+	}
 }
 
 // shownTitle is the title clients show: a background job's name while the
@@ -429,13 +432,16 @@ func (s *session) shownTitle() string {
 // program, or under the job it attaches to (worker). One seen on two ticks in
 // a row keeps the session running whatever its screen says: claude sits at
 // its idle prompt while a background shell works. A status line or hook
-// command is gone by the next tick.
-func (s *session) setCommands(pids []int) {
+// command is gone by the next tick. It reports whether that changed.
+func (s *session) setCommands(pids []int) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	was := s.command
 	s.command = slices.ContainsFunc(pids, func(p int) bool { return slices.Contains(s.commands, p) })
 	s.commands = pids
+
+	return was != s.command
 }
 
 // setJob records whether the foreground attaches to a background job, the

@@ -180,7 +180,7 @@ func TestCommandPalette(t *testing.T) {
 
 func TestAgentNavigator(t *testing.T) {
 	m := testModel(t)
-	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: m.ws, Agent: "claude"}, Status: "running", Title: "fix"})
+	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: m.ws, Agent: "claude"}, Status: "running", Shell: true, Title: "fix"})
 	press(m, "alt+t") // ⌃t stays free for VS Code's Go to Symbol in Workspace
 
 	if got := labels(m); !slices.Equal(got, []string{"◐ claude · fix", "○ shell", "⌂ main"}) {
@@ -192,6 +192,18 @@ func TestAgentNavigator(t *testing.T) {
 	if got := labels(m); !slices.Equal(got, []string{"○ shell"}) {
 		t.Fatalf("@idle %q", got)
 	}
+
+	press(m, "backspace", "backspace", "backspace", "backspace", "s", "h", "e", "l", "l")
+
+	if got := labels(m); !slices.Equal(got, []string{"◐ claude · fix"}) {
+		t.Fatalf("@shell %q", got)
+	}
+
+	if _, c := sessionGlyph(m.sessions[len(m.sessions)-1]); c != pal.accent {
+		t.Fatalf("a shell's ◐ is %v, want the accent's blue", c)
+	}
+
+	press(m, "backspace", "backspace", "backspace", "backspace", "backspace", "i", "d", "l", "e")
 
 	press(m, "enter")
 

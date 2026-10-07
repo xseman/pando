@@ -178,7 +178,7 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
 - A folded project tops the folded list (`spaces_folded`); unfolded, it goes
   last among the open ones, saved there (Sort Projects Manually only).
 - `alt+t` opens the agent navigator, a picker with `@blocked`, `@running`,
-  `@done`, `@idle`, `@exited`, `@worktree` and `!agent` filters.
+  `@shell`, `@done`, `@idle`, `@exited`, `@worktree` and `!agent` filters.
 
 ### View options
 

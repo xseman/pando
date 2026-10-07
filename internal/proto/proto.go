@@ -275,6 +275,7 @@ type Session struct {
 	Status    string `json:"status"` // blocked | running | idle | exited
 	ExitCode  int    `json:"exit_code"`
 	Attention bool   `json:"attention"`
+	Shell     bool   `json:"shell,omitempty"` // running on a shell command under it, not on its screen's word
 	Title     string `json:"title"`
 	Program   string `json:"program,omitempty"` // what runs in its foreground: the shell, or claude started in it
 	// Updated is its last output, Created before it printed anything; it
