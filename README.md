@@ -85,58 +85,26 @@ pando ~/code/app   # add a project and open it; plain `pando` reopens the last
 
 ## Tour
 
-### Resume
+Every GIF below is pando itself, recorded by `make demo`.
 
-Stop the daemon, start pando again: every session comes back and its agent
-continues the same conversation. [More](docs/usage.md#resume)
-
-![a claude conversation, pando closed and its daemon stopped; the next pando brings the session back and claude continues the same conversation](docs/demo/resume.gif)
-
-### Review and commit
-
-Diffs inline or side by side, staging single lines, and merge conflicts with
-VS Code's accept actions. [More](docs/usage.md#review-and-commit)
-
-![a diff inline and side by side, staging part of it, then a conflicting merge continued with git's message](docs/demo/diff.gif)
-
-### GitHub
-
-Pull requests with their checks, opened as a description or a diff, checked
-out in a worktree of their own. [More](docs/usage.md#github)
-
-![pull requests with their checks, one opened as its rendered description and as a diff, then checked out in a worktree of its own](docs/demo/github.gif)
-
-### Language servers
-
-References in a peek, code actions, rename and completion, from `gopls` or
-any server you configure. [More](docs/usage.md#editor)
-
-![the references peek, a code action, rename and completion, answered by gopls](docs/demo/lsp.gif)
-
-### Editor
-
-Untitled buffers, save with path completion, format on save.
-
-![a sloppy Go file typed into an untitled buffer, saved with path completion, and tidied by gofmt on the way to disk](docs/demo/edit.gif)
-
-### Vim mode
-
-`vim_mode = true`: normal, visual and insert modes in every editor.
-
-![vim mode: a method yanked in V-LINE, put above itself, and changed into another one in INSERT](docs/demo/vim.gif)
-
-### Markdown
-
-Source, rendered, or both side by side scrolling together.
-
-![a README as source, rendered in place, then both side by side scrolling together](docs/demo/markdown.gif)
-
-### CLI
-
-Everything a session does is a command, so a script or another agent can run
-one and wait for its turn to end. [More](docs/usage.md#cli)
-
-![the CLI: a worktree, claude started in it, a prompt that blocks until the turn is over, and the diff it left](docs/demo/cli.gif)
+<table>
+<tr>
+<td width="50%" valign="top"><img src="docs/demo/resume.gif" alt="a claude conversation, pando closed and its daemon stopped; the next pando brings the session back and claude continues the same conversation" width="100%"><p align="center"><sub><b>Resume.</b> Stop the daemon, start pando again: every session comes back and its agent continues the same conversation. <a href="docs/usage.md#resume">More</a></sub></p></td>
+<td width="50%" valign="top"><img src="docs/demo/diff.gif" alt="a diff inline and side by side, staging part of it, then a conflicting merge continued with git's message" width="100%"><p align="center"><sub><b>Review and commit.</b> Diffs inline or side by side, staging single lines, merge conflicts with VS Code's accept actions. <a href="docs/usage.md#review-and-commit">More</a></sub></p></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/demo/github.gif" alt="pull requests with their checks, one opened as its rendered description and as a diff, then checked out in a worktree of its own" width="100%"><p align="center"><sub><b>GitHub.</b> Pull requests with their checks, opened as a description or a diff, checked out in a worktree of their own. <a href="docs/usage.md#github">More</a></sub></p></td>
+<td width="50%" valign="top"><img src="docs/demo/lsp.gif" alt="the references peek, a code action, rename and completion, answered by gopls" width="100%"><p align="center"><sub><b>Language servers.</b> References in a peek, code actions, rename and completion, from <code>gopls</code> or any server you configure. <a href="docs/usage.md#editor">More</a></sub></p></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/demo/edit.gif" alt="a sloppy Go file typed into an untitled buffer, saved with path completion, and tidied by gofmt on the way to disk" width="100%"><p align="center"><sub><b>Editor.</b> Untitled buffers, save with path completion, format on save.</sub></p></td>
+<td width="50%" valign="top"><img src="docs/demo/vim.gif" alt="a method yanked in V-LINE, put above itself, and changed into another one in INSERT" width="100%"><p align="center"><sub><b>Vim mode.</b> <code>vim_mode = true</code>: normal, visual and insert modes in every editor.</sub></p></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/demo/markdown.gif" alt="a README as source, rendered in place, then both side by side scrolling together" width="100%"><p align="center"><sub><b>Markdown.</b> Source, rendered, or both side by side scrolling together.</sub></p></td>
+<td width="50%" valign="top"><img src="docs/demo/cli.gif" alt="the CLI: a worktree, claude started in it, a prompt that blocks until the turn is over, and the diff it left" width="100%"><p align="center"><sub><b>CLI.</b> Everything a session does is a command, so a script or another agent can run one and wait for its turn to end. <a href="docs/usage.md#cli">More</a></sub></p></td>
+</tr>
+</table>
 
 ## How it works
 
