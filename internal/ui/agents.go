@@ -1248,19 +1248,30 @@ func removeLabel(r *agRow) string {
 	return ""
 }
 
-// actions are row r's hover buttons: the + right after a project's or a
-// worktree's name, that starts a session there (newSession).
+// actions are row r's hover buttons, right after its name: a project's New
+// Worktree (then its harness), a worktree's New Session.
 func (a *agents) actions(r agRow) []rowAction {
 	head := " " + chevron(!a.collapsed[r.project]) + "· " + agLabel(r) // any status glyph is a cell and a space
+
+	act := rowAction{g: icAdd, text: "New Session", run: func(m *Model) tea.Cmd { return a.newSession(m, &r) }}
 
 	switch {
 	case r.kind == agWorkspace:
 		head = "   " + wtGlyph(r.ws).s() + " " + wsName(r.ws)
-	case r.kind != agProject || r.project == "":
+	case r.kind == agProject && r.project != "":
+		act.g, act.text = icWorktree, "New Worktree"
+		act.run = func(m *Model) tea.Cmd {
+			m.promptWorktree(r.project, git.RandomBranch(), true)
+			return nil
+		}
+
+	default:
 		return nil
 	}
 
-	return []rowAction{{g: icAdd, x: ansi.StringWidth(head), w: 2 + ansi.StringWidth(icAdd.s()), run: func(m *Model) tea.Cmd { return a.newSession(m, &r) }}}
+	act.x, act.w = ansi.StringWidth(head), ansi.StringWidth(act.label())
+
+	return []rowAction{act}
 }
 
 // sessionsIn are the sessions to kill to empty workspaces paths. A Terminal

@@ -532,9 +532,19 @@ func untrackedPaths(st git.Status) []string {
 // rowAction is a hover button on a section, folder or file row.
 type rowAction struct {
 	g    glyph
+	text string // a label after the glyph, for a button that needs saying
 	x, w int
 	on   bool // a toggle that is set, drawn lit
 	run  func(m *Model) tea.Cmd
+}
+
+// label is the button as drawn: its glyph, then its text, in a space either side.
+func (a rowAction) label() string {
+	if a.text == "" {
+		return " " + a.g.s() + " "
+	}
+
+	return " " + a.g.s() + " " + a.text + " "
 }
 
 // hit is the action under column x, if any.
@@ -654,13 +664,14 @@ func drawActions(acts []rowAction, mx int) []seg {
 	var out []seg
 
 	for _, a := range acts {
+		label := a.label()
 		if mx >= a.x && mx < a.x+a.w {
-			out = append(out, sgOwn(" "+a.g.s()+" ", keycapHot()))
+			out = append(out, sgOwn(label, keycapHot()))
 
 			continue
 		}
 
-		out = append(out, sg(" "+a.g.s()+" ", plain))
+		out = append(out, sg(label, plain))
 	}
 
 	return out

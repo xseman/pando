@@ -1098,21 +1098,34 @@ func TestSpacesNewSession(t *testing.T) {
 	m.modal = nil
 	checkWidths(t, m)
 
-	// The project row's + under the pointer opens the worktree picker, not a drag.
+	// The project row's New Worktree under the pointer asks for the branch, not a drag.
 	cs, _ := m.layout()
 	i := m.colOf(viewAgents)
 	acts := m.ag.actions(rows[0])
 	x, y := cs[i].x+m.barW(i)+acts[0].x+1, m.bodyTop(viewAgents)
 	m.Update(tea.MouseMotionMsg{X: x, Y: y})
 
-	if line := ansi.Strip(m.ag.lines(m, 40, len(rows))[0]); !strings.Contains(line, filepath.Base(root)+" + ") {
-		t.Fatalf("the hovered project row shows its + after its name: %q", line)
+	if line := ansi.Strip(m.ag.lines(m, 40, len(rows))[0]); !strings.Contains(line, filepath.Base(root)+" +⎇ New Worktree") {
+		t.Fatalf("the hovered project row shows its button after its name: %q", line)
 	}
 
 	click(m, x, y, tea.MouseLeft)
 
-	if m.drag != nil || m.modal == nil || !slices.Equal(labels(m), []string{"New Worktree…", "⌂ main", "⑂ feat"}) {
-		t.Fatalf("the project's + asks for the worktree: drag %+v, %v", m.drag, labels(m))
+	if m.drag != nil || m.modal == nil || !strings.HasPrefix(m.modal.title, "New worktree branch in ") {
+		t.Fatalf("the project's button asks for the branch: drag %+v, %+v", m.drag, m.modal)
+	}
+
+	if acts := m.ag.actions(rows[feat]); len(acts) != 1 || acts[0].text != "New Session" {
+		t.Fatalf("a worktree's button starts a session: %+v", acts)
+	}
+
+	// n on the project row asks which worktree.
+	m.modal = nil
+	m.ag.l.sel = 0
+	press(m, "n")
+
+	if m.modal == nil || !slices.Equal(labels(m), []string{"New Worktree…", "⌂ main", "⑂ feat"}) {
+		t.Fatalf("n on a project asks for the worktree: %v", labels(m))
 	}
 
 	m.modal.choose(m, 2)
