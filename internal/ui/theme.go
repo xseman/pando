@@ -342,6 +342,8 @@ var (
 	icCheck      = glyph{"check", "", "✓", ""}
 	icChevron    = glyph{"chevron-down", "", "∨", ""}
 	icClose      = glyph{"close", "", "✕", ""}
+	icMax        = glyph{"screen-full", "\ueb4c", "□", ""}
+	icRestore    = glyph{"screen-normal", "\ueb4d", "❐", ""}
 	icBranch     = glyph{"git-branch (dev)", "\ue725", "⎇", "⎇"}
 	icPublish    = glyph{"cloud-upload", "\ueac3", "☁", ""}
 	icSync       = glyph{"sync", "\uea77", "⇅", ""}
@@ -374,7 +376,7 @@ var (
 	icTabs       = glyph{"window", "\ueb7f", "⧉", ""}         // a session's tab count in Spaces
 	allGlyphs    = []glyph{
 		icFiles, icGit, icSpaces, icAgents, icGear, icNewFile, icNewDir, icRefresh, icCollapse, icTree, icList,
-		icAdd, icRemove, icDiscard, icWorktree, icSparkle, icCheck, icChevron, icClose, icBranch, icPublish, icSync, icSplit, icInline, icUnfold, icFold,
+		icAdd, icRemove, icDiscard, icWorktree, icSparkle, icCheck, icChevron, icClose, icMax, icRestore, icBranch, icPublish, icSync, icSplit, icInline, icUnfold, icFold,
 		icSearch, icCase, icWord, icRegex, icEllipsis, icClearAll, icOptions, icPreview, icSource,
 		icPrevRev, icNextRev, icUp, icDown, icHistory, icTag, icDetach, icReplace, icPreserve, icReplaceAll, icTerminal, icDot,
 		icMainWt, icLinkedWt, icTabs, icWrap, icGitHub, icPR, icPRDraft, icPRNew, icIssue, icBell, icCheckAll,

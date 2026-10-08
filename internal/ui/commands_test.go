@@ -2978,6 +2978,78 @@ func TestSessionOpensDocked(t *testing.T) {
 	}
 }
 
+// The maximize button, in the file's header and the session's, gives the
+// whole editor area to one and restores the pair.
+func TestMaximizeSessionAndFile(t *testing.T) {
+	m := testModelSized(t, 140, 30)
+	m.st.Settings.SessPos, m.sess = "", "" // the shipped default: a column on the right
+	rows := m.ag.rows(m)
+	k := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agSession })
+	m.ag.activate(m, &rows[k])
+	fire(m, m.openFile(filepath.Join(m.ws, "README.md"), false))
+	fire(m, m.pv.load(m))
+
+	if !m.sessDocked() || !m.showsPreview() || m.maxed {
+		t.Fatalf("side by side: docked %v, file %v, maxed %v", m.sessDocked(), m.showsPreview(), m.maxed)
+	}
+
+	// The file's first header button, on the header row under the strip.
+	pvClick := func() {
+		acts := m.pv.buttons(m, m.mainW())
+		click(m, m.mainX()+acts[0].x, m.stripH(), tea.MouseLeft)
+	}
+	pvClick()
+
+	if m.sessDocked() || m.showsSession() || !m.showsPreview() || !m.maxed {
+		t.Fatalf("file maximized: docked %v, session %v, file %v", m.sessDocked(), m.showsSession(), m.showsPreview())
+	}
+
+	if out := checkWidths(t, m); !strings.Contains(out, "# hi") || !strings.Contains(out, icRestore.s()) {
+		t.Fatalf("the file fills the area:\n%s", out)
+	}
+
+	pvClick()
+
+	if !m.sessDocked() || !m.showsPreview() || m.maxed {
+		t.Fatalf("file restored: docked %v, file %v, maxed %v", m.sessDocked(), m.showsPreview(), m.maxed)
+	}
+
+	// The session's own, beside ✕ in its column's header.
+	i := m.colOf(viewSession)
+	r := m.colRect(i)
+	m.mouseAt, m.mouseX, m.mouseY = time.Now(), r.x+1, m.barH(i)
+	acts := m.headerActions(i, viewSession, r.w)
+	click(m, r.x+acts[0].x, m.barH(i), tea.MouseLeft)
+
+	if m.sessDocked() || !m.showsSession() || !m.maxed {
+		t.Fatalf("session maximized: docked %v, session %v", m.sessDocked(), m.showsSession())
+	}
+
+	checkWidths(t, m)
+	// Restoring is the button at the right end of its tab strip, the first row.
+	click(m, m.mainX()+m.mainW()-2, 0, tea.MouseLeft)
+
+	if !m.sessDocked() || m.maxed {
+		t.Fatalf("session restored: docked %v, maxed %v", m.sessDocked(), m.maxed)
+	}
+
+	// A file opened over a maximized session sits beside it again.
+	m.toggleMax(false)
+	fire(m, m.openFile(filepath.Join(m.ws, "README.md"), false))
+
+	if !m.sessDocked() || m.maxed {
+		t.Fatalf("opening a file restores: docked %v, maxed %v", m.sessDocked(), m.maxed)
+	}
+
+	m.toggleMax(true)
+	m.hideSession()
+	m.Update(nil)
+
+	if m.maxed {
+		t.Fatal("no session, nothing to share the editor area with")
+	}
+}
+
 // The session's column follows Spaces to the other sidebar, unless it has the
 // editor area to itself.
 func TestSessionFollowsSpaces(t *testing.T) {

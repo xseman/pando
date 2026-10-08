@@ -115,6 +115,12 @@ area; opening a file docks it back, `sessSide`).
   (`hideSession`) and keeps running.
 - Each worktree keeps its own place and width (`session_views` in
   `state.json`).
+- The button among the actions of the session's header and of the file's
+  (`toggleMax`, also _Toggle Session / Editor Maximized_) gives the whole editor
+  area to the session or to the file, the other one waiting; pressed again it
+  docks them side by side. A maximized session restores from the right end of
+  its tab strip, the first row. Not saved (`maxed`: `cols` drops the column,
+  `preview` says who shows); opening a file over a maximized session restores.
 
 ## Terminal panel
 

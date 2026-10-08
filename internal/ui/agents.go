@@ -2265,7 +2265,7 @@ type sessTab struct {
 // sessionTabs are the tabs of the session in view, in the order [ and ]
 // cycle them, with a + to open one more in it: herdr's workspace tabs.
 func (m *Model) sessionTabs(w int) []sessTab {
-	return m.tabsFor(w, m.tabsOf(m.rootOf(m.sess)), m.sess)
+	return m.tabsFor(w-m.restoreW(), m.tabsOf(m.rootOf(m.sess)), m.sess)
 }
 
 // spaceSessions are the sessions of the workspace in view, their tabs aside.
@@ -2501,8 +2501,17 @@ func (m *Model) renameSession(id string) tea.Cmd {
 }
 
 func (m *Model) sessionStrip(w int) string {
-	return m.stripMark(row(w, nil, tabSegs(m.sessionTabs(w), m.overTab)), stripSession, 0, nil)
+	var restore []seg
+	if m.maxed {
+		restore = []seg{sg(" "+icRestore.s()+" ", dim)}
+	}
+
+	return m.stripMark(row(w, nil, tabSegs(m.sessionTabs(w), m.overTab), restore...), stripSession, 0, nil)
 }
+
+// restoreW is the room the restore button takes at the right end of a
+// maximized session's strip: a glyph in a space either side.
+func (m *Model) restoreW() int { return 3 * b2i(m.maxed) }
 
 // tabSegs draws a strip's tabs, tab over in hover_bg.
 func tabSegs(tabs []sessTab, over string) []seg {
@@ -2528,6 +2537,10 @@ func tabSegs(tabs []sessTab, over string) []seg {
 // sessionStripMouse switches, closes or opens a session from the strip; a
 // tab past the session's own drags along it.
 func (m *Model) sessionStripMouse(x int, button tea.MouseButton) tea.Cmd {
+	if button == tea.MouseLeft && m.maxed && x >= m.sessW()-m.restoreW() {
+		return m.toggleMax(false)
+	}
+
 	for _, t := range m.sessionTabs(m.sessW()) {
 		if x < t.x || x >= t.x+t.w {
 			continue

@@ -280,6 +280,7 @@ func (m *Model) setPreview(p preview) tea.Cmd {
 		m.focus = focus // docking does not move the keyboard off what opened the file
 	}
 
+	m.maxed = m.maxed && m.preview // a file opened over a maximized session sits beside it again
 	m.preview = true
 	cmd := m.pv.load(m)
 	m.saveSpot() // an untitled buffer loads in place: the tab takes it now
@@ -2095,6 +2096,10 @@ func (p *preview) sideBody(m *Model, w, h int) []string {
 // rendering, the diff's context and layout, and the file's revisions.
 func (p *preview) buttons(m *Model, w int) []rowAction {
 	var acts []rowAction
+
+	if m.canMax() { // first, so the others keep their places
+		acts = append(acts, rowAction{g: m.maxGlyph(), run: func(m *Model) tea.Cmd { return m.toggleMax(true) }})
+	}
 
 	add := func(g glyph, k tea.KeyPressMsg) {
 		acts = append(acts, rowAction{g: g, run: func(m *Model) tea.Cmd { return m.pv.key(m, k) }})

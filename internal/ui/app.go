@@ -171,6 +171,7 @@ type Model struct {
 	saidCtrlJ bool
 	tv        termPanel              // the Terminal panel's shell
 	termMax   bool                   // the panel fills the editor area (⌃⇧↑)
+	maxed     bool                   // the docked session or the file fills the editor area (the strip's button): preview says which
 	filters   [viewGitHub + 1]filter // per view
 	gh        ghView
 	hasGH     bool // gh is installed: the GitHub view shows
@@ -696,7 +697,7 @@ func (m *Model) cols() []col {
 		}
 	}
 
-	if colWith(out, viewSession) >= 0 && m.crampedBy(out) {
+	if colWith(out, viewSession) >= 0 && (m.maxed || m.crampedBy(out)) {
 		out = removeView(out, viewSession)
 	}
 
@@ -718,7 +719,7 @@ func (m *Model) crampedBy(cs []col) bool {
 
 // cramped reports the session in the editor area for want of room beside it.
 func (m *Model) cramped() bool {
-	return m.sess != "" && m.sessPos() != "editor" && !m.sessDocked()
+	return m.sess != "" && m.sessPos() != "editor" && !m.sessDocked() && !m.maxed
 }
 
 // wants are the widths columns cs ask for: their own or their side's
@@ -1700,6 +1701,7 @@ func soloCol(c col) bool {
 // session's goes right beside the editor, half its width.
 func (m *Model) splitTo(v view, to int) tea.Cmd {
 	if v == viewSession {
+		m.maxed = false
 		return m.dock(m.sessionSplit(to), v)
 	}
 
@@ -1750,6 +1752,34 @@ func (m *Model) sessionDrop(x int) dropTarget {
 
 // sessDocked reports the session in a column beside the editor.
 func (m *Model) sessDocked() bool { return m.colOf(viewSession) >= 0 }
+
+// canMax reports a session docked beside the editor, or maximized over it:
+// the file's header and the session's then carry the button that swaps the
+// two.
+func (m *Model) canMax() bool { return m.maxed || m.sessDocked() }
+
+// maxGlyph is the maximize button's, VS Code's: it restores while the editor
+// area is taken.
+func (m *Model) maxGlyph() glyph {
+	if m.maxed {
+		return icRestore
+	}
+
+	return icMax
+}
+
+// toggleMax is the maximize button: the session (file false) or the file over
+// the whole editor area, the other one gone until it is pressed again.
+func (m *Model) toggleMax(file bool) tea.Cmd {
+	m.maxed, m.preview, m.focus = !m.maxed, file, onMain
+	if !m.maxed && !file { // its column is back: the keyboard stays in it
+		m.focus = m.colOf(viewSession)
+	}
+
+	m.fixFocus()
+
+	return m.fetchScreen()
+}
 
 // undockSession puts the docked session back over the whole editor area. Its
 // column stays in the settings: it is where the session docks again.
@@ -2111,7 +2141,9 @@ func (m *Model) headerActions(s int, v view, w int) []titleAction {
 		add(icClose, func(m *Model) tea.Cmd { return m.confirmKill(m.tv.id) })
 
 	case viewSession:
+		add(m.maxGlyph(), func(m *Model) tea.Cmd { return m.toggleMax(false) })
 		add(icClose, func(m *Model) tea.Cmd { return m.hideSession() })
+
 	case viewAgents:
 		add(icAdd, func(m *Model) tea.Cmd { return m.ag.newSession(m, m.ag.selected(m)) })
 		add(icWorktree, func(m *Model) tea.Cmd { return m.ag.newWorktree(m, m.ag.selected(m)) })
@@ -2280,6 +2312,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	v, _ := m.viewOn(m.focus)
 
 	_, cmd := m.update(msg)
+	m.maxed = m.maxed && m.sess != "" && m.sessPos() != "editor" // nothing left to share the editor area with
+
 	if m.cramped() != cramped {
 		m.followCramp(focus, v, inSess)
 	}
@@ -4702,6 +4736,11 @@ func (m *Model) viewItems() []item {
 	}
 
 	if m.sess != "" {
+		if m.canMax() {
+			file := m.pv.kind != "" && !m.sessFocused() && !m.showsSession()
+			items = append(items, item{label: "Toggle Session / Editor Maximized", run: func(m *Model) tea.Cmd { return m.toggleMax(file) }})
+		}
+
 		items = append(items, item{label: "Close Session View", run: func(m *Model) tea.Cmd { return m.hideSession() }})
 		if m.sessDocked() {
 			items = append(items, item{label: "Move Session to Editor Area", run: func(m *Model) tea.Cmd { return m.undockSession() }})
