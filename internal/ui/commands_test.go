@@ -2703,7 +2703,7 @@ func TestSessionNames(t *testing.T) {
 
 	m.Update(tea.MouseClickMsg{X: m.mainX() + tabs[0].x + 1, Y: 0, Button: tea.MouseRight})
 
-	if m.modal == nil || !slices.Equal(labels(m), []string{"Rename…", "Kill Session…"}) {
+	if m.modal == nil || !slices.Equal(labels(m), []string{"Rename…", "", "Kill Session…"}) {
 		t.Fatalf("tab menu %+v", m.modal)
 	}
 
@@ -2864,11 +2864,11 @@ func TestSessionDock(t *testing.T) {
 	_, c = m.layout()
 	m.Update(tea.MouseClickMsg{X: c.x + 5, Y: m.stripH(), Button: tea.MouseRight})
 
-	if m.modal == nil || labels(m)[0] != "Close (keeps running)" {
+	if m.modal == nil || !slices.Contains(labels(m), "Close (keeps running)") {
 		t.Fatalf("title menu %+v", m.modal)
 	}
 
-	m.modal.choose(m, 0)
+	m.modal.choose(m, slices.Index(labels(m), "Close (keeps running)"))
 
 	if m.sess != "" || len(m.sessions) != 1 || !m.showsPreview() {
 		t.Fatalf("closed: sess %q, sessions %d", m.sess, len(m.sessions))

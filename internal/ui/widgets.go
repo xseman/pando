@@ -517,6 +517,26 @@ func cancelItem() item {
 // separator is VS Code's menu rule between groups of commands.
 func separator() item { return item{sep: true} }
 
+// menuGroups joins groups of items with a rule between them; an empty group
+// leaves no rule.
+func menuGroups(groups ...[]item) []item {
+	var out []item
+
+	for _, g := range groups {
+		if len(g) == 0 {
+			continue
+		}
+
+		if len(out) > 0 {
+			out = append(out, separator())
+		}
+
+		out = append(out, g...)
+	}
+
+	return out
+}
+
 // matchItem scores an item for a picker query: words starting with @ or !
 // must appear verbatim in its search text, the rest match fuzzily.
 func matchItem(q string, it item) int {

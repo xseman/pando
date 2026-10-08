@@ -1832,23 +1832,26 @@ func (m *Model) sessionTitleMenu() tea.Cmd {
 		return nil
 	}
 
-	items := []item{{label: "Close (keeps running)", run: func(m *Model) tea.Cmd { return m.hideSession() }}}
+	var place []item // where the session's view sits, then its name, then the ways to end it
+
 	if m.sessDocked() {
-		items = append(items, item{label: "Move to Editor Area", run: func(m *Model) tea.Cmd { return m.undockSession() }})
+		place = append(place, item{label: "Move to Editor Area", run: func(m *Model) tea.Cmd { return m.undockSession() }})
 	}
 
 	if i := m.colOf(viewSession); i < 0 || m.side(i) == 1 {
-		items = append(items, item{label: "Dock Left", run: func(m *Model) tea.Cmd { return m.splitTo(viewSession, 0) }})
+		place = append(place, item{label: "Dock Left", run: func(m *Model) tea.Cmd { return m.splitTo(viewSession, 0) }})
 	}
 
 	if i := m.colOf(viewSession); i < 0 || m.side(i) == 0 {
-		items = append(items, item{label: "Dock Right", run: func(m *Model) tea.Cmd { return m.splitTo(viewSession, 1) }})
+		place = append(place, item{label: "Dock Right", run: func(m *Model) tea.Cmd { return m.splitTo(viewSession, 1) }})
 	}
 
-	items = append(items, item{label: "Rename…", run: func(m *Model) tea.Cmd { return m.renameSession(id) }},
-		item{label: "Kill Session…", run: func(m *Model) tea.Cmd { return m.confirmKill(id) }})
-
-	return m.menuOf(items, m.mouseX, m.mouseY)
+	return m.menuOf(menuGroups(place,
+		[]item{{label: "Rename…", run: func(m *Model) tea.Cmd { return m.renameSession(id) }}},
+		[]item{
+			{label: "Close (keeps running)", run: func(m *Model) tea.Cmd { return m.hideSession() }},
+			{label: "Kill Session…", run: func(m *Model) tea.Cmd { return m.confirmKill(id) }},
+		}), m.mouseX, m.mouseY)
 }
 
 // menuOf opens items as a context menu at x, y.

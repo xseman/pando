@@ -1319,18 +1319,23 @@ func (m *Model) confirmKill(id string) tea.Cmd {
 func (a *agents) items(m *Model) []item {
 	r := a.selected(m)
 
-	items := []item{
-		{label: "Go to Agent or Worktree…", hint: "M-t", run: func(m *Model) tea.Cmd { return m.agentNavigator() }},
+	create := []item{
 		{label: "New Session…", hint: "n", run: func(m *Model) tea.Cmd { return a.newSession(m, r) }},
 		{label: "New Worktree…", hint: "w", run: func(m *Model) tea.Cmd { return a.newWorktree(m, r) }},
 		{label: "Add Project…", hint: "a", run: func(m *Model) tea.Cmd { return a.key(m, tea.KeyPressMsg{Code: 'a', Text: "a"}) }},
 		{label: "Open Project…", run: func(m *Model) tea.Cmd { return m.projectPicker() }},
+	}
+	goTo := []item{
+		{label: "Go to Agent or Worktree…", hint: "M-t", run: func(m *Model) tea.Cmd { return m.agentNavigator() }},
 		{label: "View Options…", hint: "o", run: func(m *Model) tea.Cmd { return a.viewMenu(m, m.mouseX, m.mouseY) }},
 	}
+
+	var row, remove []item // what the selected row can do, and its end
+
 	if r != nil && r.kind == agWorkspace && len(m.worktreesOf(r.project)) > 1 {
 		path := r.ws.Path
 
-		items = append(items,
+		row = append(row,
 			item{label: "Move Worktree Up", hint: "M-↑", run: func(m *Model) tea.Cmd { return a.shiftWorkspace(m, path, -1) }},
 			item{label: "Move Worktree Down", hint: "M-↓", run: func(m *Model) tea.Cmd { return a.shiftWorkspace(m, path, 1) }})
 	}
@@ -1338,7 +1343,7 @@ func (a *agents) items(m *Model) []item {
 	if r != nil && r.project != "" && r.kind == agProject && len(m.st.Projects) > 1 && a.projectMovable(m, r.project) {
 		// What a drag does, for the keyboard: the project keeps its place in
 		// config, so the order survives a restart either way.
-		items = append(items,
+		row = append(row,
 			item{label: "Move Project Up", hint: "M-↑", run: func(m *Model) tea.Cmd { return a.shiftProject(m, r.project, -1) }},
 			item{label: "Move Project Down", hint: "M-↓", run: func(m *Model) tea.Cmd { return a.shiftProject(m, r.project, 1) }})
 	}
@@ -1346,19 +1351,19 @@ func (a *agents) items(m *Model) []item {
 	if r != nil && r.kind == agSession {
 		id := r.s.ID
 
-		items = append(items, item{label: "Rename Session…", hint: "R", run: func(m *Model) tea.Cmd { return m.renameSession(id) }})
+		row = append(row, item{label: "Rename Session…", hint: "R", run: func(m *Model) tea.Cmd { return m.renameSession(id) }})
 		if m.sessionsMovable() && len(m.siblings(id)) > 1 {
-			items = append(items,
+			row = append(row,
 				item{label: "Move Session Up", hint: "M-↑", run: func(m *Model) tea.Cmd { return a.shiftSession(m, id, -1) }},
 				item{label: "Move Session Down", hint: "M-↓", run: func(m *Model) tea.Cmd { return a.shiftSession(m, id, 1) }})
 		}
 	}
 
 	if label := removeLabel(r); label != "" {
-		items = append(items, item{label: label, hint: "x", run: func(m *Model) tea.Cmd { return a.remove(m, r) }})
+		remove = []item{{label: label, hint: "x", run: func(m *Model) tea.Cmd { return a.remove(m, r) }}}
 	}
 
-	return items
+	return menuGroups(create, row, goTo, remove)
 }
 
 func (a *agents) menu(m *Model, x, y int) tea.Cmd { return m.menuOf(a.items(m), x, y) }
@@ -2474,9 +2479,9 @@ func cleanTitle(t string) string {
 
 // sessionMenu is a session tab's right click menu.
 func (m *Model) sessionMenu(id string) tea.Cmd {
-	m.modal = newMenu("", m.mouseX, m.mouseY,
-		item{label: "Rename…", run: func(m *Model) tea.Cmd { return m.renameSession(id) }},
-		item{label: "Kill Session…", run: func(m *Model) tea.Cmd { return m.confirmKill(id) }})
+	m.modal = newMenu("", m.mouseX, m.mouseY, menuGroups(
+		[]item{{label: "Rename…", run: func(m *Model) tea.Cmd { return m.renameSession(id) }}},
+		[]item{{label: "Kill Session…", run: func(m *Model) tea.Cmd { return m.confirmKill(id) }}})...)
 
 	return nil
 }

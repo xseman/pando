@@ -174,6 +174,10 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
 
 - A click on a session opens its one tab with a new state (`newsTab`);
   with several, the tab shown last, and again it puts the session away.
+- The right-click menu groups by action, rules from `menuGroups`: create
+  (New Session, New Worktree, Add / Open Project), the row's own (Rename,
+  Move), go to / view options, then remove. A session's title menu: where it
+  sits (Move to Editor Area, Dock), Rename, then Close and Kill.
 - `x` kills the sessions in the way first (`killThen`), after asking.
 - _New Worktree…_ (`w`) offers a random branch (`workspace.new`).
 - Session reordering applies under Sort by Created + Group by Workspace only;
