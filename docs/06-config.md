@@ -60,6 +60,7 @@ config.toml edited ───────────┘  └─ "state" event �
 | `diff_view`           | `inline`    | `inline`, `split` (from 90 columns)                                            |
 | `diff_full`           | `false`     | a file's diff shows the whole file, not only the changes (`z`)                 |
 | `quick_open_tree`     | `false`     | quick open groups by directory                                                 |
+| `breadcrumbs`         | `true`      | a file's path under its tab; click a folder to browse it                       |
 | `terminal_position`   | `bottom`    | `bottom`, `left`, `right`                                                      |
 | `terminal_height`     | `12`        | bottom panel rows                                                              |
 | `terminal_open`       | `false`     | panel state for a worktree without its own: the last set                       |

@@ -444,7 +444,7 @@ func groupOf(kind string) int {
 // lightbulb is where a menu or a rename box opens: under the cursor's line,
 // back is how many columns left of the cursor it starts.
 func (m *Model) lightbulb(back int) (x, y int) {
-	x, y = m.mainX(), 1+m.stripH()
+	x, y = m.mainX(), m.headH()+m.stripH()
 	if cx, cy, ok := m.pv.cursor(m.pvW(), m.pvH()); ok {
 		return max(x+cx-back, x), y + cy + 1
 	}

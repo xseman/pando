@@ -261,6 +261,16 @@ func tabClose(active bool) string {
 	return strings.Repeat(" ", ansi.StringWidth(icClose.s())) + " "
 }
 
+// editorMark is the end of an editor tab: ● while it has unsaved changes,
+// whichever tab it is, else the ✕ of the active one.
+func editorMark(active, dirty bool) string {
+	if !dirty {
+		return tabClose(active)
+	}
+
+	return "●" + strings.Repeat(" ", max(ansi.StringWidth(icClose.s())-1, 0)) + " "
+}
+
 // tabChip draws one tab of a strip as VS Code does: the active one bold on
 // tab_active_bg, any other dim on its own background (bg, else
 // tab.inactiveBackground), and the border's hairline after it.

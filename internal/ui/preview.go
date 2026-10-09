@@ -614,10 +614,148 @@ func (m *Model) closeEditors() tea.Cmd {
 		flash(fmt.Sprintf("kept %s with unsaved changes", plural(dirty, "editor")), false))
 }
 
+// pathHeader reports a file whose header holds its path, as VS Code's
+// breadcrumbs, rather than the ✕, the name and its context.
+func (p *preview) pathHeader() bool { return p.kind == pvFile && !p.untitled() }
+
+// crumb is a part of the path in the header: a folder, or the file last. A
+// click lists dir, the folder holding it, with path, its own entry, selected.
+type crumb struct {
+	x, w      int
+	dir, path string
+}
+
+// crumbFrom is how many leading folders of parts give way to a … for the
+// path to fit room.
+func crumbFrom(parts []string, room int) int {
+	from := 0
+	for len(parts)-from > 1 && ansi.StringWidth(strings.Join(parts[from:], " › "))+4*b2i(from > 0) > room {
+		from++
+	}
+
+	return from
+}
+
+// crumbs draws the file's path, the folders muted and the file lit, and says
+// where each part is.
+func (p *preview) crumbs(m *Model, w int) (left []seg, hits []crumb) {
+	name, context := p.label(m.ws)
+
+	room := w - ansi.StringWidth(name) - 8
+	for _, a := range p.buttons(m, w) {
+		room -= a.w
+	}
+
+	var parts []string
+
+	for _, s := range strings.Split(filepath.ToSlash(context), "/") {
+		if s != "" {
+			parts = append(parts, s)
+		}
+	}
+
+	dir := filepath.Dir(p.path)
+	abs := make([]string, len(parts))
+
+	for i, cur := len(parts)-1, dir; i >= 0; i, cur = i-1, filepath.Dir(cur) {
+		abs[i] = cur
+	}
+
+	left, x, from := []seg{sg(" ", plain)}, 1, crumbFrom(parts, room)
+	if from > 0 {
+		left, x = append(left, sg("… › ", dim)), x+4
+	}
+
+	for i := from; i < len(parts); i++ {
+		w := ansi.StringWidth(parts[i])
+		hits = append(hits, crumb{x: x, w: w, dir: filepath.Dir(abs[i]), path: abs[i]})
+		left, x = append(left, sg(parts[i]+" › ", dim)), x+w+3
+	}
+
+	icon := iconSeg(name, false, false)
+	hits = append(hits, crumb{x: x, w: ansi.StringWidth(icon.s + name), dir: dir, path: p.path})
+
+	return append(left, icon, sg(name, bold)), hits
+}
+
+// crumbClick opens the picker of the part of the path at header column x,
+// screen column sx and row sy; false when none is there.
+func (p *preview) crumbClick(m *Model, x, sx, sy int) bool {
+	if !p.pathHeader() || !m.st.Settings.Crumbs {
+		return false
+	}
+
+	_, hits := p.crumbs(m, m.mainW())
+
+	i := slices.IndexFunc(hits, func(c crumb) bool { return x >= c.x && x < c.x+c.w })
+	if i < 0 {
+		return false
+	}
+
+	m.crumbMenu(hits[i], sx-(x-hits[i].x), sy+1)
+
+	return true
+}
+
+// crumbMenu is VS Code's breadcrumb picker: the folder's entries under the
+// part clicked, its own entry selected, folders opening in place. x, y is
+// where it hangs on the screen.
+func (m *Model) crumbMenu(c crumb, x, y int) {
+	open := map[string]bool{}
+	sel := 0
+	md := &modal{x: x, y: y, keep: true}
+
+	md.build = func(m *Model) []item {
+		ex := explorer{expanded: open}
+		ex.walk(m, c.dir, 0)
+
+		items := make([]item, len(ex.nodes))
+		for i, n := range ex.nodes {
+			mark := "  "
+			if n.dir {
+				mark = map[bool]string{true: "▾ ", false: "▸ "}[open[n.path]]
+			}
+
+			if n.path == c.path {
+				sel = i
+			}
+
+			items[i] = item{label: strings.Repeat("  ", n.depth) + mark + n.name, run: func(m *Model) tea.Cmd {
+				if n.dir {
+					open[n.path] = !open[n.path]
+					return nil
+				}
+
+				m.modal = nil
+
+				return m.openFile(n.path, false)
+			}}
+		}
+
+		return items
+	}
+
+	md.items = md.build(m)
+	md.refilter()
+	md.focus(sel)
+	m.modal = md
+}
+
+// tabDirty reports unsaved changes in editor i; the active one is m.pv, ahead
+// of its snapshot in the strip.
+func (m *Model) tabDirty(i int) bool {
+	if i == m.edIdx {
+		return m.pv.dirty()
+	}
+
+	return m.editors[i].dirty()
+}
+
 // edTab is one tab of the editor strip.
 type edTab struct {
 	i, x, w int
-	label   string
+	label   string // " ", the icon, the name, the ✕ or ● mark
+	icon    seg    // the icon in the label, drawn in its own color
 	active  bool
 }
 
@@ -628,14 +766,16 @@ func (m *Model) editorTabs(w int) []edTab {
 		return nil
 	}
 
-	names, width, total := make([]string, len(m.editors)), make([]int, len(m.editors)), 0
+	w -= m.stripBtnW()
+
+	names, icons, width, total := make([]string, len(m.editors)), make([]seg, len(m.editors)), make([]int, len(m.editors)), 0
 	for i, e := range m.editors {
 		names[i], _ = e.label(m.ws)
-		if e.dirty() {
-			names[i] += " ●"
+		if e.kind != pvShow && !e.fromGH() {
+			icons[i] = iconSeg(names[i], false, false)
 		}
 
-		width[i] = ansi.StringWidth(" " + names[i] + " " + tabClose(false))
+		width[i] = ansi.StringWidth(" " + icons[i].s + names[i] + " " + editorMark(false, m.tabDirty(i)))
 		total += width[i] + tabGap
 	}
 
@@ -649,9 +789,9 @@ func (m *Model) editorTabs(w int) []edTab {
 
 	x := 0
 	for i := start; i < len(names) && x+width[i]+tabGap <= w; i++ {
-		label := " " + names[i] + " " + tabClose(i == m.edIdx)
+		label := " " + icons[i].s + names[i] + " " + editorMark(i == m.edIdx, m.tabDirty(i))
 
-		out = append(out, edTab{i: i, x: x, w: width[i], label: label, active: i == m.edIdx})
+		out = append(out, edTab{i: i, x: x, w: width[i], label: label, icon: icons[i], active: i == m.edIdx})
 		x += width[i] + tabGap
 	}
 
@@ -668,20 +808,90 @@ func (m *Model) editorStrip(w int) string {
 		}
 
 		chip := tabChip(t.label, t.active, bg)
+		if t.active { // no fill: the rule under it marks the tab, as under the activity bar's icons
+			chip[0].st = lipgloss.NewStyle().Bold(true)
+			if pal.selFg != nil {
+				chip[0].st = chip[0].st.Foreground(pal.selFg)
+			}
+		}
+
+		if !t.active && bg == nil { // no fill either: dim, with the hairline between tabs
+			chip[0].st = dim
+		}
+
 		if m.editors[t.i].transient {
-			chip[0].st = chip[0].st.Italic(true)
+			chip[0].st = chip[0].st.Italic(true).Bold(false)
+		}
+
+		if t.icon.s != "" { // the icon keeps its color on the chip's background
+			rest := strings.TrimPrefix(chip[0].s, " "+t.icon.s)
+			icon := sgOwn(t.icon.s, t.icon.st.Background(chip[0].st.GetBackground()))
+			chip = append([]seg{sgOwn(" ", chip[0].st), icon, sgOwn(rest, chip[0].st)}, chip[1:]...)
 		}
 
 		segs = append(segs, chip...)
 	}
 
-	return m.stripMark(row(w, nil, segs), stripEditor, 0, nil)
+	var right []seg
+	if m.buttonsUp() {
+		right, _ = m.pv.buttonSegs(m, w)
+	}
+
+	return m.stripMark(row(w, nil, segs, right...), stripEditor, 0, nil)
+}
+
+// buttonSegs draws the buttons, the one under the mouse and a lit toggle in
+// their colors, and returns their width.
+func (p *preview) buttonSegs(m *Model, w int) (segs []seg, bw int) {
+	mx := m.mouseX - m.mainX()
+
+	for _, a := range p.buttons(m, w) {
+		st := dim
+
+		switch {
+		case m.mouseY == 0 && mx >= a.x && mx < a.x+a.w:
+			st = keycapHot()
+		case a.on:
+			st = fg(pal.headerAccent) // lit: the accent color, no block
+		}
+
+		segs, bw = append(segs, sg(" "+a.g.s()+" ", st)), bw+a.w
+	}
+
+	return segs, bw
+}
+
+// editorRule is the line under the editor strip, as the activity bar has
+// under its icons: a faint rule, in the accent color under the active tab and
+// in a tint of it under the one the mouse is on.
+func (m *Model) editorRule(w int) string {
+	rule := func(n int) seg { return sg(strings.Repeat("─", max(n, 0)), fg(pal.rulerBorder)) }
+
+	var marks []seg
+
+	cx := 0
+
+	for _, t := range m.editorTabs(w) {
+		c := markColor(t.active, m.editors[t.i].id() == m.overTab)
+		if c == nil {
+			continue
+		}
+
+		marks = append(marks, rule(t.x-cx), sg(strings.Repeat("─", t.w), fg(c)))
+		cx = t.x + t.w
+	}
+
+	return row(w, nil, append(marks, rule(w-cx)))
 }
 
 // stripMouse handles a click on the editor strip: the middle button and the
 // active tab's ✕ close, anything else activates, and the left button picks
 // the tab up to drag it along the strip; a double click pins it.
 func (m *Model) stripMouse(x int, button tea.MouseButton) tea.Cmd {
+	if a, ok := hit(m.pv.buttons(m, m.mainW()), x); ok && button == tea.MouseLeft && m.buttonsUp() {
+		return a.run(m)
+	}
+
 	for _, t := range m.editorTabs(m.mainW()) {
 		if x < t.x || x >= t.x+t.w {
 			continue
@@ -2252,16 +2462,24 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 		nameSt = accent
 	}
 
-	left := []seg{sg(" "+icClose.s()+" ", dim)}
-	if p.kind != pvShow && !p.fromGH() {
-		left = append(left, iconSeg(name, false, false))
-	}
+	var left []seg
 
-	if p.dirty() {
-		name += " ●"
-	}
+	switch {
+	case p.pathHeader() && m.st.Settings.Crumbs:
+		left, _ = p.crumbs(m, w)
+	case p.pathHeader(): // breadcrumbs off: the buttons only
+	default:
+		left = []seg{sg(" "+icClose.s()+" ", dim)}
+		if p.kind != pvShow && !p.fromGH() {
+			left = append(left, iconSeg(name, false, false))
+		}
 
-	left = append(left, sg(name, nameSt), sg("  "+context, dim))
+		if p.dirty() {
+			name += " ●"
+		}
+
+		left = append(left, sg(name, nameSt), sg("  "+context, dim))
+	}
 
 	// The cursor and the selection are the status bar's, as VS Code shows
 	// them; the header keeps vim's mode, while it leaves room for the name.
@@ -2270,20 +2488,13 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 		candidates = []string{" " + p.vimLabel() + " "}
 	}
 
-	right := []seg{{}}
+	right, bw := []seg{{}}, 0
 
-	bw, mx := 0, m.mouseX-m.mainX()
-	for _, a := range p.buttons(m, w) {
-		st := dim
+	if !m.buttonsUp() {
+		var bs []seg
 
-		switch {
-		case m.mouseY == 0 && mx >= a.x && mx < a.x+a.w:
-			st = keycapHot()
-		case a.on:
-			st = lipgloss.NewStyle().Background(pal.accent).Foreground(pal.buttonFg) // as find's toggles
-		}
-
-		right, bw = append(right, sg(" "+a.g.s()+" ", st)), bw+a.w
+		bs, bw = p.buttonSegs(m, w)
+		right = append(right, bs...)
 	}
 
 	for _, s := range candidates {
@@ -2848,7 +3059,7 @@ func (p *preview) findBox(m *Model) (box []string, x, y int, ok bool) {
 		box = append(box, r.String())
 	}
 
-	return append(box, edge.Render("╰"+rule+"╯")), m.mainX() + x0, 1 + m.stripH(), true
+	return append(box, edge.Render("╰"+rule+"╯")), m.mainX() + x0, m.headH() + m.stripH(), true
 }
 
 // findLook is what one find widget shows on its query row.
@@ -3578,12 +3789,16 @@ func (p *preview) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 		return p.focusReplace(false)
 	}
 
-	if click && y == -1 && mo.Button == tea.MouseLeft {
+	if click && y == -1 && m.headH() > 0 && mo.Button == tea.MouseLeft {
 		switch {
-		case x < 3: // the ✕ in the header
+		case x < 3 && !p.pathHeader(): // the ✕ in the header
 			return m.closeEditor(m.edIdx)
 		default:
-			if a, ok := hit(p.buttons(m, m.mainW()), x); ok { // the header spans the scrollbar too
+			if p.crumbClick(m, x, mo.X, mo.Y) {
+				return nil
+			}
+
+			if a, ok := hit(p.buttons(m, m.mainW()), x); ok && !m.buttonsUp() { // the header spans the scrollbar too
 				return a.run(m)
 			}
 		}
@@ -3738,7 +3953,7 @@ func (p *preview) dragTo(m *Model, x, y int, release bool) tea.Cmd {
 	// The same translation the click went through (Model.mouse): the header,
 	// then the editor strip above it. Dropping the strip would put every drag
 	// a row below its click, so the first motion of a click would select.
-	x, y = x-c, y-1-m.stripH()
+	x, y = x-c, y-m.headH()-m.stripH()
 	if p.split(m) {
 		if y < 0 {
 			p.top, y = max(p.top-1, 0), 0

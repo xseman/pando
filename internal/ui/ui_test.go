@@ -135,7 +135,7 @@ func testModelSized(t *testing.T, w, h int) *Model {
 	mustWrite(t, filepath.Join(root, "README.md"), "# hi\n")
 	mustWrite(t, filepath.Join(root, ".env"), "A=1\n")
 	st := proto.State{
-		Settings: proto.Settings{Width: 30, Icons: "ascii", SessPos: "editor"}, Projects: []string{root},
+		Settings: proto.Settings{Width: 30, Icons: "ascii", SessPos: "editor", Crumbs: true}, Projects: []string{root},
 		Agents: map[string][]string{"shell": {"sh"}},
 	}
 	wss := []proto.Workspace{{Path: root, Project: root, Branch: "main", Main: true}}

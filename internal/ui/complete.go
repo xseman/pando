@@ -396,9 +396,9 @@ func (p *preview) compBox(m *Model) (box []string, x, y int, ok bool) {
 	box = append(box, dim.Render("╰"+strings.Repeat("─", iw)+"╯"))
 	back := cellsOf([]rune(word)) + 2 // the border and the space before the label
 	x, y = m.lightbulb(back)
-	// The body's rows run from 1+stripH() for pvH() rows; lightbulb's y is the
+	// The body's rows run from headH()+stripH() for pvH() rows; lightbulb's y is the
 	// row under the cursor.
-	if y+len(box) > 1+m.stripH()+m.pvH() {
+	if y+len(box) > m.headH()+m.stripH()+m.pvH() {
 		y = max(y-1-len(box), 0) // above the line instead
 	}
 

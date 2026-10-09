@@ -3201,7 +3201,7 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 		return m.pk.mouse(m, msg, mo.X-c.x, mo.Y-top)
 	}
 
-	return m.pv.mouse(m, msg, mo.X-c.x, mo.Y-1-strip)
+	return m.pv.mouse(m, msg, mo.X-c.x, mo.Y-m.headH()-strip)
 }
 
 // sessionMouse is the session's screen at body cell (x, y), w cells wide in
@@ -4442,20 +4442,52 @@ func (m *Model) attentionCount() int {
 // pvW is the editor's text width: the main area less the scrollbar's column.
 func (m *Model) pvW() int { return max(m.mainW()-1, 1) }
 
-func (m *Model) pvH() int { return max(m.mainH()-2-m.stripH()-m.peekH()-m.hbarH(), 1) }
+func (m *Model) pvH() int {
+	return max(m.mainH()-1-m.headH()-m.stripH()-m.peekH()-m.hbarH(), 1)
+}
 
 // hbarH is the row the editor's horizontal scrollbar takes under the text:
 // 1 while a line runs past the right edge.
 func (m *Model) hbarH() int { return b2i(m.pv.hbar(m, m.pvW()).on()) }
 
-// stripH is 1 when a tab strip is drawn over the main area: a session always
-// has one (it carries the + that opens another), and so does any open editor.
+// stripH is the rows of tab strip over the main area: a session always has
+// one (it carries the + that opens another), and so does any open editor,
+// with its rule under it.
 func (m *Model) stripH() int {
 	if m.showsSession() {
 		return 1
 	}
 
-	return b2i(m.showsPreview() && len(m.editors) > 0)
+	return 2 * b2i(m.showsPreview() && len(m.editors) > 0)
+}
+
+// headH is the rows of header under the tab strip: 1, but none for a file
+// with breadcrumbs off, whose buttons are in the strip.
+func (m *Model) headH() int {
+	if !m.showsSession() && m.stripH() > 0 && m.pv.pathHeader() && !m.st.Settings.Crumbs {
+		return 0
+	}
+
+	return 1
+}
+
+// buttonsUp reports the preview's buttons in the tab strip's row, as VS Code
+// puts an editor's actions; without a strip they stay in the header.
+func (m *Model) buttonsUp() bool { return !m.showsSession() && m.stripH() > 0 && m.pv.kind != "" }
+
+// stripBtnW is the width the buttons take at the right end of the strip.
+func (m *Model) stripBtnW() int {
+	if !m.buttonsUp() {
+		return 0
+	}
+
+	n := 1
+
+	for _, a := range m.pv.buttons(m, m.mainW()) {
+		n += a.w
+	}
+
+	return n
 }
 
 // sessH is the terminal body: the main area minus its strip and header.
@@ -4508,10 +4540,12 @@ func (m *Model) editorLines(w int) []string {
 	case m.showsSession():
 		out = append(out, m.sessionStrip(w))
 	case m.stripH() > 0:
-		out = append(out, m.editorStrip(w))
+		out = append(out, m.editorStrip(w), m.editorRule(w))
 	}
 
-	out = append(out, header)
+	if m.headH() > 0 {
+		out = append(out, header)
+	}
 
 	for i := range max(h, 0) {
 		if i < len(body) {
@@ -4666,6 +4700,9 @@ func settingsItems(m *Model) []item {
 		}},
 		{label: "Vim mode", hint: onOff(s.Vim), run: func(m *Model) tea.Cmd {
 			return m.setSettings(map[string]any{"vim_mode": !m.st.Settings.Vim})
+		}},
+		{label: "Breadcrumbs", hint: onOff(s.Crumbs), run: func(m *Model) tea.Cmd {
+			return m.setSettings(map[string]any{"breadcrumbs": !m.st.Settings.Crumbs})
 		}},
 		{label: "Word wrap", hint: onOff(s.Wrap), run: func(m *Model) tea.Cmd { return m.toggleWrap() }},
 		{label: "Render whitespace", hint: cmp.Or(s.Blanks, "none"), run: func(m *Model) tea.Cmd {

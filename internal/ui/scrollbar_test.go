@@ -195,7 +195,7 @@ func TestEditorHScrollbar(t *testing.T) {
 		t.Fatalf("the header's last button is the lit wrap toggle: %+v", a)
 	}
 
-	click(m, m.mainX()+acts[len(acts)-1].x+1, 0, tea.MouseLeft)
+	click(m, m.mainX()+acts[len(acts)-1].x+1, 0, tea.MouseLeft) // in the tab strip
 
 	if m.pv.wrap || m.st.Settings.Wrap || m.hbarH() != 1 {
 		t.Fatalf("the header toggle unwraps: wrap %v setting %v bar %d", m.pv.wrap, m.st.Settings.Wrap, m.hbarH())

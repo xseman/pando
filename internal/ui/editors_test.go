@@ -19,13 +19,13 @@ func TestEditorStripAndHistory(t *testing.T) {
 	mustWrite(t, many, strings.Repeat("line\n", 10))
 	fire(m, m.openFile(filepath.Join(m.ws, "README.md"), false))
 
-	if m.stripH() != 1 {
+	if m.stripH() != 2 {
 		t.Fatal("a single editor still has its strip")
 	}
 
 	fire(m, m.openFile(many, false))
 
-	if len(m.editors) != 2 || m.edIdx != 1 || m.stripH() != 1 {
+	if len(m.editors) != 2 || m.edIdx != 1 || m.stripH() != 2 {
 		t.Fatalf("editors=%d active=%d strip=%d", len(m.editors), m.edIdx, m.stripH())
 	}
 
@@ -251,7 +251,7 @@ func TestEditorMiddleClickAndSuperArrows(t *testing.T) {
 }
 
 // TestTabChips frames every tab of a strip as VS Code does: the active one
-// in the selection's colors, the others on tab.inactiveBackground, each with
+// bold, the others dim, neither on a fill, each with
 // tab.border's hairline after it. The hairline is a gap no click lands on.
 func TestTabChips(t *testing.T) {
 	m := testModelSized(t, 100, 24)
@@ -262,7 +262,7 @@ func TestTabChips(t *testing.T) {
 	}
 
 	strip := m.editorStrip(m.mainW())
-	if !strings.Contains(strip, bgParams(pal.tabBg)) || !strings.Contains(strip, bgParams(pal.tabActiveBg)) || strings.Count(ansi.Strip(strip), "▏") != 2 {
+	if strings.Contains(strip, bgParams(pal.tabBg)) || strings.Contains(strip, bgParams(pal.tabActiveBg)) || !strings.Contains(strip, "\x1b[1m") || strings.Count(ansi.Strip(strip), "▏") != 2 {
 		t.Fatalf("strip = %q", strip)
 	}
 

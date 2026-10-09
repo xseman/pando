@@ -323,3 +323,21 @@ func TestPlusButtonHovers(t *testing.T) {
 		}
 	}
 }
+
+// TestEditorRule draws a rule under the editor strip, lit under the active tab.
+func TestEditorRule(t *testing.T) {
+	m := testModel(t)
+	drainInputs(m)
+
+	fire(m, m.openFile(filepath.Join(m.ws, "README.md"), false))
+	checkWidths(t, m)
+
+	rule := m.editorRule(m.mainW())
+	if got, want := ansi.Strip(rule), strings.Repeat("─", m.mainW()); got != want {
+		t.Fatalf("the rule spans the strip: %q", got)
+	}
+
+	if !strings.Contains(rule, "\x1b[") {
+		t.Fatalf("the active tab's mark is colored: %q", rule)
+	}
+}

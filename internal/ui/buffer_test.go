@@ -142,6 +142,7 @@ func editorModel(t *testing.T, name, text string) (*Model, string) {
 	m.pv = preview{kind: pvFile, path: path}
 	m.preview, m.focus = true, onMain
 	m.pv.onLoad(m, previewMsg{key: m.pv.id(), raw: text, mod: st.ModTime(), lines: lines, plain: plain, meta: meta, numW: numW})
+	m.editors, m.edIdx = []preview{m.pv.snapshot()}, 0 // the strip is where the dot shows
 
 	return m, path
 }
@@ -479,7 +480,7 @@ func TestClickWithMotionDoesNotSelectTheNextLine(t *testing.T) {
 	m, _ := editorModel(t, "a.go", "package a\n\nfunc A() {}\n\nfunc B() {}\n")
 	m.editors, m.edIdx = []preview{m.pv.snapshot()}, 0
 
-	if m.stripH() != 1 {
+	if m.stripH() != 2 {
 		t.Fatalf("an open editor draws a tab strip, got stripH %d", m.stripH())
 	}
 
@@ -726,5 +727,91 @@ func TestSortLines(t *testing.T) {
 
 	if m.pv.dirty() {
 		t.Fatal("sorted lines are left as they are, the file unchanged")
+	}
+}
+
+func TestFileHeaderIsBreadcrumbs(t *testing.T) {
+	m, _ := editorModel(t, "a.go", "package a\n")
+
+	parts := []string{"skills", "pando", "deep"}
+	if crumbFrom(parts, 100) != 0 || crumbFrom(parts, 16) != 1 || crumbFrom(parts, 1) != 2 {
+		t.Fatalf("a long path gives up its first folders: %d %d %d", crumbFrom(parts, 100), crumbFrom(parts, 16), crumbFrom(parts, 1))
+	}
+
+	header, _, _ := m.pv.view(m, m.mainW(), m.pvH())
+	if got := ansi.Strip(header); strings.Contains(got, icClose.s()) || !strings.Contains(got, "a.go") {
+		t.Fatalf("the ✕ is on the tab, the header is the path: %q", got)
+	}
+
+	if tab := m.editorTabs(m.mainW())[0]; !strings.HasSuffix(tab.label, icClose.s()+" ") {
+		t.Fatalf("the active tab ends in ✕: %q", tab.label)
+	}
+
+	press(m, "x")
+
+	if tab := m.editorTabs(m.mainW())[0]; !strings.Contains(tab.label, "●") || strings.Contains(tab.label, icClose.s()) {
+		t.Fatalf("a dirty tab shows ● in place of ✕: %q", tab.label)
+	}
+}
+
+func TestBreadcrumbMenu(t *testing.T) {
+	m := testModelSized(t, 120, 30)
+	drainInputs(m)
+
+	mustWrite(t, filepath.Join(m.ws, "sub", "deep", "x.go"), "package x\n")
+	mustWrite(t, filepath.Join(m.ws, "sub", "a.go"), "package a\n")
+	fire(m, m.openFile(filepath.Join(m.ws, "sub", "a.go"), false))
+
+	_, hits := m.pv.crumbs(m, m.mainW())
+	if len(hits) != 2 { // sub, a.go
+		t.Fatalf("hits %+v", hits)
+	}
+
+	// The file's part lists its folder with the file selected; a folder opens in place.
+	click(m, m.mainX()+hits[1].x, m.stripH(), tea.MouseLeft)
+
+	if m.modal == nil || len(m.modal.disp) != 2 || m.modal.disp[m.modal.l.sel].label != "  a.go" {
+		t.Fatalf("a.go's part lists sub: %+v", m.modal)
+	}
+
+	press(m, "up", "enter")
+
+	if len(m.modal.disp) != 3 || !strings.HasPrefix(m.modal.disp[0].label, "▾ deep") {
+		t.Fatalf("deep opens in place: %+v", m.modal.disp)
+	}
+
+	press(m, "down", "enter")
+
+	if m.modal != nil || !strings.HasSuffix(m.pv.path, "x.go") {
+		t.Fatalf("enter on a file opens it: %v %s", m.modal, m.pv.path)
+	}
+
+	m.st.Settings.Crumbs = false
+
+	_, hits = m.pv.crumbs(m, m.mainW())
+	click(m, m.mainX()+hits[0].x, m.stripH(), tea.MouseLeft)
+
+	if m.modal != nil {
+		t.Fatal("with breadcrumbs off a click on the header opens nothing")
+	}
+}
+
+func TestBreadcrumbsOffDropsTheHeaderRow(t *testing.T) {
+	m, _ := editorModel(t, "a.go", "package a\n")
+
+	on := m.pvH()
+	if m.headH() != 1 || !m.buttonsUp() || len(m.pv.buttons(m, m.mainW())) == 0 {
+		t.Fatalf("breadcrumbs on: header %d, buttons up %v", m.headH(), m.buttonsUp())
+	}
+
+	m.st.Settings.Crumbs = false
+
+	if m.headH() != 0 || m.pvH() != on+1 {
+		t.Fatalf("breadcrumbs off: the header row goes to the body: header %d, body %d, was %d", m.headH(), m.pvH(), on)
+	}
+
+	lines := strings.Split(checkWidths(t, m), "\n")
+	if strip := ansi.Strip(lines[0]); !strings.Contains(strip, "a.go") || !strings.Contains(strip, "wrap") {
+		t.Fatalf("the tab and the buttons share the first row: %q", strip)
 	}
 }

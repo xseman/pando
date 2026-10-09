@@ -67,6 +67,7 @@ type Settings struct {
 	Format    map[string][]string `json:"format" toml:"format"`                       // language to formatter command, the file on stdin
 	FmtSave   bool                `json:"format_on_save" toml:"format_on_save"`       // run that formatter when a file is saved
 	Vim       bool                `json:"vim_mode" toml:"vim_mode"`                   // an editor opens in vim's normal mode
+	Crumbs    bool                `json:"breadcrumbs" toml:"breadcrumbs"`             // a file's path under its tab; click a folder to browse it
 	Wrap      bool                `json:"word_wrap" toml:"word_wrap"`                 // editors wrap long lines instead of scrolling them sideways
 	TabSize   int                 `json:"tab_size" toml:"tab_size"`                   // cells a tab takes in editors, and the spaces one indent is with insert_spaces
 	Spaces    bool                `json:"insert_spaces" toml:"insert_spaces"`         // tab indents with tab_size spaces instead of a tab

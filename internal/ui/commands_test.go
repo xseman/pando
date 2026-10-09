@@ -3006,10 +3006,10 @@ func TestMaximizeSessionAndFile(t *testing.T) {
 		t.Fatalf("side by side: docked %v, file %v, maxed %v", m.sessDocked(), m.showsPreview(), m.maxed)
 	}
 
-	// The file's first header button, on the header row under the strip.
+	// The file's first button, at the right end of the tab strip.
 	pvClick := func() {
 		acts := m.pv.buttons(m, m.mainW())
-		click(m, m.mainX()+acts[0].x, m.stripH(), tea.MouseLeft)
+		click(m, m.mainX()+acts[0].x, 0, tea.MouseLeft)
 	}
 	pvClick()
 

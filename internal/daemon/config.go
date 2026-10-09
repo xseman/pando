@@ -38,7 +38,7 @@ func defaultConfig() config {
 
 	return config{
 		Settings: proto.Settings{
-			Hidden: true, Icons: "ascii", Width: 40, WidthR: 32, GitDeco: true, GitTree: true,
+			Hidden: true, Icons: "ascii", Width: 40, WidthR: 32, GitDeco: true, GitTree: true, Crumbs: true,
 			Theme: "vscode", DiffView: "inline", Borders: true, FmtSave: true,
 			ActBar: "top", TermPos: "bottom", TermH: 12, SessPos: "right", SessHi: "tint",
 			SpSort: "created", SpGroup: "workspace", SpProj: "manual", ExSort: "name",
@@ -194,6 +194,7 @@ func (c *config) encode() []byte {
 	kv("Resume claude as a background session (`pando claude`, claude --bg): Claude Code runs\n"+
 		"it, not pando's terminal, so a pando restart does not stop it or its subagents, and\n"+
 		"pando attaches to it again. Type `pando claude` in a shell to start one that way.", "claude_background", s.ClaudeBg)
+	kv("Show a file's path under its tab, as VS Code's breadcrumbs.enabled; clicking a folder\nbrowses it.", "breadcrumbs", s.Crumbs)
 	kv("Editors wrap long lines at the edge; off, they scroll sideways under a horizontal\nscrollbar. alt+z toggles it.", "word_wrap", s.Wrap)
 	kv("A tab's width in editors, VS Code's editor.tabSize, and whether the tab key indents\n"+
 		"with that many spaces instead (editor.insertSpaces). The status bar's Tab Size sets both.", "tab_size", s.TabSize)
