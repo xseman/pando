@@ -1517,6 +1517,8 @@ func (d *Daemon) startWith(spec proto.SessionSpec, cols, rows int, fallback [][]
 
 	id := spec.ID
 
+	registered := make(chan struct{}) // closed once s is listed: a shell that exits before waits for it
+
 	s, err := spawn(spec, cols, rows, func() {
 		d.mu.Lock()
 		if d.pending[id] {
@@ -1534,10 +1536,12 @@ func (d *Daemon) startWith(spec proto.SessionSpec, cols, rows int, fallback [][]
 		})
 	}, func() {
 		// A clean exit closes the session; a failure stays listed with its code.
+		<-registered
+
 		d.mu.Lock()
 		s, closing := d.sessions[id], d.closing
 		d.mu.Unlock()
-		// ponytail: a process exiting before start() registers it stays listed as exited.
+
 		if !closing && s != nil && s.failedAtOnce() {
 			go d.fallBack(id)
 			return
@@ -1560,6 +1564,7 @@ func (d *Daemon) startWith(spec proto.SessionSpec, cols, rows int, fallback [][]
 	d.sessions[id] = s
 	d.order = append(d.order, id)
 	d.mu.Unlock()
+	close(registered)
 
 	return s, nil
 }

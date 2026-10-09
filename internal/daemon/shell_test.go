@@ -51,13 +51,15 @@ func TestShellFallback(t *testing.T) {
 		t.Fatalf("chmod %s: %v", broken, err)
 	}
 
+	// screen is the session's text with its whitespace gone: a notice that
+	// lands after the prompt wraps, and where depends on the prompt.
 	screen := func(id string) string {
 		t.Helper()
 
-		var scr proto.Screen
-		call(t, "session.screen", proto.ScreenParams{ID: id, Cols: 100, Rows: 8}, &scr)
+		var text string
+		call(t, "session.read", proto.ReadParams{ID: id}, &text)
 
-		return strings.Join(scr.Lines, "\n")
+		return strings.Join(strings.Fields(text), "")
 	}
 
 	for _, c := range []struct{ shell, says string }{
@@ -73,7 +75,7 @@ func TestShellFallback(t *testing.T) {
 
 		waitFor(t, "a shell that runs", func() bool {
 			call(t, "session.get", map[string]string{"id": s.ID}, &got)
-			return got.Status != "exited" && got.Cmd[0] != c.shell && strings.Contains(screen(s.ID), c.says)
+			return got.Status != "exited" && got.Cmd[0] != c.shell && strings.Contains(screen(s.ID), strings.Join(strings.Fields(c.says), ""))
 		})
 
 		if got.ID != s.ID {
