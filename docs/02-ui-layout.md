@@ -212,8 +212,8 @@ Model.mouse
 
 Editors, session tabs and Terminal shells share `strip.go`.
 
-- `tabChip`: active bold on `tab_active_bg`, others on `tab_bg` (`hover_bg`
-  under the mouse, `overTab`), each followed by a `▏` in `tab_border`
+- `tabChip`: active bold, others dim, neither on a fill (`hover_bg` under
+  the mouse, `overTab`), each followed by a `▏` in `tab_border`
   (`tabGap`). Room for `✕` is always kept (`tabClose`), so activating moves
   nothing.
 - Press picks a tab up (`grabTab`, `dragStrip`), an accent `│` marks the slot

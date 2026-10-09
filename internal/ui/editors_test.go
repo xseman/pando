@@ -262,7 +262,7 @@ func TestTabChips(t *testing.T) {
 	}
 
 	strip := m.editorStrip(m.mainW())
-	if strings.Contains(strip, bgParams(pal.tabBg)) || strings.Contains(strip, bgParams(pal.tabActiveBg)) || !strings.Contains(strip, "\x1b[1m") || strings.Count(ansi.Strip(strip), "▏") != 2 {
+	if strings.Contains(strip, bgParams(pal.hoverBg)) || !strings.Contains(strip, "\x1b[1m") || strings.Count(ansi.Strip(strip), "▏") != 2 {
 		t.Fatalf("strip = %q", strip)
 	}
 
@@ -308,7 +308,7 @@ func TestTabChips(t *testing.T) {
 	}
 
 	ss := m.tabsFor(100, ss2, "a")
-	if ss[1].x != ss[0].w+tabGap || !strings.Contains(row(100, nil, tabSegs(ss, "")), bgParams(pal.tabBg)) {
+	if ss[1].x != ss[0].w+tabGap || !strings.Contains(row(100, nil, tabSegs(ss, "")), "\x1b[1m") {
 		t.Fatalf("session tabs: %+v", ss)
 	}
 

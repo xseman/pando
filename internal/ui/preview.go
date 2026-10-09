@@ -808,17 +808,6 @@ func (m *Model) editorStrip(w int) string {
 		}
 
 		chip := tabChip(t.label, t.active, bg)
-		if t.active { // no fill: the rule under it marks the tab, as under the activity bar's icons
-			chip[0].st = lipgloss.NewStyle().Bold(true)
-			if pal.selFg != nil {
-				chip[0].st = chip[0].st.Foreground(pal.selFg)
-			}
-		}
-
-		if !t.active && bg == nil { // no fill either: dim, with the hairline between tabs
-			chip[0].st = dim
-		}
-
 		if m.editors[t.i].transient {
 			chip[0].st = chip[0].st.Italic(true).Bold(false)
 		}

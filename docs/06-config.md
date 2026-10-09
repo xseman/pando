@@ -175,7 +175,7 @@ Overrides survive a theme switch; invalid ones are skipped. Keys (`colorKeys`):
 - merge: `merge_current_head_bg` `merge_current_bg` `merge_incoming_head_bg` `merge_incoming_bg` `merge_common_head_bg` `merge_common_bg`
 - status: `ok` `warn` `error` `attention`
 - sessions: `blocked_bg` `done_bg` `blocked_soft_bg` `done_soft_bg`
-- chrome: `tab_bg` `tab_active_bg` `tab_border` `scrollbar_slider` `scrollbar_slider_hover` `scrollbar_slider_active` `overview_ruler_border`
+- chrome: `tab_border` `scrollbar_slider` `scrollbar_slider_hover` `scrollbar_slider_active` `overview_ruler_border`
 - Markdown: `md_code` `md_code_bg`
 
 ## state.json
