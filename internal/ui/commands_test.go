@@ -3354,7 +3354,7 @@ func TestTerminalDragSelectsAndCopies(t *testing.T) {
 
 	tv := &m.tv
 	tv.term.id, tv.scr = "t1", proto.Screen{Lines: []string{"\x1b[31mhello world\x1b[m", "second line", "third"}}
-	x, y := m.mainX(), m.mainH()+1 // the panel's first screen row
+	x, y := m.mainX(), m.mainH()+termStripH // the panel's first screen row, under its strip and rule
 
 	m.Update(tea.MouseClickMsg{X: x + 6, Y: y, Button: tea.MouseLeft})
 	m.Update(tea.MouseMotionMsg{X: x + 2, Y: y + 1, Button: tea.MouseLeft})

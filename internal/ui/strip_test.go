@@ -405,3 +405,53 @@ func TestDockedSessionStripCarriesTheButtons(t *testing.T) {
 		t.Fatalf("no header row over the strip:\n%s", out)
 	}
 }
+
+// TestTerminalStripCarriesTheButtons gives the Terminal panel what the editor
+// has: its buttons at the right end of the strip, always shown, and a rule under it.
+func TestTerminalStripCarriesTheButtons(t *testing.T) {
+	m := testModelSized(t, 120, 30)
+	drainInputs(m)
+
+	m.sessions = append(m.sessions, termSession(m.ws, "p1"))
+	m.tv.id = "p1"
+	m.st.Settings.TermOpen, m.st.Settings.TermPos, m.st.Settings.TermH = true, "bottom", 8
+	m.resize()
+	m.focus = onPanel
+
+	lines := m.termPanelLines(m.mainW(), m.termRows())
+	if strip := ansi.Strip(lines[0]); !strings.Contains(strip, icMax.s()) || !strings.Contains(strip, icClose.s()) {
+		t.Fatalf("the buttons are always there: %q", strip)
+	}
+
+	if got, want := ansi.Strip(lines[1]), strings.Repeat("─", m.mainW()); got != want {
+		t.Fatalf("the rule under the strip: %q", got)
+	}
+
+	if _, h := m.termBody(); h != m.termRows()-termStripH {
+		t.Fatalf("the screen is under the strip and rule: %d of %d rows", h, m.termRows())
+	}
+
+	checkWidths(t, m)
+
+	// The first button maximizes the panel, and then restores it.
+	acts := m.termButtons()
+	click(m, m.mainX()+acts[0].x+1, m.mainH(), tea.MouseLeft)
+
+	if !m.termMax || m.termButtons()[0].g != icRestore {
+		t.Fatalf("maximized: %v", m.termMax)
+	}
+
+	click(m, m.mainX()+m.termButtons()[0].x+1, m.mainH(), tea.MouseLeft)
+
+	if m.termMax {
+		t.Fatal("restored")
+	}
+
+	// The last one closes the panel.
+	acts = m.termButtons()
+	click(m, m.mainX()+acts[len(acts)-1].x+1, m.mainH(), tea.MouseLeft)
+
+	if m.termOpen() {
+		t.Fatal("the panel closed")
+	}
+}

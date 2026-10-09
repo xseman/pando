@@ -2532,7 +2532,7 @@ func (m *Model) sessionStrip(w int) string {
 
 	btns, _ := m.actSegs(m.sessionButtons(), x0, y)
 
-	return m.stripMark(row(w, nil, tabSegs(tabs, m.overTab), append(right, btns...)...), stripSession, 0, nil)
+	return m.stripMark(row(w, nil, tabSegs(tabs, m.overTab), append(right, btns...)...), stripSession, 0)
 }
 
 // sessionRule is the line under the session's strip.
@@ -3065,12 +3065,12 @@ func (m *Model) clearTerm(id string) tea.Cmd {
 
 func (m *Model) termBody() (w, h int) {
 	if n := m.termRows(); n > 0 { // the panel under the editor
-		return max(m.mainW(), 1), max(n-1, 1) // -1: the tab strip
+		return max(m.mainW(), 1), max(n-termStripH, 1) // the tab strip and its rule
 	}
 
 	rc := m.colRect(m.colOf(viewTerm))
 
-	return max(rc.w, 1), max(m.bodyH(viewTerm)-1, 1)
+	return max(rc.w, 1), max(m.bodyH(viewTerm)-termStripH, 1)
 }
 
 // fetchTerm asks for the Terminal panel's screen, sized to its column.
@@ -3107,8 +3107,9 @@ func (m *Model) termShowing() bool {
 	return m.termOpen() && m.shown(viewTerm)
 }
 
-// termPanelLines are the bottom panel: a title row with its tabs, then the
-// terminal screen, spanning the editor area like VS Code's panel.
+// termPanelLines are the bottom panel: a strip of its tabs and buttons, the
+// rule under it, then the terminal screen, spanning the editor area like VS
+// Code's panel. The strip's empty part is the panel's sash.
 func (m *Model) termPanelLines(w, h int) []string {
 	st := dim
 	if m.focus == onPanel {
@@ -3120,17 +3121,78 @@ func (m *Model) termPanelLines(w, h int) []string {
 		left = append([]seg{sg(" ", plain)}, tabSegs(tabs, m.overTab)...)
 	}
 
-	closer := sg(" "+icClose.s()+" ", dim)
-	left = append(left, m.sashRule(termSash, w, left, []seg{closer})...) // the row is the sash
+	btns, _ := m.actSegs(m.termButtons(), m.mainX(), m.mainH())
+	left = append(left, m.sashRule(termSash, w, left, btns)...) // the row is the sash
 
-	title := m.stripMark(row(w, pal.sectionBg, left, closer), stripTerm, 1, pal.sectionBg) // the tabs start past a space
+	title := m.stripMark(row(w, nil, left, btns...), stripTerm, 1) // the tabs start past a space
 
-	return append([]string{title}, m.termScreen(w, h-1)...)
+	return append([]string{title, m.termRule(w, 1)}, m.termScreen(w, h-termStripH)...)
 }
 
-// termLines are the panel: its tab strip, then the terminal screen.
+// termLines are the panel in a column: its tab strip and buttons, the rule,
+// then the terminal screen.
 func (m *Model) termLines(w, h int) []string {
-	return append([]string{m.stripMark(row(w, nil, tabSegs(m.termTabs(w), m.overTab)), stripTerm, 0, nil)}, m.termScreen(w, h-1)...)
+	btns, _ := m.actSegs(m.termButtons(), m.colRect(m.colOf(viewTerm)).x, m.barH(m.colOf(viewTerm)))
+	strip := m.stripMark(row(w, nil, tabSegs(m.termTabs(m.termStripW()), m.overTab), btns...), stripTerm, 0)
+
+	return append([]string{strip, m.termRule(w, 0)}, m.termScreen(w, h-termStripH)...)
+}
+
+// termRule is the line under the Terminal's strip, its tabs starting x cells in.
+func (m *Model) termRule(w, x int) string {
+	var marks []ruleMark
+
+	for _, t := range m.termTabs(m.termStripW()) {
+		if !t.plus {
+			marks = append(marks, ruleMark{x + t.x, t.w, t.active, t.id == m.overTab})
+		}
+	}
+
+	return ruleRow(w, marks)
+}
+
+// termW is the width of the Terminal's strip: the editor area's, or its column's.
+func (m *Model) termW() int {
+	if m.termRows() > 0 {
+		return m.mainW()
+	}
+
+	return m.colRect(m.colOf(viewTerm)).w
+}
+
+// termButtons are the buttons at the right end of the Terminal's strip, shown
+// always as the editor's are: the panel under the editor maximizes and closes,
+// a column's shell closes.
+func (m *Model) termButtons() []rowAction {
+	var acts []rowAction
+
+	if m.termRows() > 0 {
+		g := icMax
+		if m.termMax {
+			g = icRestore
+		}
+
+		acts = append(acts,
+			rowAction{g: g, run: func(m *Model) tea.Cmd { return m.maximizeTerminal(!m.termMax) }},
+			rowAction{g: icClose, run: func(m *Model) tea.Cmd { return m.toggleTerminal() }})
+	} else {
+		acts = append(acts, rowAction{g: icClose, run: func(m *Model) tea.Cmd { return m.confirmKill(m.tv.id) }})
+	}
+
+	layoutRight(acts, m.termW(), 2)
+
+	return acts
+}
+
+// termBtnW is the room the buttons take at the right end of the strip, with a
+// cell before them.
+func (m *Model) termBtnW() int {
+	n := 1
+	for _, a := range m.termButtons() {
+		n += a.w
+	}
+
+	return n
 }
 
 // termScreen is the shell's screen, padded to h rows.
@@ -3156,14 +3218,15 @@ func (m *Model) termScreen(w, h int) []string {
 
 func (m *Model) termTabs(w int) []sessTab { return m.tabsFor(w, m.termSessions(), m.tv.id) }
 
-// termStripW is the room the tab strip has: the bottom panel keeps its ✕ and
-// a margin, a column gives it its whole width. Rendering and hit tests share it.
+// termStripW is the room the tab strip has: the bottom panel keeps its buttons
+// and the space before its tabs, a column its buttons. Rendering and hit tests
+// share it.
 func (m *Model) termStripW() int {
 	if m.termRows() > 0 {
-		return max(m.mainW()-10, 1)
+		return max(m.mainW()-1-m.termBtnW(), 1)
 	}
 
-	return m.colRect(m.colOf(viewTerm)).w
+	return max(m.colRect(m.colOf(viewTerm)).w-m.termBtnW(), 1)
 }
 
 // termStripMouse switches, closes or opens a shell from the panel's strip,
@@ -3292,3 +3355,6 @@ func (m *Model) startTerm() tea.Cmd {
 
 // sessStripH is the rows over a session's screen: its tabs and their rule.
 const sessStripH = 2
+
+// termStripH is the same over the Terminal's.
+const termStripH = sessStripH

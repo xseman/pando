@@ -1137,7 +1137,7 @@ func (m *Model) termRows() int {
 		h = 12
 	}
 
-	return max(min(h, m.panelH()-3), 3)
+	return max(min(h, m.panelH()-3), termStripH+2)
 }
 
 // mainH is the main area above the terminal panel.
@@ -1147,10 +1147,14 @@ func (m *Model) mainX() int { _, c := m.layout(); return c.x }
 func (m *Model) mainW() int { _, c := m.layout(); return c.w }
 
 // bodyTop is the first list row of view v, below the activity bar, the view
-// header (the session has none: its strip has the buttons) and the filter line.
+// header (the session and the Terminal have none: their strips have the buttons) and the filter line.
 func (m *Model) bodyTop(v view) int {
-	return m.barH(m.colOf(v)) + b2i(v != viewSession) + 3*b2i(m.filters[v].on)
+	return m.barH(m.colOf(v)) + headRows(v) + 3*b2i(m.filters[v].on)
 }
+
+// headRows is the rows of view header over view v's body: 1, but the session's
+// and the Terminal's strips carry their buttons instead.
+func headRows(v view) int { return b2i(v != viewSession && v != viewTerm) }
 
 // barH is column i's activity bar height; a column with a single tab has none.
 func (m *Model) barH(i int) int {
@@ -2137,16 +2141,12 @@ func (m *Model) headerActions(s int, v view, w int) []titleAction {
 		add(icClearAll, func(m *Model) tea.Cmd { m.sr.query.Reset(); m.sr.clear(); return nil })
 		add(icCollapse, func(m *Model) tea.Cmd { m.sr.collapseAll(); return nil })
 
-	case viewSession: // its buttons are in its tab strip
+	case viewTerm, viewSession: // their buttons are in their tab strips
 
 	case viewGitHub:
 		add(icPRNew, func(m *Model) tea.Cmd { return m.ghTerminal("gh pr create") })
 		add(icRefresh, m.gh.refresh)
 		add(icCollapse, func(m *Model) tea.Cmd { m.gh.collapseAll(); return nil })
-
-	case viewTerm:
-		add(icAdd, func(m *Model) tea.Cmd { return m.newTerm() })
-		add(icClose, func(m *Model) tea.Cmd { return m.confirmKill(m.tv.id) })
 
 	case viewAgents:
 		add(icAdd, func(m *Model) tea.Cmd { return m.ag.newSession(m, m.ag.selected(m)) })
@@ -3145,16 +3145,20 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 			m.focus = onPanel
 			m.scm.input.Blur()
 		}
-		// y == 0 is the panel's title row and its tabs, the rest its body.
+		// y == 0 is the panel's strip, with its tabs and buttons, y == 1 the rule
+		// under it, the rest its body.
 		switch y := mo.Y - m.mainH(); {
-		case y > 0:
-			return m.termPanelMouse(msg, mo.X-c.x, y-1)
+		case y == 1:
+			return nil
+		case y > 1:
+			return m.termPanelMouse(msg, mo.X-c.x, y-termStripH)
 		case !click:
 			m.overTab = m.tabAt(stripTerm, mo.X-c.x-1)
 			return nil
+		}
 
-		case mo.X >= c.x+c.w-3:
-			return m.toggleTerminal()
+		if a, ok := hit(m.termButtons(), mo.X-c.x); ok && mo.Button == tea.MouseLeft {
+			return a.run(m)
 		}
 
 		x := mo.X - c.x - 1
@@ -3362,7 +3366,7 @@ func (m *Model) sideMouse(s int, rc rect, msg tea.MouseMsg) tea.Cmd {
 
 		return nil
 
-	case y == bar && v != viewSession:
+	case y == bar && headRows(v) > 0:
 		if !click {
 			return nil
 		}
@@ -3384,7 +3388,7 @@ func (m *Model) sideMouse(s int, rc rect, msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 
-	y -= bar + b2i(v != viewSession)
+	y -= bar + headRows(v)
 	if m.filters[v].on {
 		if y < 3 { // the box and its frame
 			if click {
@@ -3433,6 +3437,10 @@ func (m *Model) viewMouse(v view, msg tea.MouseMsg, x, y int) tea.Cmd {
 	case viewTerm:
 		if y == 0 { // the tab strip
 			m.overTab = m.tabAt(stripTerm, x)
+			if a, ok := hit(m.termButtons(), x); ok && click && mo.Button == tea.MouseLeft {
+				return a.run(m)
+			}
+
 			if click && (mo.Button == tea.MouseLeft || mo.Button == tea.MouseMiddle || mo.Button == tea.MouseRight) {
 				return m.termStripMouse(x, mo.Button)
 			}
@@ -3440,7 +3448,11 @@ func (m *Model) viewMouse(v view, msg tea.MouseMsg, x, y int) tea.Cmd {
 			return nil
 		}
 
-		return m.termPanelMouse(msg, x, y-1)
+		if y == 1 { // the rule under it
+			return nil
+		}
+
+		return m.termPanelMouse(msg, x, y-termStripH)
 
 	case viewSession:
 		if y == 0 { // its tabs
@@ -3567,7 +3579,7 @@ func (m *Model) dragTerm(d *drag, y int, release bool) tea.Cmd {
 	}
 
 	m.termMax, d.moved = false, true
-	m.st.Settings.TermH = max(3, min(d.h0+d.y0-y, m.panelH()-3))
+	m.st.Settings.TermH = max(termStripH+2, min(d.h0+d.y0-y, m.panelH()-3))
 
 	return m.fetchScreen()
 }
@@ -3704,9 +3716,9 @@ func (m *Model) View() tea.View {
 	case caret: // a text box has the keyboard
 		v.Cursor = tea.NewCursor(cx, b+cy)
 
-	case m.focus == onPanel && m.termRows() > 1:
+	case m.focus == onPanel && m.termRows() > termStripH:
 		if m.tv.scr.CursorVisible && !m.tv.find.editing && m.tv.term.id == m.tv.id && m.tv.scr.CursorX >= m.tv.left {
-			v.Cursor = appCursor(c.x+m.tv.scr.CursorX-m.tv.left, b+m.mainH()+1+m.tv.scr.CursorY, m.tv.scr.CursorStyle)
+			v.Cursor = appCursor(c.x+m.tv.scr.CursorX-m.tv.left, b+m.mainH()+termStripH+m.tv.scr.CursorY, m.tv.scr.CursorStyle)
 		}
 
 	case m.focus == onMain && m.showsSession():
@@ -3810,7 +3822,7 @@ func (m *Model) sashUnder(x, y int) sash {
 		return s
 	}
 
-	if m.termRows() == 0 || y != m.mainH() || x < c.x || x >= c.x+c.w-3 {
+	if m.termRows() == 0 || y != m.mainH() || x < c.x || x >= c.x+c.w-m.termBtnW() {
 		return noSash
 	}
 
@@ -3968,7 +3980,7 @@ func (m *Model) sidebarBody(s, w int) []string {
 		out = append(out, m.activityBar(s, w)...)
 	}
 
-	if active != viewSession {
+	if headRows(active) > 0 {
 		out = append(out, m.viewHeader(s, active, w))
 	}
 

@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"image/color"
 	"slices"
 	"strings"
 
@@ -312,8 +311,8 @@ func (m *Model) slotX(s, k int) int {
 }
 
 // stripMark draws the drop mark of a tab held over strip s into its row,
-// whose tabs start at column off on bg.
-func (m *Model) stripMark(line string, s, off int, bg color.Color) string {
+// whose tabs start at column off.
+func (m *Model) stripMark(line string, s, off int) string {
 	d := m.drag
 	if d == nil || d.kind != dragStrip || d.strip != s || d.slot < 0 {
 		return line
@@ -324,12 +323,7 @@ func (m *Model) stripMark(line string, s, off int, bg color.Color) string {
 		return line
 	}
 
-	st := fg(pal.accent)
-	if bg != nil {
-		st = st.Background(bg)
-	}
-
 	x += off
 
-	return ansi.Cut(line, 0, x) + "\x1b[m" + st.Render("│") + "\x1b[m" + ansi.Cut(line, x+1, ansi.StringWidth(line))
+	return ansi.Cut(line, 0, x) + "\x1b[m" + fg(pal.accent).Render("│") + "\x1b[m" + ansi.Cut(line, x+1, ansi.StringWidth(line))
 }

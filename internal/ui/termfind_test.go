@@ -166,7 +166,7 @@ func TestTerminalFindWidget(t *testing.T) {
 	}
 
 	_, acts := m.tv.findActs(m.tv.id, bw)
-	top := m.mainH() + 1 // the panel's tab row, then its body
+	top := m.mainH() + termStripH // the panel's strip and rule, then its body
 
 	m.Update(tea.MouseClickMsg{X: m.mainX() + x0 + acts[1].x, Y: top + 1, Button: tea.MouseLeft})
 

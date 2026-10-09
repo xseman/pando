@@ -826,7 +826,7 @@ func (m *Model) editorStrip(w int) string {
 		right, _ = m.pv.buttonSegs(m, w)
 	}
 
-	return m.stripMark(row(w, nil, segs, right...), stripEditor, 0, nil)
+	return m.stripMark(row(w, nil, segs, right...), stripEditor, 0)
 }
 
 // buttonSegs draws the buttons, the one under the mouse and a lit toggle in

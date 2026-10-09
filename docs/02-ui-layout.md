@@ -133,8 +133,12 @@ area; opening a file docks it back, `sessSide`).
 ## Terminal panel
 
 `terminal_position = "bottom"` puts it under main: `termRows()` comes off
-`mainH()`, and its title row is a sash for `terminal_height`. `left` or
-`right` makes it a column holding only `viewTerm`.
+`mainH()`, and the empty part of its strip is a sash for `terminal_height`.
+`left` or `right` makes it a column holding only `viewTerm`.
+
+Like the session's, the strip has the buttons (`termButtons`: maximize and ✕
+under the editor, ✕ closing the shell in a column) always shown and a rule
+under it, `termStripH` rows over the screen; a column has no header row.
 
 ## Short of room
 
