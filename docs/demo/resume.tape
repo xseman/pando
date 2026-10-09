@@ -15,9 +15,12 @@ Source docs/demo/setup.tape
 Type `cfg 30 resume` Enter
 # claude typed into a shell session, as `n` then `claude` would: the shell
 # is what the daemon respawns, and what it types the resume command into.
-Type "pando project add . >/dev/null && pando session new --ws . --name barista --wait >/dev/null" Enter
+# The shell is started with claude's isolated config directory in its
+# environment (see demo_claude in cfg.sh), so what it runs keeps its
+# conversation there.
+Type "pando project add . >/dev/null && pando session new --ws . --name barista --wait -- env CLAUDE_CONFIG_DIR=$CLAUDE_CONFIG_DIR bash >/dev/null" Enter
 Type `pando session send barista "$claude_cmd" --wait >/dev/null` Enter
-Type `pando session send barista 'Remember the word cortado. Answer in one short line.' --wait >/dev/null` Enter
+Type `pando session send barista 'The secret word is cortado. Answer in one short line.' --wait >/dev/null` Enter
 # The sends above return only once claude has answered, so the shell is busy
 # for a while: wait for pando and the conversation in it, or the GIF would
 # open on the hidden setup.
