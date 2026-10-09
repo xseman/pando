@@ -1,5 +1,81 @@
 # Changelog
 
+## [0.5.0](https://github.com/xseman/pando/compare/v0.4.0...v0.5.0) (2026-10-09)
+
+
+### Features
+
+* a new session runs a terminal or an agent profile ([612cec7](https://github.com/xseman/pando/commit/612cec7c0d51a57bf015dff097453ba0787dd3c6))
+* a session running a shell command shows as shell ([d544a00](https://github.com/xseman/pando/commit/d544a00d5f573089fbebac85971caae4ab369553))
+* **daemon:** session.screen reports the cursor style the app asked for ([b5c170c](https://github.com/xseman/pando/commit/b5c170c281b2dbb2726bf1f9bd213db8a9275985))
+* pando builds and runs on Windows ([#16](https://github.com/xseman/pando/issues/16)) ([20368fb](https://github.com/xseman/pando/commit/20368fb61091e0ea3ce4e738d76a9a36b94589c5))
+* **ui:** ↑ and ↓ in the message box walk the commit messages ([6554c42](https://github.com/xseman/pando/commit/6554c42a1d6a1fcce34c51dfb45346fdfb0b031a))
+* **ui:** a + after a project's or a worktree's name starts a session ([b020a1a](https://github.com/xseman/pando/commit/b020a1a147812895e3762fe27e2135dab771951f))
+* **ui:** a click away closes an empty filter ([88c3e3a](https://github.com/xseman/pando/commit/88c3e3a3fa93ae80150b03da75e08ffba8c33ffb))
+* **ui:** a click on a session row opens its tab with the news ([aac7c1c](https://github.com/xseman/pando/commit/aac7c1c826c720c6014e3739e1e9d8512e6ed2f1))
+* **ui:** a drawer commit shows its whole message on hover and copies it ([e74a32e](https://github.com/xseman/pando/commit/e74a32e4efd86a1048bc8b9abcd6077ed1cf33f5))
+* **ui:** a file clicked open takes the preview tab until it is kept ([1784579](https://github.com/xseman/pando/commit/178457963f4576be738d4f73977cd6ac053469c0))
+* **ui:** a file's diff shows the whole file with z ([e9111c5](https://github.com/xseman/pando/commit/e9111c5b2df0923949313cbefcd6afb8eb7b5a14))
+* **ui:** a new branch's name is sanitized as VS Code does ([e270e88](https://github.com/xseman/pando/commit/e270e88719c6db2a9ac33c6a53ddcd15446d0d3c))
+* **ui:** a new session runs an installed agent, never a bare shell ([fd0a4ff](https://github.com/xseman/pando/commit/fd0a4ff5844fd8a7c23e59db132a94a3a4382f9c))
+* **ui:** a session's Spaces row counts its tabs ([b2256af](https://github.com/xseman/pando/commit/b2256af096e511f9636bb487cd88eb91db46d784))
+* **ui:** a Spaces drag marks the drop with a tinted row between rows ([4740bfd](https://github.com/xseman/pando/commit/4740bfd89086678865d798c0be82f49dca0c4a3f))
+* **ui:** a Spaces drag marks where the row lands, moves it on release ([7a7ff17](https://github.com/xseman/pando/commit/7a7ff17d11c0fdb7a6d95aa521f9e499537b525b))
+* **ui:** a tab under the mouse tints in hover_bg ([b614371](https://github.com/xseman/pando/commit/b614371d4f28fb5ffb2f4310a2d2bb24d724b2d6))
+* **ui:** an unfolded space goes last among the open ones ([3863ceb](https://github.com/xseman/pando/commit/3863ceb795a4fdc7a7f6f9ca983cad2c105f6792))
+* **ui:** draw session and terminal tabs like the editor's ([ea0476c](https://github.com/xseman/pando/commit/ea0476c6a7dab86550084621229dfd5a9010ccc4))
+* **ui:** give the session's tab strip the buttons and a rule, drop its header ([a233865](https://github.com/xseman/pando/commit/a23386581fbac71ea985344dd9cb188b8117b3d6))
+* **ui:** give the Terminal panel's strip the buttons and a rule ([540e6c9](https://github.com/xseman/pando/commit/540e6c9a5c948fb2a870bfbc30cfff561eb8f6cd))
+* **ui:** group the Spaces and session context menus by action ([628fffa](https://github.com/xseman/pando/commit/628fffa1b3022cd2d7cc305c56d0e594422c2a73))
+* **ui:** label the Spaces hover buttons ([374910f](https://github.com/xseman/pando/commit/374910f6d6ceb132613a5da6a7005d31f9871170))
+* **ui:** light the Terminal's sash on the rule under its strip ([8b2577a](https://github.com/xseman/pando/commit/8b2577a9bd107f07dad8886d895bd718a99a4cdf))
+* **ui:** list recently opened files first in quick open ([41f8d8c](https://github.com/xseman/pando/commit/41f8d8c5a2be5d54308b85ae24c862591c0f7943))
+* **ui:** maximize a session stretched over the editor ([7f6c6fe](https://github.com/xseman/pando/commit/7f6c6feb7a77892b1aa97cf9b0d6f278ec0e4ae7))
+* **ui:** maximize the session or the file over the editor area ([d36a69d](https://github.com/xseman/pando/commit/d36a69d2f9020f592594d8d4cd168f2ce0261c3c))
+* **ui:** raise the active tab's close button under the mouse ([b603443](https://github.com/xseman/pando/commit/b6034436735bf151a72d7840fc91a975e069f9ad))
+* **ui:** sort Explorer files by type, from its menu or explorer_sort ([6571271](https://github.com/xseman/pando/commit/65712712b12c84197b51b4ebb43cfd6844ad5adc))
+* **ui:** Source Control drawers stack like Spaces' projects ([0bdfb5b](https://github.com/xseman/pando/commit/0bdfb5b2efcab27e75c1fa1efa16262716d2f254))
+* **ui:** Source Control's context menu comes in groups ([405010f](https://github.com/xseman/pando/commit/405010fca4220248f1a9aa2d0fcbe0d62f01223b))
+* **ui:** Spaces sorts projects manually or by their last output ([2a7b2b7](https://github.com/xseman/pando/commit/2a7b2b79c8c18bfbaa4a169edc4398dd83bfee0e))
+* **ui:** text boxes framed in a thin line, the accent while typing ([84d8f89](https://github.com/xseman/pando/commit/84d8f89bca894abb48bd5bbb4e2b70faca7c7dbc))
+* **ui:** the Commit button greys out until something is staged ([d8f8ec1](https://github.com/xseman/pando/commit/d8f8ec1b934490a4d31be05ee0c0848cc8e022de))
+* **ui:** the Compare drawer lists the files a commit or a pull request changed ([200ca0a](https://github.com/xseman/pando/commit/200ca0a459125c0cea047fb43f4b375eda251037))
+* **ui:** the Compare drawer's ✕ drops the comparison ([23e01fb](https://github.com/xseman/pando/commit/23e01fbf5817773c2bcce513165a62fe5c507cc7))
+* **ui:** the cursor is the terminal's, in text boxes and sessions too ([7b26e8b](https://github.com/xseman/pando/commit/7b26e8b03467cb5725b4c80966dc829789425df9))
+* **ui:** the message scramble settles once, then only its dots pulse ([6f14f98](https://github.com/xseman/pando/commit/6f14f985e9053a5d88f8a79cc9b027f47814e389))
+* **ui:** the Settings modal groups its toggles under headings ([e61ea0c](https://github.com/xseman/pando/commit/e61ea0c192a93df3932b10ef4bbf45bcbf2cb06d))
+* **ui:** tint the + button of the session and terminal strips on hover ([dacf6aa](https://github.com/xseman/pando/commit/dacf6aaa31e860e95f6eef92f0546cb2de833e3c))
+* **ui:** VS Code style editor tabs, breadcrumbs and buttons in the strip ([3504339](https://github.com/xseman/pando/commit/3504339d37c34110318c1d0d8f68a9a25b5ac513))
+
+
+### Bug Fixes
+
+* **daemon:** wait for a shell to be listed before handling its exit ([7a58287](https://github.com/xseman/pando/commit/7a58287d335e55b74ee2815e945530c3e5d4be17))
+* **ui:** a drawer line's menu leaves out View as Tree and Collapse All ([36d9c18](https://github.com/xseman/pando/commit/36d9c18a57228cb386b0e3bbc24a4c516b64132f))
+* **ui:** a selected session row pulses for its tab's new state ([a8485b1](https://github.com/xseman/pando/commit/a8485b1ef7044f81f8c8f5e29affbb2a9dd45a7a))
+* **ui:** each project keeps its own Compare drawer comparison ([449fa09](https://github.com/xseman/pando/commit/449fa0973c39a139d62300ff7b4b961ec1034a6e))
+* **ui:** key hint columns fit their widest key and description ([4b71e64](https://github.com/xseman/pando/commit/4b71e6432b592555fdf18245079ab7a68f98eb75))
+* **ui:** only an agent's tab shows a status glyph ([438cb16](https://github.com/xseman/pando/commit/438cb167bcfe1876d60674ee8c0aa49270721422))
+* **ui:** the commit message keeps its color without focus ([fbf9008](https://github.com/xseman/pando/commit/fbf9008cd8810281223337ce687442a4e0ddebde))
+
+
+### Documentation
+
+* **demo:** re-record the GIFs with the new tabs, strips and breadcrumbs ([f7c29f7](https://github.com/xseman/pando/commit/f7c29f77eef87635f6e5446fa6ea52bed11bf4cf))
+* **demo:** run the demo's claude in a config directory of its own ([75cd179](https://github.com/xseman/pando/commit/75cd1793ac14249873f8a79329e95d73df9c27b4))
+* **readme:** lay the tour out as a two-column table of GIFs ([fa4c1c3](https://github.com/xseman/pando/commit/fa4c1c3edaf2e180608e0979392872e8fb620faf))
+* **readme:** move install section before features ([bb53ef8](https://github.com/xseman/pando/commit/bb53ef82fc43e7d17a10a8f379dee2d7aafcde2c))
+
+
+### Maintenance
+
+* run make test on macOS ([#17](https://github.com/xseman/pando/issues/17)) ([e0e94f0](https://github.com/xseman/pando/commit/e0e94f0a6ab46e8ec459ebbea151e8a08b248c82))
+
+
+### Testing
+
+* the e2e session picks a harness of its own ([9c5d84a](https://github.com/xseman/pando/commit/9c5d84aaf7c8299d64794eed27ef570740a44585))
+
 ## [0.4.0](https://github.com/xseman/pando/compare/v0.3.0...v0.4.0) (2026-10-02)
 
 
