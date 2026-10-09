@@ -2535,7 +2535,13 @@ func tabSegs(tabs []sessTab, over string) []seg {
 
 	for _, t := range tabs {
 		if t.plus {
+			if over == plusTab {
+				segs = append(segs, sgOwn(t.label, fg(pal.headerAccent).Background(pal.hoverBg)))
+				continue
+			}
+
 			segs = append(segs, sg(t.label, fg(pal.headerAccent)))
+
 			continue
 		}
 

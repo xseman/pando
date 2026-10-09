@@ -290,3 +290,36 @@ func TestDragTerminalTab(t *testing.T) {
 		t.Fatalf("p1 moved past p2, the panel kept its height: %s, %d", got, m.st.Settings.TermH)
 	}
 }
+
+// TestPlusButtonHovers paints the + of the session and Terminal strips on
+// hover_bg while the pointer is over it.
+func TestPlusButtonHovers(t *testing.T) {
+	m := testModel(t)
+	drainInputs(m)
+
+	m.sessions = append(m.sessions, termSession(m.ws, "p1"))
+	m.tv.id = "p1"
+	m.st.Settings.TermOpen, m.st.Settings.TermPos, m.st.Settings.TermH = true, "bottom", 8
+	m.resize()
+
+	for _, c := range []struct {
+		strip int
+		tabs  []sessTab
+	}{
+		{stripSession, m.sessionTabs(m.sessW())},
+		{stripTerm, m.termTabs(m.termStripW())},
+	} {
+		plus := c.tabs[len(c.tabs)-1]
+		if !plus.plus || m.tabAt(c.strip, plus.x+1) != plusTab || m.tabAt(c.strip, plus.x+plus.w) != "" {
+			t.Fatalf("strip %d: tabAt over the +: %+v", c.strip, plus)
+		}
+
+		for _, over := range []string{"", plusTab} {
+			segs := tabSegs(c.tabs, over)
+
+			if got := segs[len(segs)-1].ownBg; got != (over == plusTab) {
+				t.Fatalf("strip %d, over %q: the + paints its own background: %v", c.strip, over, got)
+			}
+		}
+	}
+}
