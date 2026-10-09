@@ -3,6 +3,7 @@ package ui
 import (
 	"image/color"
 	"slices"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -54,6 +55,36 @@ func (m *Model) stripTabs(s int) []stripTab {
 	}
 
 	return out
+}
+
+// ruleMark is a tab's span under a strip: lit when the tab is active, tinted
+// when the mouse is on it.
+type ruleMark struct {
+	x, w        int
+	active, hot bool
+}
+
+// ruleRow is the line under a strip, as the activity bar has under its icons:
+// a faint rule, in the accent color under the active tab and in a tint of it
+// under the one the mouse is on.
+func ruleRow(w int, marks []ruleMark) string {
+	rule := func(n int) seg { return sg(strings.Repeat("─", max(n, 0)), fg(pal.rulerBorder)) }
+
+	var segs []seg
+
+	cx := 0
+
+	for _, k := range marks {
+		c := markColor(k.active, k.hot)
+		if c == nil {
+			continue
+		}
+
+		segs = append(segs, rule(k.x-cx), sg(strings.Repeat("─", k.w), fg(c)))
+		cx = k.x + k.w
+	}
+
+	return row(w, nil, append(segs, rule(w-cx)))
 }
 
 // plusTab is tabAt's answer over a strip's + button, which has no session.

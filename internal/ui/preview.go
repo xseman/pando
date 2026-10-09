@@ -832,13 +832,20 @@ func (m *Model) editorStrip(w int) string {
 // buttonSegs draws the buttons, the one under the mouse and a lit toggle in
 // their colors, and returns their width.
 func (p *preview) buttonSegs(m *Model, w int) (segs []seg, bw int) {
-	mx := m.mouseX - m.mainX()
+	return m.actSegs(p.buttons(m, w), m.mainX(), 0)
+}
 
-	for _, a := range p.buttons(m, w) {
+// actSegs draws a strip's buttons, the one under the mouse (the strip's row y
+// on the screen, its left edge x0) and a lit toggle in their colors, and
+// returns their width.
+func (m *Model) actSegs(acts []rowAction, x0, y int) (segs []seg, bw int) {
+	mx := m.mouseX - x0
+
+	for _, a := range acts {
 		st := dim
 
 		switch {
-		case m.mouseY == 0 && mx >= a.x && mx < a.x+a.w:
+		case m.mouseY == y && mx >= a.x && mx < a.x+a.w:
 			st = keycapHot()
 		case a.on:
 			st = fg(pal.headerAccent) // lit: the accent color, no block
@@ -850,27 +857,14 @@ func (p *preview) buttonSegs(m *Model, w int) (segs []seg, bw int) {
 	return segs, bw
 }
 
-// editorRule is the line under the editor strip, as the activity bar has
-// under its icons: a faint rule, in the accent color under the active tab and
-// in a tint of it under the one the mouse is on.
+// editorRule is the line under the editor strip.
 func (m *Model) editorRule(w int) string {
-	rule := func(n int) seg { return sg(strings.Repeat("─", max(n, 0)), fg(pal.rulerBorder)) }
-
-	var marks []seg
-
-	cx := 0
-
+	var marks []ruleMark
 	for _, t := range m.editorTabs(w) {
-		c := markColor(t.active, m.editors[t.i].id() == m.overTab)
-		if c == nil {
-			continue
-		}
-
-		marks = append(marks, rule(t.x-cx), sg(strings.Repeat("─", t.w), fg(c)))
-		cx = t.x + t.w
+		marks = append(marks, ruleMark{t.x, t.w, t.active, m.editors[t.i].id() == m.overTab})
 	}
 
-	return row(w, nil, append(marks, rule(w-cx)))
+	return ruleRow(w, marks)
 }
 
 // stripMouse handles a click on the editor strip: the middle button and the

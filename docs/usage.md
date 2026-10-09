@@ -75,7 +75,7 @@ checkout.
 - `1`–`4` and `6` open Explorer, Source Control, Spaces, Search and GitHub.
 - ``ctrl+` ``, `ctrl+j` or `5` toggles the Terminal panel; `ctrl+shift+↑`
   maximizes it.
-- A session beside a file: the button among the header actions of either
+- A session beside a file: the button at the right end of either's tab strip
   maximizes it over the whole editor area, and restores the pair.
 - Drag a view's tab to move it, a divider to resize. A second click on the
   open view's icon hides its sidebar; `ctrl+b` hides both.

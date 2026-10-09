@@ -419,7 +419,7 @@ func TestViewsModalsAndFocus(t *testing.T) {
 	}
 
 	if v := m.View(); v.Cursor == nil || v.Cursor.X != m.mainX()+2 || v.Cursor.Y != 2 {
-		t.Fatalf("cursor sits under the session strip and header: %+v", v.Cursor)
+		t.Fatalf("cursor sits under the session strip and its rule: %+v", v.Cursor)
 	}
 
 	press(m, "l")
@@ -621,7 +621,7 @@ func TestPanelBorders(t *testing.T) {
 	}
 
 	lines := strings.Split(checkWidths(t, m), "\n")
-	if !strings.HasPrefix(lines[0], "┌─ Explorer") || !strings.Contains(lines[0], "┌─ shell") || !strings.HasPrefix(lines[len(lines)-2], "└") || !strings.Contains(lines[len(lines)-1], "^⇧p") {
+	if !strings.HasPrefix(lines[0], "┌─ Explorer") || !strings.Contains(lines[0], "┌─ 001 · main") || !strings.HasPrefix(lines[len(lines)-2], "└") || !strings.Contains(lines[len(lines)-1], "^⇧p") {
 		t.Fatalf("frame and status bar:\n%s\n%s\n%s", lines[0], lines[len(lines)-2], lines[len(lines)-1])
 	}
 

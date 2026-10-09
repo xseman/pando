@@ -240,7 +240,7 @@ func TestSessionScrollbar(t *testing.T) {
 		t.Fatal("a session with scrollback shows the slider")
 	}
 
-	x, y0 := m.mainX()+m.mainW()-1, 1+m.stripH()
+	x, y0 := m.mainX()+m.mainW()-1, m.stripH()
 	m.Update(tea.MouseClickMsg{X: x, Y: y0, Button: tea.MouseLeft})
 
 	if m.term.scroll != 200 {

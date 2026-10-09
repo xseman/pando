@@ -16,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/xseman/pando/internal/git"
 	"github.com/xseman/pando/internal/proto"
@@ -2222,7 +2223,7 @@ func (m *Model) fetchMain() tea.Cmd {
 	// One column less than the view: the scrollbar has it.
 	p := proto.ScreenParams{ID: m.sess, Cols: max(m.mainW()-1, 1), Rows: m.sessH(), Scroll: t.scroll}
 	if docked { // its column: the tab strip above the screen
-		p.Cols, p.Rows = max(m.sessW()-1, 1), max(m.bodyH(viewSession)-1, 1)
+		p.Cols, p.Rows = max(m.sessW()-1, 1), max(m.bodyH(viewSession)-sessStripH, 1)
 	}
 
 	return func() tea.Msg {
@@ -2281,7 +2282,7 @@ type sessTab struct {
 // sessionTabs are the tabs of the session in view, in the order [ and ]
 // cycle them, with a + to open one more in it: herdr's workspace tabs.
 func (m *Model) sessionTabs(w int) []sessTab {
-	return m.tabsFor(w-m.restoreW(), m.tabsOf(m.rootOf(m.sess)), m.sess)
+	return m.tabsFor(w-m.sessBtnW(), m.tabsOf(m.rootOf(m.sess)), m.sess)
 }
 
 // spaceSessions are the sessions of the workspace in view, their tabs aside.
@@ -2517,17 +2518,96 @@ func (m *Model) renameSession(id string) tea.Cmd {
 }
 
 func (m *Model) sessionStrip(w int) string {
-	var restore []seg
-	if m.maxed {
-		restore = []seg{sg(" "+icRestore.s()+" ", dim)}
+	tabs := m.sessionTabs(w)
+
+	var right []seg
+	if hint, st := m.sessionHint(); hint != "" && ansi.StringWidth(hint) <= w-m.sessBtnW()-tabsEnd(tabs) {
+		right = append(right, sg(hint, st))
 	}
 
-	return m.stripMark(row(w, nil, tabSegs(m.sessionTabs(w), m.overTab), restore...), stripSession, 0, nil)
+	y, x0 := 0, m.mainX()
+	if i := m.colOf(viewSession); i >= 0 {
+		y, x0 = m.barH(i), m.colRect(i).x
+	}
+
+	btns, _ := m.actSegs(m.sessionButtons(), x0, y)
+
+	return m.stripMark(row(w, nil, tabSegs(tabs, m.overTab), append(right, btns...)...), stripSession, 0, nil)
 }
 
-// restoreW is the room the restore button takes at the right end of a
-// maximized session's strip: a glyph in a space either side.
-func (m *Model) restoreW() int { return 3 * b2i(m.maxed) }
+// sessionRule is the line under the session's strip.
+func (m *Model) sessionRule(w int) string {
+	var marks []ruleMark
+
+	for _, t := range m.sessionTabs(w) {
+		if !t.plus {
+			marks = append(marks, ruleMark{t.x, t.w, t.active, t.id == m.overTab})
+		}
+	}
+
+	return ruleRow(w, marks)
+}
+
+// sessionButtons are the buttons at the right end of the session's strip, shown
+// always as the editor's are: maximize or restore while a file shares the area,
+// and close.
+func (m *Model) sessionButtons() []rowAction {
+	var acts []rowAction
+
+	if m.canMax() {
+		acts = append(acts, rowAction{g: m.maxGlyph(), run: func(m *Model) tea.Cmd { return m.toggleMax(false) }})
+	}
+
+	acts = append(acts, rowAction{g: icClose, run: func(m *Model) tea.Cmd { return m.hideSession() }})
+	layoutRight(acts, m.sessW(), 2)
+
+	return acts
+}
+
+// sessBtnW is the room the buttons take at the right end of the strip, with a
+// cell before them.
+func (m *Model) sessBtnW() int {
+	n := 1
+	for _, a := range m.sessionButtons() {
+		n += a.w
+	}
+
+	return n
+}
+
+// tabsEnd is the column after a strip's last tab, its + included.
+func tabsEnd(tabs []sessTab) int {
+	if len(tabs) == 0 {
+		return 0
+	}
+
+	t := tabs[len(tabs)-1]
+
+	return t.x + t.w
+}
+
+// sessionHint is what the session in view has to say at the right end of its
+// strip: that it exited, how far it is scrolled back, or where the keyboard
+// goes.
+func (m *Model) sessionHint() (string, lipgloss.Style) {
+	s := m.session(m.sess)
+	if s == nil {
+		return "", plain
+	}
+
+	switch {
+	case s.Status == "exited":
+		return fmt.Sprintf(" exited %d · x in Agents to close ", s.ExitCode), fg(pal.errc)
+	case m.term.scroll > 0:
+		return fmt.Sprintf(" scrollback -%d ", m.term.scroll), fg(pal.warn)
+	case m.focus != onMain:
+		return " ^] focus ", dim
+	case m.anyRailed():
+		return " ^] sidebar ", dim
+	}
+
+	return "", plain
+}
 
 // tabSegs draws a strip's tabs, tab over in hover_bg.
 func tabSegs(tabs []sessTab, over string) []seg {
@@ -2558,9 +2638,10 @@ func tabSegs(tabs []sessTab, over string) []seg {
 
 // sessionStripMouse switches, closes or opens a session from the strip; a
 // tab past the session's own drags along it.
-func (m *Model) sessionStripMouse(x int, button tea.MouseButton) tea.Cmd {
-	if button == tea.MouseLeft && m.maxed && x >= m.sessW()-m.restoreW() {
-		return m.toggleMax(false)
+func (m *Model) sessionStripMouse(x int, mo tea.Mouse) tea.Cmd {
+	button := mo.Button
+	if a, ok := hit(m.sessionButtons(), x); ok && button == tea.MouseLeft {
+		return a.run(m)
 	}
 
 	for _, t := range m.sessionTabs(m.sessW()) {
@@ -2582,49 +2663,12 @@ func (m *Model) sessionStripMouse(x int, button tea.MouseButton) tea.Cmd {
 		return m.switchSession(t.id)
 	}
 
-	return nil
+	return m.sessionTitleClick(mo) // the empty strip is the session's title: drag it, or its menu
 }
 
-func (t *term) view(m *Model, w, _ int) (string, []string) {
-	s := m.session(m.sess)
-	if s == nil {
-		return blank(w), nil
-	}
-
-	glyph, c := sessionGlyph(*s)
-
-	ws := []seg{sg(filepath.Base(s.Workspace), dim)}
-	if wsp := m.workspace(s.Workspace); wsp != nil && wsp.Branch != "" {
-		ws = m.fx.segs("ws:"+wsp.Path, wsName(*wsp), dim)
-	}
-
-	st := accent
-	if m.focus != onMain {
-		st = bold
-	}
-
-	left := append([]seg{sg(" "+glyph, fg(c))}, m.fx.segs("sess:"+s.ID, sessionName(*s), st)...)
-
-	left = append(append(left, sg(" · ", dim)), ws...)
-	if t := titleAfter(*s); t != "" {
-		left = append(left, sg(t, dim))
-	}
-
-	var right []seg
-
-	switch {
-	case s.Status == "exited":
-		right = append(right, sg(fmt.Sprintf(" exited %d · x in Agents to close ", s.ExitCode), fg(pal.errc)))
-	case t.scroll > 0:
-		right = append(right, sg(fmt.Sprintf(" scrollback -%d ", t.scroll), fg(pal.warn)))
-	case m.focus != onMain:
-		right = append(right, sg(" ^] focus ", dim))
-	case m.anyRailed():
-		right = append(right, sg(" ^] sidebar ", dim))
-	}
-
-	if t.id != m.sess {
-		return row(w, nil, left, right...), nil
+func (t *term) view(m *Model, w, _ int) []string {
+	if m.session(m.sess) == nil || t.id != m.sess {
+		return nil
 	}
 
 	lines := slices.Clone(t.scr.Lines)
@@ -2632,7 +2676,7 @@ func (t *term) view(m *Model, w, _ int) (string, []string) {
 		lines[i] = t.mark(i, t.paintFind(i, lines[i]))
 	}
 
-	return row(w, nil, left, right...), withBar(lines, w, t.bar(len(lines)), m.barState("session"))
+	return withBar(lines, w, t.bar(len(lines)), m.barState("session"))
 }
 
 // bar is the terminal's scrollbar: its scrollback above the h rows it shows.
@@ -2839,12 +2883,12 @@ func (m *Model) sessW() int {
 	return m.mainW()
 }
 
-// sessionLines are the docked session: its tabs, then its screen.
+// sessionLines are the docked session: its tabs and their rule, then its screen.
 func (m *Model) sessionLines(w, h int) []string {
-	_, lines := m.term.view(m, w, h-1)
-	out := []string{m.sessionStrip(w)}
+	lines := m.term.view(m, w, h-sessStripH)
+	out := []string{m.sessionStrip(w), m.sessionRule(w)}
 
-	for i := range max(h-1, 0) {
+	for i := range max(h-sessStripH, 0) {
 		if i < len(lines) {
 			out = append(out, fit(lines[i], w))
 		} else {
@@ -3245,3 +3289,6 @@ func (m *Model) startTerm() tea.Cmd {
 
 	return m.fetchScreen()
 }
+
+// sessStripH is the rows over a session's screen: its tabs and their rule.
+const sessStripH = 2

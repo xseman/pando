@@ -332,10 +332,10 @@ func (m *Model) termFindBoxes() (boxes [][]string, xs, ys []int) {
 
 	switch {
 	case m.showsSession():
-		add(&m.term, m.sess, m.mainX(), 1+m.stripH(), m.mainW(), m.sessH())
+		add(&m.term, m.sess, m.mainX(), m.headH()+m.stripH(), m.mainW(), m.sessH())
 	case m.sessDocked() && m.shown(viewSession):
 		i := m.colOf(viewSession)
-		add(&m.term, m.sess, m.colRect(i).x, m.bodyTop(viewSession)+1, m.sessW(), max(m.bodyH(viewSession)-1, 1))
+		add(&m.term, m.sess, m.colRect(i).x, m.bodyTop(viewSession)+sessStripH, m.sessW(), max(m.bodyH(viewSession)-sessStripH, 1))
 	}
 
 	if !m.termShowing() {

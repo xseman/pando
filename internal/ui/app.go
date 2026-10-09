@@ -1147,8 +1147,10 @@ func (m *Model) mainX() int { _, c := m.layout(); return c.x }
 func (m *Model) mainW() int { _, c := m.layout(); return c.w }
 
 // bodyTop is the first list row of view v, below the activity bar, the view
-// header and the filter line.
-func (m *Model) bodyTop(v view) int { return m.barH(m.colOf(v)) + 1 + 3*b2i(m.filters[v].on) }
+// header (the session has none: its strip has the buttons) and the filter line.
+func (m *Model) bodyTop(v view) int {
+	return m.barH(m.colOf(v)) + b2i(v != viewSession) + 3*b2i(m.filters[v].on)
+}
 
 // barH is column i's activity bar height; a column with a single tab has none.
 func (m *Model) barH(i int) int {
@@ -2135,6 +2137,8 @@ func (m *Model) headerActions(s int, v view, w int) []titleAction {
 		add(icClearAll, func(m *Model) tea.Cmd { m.sr.query.Reset(); m.sr.clear(); return nil })
 		add(icCollapse, func(m *Model) tea.Cmd { m.sr.collapseAll(); return nil })
 
+	case viewSession: // its buttons are in its tab strip
+
 	case viewGitHub:
 		add(icPRNew, func(m *Model) tea.Cmd { return m.ghTerminal("gh pr create") })
 		add(icRefresh, m.gh.refresh)
@@ -2143,10 +2147,6 @@ func (m *Model) headerActions(s int, v view, w int) []titleAction {
 	case viewTerm:
 		add(icAdd, func(m *Model) tea.Cmd { return m.newTerm() })
 		add(icClose, func(m *Model) tea.Cmd { return m.confirmKill(m.tv.id) })
-
-	case viewSession:
-		add(m.maxGlyph(), func(m *Model) tea.Cmd { return m.toggleMax(false) })
-		add(icClose, func(m *Model) tea.Cmd { return m.hideSession() })
 
 	case viewAgents:
 		add(icAdd, func(m *Model) tea.Cmd { return m.ag.newSession(m, m.ag.selected(m)) })
@@ -3183,18 +3183,14 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 
 	if strip > 0 && click && mo.Y == 0 && (mo.Button == tea.MouseLeft || mo.Button == tea.MouseMiddle || mo.Button == tea.MouseRight && m.showsSession()) {
 		if m.showsSession() {
-			return m.sessionStripMouse(mo.X-c.x, mo.Button)
+			return m.sessionStripMouse(mo.X-c.x, mo)
 		}
 
 		return m.stripMouse(mo.X-c.x, mo.Button)
 	}
 
 	if m.showsSession() {
-		if click && mo.Y == strip { // the session's title: drag it beside the editor
-			return m.sessionTitleClick(mo)
-		}
-
-		return m.sessionMouse(msg, mo.X-c.x, mo.Y-1-strip, c.w)
+		return m.sessionMouse(msg, mo.X-c.x, mo.Y-m.headH()-strip, c.w)
 	}
 
 	if top := 1 + strip + m.pvH() + m.hbarH(); m.pk != nil && mo.Y >= top {
@@ -3366,7 +3362,7 @@ func (m *Model) sideMouse(s int, rc rect, msg tea.MouseMsg) tea.Cmd {
 
 		return nil
 
-	case y == bar:
+	case y == bar && v != viewSession:
 		if !click {
 			return nil
 		}
@@ -3388,7 +3384,7 @@ func (m *Model) sideMouse(s int, rc rect, msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 
-	y -= bar + 1
+	y -= bar + b2i(v != viewSession)
 	if m.filters[v].on {
 		if y < 3 { // the box and its frame
 			if click {
@@ -3450,13 +3446,17 @@ func (m *Model) viewMouse(v view, msg tea.MouseMsg, x, y int) tea.Cmd {
 		if y == 0 { // its tabs
 			m.overTab = m.tabAt(stripSession, x)
 			if click {
-				return m.sessionStripMouse(x, mo.Button)
+				return m.sessionStripMouse(x, mo)
 			}
 
 			return nil
 		}
 
-		return m.sessionMouse(msg, x, y-1, m.sessW())
+		if y == 1 { // the rule under it
+			return nil
+		}
+
+		return m.sessionMouse(msg, x, y-sessStripH, m.sessW())
 
 	case viewGitHub:
 		return m.gh.mouse(m, msg, y)
@@ -3711,12 +3711,12 @@ func (m *Model) View() tea.View {
 
 	case m.focus == onMain && m.showsSession():
 		if m.term.scr.CursorVisible && m.term.id == m.sess && !m.term.find.editing {
-			v.Cursor = appCursor(c.x+m.term.scr.CursorX, b+1+m.stripH()+m.term.scr.CursorY, m.term.scr.CursorStyle)
+			v.Cursor = appCursor(c.x+m.term.scr.CursorX, b+m.headH()+m.stripH()+m.term.scr.CursorY, m.term.scr.CursorStyle)
 		}
 
 	case m.sessFocused():
 		if m.term.scr.CursorVisible && m.term.id == m.sess && !m.term.find.editing {
-			v.Cursor = appCursor(m.colRect(m.focus).x+m.term.scr.CursorX, b+m.bodyTop(viewSession)+1+m.term.scr.CursorY, m.term.scr.CursorStyle)
+			v.Cursor = appCursor(m.colRect(m.focus).x+m.term.scr.CursorX, b+m.bodyTop(viewSession)+sessStripH+m.term.scr.CursorY, m.term.scr.CursorStyle)
 		}
 
 	case m.focus == onMain && m.showsPreview() && !m.pv.scrollOnly(m):
@@ -3903,25 +3903,40 @@ func (m *Model) sideTitle(s int) string {
 
 	v, _ := m.viewOn(s)
 	if s := m.session(m.sess); v == viewSession && s != nil {
-		return m.fx.text("sess:"+s.ID, sessionName(*s))
+		return m.wsTitle(s.Workspace) // the tab names the session; the frame says where
 	}
 
 	return viewTitles[v]
 }
 
+// mainTitle is the editor area's frame title: where it is, the project and
+// worktree, since the tab says what it shows.
 func (m *Model) mainTitle() string {
 	switch {
 	case m.showsSession():
 		if s := m.session(m.sess); s != nil {
-			return m.fx.text("sess:"+s.ID, sessionName(*s))
+			return m.wsTitle(s.Workspace)
 		}
 
 	case m.pv.kind != "":
-		name, _ := m.pv.label(m.ws)
-		return name
+		return m.wsTitle(m.ws)
 	}
 
 	return "pando"
+}
+
+// wsTitle is "project · branch" for the workspace at path.
+func (m *Model) wsTitle(path string) string {
+	w := m.workspace(path)
+	if w == nil {
+		return filepath.Base(path)
+	}
+
+	if proj := filepath.Base(cmp.Or(w.Project, w.Path)); proj != wsName(*w) {
+		return proj + " · " + wsName(*w)
+	}
+
+	return wsName(*w)
 }
 
 func (m *Model) sidebar(s, w int) []string {
@@ -3953,7 +3968,10 @@ func (m *Model) sidebarBody(s, w int) []string {
 		out = append(out, m.activityBar(s, w)...)
 	}
 
-	out = append(out, m.viewHeader(s, active, w))
+	if active != viewSession {
+		out = append(out, m.viewHeader(s, active, w))
+	}
+
 	if f := &m.filters[active]; f.on { // a framed box, as Search's
 		edge := fg(pal.inputBorder)
 		if f.editing {
@@ -4193,12 +4211,7 @@ func (m *Model) vertTabs(s int) []tab {
 }
 
 func (m *Model) viewHeader(s int, v view, w int) string {
-	session := "SESSION"
-	if s := m.session(m.sess); s != nil {
-		session = m.fx.text("sess:"+s.ID, sessionName(*s))
-	}
-
-	title := []string{strings.ToUpper(filepath.Base(m.ws)), "SOURCE CONTROL", "SPACES", "SEARCH", "TERMINAL", session, "GITHUB"}[v]
+	title := []string{strings.ToUpper(filepath.Base(m.ws)), "SOURCE CONTROL", "SPACES", "SEARCH", "TERMINAL", "SESSION", "GITHUB"}[v]
 
 	var right []seg
 
@@ -4460,16 +4473,17 @@ func (m *Model) hbarH() int { return b2i(m.pv.hbar(m, m.pvW()).on()) }
 // with its rule under it.
 func (m *Model) stripH() int {
 	if m.showsSession() {
-		return 1
+		return sessStripH
 	}
 
 	return 2 * b2i(m.showsPreview() && len(m.editors) > 0)
 }
 
-// headH is the rows of header under the tab strip: 1, but none for a file
-// with breadcrumbs off, whose buttons are in the strip.
+// headH is the rows of header under the tab strip: none for a session, whose
+// name is its tab's, nor for a file with breadcrumbs off, whose buttons are in
+// the strip; else 1.
 func (m *Model) headH() int {
-	if !m.showsSession() && m.stripH() > 0 && m.pv.pathHeader() && !m.st.Settings.Crumbs {
+	if m.showsSession() || m.stripH() > 0 && m.pv.pathHeader() && !m.st.Settings.Crumbs {
 		return 0
 	}
 
@@ -4495,8 +4509,8 @@ func (m *Model) stripBtnW() int {
 	return n
 }
 
-// sessH is the terminal body: the main area minus its strip and header.
-func (m *Model) sessH() int { return max(m.mainH()-2, 1) }
+// sessH is the terminal body: the main area minus its strip and rule.
+func (m *Model) sessH() int { return max(m.mainH()-sessStripH, 1) }
 
 func (m *Model) mainLines(w int) []string {
 	if n := m.termRows(); n > 0 { // the editor area, then the panel under it
@@ -4518,7 +4532,7 @@ func (m *Model) editorLines(w int) []string {
 	switch {
 	case m.showsSession():
 		h = m.sessH()
-		header, body = m.term.view(m, w, h)
+		body = m.term.view(m, w, h)
 
 	case m.pv.kind != "":
 		h = m.pvH()
@@ -4543,7 +4557,7 @@ func (m *Model) editorLines(w int) []string {
 	out := make([]string, 0, m.h)
 	switch {
 	case m.showsSession():
-		out = append(out, m.sessionStrip(w))
+		out = append(out, m.sessionStrip(w), m.sessionRule(w))
 	case m.stripH() > 0:
 		out = append(out, m.editorStrip(w), m.editorRule(w))
 	}

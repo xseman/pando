@@ -341,3 +341,67 @@ func TestEditorRule(t *testing.T) {
 		t.Fatalf("the active tab's mark is colored: %q", rule)
 	}
 }
+
+// TestSessionStripHint puts what the session header used to say at the right
+// end of its strip, and leaves no header row under it.
+func TestSessionStripHint(t *testing.T) {
+	m := testModel(t)
+	drainInputs(m)
+	m.switchSession("s1")
+
+	if m.headH() != 0 || m.sessH() != m.mainH()-m.stripH() {
+		t.Fatalf("a session has no header row: head %d, body %d", m.headH(), m.sessH())
+	}
+
+	m.sessions[0].Status, m.sessions[0].ExitCode = "exited", 3
+	checkWidths(t, m)
+
+	if strip := ansi.Strip(m.sessionStrip(m.mainW())); !strings.Contains(strip, "exited 3") {
+		t.Fatalf("the strip says it exited: %q", strip)
+	}
+
+	m.sessions[0].Status = "idle"
+	m.term.scroll = 7
+
+	if strip := ansi.Strip(m.sessionStrip(m.mainW())); !strings.Contains(strip, "scrollback -7") {
+		t.Fatalf("the strip says how far back it is: %q", strip)
+	}
+
+	if title := m.mainTitle(); strings.Contains(title, "shell") || title == "" {
+		t.Fatalf("the frame says where, the tab what: %q", title)
+	}
+}
+
+// TestDockedSessionStripCarriesTheButtons keeps the session's name on its
+// tab, the frame saying where it runs, and puts its buttons at the right end of
+// the strip, always shown as the editor's are, with the rule under it; the
+// column has no header row.
+func TestDockedSessionStripCarriesTheButtons(t *testing.T) {
+	m := testModelSized(t, 140, 30)
+	drainInputs(m)
+	m.switchSession("s1")
+	m.splitTo(viewSession, 1)
+
+	i := m.colOf(viewSession)
+	if i < 0 {
+		t.Fatal("the session is not docked")
+	}
+
+	name := sessionName(*m.session(m.sess))
+	if strings.Contains(m.sideTitle(i), name) || m.bodyTop(viewSession) != m.barH(i) {
+		t.Fatalf("frame %q, body top %d", m.sideTitle(i), m.bodyTop(viewSession))
+	}
+
+	w := m.colRect(i).w
+	if strip := ansi.Strip(m.sessionStrip(w)); !strings.Contains(strip, icClose.s()) || !strings.Contains(strip, icMax.s()) {
+		t.Fatalf("the buttons are always there: %q", strip)
+	}
+
+	if got, want := ansi.Strip(m.sessionRule(w)), strings.Repeat("─", w); got != want {
+		t.Fatalf("the rule under the strip: %q", got)
+	}
+
+	if out := ansi.Strip(checkWidths(t, m)); strings.Contains(out, "SESSION") {
+		t.Fatalf("no header row over the strip:\n%s", out)
+	}
+}

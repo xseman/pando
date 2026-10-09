@@ -2831,8 +2831,8 @@ func TestSessionDock(t *testing.T) {
 	}
 
 	_, c := m.layout()
-	title := m.stripH() // the header under the session's tabs
-	m.Update(tea.MouseClickMsg{X: c.x + 5, Y: title, Button: tea.MouseLeft})
+	// The empty end of the session's tab strip is its title.
+	m.Update(tea.MouseClickMsg{X: c.x + c.w - 5, Y: 0, Button: tea.MouseLeft})
 	m.Update(tea.MouseMotionMsg{X: c.x + c.w - 2, Y: 10, Button: tea.MouseLeft})
 
 	if m.drag == nil || m.drag.drop == nil || m.drag.drop.label != "Dock Right" {
@@ -2881,9 +2881,9 @@ func TestSessionDock(t *testing.T) {
 	}
 
 	m.undockSession()
-	// Its title's right click: Close keeps the session running.
+	// The empty end of its strip, right click: Close keeps the session running.
 	_, c = m.layout()
-	m.Update(tea.MouseClickMsg{X: c.x + 5, Y: m.stripH(), Button: tea.MouseRight})
+	m.Update(tea.MouseClickMsg{X: c.x + c.w - 5, Y: 0, Button: tea.MouseRight})
 
 	if m.modal == nil || !slices.Contains(labels(m), "Close (keeps running)") {
 		t.Fatalf("title menu %+v", m.modal)
@@ -3035,20 +3035,18 @@ func TestMaximizeSessionAndFile(t *testing.T) {
 		t.Fatalf("file restored: docked %v, file %v, maxed %v", m.sessDocked(), m.showsPreview(), m.maxed)
 	}
 
-	// The session's own, beside ✕ in its column's header.
+	// The session's own, beside ✕ at the right end of its tab strip.
 	i := m.colOf(viewSession)
 	r := m.colRect(i)
-	m.mouseAt, m.mouseX, m.mouseY = time.Now(), r.x+1, m.barH(i)
-	acts := m.headerActions(i, viewSession, r.w)
-	click(m, r.x+acts[0].x, m.barH(i), tea.MouseLeft)
+	click(m, r.x+m.sessionButtons()[0].x+1, m.barH(i), tea.MouseLeft)
 
 	if m.sessDocked() || !m.showsSession() || !m.maxed {
 		t.Fatalf("session maximized: docked %v, session %v", m.sessDocked(), m.showsSession())
 	}
 
 	checkWidths(t, m)
-	// Restoring is the button at the right end of its tab strip, the first row.
-	click(m, m.mainX()+m.mainW()-2, 0, tea.MouseLeft)
+	// Restoring is the first button at the right end of its tab strip, the first row.
+	click(m, m.mainX()+m.sessionButtons()[0].x+1, 0, tea.MouseLeft)
 
 	if !m.sessDocked() || m.maxed {
 		t.Fatalf("session restored: docked %v, maxed %v", m.sessDocked(), m.maxed)
@@ -3400,7 +3398,7 @@ func TestSessionDragSelects(t *testing.T) {
 
 	m.term.id, m.term.scr = "s1", proto.Screen{Lines: []string{"agent says hi"}}
 	_, c := m.layout()
-	y := m.stripH() + 1 // the session's title row, then its screen
+	y := m.stripH() // the session's screen under its tabs
 
 	m.Update(tea.MouseClickMsg{X: c.x + 6, Y: y, Button: tea.MouseLeft})
 	m.Update(tea.MouseMotionMsg{X: c.x + 9, Y: y, Button: tea.MouseLeft})
@@ -3434,7 +3432,7 @@ func TestSessionSelectionScrolls(t *testing.T) {
 	h := m.sessH()
 	m.term.id, m.term.scr = "s1", proto.Screen{Lines: screen(100, h), Scrollback: 100}
 	_, c := m.layout()
-	y := m.stripH() + 1
+	y := m.stripH()
 
 	m.Update(tea.MouseClickMsg{X: c.x, Y: y + 2, Button: tea.MouseLeft})
 	m.Update(tea.MouseMotionMsg{X: c.x + 7, Y: y + 3, Button: tea.MouseLeft})

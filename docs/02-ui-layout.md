@@ -116,7 +116,14 @@ area; opening a file docks it back, `sessSide`).
   (`hideSession`) and keeps running.
 - Each worktree keeps its own place and width (`session_views` in
   `state.json`).
-- The button among the actions of the session's header and of the file's
+- No header row, in the editor area or in its column: the tab names the
+  session, the frame title (`mainTitle`, `sideTitle`) the project and
+  worktree. The strip carries what a header would: maximize / restore and ✕
+  (`sessionButtons`), always shown as the editor's are, and the hint (exited,
+  scrollback, where `ctrl+]` goes; `sessionHint`) before them, with a rule
+  under it (`sessionRule`, `sessStripH` rows over the screen). The empty part
+  of the strip is the title: drag it to dock, right click for its menu.
+- The button among the actions of the session's tab strip and of the file's
   (`toggleMax`, also _Toggle Session / Editor Maximized_) gives the whole editor
   area to the session or to the file, the other one waiting; pressed again it
   docks them side by side. A maximized session restores from the right end of
