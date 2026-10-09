@@ -2870,9 +2870,17 @@ func TestSessionDock(t *testing.T) {
 	m.Update(tea.MouseMotionMsg{X: c.x + 5, Y: 10, Button: tea.MouseLeft})
 	m.Update(tea.MouseReleaseMsg{X: c.x + 5, Y: 10, Button: tea.MouseLeft})
 
-	if m.sessDocked() || !m.showsSession() {
-		t.Fatalf("stretched over the editor: docked %v, over main %v", m.sessDocked(), m.showsSession())
+	if m.sessDocked() || !m.showsSession() || !m.maxed || !m.canMax() || m.maxGlyph() != icRestore {
+		t.Fatalf("stretched over the editor: docked %v, over main %v, maxed %v", m.sessDocked(), m.showsSession(), m.maxed)
 	}
+	// Restoring puts the column back, at the width it was picked up at.
+	m.toggleMax(false)
+
+	if !m.sessDocked() || m.maxed || m.colRect(m.colOf(viewSession)).w != rc.w {
+		t.Fatalf("restored: docked %v, maxed %v, width %d, was %d", m.sessDocked(), m.maxed, m.colRect(m.colOf(viewSession)).w, rc.w)
+	}
+
+	m.undockSession()
 	// Its title's right click: Close keeps the session running.
 	_, c = m.layout()
 	m.Update(tea.MouseClickMsg{X: c.x + 5, Y: m.stripH(), Button: tea.MouseRight})

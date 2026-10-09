@@ -110,8 +110,9 @@ The agent session is `viewSession`. `session_position` is `right` (default),
 `left` (a column; unsized, half the editor area) or `editor` (over the editor
 area; opening a file docks it back, `sessSide`).
 
-- Widened past `minEditor` (40) cells of editor, or dropped mid-editor, it
-  takes the editor area; narrowed below `snapHide` (10) it closes
+- Dropped mid-editor it takes the editor area. Widened past `minEditor` (40)
+  cells of editor it is maximized (`toggleMax`): restoring docks its column
+  again at the width it was picked up at. Narrowed below `snapHide` (10) it closes
   (`hideSession`) and keeps running.
 - Each worktree keeps its own place and width (`session_views` in
   `state.json`).

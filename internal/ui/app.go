@@ -3515,8 +3515,13 @@ func (m *Model) dragMouse(msg tea.MouseMsg) tea.Cmd {
 		if _, c := m.layout(); slices.Contains(m.colViews(d.col), viewSession) {
 			switch {
 			case c.w-(w-r.w) < minEditor:
-				m.drag = nil // stretched nearly over the editor: it takes the editor area
-				return m.undockSession()
+				// Stretched nearly over the editor: it fills the editor area as
+				// maximized, and restoring puts its column back at the width it
+				// was picked up at.
+				m.drag = nil
+				m.setColWidth(d.col, d.w0)
+
+				return tea.Batch(m.toggleMax(false), m.saveCols(), m.saveSessView())
 
 			case w < snapHide:
 				// Pushed nearly off the screen: it closes, as a VS Code sidebar
