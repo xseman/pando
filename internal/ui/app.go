@@ -3148,8 +3148,13 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 		// y == 0 is the panel's strip, with its tabs and buttons, y == 1 the rule
 		// under it, the rest its body.
 		switch y := mo.Y - m.mainH(); {
-		case y == 1:
+		case y == 1: // the rule is the sash too
+			if click && mo.Button == tea.MouseLeft {
+				m.drag = &drag{kind: dragTerm, y0: mo.Y, h0: m.termRows()}
+			}
+
 			return nil
+
 		case y > 1:
 			return m.termPanelMouse(msg, mo.X-c.x, y-termStripH)
 		case !click:
@@ -3822,7 +3827,15 @@ func (m *Model) sashUnder(x, y int) sash {
 		return s
 	}
 
-	if m.termRows() == 0 || y != m.mainH() || x < c.x || x >= c.x+c.w-m.termBtnW() {
+	if m.termRows() == 0 || y < m.mainH() || y > m.mainH()+1 || x < c.x || x >= c.x+c.w {
+		return noSash
+	}
+
+	if y == m.mainH()+1 { // the rule under the strip, all along
+		return termSash
+	}
+
+	if x >= c.x+c.w-m.termBtnW() {
 		return noSash
 	}
 

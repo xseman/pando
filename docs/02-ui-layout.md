@@ -133,7 +133,8 @@ area; opening a file docks it back, `sessSide`).
 ## Terminal panel
 
 `terminal_position = "bottom"` puts it under main: `termRows()` comes off
-`mainH()`, and the empty part of its strip is a sash for `terminal_height`.
+`mainH()`, and the rule under its strip, with the strip's empty part, is a sash
+for `terminal_height`; the rule lights heavy while the mouse rests on it or drags.
 `left` or `right` makes it a column holding only `viewTerm`.
 
 Like the session's, the strip has the buttons (`termButtons`: maximize and ✕
@@ -163,7 +164,7 @@ dragged divider stops at `minEditor`.
 | Drag                                      | Effect                                     |
 | ----------------------------------------- | ------------------------------------------ |
 | column divider                            | width, saved on release                    |
-| terminal title row                        | `terminal_height`                          |
+| terminal rule and strip's empty part      | `terminal_height`                          |
 | Source Control drawer, GitHub pane header | the pane's top edge                        |
 | tab onto a bar, or the half facing main   | slot between chips (`slotAt`, `placeView`) |
 | tab below a bar, toward the screen edge   | a new column                               |

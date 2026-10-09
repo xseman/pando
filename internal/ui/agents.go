@@ -3122,7 +3122,6 @@ func (m *Model) termPanelLines(w, h int) []string {
 	}
 
 	btns, _ := m.actSegs(m.termButtons(), m.mainX(), m.mainH())
-	left = append(left, m.sashRule(termSash, w, left, btns)...) // the row is the sash
 
 	title := m.stripMark(row(w, nil, left, btns...), stripTerm, 1) // the tabs start past a space
 
@@ -3139,12 +3138,20 @@ func (m *Model) termLines(w, h int) []string {
 }
 
 // termRule is the line under the Terminal's strip, its tabs starting x cells in.
+// In the bottom panel it is the sash's: it lights heavy while the mouse rests on
+// the panel's edge or drags it.
 func (m *Model) termRule(w, x int) string {
 	var marks []ruleMark
 
 	for _, t := range m.termTabs(m.termStripW()) {
 		if !t.plus {
 			marks = append(marks, ruleMark{x + t.x, t.w, t.active, t.id == m.overTab})
+		}
+	}
+
+	if m.termRows() > 0 {
+		if st, ok := m.sashStyle(termSash); ok {
+			return ruleRow(w, marks, st)
 		}
 	}
 

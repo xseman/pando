@@ -3694,15 +3694,23 @@ func TestSashHover(t *testing.T) {
 
 	m.sashSince = time.Now().Add(-sashDelay)
 
-	if head := ansi.Strip(m.termPanelLines(c.w, m.termRows())[0]); !strings.Contains(head, "━") {
-		t.Fatalf("the rested-on title row draws a rule: %q", head)
+	lines := m.termPanelLines(c.w, m.termRows())
+	if head, rule := ansi.Strip(lines[0]), ansi.Strip(lines[1]); strings.Contains(head, "━") || !strings.Contains(rule, "━") {
+		t.Fatalf("the rested-on strip lights the rule under it, not itself:\n%q\n%q", head, rule)
+	}
+
+	// The rule is the sash all along, under the tabs too.
+	m.Update(tea.MouseMotionMsg{X: c.x + 2 + m.bord(), Y: m.mainH() + 1 + m.bord()})
+
+	if m.sashAt != termSash {
+		t.Fatalf("the rule under the strip is the sash: %v", m.sashAt)
 	}
 
 	checkWidths(t, m)
 }
 
 // TestPaneSashHover lights an open Source Control drawer's header as the
-// Terminal's title row lights: a rule across its free part once the pointer
+// Terminal's rule lights: a rule across its free part once the pointer
 // rests, the accent while it is dragged. A folded drawer's header only folds.
 func TestPaneSashHover(t *testing.T) {
 	m := gitModel(t)

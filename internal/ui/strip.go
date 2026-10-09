@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/xseman/pando/internal/proto"
@@ -65,9 +66,16 @@ type ruleMark struct {
 
 // ruleRow is the line under a strip, as the activity bar has under its icons:
 // a faint rule, in the accent color under the active tab and in a tint of it
-// under the one the mouse is on.
-func ruleRow(w int, marks []ruleMark) string {
-	rule := func(n int) seg { return sg(strings.Repeat("─", max(n, 0)), fg(pal.rulerBorder)) }
+// under the one the mouse is on. A lit rule (a strip that is a sash while it
+// lights or drags) is drawn heavy in that style between the marks.
+func ruleRow(w int, marks []ruleMark, lit ...lipgloss.Style) string {
+	rule := func(n int) seg {
+		if len(lit) > 0 {
+			return sg(strings.Repeat("━", max(n, 0)), lit[0])
+		}
+
+		return sg(strings.Repeat("─", max(n, 0)), fg(pal.rulerBorder))
+	}
 
 	var segs []seg
 
