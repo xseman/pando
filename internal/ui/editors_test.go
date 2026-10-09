@@ -179,6 +179,49 @@ func TestGoToLine(t *testing.T) {
 	}
 }
 
+func TestQuickOpenListsRecentFirst(t *testing.T) {
+	m := previewModel(t, "file", "one")
+	m.files = []string{filepath.Join(m.ws, "c.go"), filepath.Join(m.ws, "gone.go"), filepath.Join(m.ws, "b.go")}
+
+	m.quickOpen(indexMsg{ws: m.ws, files: []string{"a.go", "b.go", "c.go", "d.go"}})
+
+	var got []string
+
+	for _, it := range m.modal.disp {
+		got = append(got, it.label)
+	}
+
+	want := []string{"recently opened", "c.go", "b.go", "", "files", "a.go", "d.go"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("rows %q, want %q", got, want)
+	}
+
+	press(m, "g")
+
+	if m.modal.disp[0].sep {
+		t.Fatalf("a query keeps the headings: %+v", m.modal.disp)
+	}
+}
+
+func TestQuickOpenTreeListsRecentFirst(t *testing.T) {
+	m := previewModel(t, "file", "one")
+	m.files = []string{filepath.Join(m.ws, "z", "c.go"), filepath.Join(m.ws, "b.go")}
+	m.st.Settings.QuickTree = true
+
+	m.quickOpen(indexMsg{ws: m.ws, files: []string{"a/a.go", "b.go", "z/c.go"}})
+
+	var got []string
+
+	for _, it := range m.modal.disp {
+		got = append(got, it.label)
+	}
+
+	want := []string{"recently opened", "z/c.go", "b.go", "", "files", "a/", "  a.go"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("rows %q, want %q", got, want)
+	}
+}
+
 func TestEditorMiddleClickAndSuperArrows(t *testing.T) {
 	m := testModelSized(t, 100, 24)
 

@@ -177,8 +177,10 @@ Merge is in the `m` menu and merges only the head the list showed.
 
 ## Editor
 
-- Undo, find & replace, quick open (`ctrl+p`, `:` line, `@` symbol),
-  suggestions, merge-conflict _Accept_ actions.
+- Undo, find & replace, quick open (`ctrl+p`, recent files first,
+  `:` line, `@` symbol), suggestions, merge-conflict _Accept_ actions.
+- A file's path shows under its tab (`breadcrumbs`); click a folder to browse it, ⏎ opens a
+  file or unfolds a folder.
 - `ctrl+shift+v` renders Markdown, `alt+v` beside the source.
 - A file opened from Explorer, Search or Source Control takes the preview
   tab, in italics, which the next one replaces; an edit or a double click

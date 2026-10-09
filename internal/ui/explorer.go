@@ -878,9 +878,25 @@ func (m *Model) spawn(ws, agent, parent string, cmd []string, typed string, env 
 func (m *Model) quickOpen(msg indexMsg) {
 	md := &modal{title: "Go to File", filter: true, lineQuery: true, treeable: true, tree: m.st.Settings.QuickTree, x: -1}
 
-	md.items = make([]item, len(msg.files))
-	for i, f := range msg.files {
+	// The last few files opened come first, under their own heading while
+	// browsing; a query ranks all files as one list, where the stable sort
+	// lets them win a tie between equal matches.
+	var recent []string
+
+	for _, p := range m.files {
+		if rel, err := filepath.Rel(msg.ws, p); err == nil && slices.Contains(msg.files, rel) {
+			recent = append(recent, rel)
+		}
+	}
+
+	recent = recent[:min(len(recent), 5)]
+
+	files := slices.Concat(recent, slices.DeleteFunc(slices.Clone(msg.files), func(f string) bool { return slices.Contains(recent, f) }))
+
+	md.items = make([]item, len(files))
+	for i, f := range files {
 		p := filepath.Join(msg.ws, f)
+
 		md.items[i] = item{label: f, run: func(m *Model) tea.Cmd {
 			m.ex.reveal(m, p)
 
@@ -892,9 +908,24 @@ func (m *Model) quickOpen(msg indexMsg) {
 		}}
 	}
 
+	// group files the way VS Code does while the query is empty.
+	group := func(browsing bool) {
+		for i := range md.items {
+			md.items[i].group = ""
+
+			if browsing && len(recent) > 0 {
+				md.items[i].group = map[bool]string{true: recentGroup, false: "files"}[i < len(recent)]
+			}
+		}
+	}
+
+	group(true)
+
 	md.input = newPicker("", nil).input
 	asked := false
 	md.change = func(m *Model, v string) tea.Cmd { // "@" goes to a symbol in the open file, ":" to a line, as in VS Code
+		group(v == "")
+
 		if strings.HasPrefix(v, ":") && m.showsPreview() && m.pv.ready {
 			m.modal = nil
 			return m.gotoLineQuery(v)

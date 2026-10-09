@@ -561,6 +561,9 @@ func matchItem(q string, it item) int {
 	return fuzzy(strings.Join(rest, " "), it.search)
 }
 
+// recentGroup is the heading of the files quick open lists first.
+const recentGroup = "recently opened"
+
 // modal is the single overlay: a menu (items), a filterable picker
 // (items + filter), or a prompt (input + submit).
 type modal struct {
@@ -836,9 +839,17 @@ func (md *modal) refilter() {
 	switch {
 	case q != "":
 		slices.SortStableFunc(hits, func(a, b hit) int { return cmp.Compare(b.score, a.score) })
-	case md.tree: // browsing: alphabetical, like a file tree
+	case md.tree: // browsing: alphabetical, like a file tree; a group first, in its own order
 		slices.SortStableFunc(hits, func(a, b hit) int {
-			return strings.Compare(strings.ToLower(md.items[a.i].label), strings.ToLower(md.items[b.i].label))
+			ia, ib := md.items[a.i], md.items[b.i]
+			switch {
+			case ia.group != ib.group:
+				return cmp.Compare(ib.group, ia.group) // "recently opened" before "files"
+			case ia.group == recentGroup:
+				return 0
+			}
+
+			return strings.Compare(strings.ToLower(ia.label), strings.ToLower(ib.label))
 		})
 	}
 
@@ -888,6 +899,15 @@ func (md *modal) refilter() {
 
 		for _, h := range hits {
 			it := md.items[h.i]
+			if it.group == recentGroup { // a few files, listed whole rather than by directory
+				if len(md.disp) == 0 {
+					md.disp = append(md.disp, item{label: recentGroup, sep: true})
+				}
+
+				md.disp = append(md.disp, it)
+
+				continue
+			}
 
 			dir := filepath.Dir(it.label)
 			if _, ok := groups[dir]; !ok {
@@ -895,6 +915,10 @@ func (md *modal) refilter() {
 			}
 
 			groups[dir] = append(groups[dir], item{label: "  " + filepath.Base(it.label), hint: it.hint, run: it.run})
+		}
+
+		if len(md.disp) > 0 && len(order) > 0 { // after the recent files
+			md.disp = append(md.disp, item{}, item{label: "files", sep: true})
 		}
 
 		for _, dir := range order {

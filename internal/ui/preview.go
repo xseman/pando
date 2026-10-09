@@ -267,6 +267,10 @@ func (m *Model) setPreview(p preview) tea.Cmd {
 		m.navPush(p.snapshot())
 	}
 
+	if p.kind == pvFile && !m.restoring {
+		m.files = slices.Insert(slices.DeleteFunc(m.files, func(f string) bool { return f == p.path }), 0, p.path)
+	}
+
 	m.pv = p
 	m.pv.wrap = m.st.Settings.Wrap
 

@@ -144,10 +144,11 @@ type Model struct {
 	savedDrafts map[string]string // per draft key: the unsaved text the daemon was last told about
 	branchSeen  string            // the open worktree's branch the worktree list was last reloaded for
 	ticks       int
-	clock       int     // counter behind recent
-	hidden      [2]bool // per side, left and right: folded into a rail
-	unfold      [2]bool // per side: opened by hand while squeezed, so it stays open until the next resize
-	preview     bool    // main shows the preview instead of the session
+	clock       int      // counter behind recent
+	files       []string // files opened, most recent first, for quick open
+	hidden      [2]bool  // per side, left and right: folded into a rail
+	unfold      [2]bool  // per side: opened by hand while squeezed, so it stays open until the next resize
+	preview     bool     // main shows the preview instead of the session
 	dark        bool
 	fg, bg      string // host terminal colors as #rrggbb, passed to new sessions
 	msg         string
