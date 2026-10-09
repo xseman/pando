@@ -228,7 +228,8 @@ Editors, session tabs and Terminal shells share `strip.go`.
 - `tabChip`: active bold, others dim, neither on a fill (`hover_bg` under
   the mouse, `overTab`), each followed by a `▏` in `tab_border`
   (`tabGap`). Room for `✕` is always kept (`tabClose`), so activating moves
-  nothing.
+  nothing. The active tab's `✕` raises like a button while the mouse is on
+  it (`overX`, `closeHot`).
 - Press picks a tab up (`grabTab`, `dragStrip`), an accent `│` marks the slot
   (`stripSlot`), release moves it. `ctrl+shift+pgup`/`pgdn` move it
   (`moveTab`). A session's own tab stays first.

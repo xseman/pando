@@ -310,17 +310,65 @@ func TestPlusButtonHovers(t *testing.T) {
 		{stripTerm, m.termTabs(m.termStripW())},
 	} {
 		plus := c.tabs[len(c.tabs)-1]
-		if !plus.plus || m.tabAt(c.strip, plus.x+1) != plusTab || m.tabAt(c.strip, plus.x+plus.w) != "" {
-			t.Fatalf("strip %d: tabAt over the +: %+v", c.strip, plus)
+		in, _ := m.tabUnder(c.strip, plus.x+1)
+		past, _ := m.tabUnder(c.strip, plus.x+plus.w)
+
+		if !plus.plus || in != plusTab || past != "" {
+			t.Fatalf("strip %d: tabUnder over the +: %+v", c.strip, plus)
 		}
 
 		for _, over := range []string{"", plusTab} {
-			segs := tabSegs(c.tabs, over)
+			segs := tabSegs(c.tabs, over, "")
 
 			if got := segs[len(segs)-1].ownBg; got != (over == plusTab) {
 				t.Fatalf("strip %d, over %q: the + paints its own background: %v", c.strip, over, got)
 			}
 		}
+	}
+}
+
+// TestCloseHovers raises the ✕ of the active tab while the pointer is on the
+// cells where a click closes it, and nowhere else.
+func TestCloseHovers(t *testing.T) {
+	m := testModel(t)
+	drainInputs(m)
+
+	m.sessions = append(m.sessions, termSession(m.ws, "p1"))
+	m.tv.id = "p1"
+	m.st.Settings.TermOpen, m.st.Settings.TermPos, m.st.Settings.TermH = true, "bottom", 8
+	m.resize()
+
+	var tab sessTab
+
+	for _, c := range m.termTabs(m.termStripW()) {
+		if c.active {
+			tab = c
+		}
+	}
+
+	if tab.id != "p1" {
+		t.Fatalf("no active tab: %+v", tab)
+	}
+
+	for x, want := range map[int]bool{tab.x + tab.w - 4: false, tab.x + tab.w - 3: true, tab.x + tab.w - 1: true, tab.x + tab.w: false} {
+		if _, on := m.tabUnder(stripTerm, x); on != want {
+			t.Fatalf("column %d of the tab at %d, %d wide: on ✕ %v", x, tab.x, tab.w, on)
+		}
+	}
+
+	m.setOver(stripTerm, tab.x+tab.w-1)
+
+	if m.overX != "p1" {
+		t.Fatalf("overX %q", m.overX)
+	}
+
+	hot := tabSegs([]sessTab{tab}, m.overTab, m.overX)
+	if got := hot[1]; got.s != " "+icClose.s()+" " || got.st.GetBackground() != keycapHot().GetBackground() {
+		t.Fatalf("the ✕ is not raised: %+v", hot)
+	}
+
+	if cold := tabSegs([]sessTab{tab}, m.overTab, ""); len(cold) != len(hot)-1 {
+		t.Fatalf("a tab without the ✕ under the mouse is one chip: %d vs %d segments", len(cold), len(hot))
 	}
 }
 

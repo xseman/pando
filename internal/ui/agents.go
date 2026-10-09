@@ -2532,7 +2532,7 @@ func (m *Model) sessionStrip(w int) string {
 
 	btns, _ := m.actSegs(m.sessionButtons(), x0, y)
 
-	return m.stripMark(row(w, nil, tabSegs(tabs, m.overTab), append(right, btns...)...), stripSession, 0)
+	return m.stripMark(row(w, nil, tabSegs(tabs, m.overTab, m.overX), append(right, btns...)...), stripSession, 0)
 }
 
 // sessionRule is the line under the session's strip.
@@ -2609,8 +2609,9 @@ func (m *Model) sessionHint() (string, lipgloss.Style) {
 	return "", plain
 }
 
-// tabSegs draws a strip's tabs, tab over in hover_bg.
-func tabSegs(tabs []sessTab, over string) []seg {
+// tabSegs draws a strip's tabs, tab over in hover_bg and the ✕ of tab overX
+// raised.
+func tabSegs(tabs []sessTab, over, overX string) []seg {
 	var segs []seg
 
 	for _, t := range tabs {
@@ -2630,7 +2631,12 @@ func tabSegs(tabs []sessTab, over string) []seg {
 			bg = pal.hoverBg
 		}
 
-		segs = append(segs, tabChip(t.label, t.active, bg)...)
+		chip := tabChip(t.label, t.active, bg)
+		if t.active && t.id == overX {
+			chip = closeHot(chip)
+		}
+
+		segs = append(segs, chip...)
 	}
 
 	return segs
@@ -2654,7 +2660,7 @@ func (m *Model) sessionStripMouse(x int, mo tea.Mouse) tea.Cmd {
 			return m.newTab()
 		case button == tea.MouseRight:
 			return m.sessionMenu(t.id)
-		case button == tea.MouseMiddle || (t.active && x >= t.x+t.w-2):
+		case button == tea.MouseMiddle || (t.active && x >= t.x+t.w-tabCloseW):
 			return m.confirmKill(t.id)
 		case button == tea.MouseLeft && t.id != m.rootOf(m.sess):
 			m.grabTab(stripSession, t.id, x)
@@ -3118,7 +3124,7 @@ func (m *Model) termPanelLines(w, h int) []string {
 
 	left := []seg{sg(" "+icTerminal.s()+" ", st)}
 	if tabs := m.termTabs(m.termStripW()); len(tabs) > 0 {
-		left = append([]seg{sg(" ", plain)}, tabSegs(tabs, m.overTab)...)
+		left = append([]seg{sg(" ", plain)}, tabSegs(tabs, m.overTab, m.overX)...)
 	}
 
 	btns, _ := m.actSegs(m.termButtons(), m.mainX(), m.mainH())
@@ -3132,7 +3138,7 @@ func (m *Model) termPanelLines(w, h int) []string {
 // then the terminal screen.
 func (m *Model) termLines(w, h int) []string {
 	btns, _ := m.actSegs(m.termButtons(), m.colRect(m.colOf(viewTerm)).x, m.barH(m.colOf(viewTerm)))
-	strip := m.stripMark(row(w, nil, tabSegs(m.termTabs(m.termStripW()), m.overTab), btns...), stripTerm, 0)
+	strip := m.stripMark(row(w, nil, tabSegs(m.termTabs(m.termStripW()), m.overTab, m.overX), btns...), stripTerm, 0)
 
 	return append([]string{strip, m.termRule(w, 0)}, m.termScreen(w, h-termStripH)...)
 }
@@ -3249,7 +3255,7 @@ func (m *Model) termStripMouse(x int, button tea.MouseButton) tea.Cmd {
 			return m.newTerm()
 		case button == tea.MouseRight:
 			return m.sessionMenu(t.id)
-		case button == tea.MouseMiddle || (t.active && x >= t.x+t.w-2):
+		case button == tea.MouseMiddle || (t.active && x >= t.x+t.w-tabCloseW):
 			return m.confirmKill(t.id)
 		case button == tea.MouseLeft:
 			m.grabTab(stripTerm, t.id, x)

@@ -308,7 +308,7 @@ func TestTabChips(t *testing.T) {
 	}
 
 	ss := m.tabsFor(100, ss2, "a")
-	if ss[1].x != ss[0].w+tabGap || !strings.Contains(row(100, nil, tabSegs(ss, "")), "\x1b[1m") {
+	if ss[1].x != ss[0].w+tabGap || !strings.Contains(row(100, nil, tabSegs(ss, "", "")), "\x1b[1m") {
 		t.Fatalf("session tabs: %+v", ss)
 	}
 

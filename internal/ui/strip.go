@@ -94,20 +94,22 @@ func ruleRow(w int, marks []ruleMark, lit ...lipgloss.Style) string {
 	return row(w, nil, append(segs, rule(w-cx)))
 }
 
-// plusTab is tabAt's answer over a strip's + button, which has no session.
+// plusTab is tabUnder's answer over a strip's + button, which has no session.
 const plusTab = "+"
 
-// tabAt is the id of strip s's tab at strip column x, the session's own
-// included; plusTab over a session or terminal strip's +, "" past its tabs.
-func (m *Model) tabAt(s, x int) string {
+// tabUnder is the id of strip s's tab at strip column x, the session's own
+// included; plusTab over a session or terminal strip's +, "" past its tabs. It
+// says too whether x is on the active tab's ✕, the cells where a click closes
+// it.
+func (m *Model) tabUnder(s, x int) (id string, onClose bool) {
 	if s == stripEditor {
 		for _, t := range m.editorTabs(m.mainW()) {
 			if x >= t.x && x < t.x+t.w {
-				return m.editors[t.i].id()
+				return m.editors[t.i].id(), t.active && x >= t.x+t.w-tabCloseW
 			}
 		}
 
-		return ""
+		return "", false
 	}
 
 	tabs := m.termTabs(m.termStripW())
@@ -118,14 +120,25 @@ func (m *Model) tabAt(s, x int) string {
 	for _, t := range tabs {
 		if x >= t.x && x < t.x+t.w {
 			if t.plus {
-				return plusTab
+				return plusTab, false
 			}
 
-			return t.id
+			return t.id, t.active && x >= t.x+t.w-tabCloseW
 		}
 	}
 
-	return ""
+	return "", false
+}
+
+// setOver notes the tab of strip s under column x as hovered, and its ✕ when
+// the pointer is on it.
+func (m *Model) setOver(s, x int) {
+	id, onClose := m.tabUnder(s, x)
+	m.overTab = id
+
+	if onClose {
+		m.overX = id
+	}
 }
 
 // stripOrder is every movable tab of strip s, shown or not, in its order.

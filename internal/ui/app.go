@@ -180,6 +180,7 @@ type Model struct {
 	mouseY    int
 	overBar   barPoint  // the scrollbar cell under the mouse: its slider hovers
 	overTab   string    // the tab under the mouse, in any strip: its chip hovers
+	overX     string    // the tab whose ✕ is under the mouse: the ✕ raises
 	sashAt    sash      // the divider under the mouse, noSash for none
 	sashSince time.Time // when the mouse came onto it
 	mouseAt   time.Time
@@ -3086,6 +3087,7 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 	m.mouseX, m.mouseY, m.mouseAt = mo.X, mo.Y, time.Now()
 	m.overBar = barPoint{} // the bar under it, if any, notes it again below
 	m.overTab = ""         // so does the tab
+	m.overX = ""
 
 	_, click := msg.(tea.MouseClickMsg)
 	if m.drag != nil {
@@ -3158,7 +3160,7 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 		case y > 1:
 			return m.termPanelMouse(msg, mo.X-c.x, y-termStripH)
 		case !click:
-			m.overTab = m.tabAt(stripTerm, mo.X-c.x-1)
+			m.setOver(stripTerm, mo.X-c.x-1)
 			return nil
 		}
 
@@ -3184,9 +3186,10 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 
 	strip := m.stripH()
 	if strip > 0 && mo.Y == 0 {
-		m.overTab = m.tabAt(stripEditor, mo.X-c.x)
+		m.setOver(stripEditor, mo.X-c.x)
+
 		if m.showsSession() {
-			m.overTab = m.tabAt(stripSession, mo.X-c.x)
+			m.setOver(stripSession, mo.X-c.x)
 		}
 	}
 
@@ -3441,7 +3444,8 @@ func (m *Model) viewMouse(v view, msg tea.MouseMsg, x, y int) tea.Cmd {
 		return m.sr.mouse(m, msg, x, y)
 	case viewTerm:
 		if y == 0 { // the tab strip
-			m.overTab = m.tabAt(stripTerm, x)
+			m.setOver(stripTerm, x)
+
 			if a, ok := hit(m.termButtons(), x); ok && click && mo.Button == tea.MouseLeft {
 				return a.run(m)
 			}
@@ -3461,7 +3465,8 @@ func (m *Model) viewMouse(v view, msg tea.MouseMsg, x, y int) tea.Cmd {
 
 	case viewSession:
 		if y == 0 { // its tabs
-			m.overTab = m.tabAt(stripSession, x)
+			m.setOver(stripSession, x)
+
 			if click {
 				return m.sessionStripMouse(x, mo)
 			}

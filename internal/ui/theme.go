@@ -249,6 +249,10 @@ func keycapHot() lipgloss.Style {
 // hairline sets it apart from the next.
 const tabGap = 1
 
+// tabCloseW is the cells ending a tab's label that close it: a space, the ✕
+// and a space, which closeHot raises together.
+const tabCloseW = 3
+
 // tabClose is the end of a tab's label: the ✕ on the active tab, as much
 // blank on the others, so a tab keeps its width whichever one is active and
 // the strip never shifts under the pointer, as VS Code's does.
@@ -289,6 +293,20 @@ func tabChip(label string, active bool, bg color.Color) []seg {
 	}
 
 	return []seg{sgOwn(label, st), sg("▏", fg(pal.tabBorder))}
+}
+
+// closeHot raises the tabCloseW cells that end a chip's label, as a button
+// under the mouse, so the tab shows where a click closes it.
+func closeHot(chip []seg) []seg {
+	r := []rune(chip[0].s)
+	if len(r) < tabCloseW {
+		return chip
+	}
+
+	body, x := chip[0], sgOwn(string(r[len(r)-tabCloseW:]), keycapHot())
+	body.s = string(r[:len(r)-tabCloseW])
+
+	return append([]seg{body, x}, chip[1:]...)
 }
 
 // badge is a count in a chip of its own color.

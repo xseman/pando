@@ -808,6 +808,10 @@ func (m *Model) editorStrip(w int) string {
 		}
 
 		chip := tabChip(t.label, t.active, bg)
+		if t.active && m.editors[t.i].id() == m.overX {
+			chip = closeHot(chip)
+		}
+
 		if m.editors[t.i].transient {
 			chip[0].st = chip[0].st.Italic(true).Bold(false)
 		}
@@ -880,7 +884,7 @@ func (m *Model) stripMouse(x int, button tea.MouseButton) tea.Cmd {
 			continue
 		}
 
-		if button == tea.MouseMiddle || (t.active && x >= t.x+t.w-2) {
+		if button == tea.MouseMiddle || (t.active && x >= t.x+t.w-tabCloseW) {
 			return m.closeEditor(t.i)
 		}
 
