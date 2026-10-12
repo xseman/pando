@@ -94,6 +94,7 @@ func ghModel(t *testing.T) (*Model, fakeGH, tea.Cmd) {
 
 	m := testModelSized(t, 100, 40)
 	m.hasGH = true
+	m.gh.open[ghSecKey(ghIssues)], m.gh.open[ghSecKey(ghNotes)] = true, true // folded by default
 
 	return m, f, m.showView(viewGitHub)
 }
@@ -154,6 +155,27 @@ func TestGitHubViewNeedsGH(t *testing.T) {
 
 	if !m.shown(viewGitHub) || !m.focused(viewGitHub) {
 		t.Fatal("6 does not show the GitHub view")
+	}
+}
+
+// TestGitHubOpensPullRequestsOnly: Issues and Notifications start folded, so
+// gh is asked for the pull requests alone.
+func TestGitHubOpensPullRequestsOnly(t *testing.T) {
+	f := newFakeGH(t)
+	f.answer(t, "pr-list", ghPRList)
+
+	m := testModelSized(t, 100, 40)
+	m.hasGH = true
+	ghRun(t, m, m.showView(viewGitHub))
+
+	if calls := f.calls(t); len(calls) != 1 || !strings.HasPrefix(calls[0], "pr list ") {
+		t.Errorf("gh calls %q", calls)
+	}
+
+	for _, s := range []int{ghIssues, ghNotes} {
+		if m.gh.open[ghSecKey(s)] {
+			t.Errorf("%s starts unfolded", ghSections[s])
+		}
 	}
 }
 

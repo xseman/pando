@@ -101,7 +101,7 @@ type ghView struct {
 func (g *ghView) init() {
 	g.l, g.res, g.checking = list{sel: -1}, map[string]*ghRes{}, map[string]bool{}
 	g.tops, g.h = map[int]int{}, map[int]int{}
-	g.open = map[string]bool{ghSecKey(ghPRs): true, ghSecKey(ghIssues): true, ghSecKey(ghNotes): true, "q:All Open": true, "q:My Issues": true}
+	g.open = map[string]bool{ghSecKey(ghPRs): true, "q:All Open": true, "q:My Issues": true}
 }
 
 func ghSecKey(s int) string { return "s:" + ghSections[s] }
