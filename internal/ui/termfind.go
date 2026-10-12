@@ -344,7 +344,7 @@ func (m *Model) termFindBoxes() (boxes [][]string, xs, ys []int) {
 
 	w, h := m.termBody()
 	if m.termRows() > 0 {
-		add(&m.tv.term, m.tv.id, m.mainX(), m.mainH()+termStripH, w, h)
+		add(&m.tv.term, m.tv.id, m.mainX(), m.mainH()+panelTopH, w, h)
 	} else {
 		add(&m.tv.term, m.tv.id, m.colRect(m.colOf(viewTerm)).x, m.bodyTop(viewTerm)+termStripH, w, h)
 	}

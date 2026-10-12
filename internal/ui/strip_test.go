@@ -270,7 +270,7 @@ func TestDragTerminalTab(t *testing.T) {
 	}
 
 	tabs := m.termTabs(m.termStripW())
-	y, left := m.mainH(), m.mainX()+1
+	y, left := m.mainH()+1, m.mainX()+1
 
 	m.Update(tea.MouseClickMsg{X: left + tabs[0].x + 1, Y: y, Button: tea.MouseLeft})
 
@@ -280,7 +280,7 @@ func TestDragTerminalTab(t *testing.T) {
 
 	m.Update(tea.MouseMotionMsg{X: left + tabs[1].x + tabs[1].w - 1, Y: y, Button: tea.MouseLeft})
 
-	if got := markAt(m.termPanelLines(m.mainW(), m.termRows())[0]); got != 1+tabs[1].x+tabs[1].w {
+	if got := markAt(m.termPanelLines(m.mainW(), m.termRows())[1]); got != 1+tabs[1].x+tabs[1].w {
 		t.Fatalf("the mark sits after p2 in the panel's title row: %d", got)
 	}
 
@@ -467,29 +467,33 @@ func TestTerminalStripCarriesTheButtons(t *testing.T) {
 	m.focus = onPanel
 
 	lines := m.termPanelLines(m.mainW(), m.termRows())
-	if strip := ansi.Strip(lines[0]); !strings.Contains(strip, icMax.s()) || !strings.Contains(strip, icClose.s()) {
+	if got, want := ansi.Strip(lines[0]), strings.Repeat("─", m.mainW()); got != want {
+		t.Fatalf("the border over the strip: %q", got)
+	}
+
+	if strip := ansi.Strip(lines[1]); !strings.Contains(strip, icMax.s()) || !strings.Contains(strip, icClose.s()) {
 		t.Fatalf("the buttons are always there: %q", strip)
 	}
 
-	if got, want := ansi.Strip(lines[1]), strings.Repeat("─", m.mainW()); got != want {
+	if got, want := ansi.Strip(lines[2]), strings.Repeat("─", m.mainW()); got != want {
 		t.Fatalf("the rule under the strip: %q", got)
 	}
 
-	if _, h := m.termBody(); h != m.termRows()-termStripH {
-		t.Fatalf("the screen is under the strip and rule: %d of %d rows", h, m.termRows())
+	if _, h := m.termBody(); h != m.termRows()-panelTopH {
+		t.Fatalf("the screen is under the border, strip and rule: %d of %d rows", h, m.termRows())
 	}
 
 	checkWidths(t, m)
 
 	// The first button maximizes the panel, and then restores it.
 	acts := m.termButtons()
-	click(m, m.mainX()+acts[0].x+1, m.mainH(), tea.MouseLeft)
+	click(m, m.mainX()+acts[0].x+1, m.mainH()+1, tea.MouseLeft)
 
 	if !m.termMax || m.termButtons()[0].g != icRestore {
 		t.Fatalf("maximized: %v", m.termMax)
 	}
 
-	click(m, m.mainX()+m.termButtons()[0].x+1, m.mainH(), tea.MouseLeft)
+	click(m, m.mainX()+m.termButtons()[0].x+1, m.mainH()+1, tea.MouseLeft)
 
 	if m.termMax {
 		t.Fatal("restored")
@@ -497,7 +501,7 @@ func TestTerminalStripCarriesTheButtons(t *testing.T) {
 
 	// The last one closes the panel.
 	acts = m.termButtons()
-	click(m, m.mainX()+acts[len(acts)-1].x+1, m.mainH(), tea.MouseLeft)
+	click(m, m.mainX()+acts[len(acts)-1].x+1, m.mainH()+1, tea.MouseLeft)
 
 	if m.termOpen() {
 		t.Fatal("the panel closed")

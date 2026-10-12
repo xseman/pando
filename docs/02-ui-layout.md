@@ -134,8 +134,9 @@ area; opening a file docks it back, `sessSide`).
 ## Terminal panel
 
 `terminal_position = "bottom"` puts it under main: `termRows()` comes off
-`mainH()`, and the rule under its strip, with the strip's empty part, is a sash
-for `terminal_height`; the rule lights heavy while the mouse rests on it or drags.
+`mainH()`, and a border over its strip, the rule under it and the strip's empty
+part are a sash for `terminal_height`; the border and the rule light heavy while
+the mouse rests on it or drags. `panelTopH` counts the three rows.
 `left` or `right` makes it a column holding only `viewTerm`.
 
 Like the session's, the strip has the buttons (`termButtons`: maximize and ✕

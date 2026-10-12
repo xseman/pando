@@ -1804,8 +1804,8 @@ func TestTerminalPanel(t *testing.T) {
 	}
 
 	out := strings.Split(checkWidths(t, m), "\n")
-	if !strings.Contains(out[m.mainH()], "bash") {
-		t.Fatalf("the panel's tabs sit on its first row: %q", out[m.mainH()])
+	if !strings.Contains(out[m.mainH()+1], "bash") || strings.Trim(ansi.Strip(out[m.mainH()]), "│─ ") != "" {
+		t.Fatalf("the panel's tabs sit under its border: %q", out[m.mainH():m.mainH()+2])
 	}
 	// Terminal sessions stay out of the Agents view and the main strip.
 	if len(m.agentSessions()) != 1 || m.agentSessions()[0].ID == "t1" {
@@ -1821,7 +1821,7 @@ func TestTerminalPanel(t *testing.T) {
 	}
 
 	c := m.mainX()
-	if cmd := m.mouse(tea.MouseClickMsg{X: c + 1 + plus.x, Y: m.mainH(), Button: tea.MouseLeft}); cmd == nil {
+	if cmd := m.mouse(tea.MouseClickMsg{X: c + 1 + plus.x, Y: m.mainH() + 1, Button: tea.MouseLeft}); cmd == nil {
 		t.Fatal("clicking + in the bottom panel opens a shell")
 	}
 
@@ -3389,7 +3389,7 @@ func TestTerminalDragSelectsAndCopies(t *testing.T) {
 
 	tv := &m.tv
 	tv.term.id, tv.scr = "t1", proto.Screen{Lines: []string{"\x1b[31mhello world\x1b[m", "second line", "third"}}
-	x, y := m.mainX(), m.mainH()+termStripH // the panel's first screen row, under its strip and rule
+	x, y := m.mainX(), m.mainH()+panelTopH // the panel's first screen row, under its border, strip and rule
 
 	m.Update(tea.MouseClickMsg{X: x + 6, Y: y, Button: tea.MouseLeft})
 	m.Update(tea.MouseMotionMsg{X: x + 2, Y: y + 1, Button: tea.MouseLeft})
@@ -3720,7 +3720,7 @@ func TestSashHover(t *testing.T) {
 	press(m, "ctrl+j")
 
 	_, c := m.layout()
-	x, y := c.x+c.w-8, m.mainH() // past the tabs, before the ✕
+	x, y := c.x+c.w-8, m.mainH()+1 // past the tabs, before the ✕
 	m.Update(tea.MouseMotionMsg{X: x + m.bord(), Y: y + m.bord()})
 
 	if m.sashAt != termSash {
@@ -3730,15 +3730,17 @@ func TestSashHover(t *testing.T) {
 	m.sashSince = time.Now().Add(-sashDelay)
 
 	lines := m.termPanelLines(c.w, m.termRows())
-	if head, rule := ansi.Strip(lines[0]), ansi.Strip(lines[1]); strings.Contains(head, "━") || !strings.Contains(rule, "━") {
-		t.Fatalf("the rested-on strip lights the rule under it, not itself:\n%q\n%q", head, rule)
+	if top, head, rule := ansi.Strip(lines[0]), ansi.Strip(lines[1]), ansi.Strip(lines[2]); !strings.Contains(top, "━") || strings.Contains(head, "━") || !strings.Contains(rule, "━") {
+		t.Fatalf("the rested-on strip lights the border over it and the rule under it, not itself:\n%q\n%q\n%q", top, head, rule)
 	}
 
-	// The rule is the sash all along, under the tabs too.
-	m.Update(tea.MouseMotionMsg{X: c.x + 2 + m.bord(), Y: m.mainH() + 1 + m.bord()})
+	// The border and the rule are the sash all along, over and under the tabs too.
+	for _, y := range []int{m.mainH(), m.mainH() + 2} {
+		m.Update(tea.MouseMotionMsg{X: c.x + 2 + m.bord(), Y: y + m.bord()})
 
-	if m.sashAt != termSash {
-		t.Fatalf("the rule under the strip is the sash: %v", m.sashAt)
+		if m.sashAt != termSash {
+			t.Fatalf("row %d of the panel is the sash: %v", y-m.mainH(), m.sashAt)
+		}
 	}
 
 	checkWidths(t, m)

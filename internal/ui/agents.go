@@ -3071,7 +3071,7 @@ func (m *Model) clearTerm(id string) tea.Cmd {
 
 func (m *Model) termBody() (w, h int) {
 	if n := m.termRows(); n > 0 { // the panel under the editor
-		return max(m.mainW(), 1), max(n-termStripH, 1) // the tab strip and its rule
+		return max(m.mainW(), 1), max(n-panelTopH, 1) // the border, the tab strip and its rule
 	}
 
 	rc := m.colRect(m.colOf(viewTerm))
@@ -3113,9 +3113,10 @@ func (m *Model) termShowing() bool {
 	return m.termOpen() && m.shown(viewTerm)
 }
 
-// termPanelLines are the bottom panel: a strip of its tabs and buttons, the
-// rule under it, then the terminal screen, spanning the editor area like VS
-// Code's panel. The strip's empty part is the panel's sash.
+// termPanelLines are the bottom panel: a border, a strip of its tabs and
+// buttons, the rule under it, then the terminal screen, spanning the editor
+// area like VS Code's panel. The border, the strip's empty part and the rule
+// are the panel's sash.
 func (m *Model) termPanelLines(w, h int) []string {
 	st := dim
 	if m.focus == onPanel {
@@ -3127,11 +3128,16 @@ func (m *Model) termPanelLines(w, h int) []string {
 		left = append([]seg{sg(" ", plain)}, tabSegs(tabs, m.overTab, m.overX)...)
 	}
 
-	btns, _ := m.actSegs(m.termButtons(), m.mainX(), m.mainH())
+	btns, _ := m.actSegs(m.termButtons(), m.mainX(), m.mainH()+1)
 
 	title := m.stripMark(row(w, nil, left, btns...), stripTerm, 1) // the tabs start past a space
 
-	return append([]string{title, m.termRule(w, 1)}, m.termScreen(w, h-termStripH)...)
+	top := ruleRow(w, nil)
+	if st, ok := m.sashStyle(termSash); ok {
+		top = ruleRow(w, nil, st)
+	}
+
+	return append([]string{top, title, m.termRule(w, 1)}, m.termScreen(w, h-panelTopH)...)
 }
 
 // termLines are the panel in a column: its tab strip and buttons, the rule,
@@ -3371,3 +3377,7 @@ const sessStripH = 2
 
 // termStripH is the same over the Terminal's.
 const termStripH = sessStripH
+
+// panelTopH is the rows over the bottom panel's screen: a border, as VS Code
+// draws over its panel, then the strip and its rule.
+const panelTopH = termStripH + 1

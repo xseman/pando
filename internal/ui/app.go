@@ -1166,7 +1166,7 @@ func (m *Model) termRows() int {
 		h = 12
 	}
 
-	return max(min(h, m.panelH()-3), termStripH+2)
+	return max(min(h, m.panelH()-3), panelTopH+2)
 }
 
 // mainH is the main area above the terminal panel.
@@ -3214,18 +3214,18 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 			m.focus = onPanel
 			m.scm.input.Blur()
 		}
-		// y == 0 is the panel's strip, with its tabs and buttons, y == 1 the rule
-		// under it, the rest its body.
+		// y == 0 is the border over the panel, y == 1 its strip, with its tabs
+		// and buttons, y == 2 the rule under it, the rest its body.
 		switch y := mo.Y - m.mainH(); {
-		case y == 1: // the rule is the sash too
+		case y == 0 || y == 2: // the border and the rule are the sash too
 			if click && mo.Button == tea.MouseLeft {
 				m.drag = &drag{kind: dragTerm, y0: mo.Y, h0: m.termRows()}
 			}
 
 			return nil
 
-		case y > 1:
-			return m.termPanelMouse(msg, mo.X-c.x, y-termStripH)
+		case y > 2:
+			return m.termPanelMouse(msg, mo.X-c.x, y-panelTopH)
 		case !click:
 			m.setOver(stripTerm, mo.X-c.x-1)
 			return nil
@@ -3656,7 +3656,7 @@ func (m *Model) dragTerm(d *drag, y int, release bool) tea.Cmd {
 	}
 
 	m.termMax, d.moved = false, true
-	m.st.Settings.TermH = max(termStripH+2, min(d.h0+d.y0-y, m.panelH()-3))
+	m.st.Settings.TermH = max(panelTopH+2, min(d.h0+d.y0-y, m.panelH()-3))
 
 	return m.fetchScreen()
 }
@@ -3793,9 +3793,9 @@ func (m *Model) View() tea.View {
 	case caret: // a text box has the keyboard
 		v.Cursor = tea.NewCursor(cx, b+cy)
 
-	case m.focus == onPanel && m.termRows() > termStripH:
+	case m.focus == onPanel && m.termRows() > panelTopH:
 		if m.tv.scr.CursorVisible && !m.tv.find.editing && m.tv.term.id == m.tv.id && m.tv.scr.CursorX >= m.tv.left {
-			v.Cursor = appCursor(c.x+m.tv.scr.CursorX-m.tv.left, b+m.mainH()+termStripH+m.tv.scr.CursorY, m.tv.scr.CursorStyle)
+			v.Cursor = appCursor(c.x+m.tv.scr.CursorX-m.tv.left, b+m.mainH()+panelTopH+m.tv.scr.CursorY, m.tv.scr.CursorStyle)
 		}
 
 	case m.focus == onMain && m.showsSession():
@@ -3899,11 +3899,11 @@ func (m *Model) sashUnder(x, y int) sash {
 		return s
 	}
 
-	if m.termRows() == 0 || y < m.mainH() || y > m.mainH()+1 || x < c.x || x >= c.x+c.w {
+	if m.termRows() == 0 || y < m.mainH() || y > m.mainH()+2 || x < c.x || x >= c.x+c.w {
 		return noSash
 	}
 
-	if y == m.mainH()+1 { // the rule under the strip, all along
+	if y != m.mainH()+1 { // the border over the strip and the rule under it, all along
 		return termSash
 	}
 
