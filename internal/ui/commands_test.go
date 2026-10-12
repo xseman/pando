@@ -2814,6 +2814,41 @@ func TestActivityBarAir(t *testing.T) {
 	}
 }
 
+// TestSessionMaxPerWorkspace: a session maximized in one worktree is still
+// maximized after a session of another worktree was shown, which keeps the
+// layout of its own.
+func TestSessionMaxPerWorkspace(t *testing.T) {
+	m := testModelSized(t, 140, 30)
+	root, wt := m.ws, t.TempDir()
+	m.wss = append(m.wss, proto.Workspace{Path: wt, Project: root, Branch: "feat"})
+	m.sessions = []proto.Session{
+		{SessionSpec: proto.SessionSpec{ID: "s1", Workspace: root, Agent: "claude", Cmd: []string{"claude"}}, Status: "idle"},
+		{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: wt, Agent: "claude", Cmd: []string{"claude"}}, Status: "idle"},
+	}
+	f := filepath.Join(root, "a.txt")
+	mustWrite(t, f, "a\n")
+	fire(m, m.openFile(f, false))
+	m.switchSession("s1")
+	m.splitTo(viewSession, 1)
+	m.toggleMax(false)
+
+	if !m.maxed || !m.showsSession() {
+		t.Fatalf("maximized: maxed %v, over the editor %v", m.maxed, m.showsSession())
+	}
+
+	m.switchSession("s2")
+
+	if m.maxed {
+		t.Errorf("the other worktree's session is maximized too")
+	}
+
+	m.switchSession("s1")
+
+	if !m.maxed || !m.showsSession() || m.sessDocked() {
+		t.Fatalf("back: maxed %v, over the editor %v, docked %v", m.maxed, m.showsSession(), m.sessDocked())
+	}
+}
+
 // TestSessionDock drags the agent session by its title beside the editor, so a
 // file shows next to it; widened over the editor it takes the editor area
 // back; Close and a second click in Agents take it off screen, running on.

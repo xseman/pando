@@ -174,6 +174,7 @@ type Model struct {
 	tv        termPanel              // the Terminal panel's shell
 	termMax   bool                   // the panel fills the editor area (⌃⇧↑)
 	maxed     bool                   // the docked session or the file fills the editor area (the strip's button): preview says which
+	maxedIn   map[string]bool        // maxed of each workspace left, back when it is switched to
 	filters   [viewGitHub + 1]filter // per view
 	gh        ghView
 	ghPages   map[string]ghCached        // the pages of pull requests and issues seen, shown again while they are fetched
@@ -2198,6 +2199,12 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 
 	saved := tea.Batch(unfolded, m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts())
 	m.savedDrafts = nil
+
+	if m.maxedIn == nil {
+		m.maxedIn = map[string]bool{}
+	}
+
+	m.maxedIn[m.ws] = m.maxed
 	open := m.termOpen()
 	m.scm.cmps[m.ws] = m.scm.cmp
 	m.ws = path
@@ -2225,6 +2232,7 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 	}
 
 	restored := m.restoreEditors()
+	m.maxed = m.maxedIn[path]                                 // as the workspace was left: the restored tabs do not undo it
 	m.preview = m.preview && (m.sess == "" || m.sessDocked()) // a session over the editor is what shows; the tabs wait in the strip
 	// The panel as this workspace left it: open or shut, on the shell it
 	// showed; its session's column too.

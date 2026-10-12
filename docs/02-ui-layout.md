@@ -128,7 +128,8 @@ area; opening a file docks it back, `sessSide`).
   area to the session or to the file, the other one waiting; pressed again it
   docks them side by side. A maximized session restores from the right end of
   its tab strip, the first row. Not saved (`maxed`: `cols` drops the column,
-  `preview` says who shows); opening a file over a maximized session restores.
+  `preview` says who shows), but each workspace keeps its own while another is
+  shown (`maxedIn`); opening a file over a maximized session restores.
 
 ## Terminal panel
 

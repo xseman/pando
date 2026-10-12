@@ -76,7 +76,8 @@ checkout.
 - ``ctrl+` ``, `ctrl+j` or `5` toggles the Terminal panel; `ctrl+shift+↑`
   maximizes it.
 - A session beside a file: the button at the right end of either's tab strip
-  maximizes it over the whole editor area, and restores the pair.
+  maximizes it over the whole editor area, and restores the pair. Each
+  worktree keeps it while you are in another.
 - Drag a view's tab to move it, a divider to resize. A second click on the
   open view's icon hides its sidebar; `ctrl+b` hides both.
 
