@@ -65,7 +65,13 @@ type ghRes struct {
 	err    error
 	loaded bool // an answer is here; busy with it is a refresh on the way
 	busy   bool
+	at     time.Time // when the answer came
 }
+
+// ghTTL is how long a list is trusted: what it shows rarely changes, so a
+// list older than this is fetched again behind the old one, which stays up
+// until the answer replaces it. An action, or ^r, fetches at once.
+const ghTTL = 5 * time.Minute
 
 type ghMsg struct {
 	project, key string
@@ -89,9 +95,11 @@ type ghView struct {
 	project  string          // whose answers res holds: a project's worktrees share a repository
 	open     map[string]bool // what is unfolded, by row key
 	res      map[string]*ghRes
-	gen      int             // a refresh or another project drops answers on the way
-	checking map[string]bool // the branches a checkout is making a worktree for
-	tops     map[int]int     // per section: its pane's first row in view
+	gen      int                          // a refresh or another project drops answers on the way
+	kept     map[string]map[string]*ghRes // the answers of the projects left behind, shown again while they are fetched again
+	stale    bool                         // res came from kept: ensure fetches it again behind itself
+	checking map[string]bool              // the branches a checkout is making a worktree for
+	tops     map[int]int                  // per section: its pane's first row in view
 	// h is per section its pane's height as dragged, 0 for an even share.
 	// ponytail: heights and folds last as long as the TUI; a github_panes
 	// setting, as git_panes keeps the drawers', if they should outlast it.
@@ -202,7 +210,20 @@ func (g *ghView) need() []string {
 // another repository's numbers.
 func (g *ghView) sync(m *Model) {
 	if p := g.projectOf(m); p != g.project {
-		g.project, g.res, g.l, g.tops = p, map[string]*ghRes{}, list{sel: -1}, map[int]int{}
+		if g.kept == nil {
+			g.kept = map[string]map[string]*ghRes{}
+		}
+
+		if g.project != "" {
+			g.kept[g.project] = g.res
+		}
+
+		g.res, g.stale = g.kept[p], true
+		if g.res == nil {
+			g.res, g.stale = map[string]*ghRes{}, false
+		}
+
+		g.project, g.l, g.tops = p, list{sel: -1}, map[int]int{}
 		g.gen++
 	}
 }
@@ -215,11 +236,24 @@ func (g *ghView) ensure(m *Model) tea.Cmd {
 
 	g.sync(m)
 
+	if g.stale { // another project's answers are on screen: fetch them again behind themselves
+		g.stale = false
+		return g.refresh(m)
+	}
+
 	var cmds []tea.Cmd
 
 	for _, k := range g.need() {
-		if g.res[k] == nil {
+		r := g.res[k]
+
+		switch {
+		case r == nil:
 			g.res[k] = &ghRes{busy: true}
+			cmds = append(cmds, g.fetch(m, k))
+
+		case r.loaded && !r.busy && time.Since(r.at) > ghTTL:
+			r.busy = true // the old answer stays up
+
 			cmds = append(cmds, g.fetch(m, k))
 		}
 	}
@@ -247,7 +281,7 @@ func (g *ghView) refresh(m *Model) tea.Cmd {
 	cmd := g.ensure(m)
 	for k, r := range g.res {
 		if o := old[k]; o != nil && o.loaded && o.err == nil {
-			r.items, r.notes, r.local, r.loaded = o.items, o.notes, o.local, true
+			r.items, r.notes, r.local, r.loaded, r.at = o.items, o.notes, o.local, true, o.at
 		}
 	}
 
@@ -262,7 +296,7 @@ func (g *ghView) fetch(m *Model, key string) tea.Cmd {
 // ghLoad runs the gh call behind key in dir; project's branches come along
 // with the open pull requests, for Local Pull Request Branches.
 func ghLoad(dir, project, key string) ghRes {
-	r := ghRes{loaded: true}
+	r := ghRes{loaded: true, at: time.Now()}
 	if key == ghNotesKey {
 		r.notes, r.err = git.Notifications(dir)
 		return r
@@ -298,6 +332,12 @@ func (g *ghView) onMsg(m *Model, msg ghMsg) {
 
 	key := g.selKey(m)
 	r := msg.res
+
+	if o := g.res[msg.key]; r.err != nil && o != nil && o.loaded && o.err == nil { // a failed refresh keeps the list it was behind
+		o.busy = false
+		return
+	}
+
 	g.res[msg.key] = &r
 	g.follow(m, key)
 }
