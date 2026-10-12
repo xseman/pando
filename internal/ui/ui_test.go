@@ -611,10 +611,11 @@ func TestNarrowScreen(t *testing.T) {
 	checkWidths(t, m)
 }
 
-// TestNarrowScreenDrag: dragging a divider while the session has the editor
-// area for room keeps the columns as they were: the session neither docks
-// half way nor goes, and the divider moves its own column. Let go with room
-// enough, it docks beside the file again.
+// TestNarrowScreenDrag: dragging a divider while the session shares the
+// editor area for room keeps the columns as they were: the session neither
+// docks half way nor goes, and the divider moves its own column. Let go with
+// room enough, it docks beside the file again; when they share the area again,
+// the one that had the keyboard last is in front.
 func TestNarrowScreenDrag(t *testing.T) {
 	m := testModelSized(t, 200, 30)
 	m.st.Settings.Left = proto.Columns{{Views: []string{"files", "git", "search", "github"}, Width: 42}}
@@ -664,6 +665,13 @@ func TestNarrowScreenDrag(t *testing.T) {
 
 	if m.cramped() || !m.sessDocked() || !m.showsPreview() {
 		t.Fatalf("Spaces narrowed, let go: cramped %v, docked %v, file %v", m.cramped(), m.sessDocked(), m.showsPreview())
+	}
+
+	m.focus = onMain // reading the file
+	m.Update(tea.WindowSizeMsg{Width: 150, Height: 30})
+
+	if !m.cramped() || !m.showsPreview() || m.showsSession() {
+		t.Fatalf("narrower with the file in hand: cramped %v, file %v, session %v", m.cramped(), m.showsPreview(), m.showsSession())
 	}
 }
 

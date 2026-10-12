@@ -176,6 +176,7 @@ type Model struct {
 	termMax   bool                   // the panel fills the editor area (⌃⇧↑)
 	maxed     bool                   // the docked session or the file fills the editor area (the strip's button): preview says which
 	maxedIn   map[string]bool        // maxed of each workspace left, back when it is switched to
+	fileLast  bool                   // of the file and the session, the file had the keyboard last: it shows when they share the editor area for room
 	filters   [viewGitHub + 1]filter // per view
 	gh        ghView
 	ghPages   map[string]ghCached        // the pages of pull requests and issues seen, shown again while they are fetched
@@ -2355,6 +2356,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cramped, focus, inSess := m.cramped(), m.focus, m.focus == onMain && m.showsSession()
 	v, _ := m.viewOn(m.focus)
 
+	switch {
+	case inSess || m.sessFocused():
+		m.fileLast = false
+	case m.focus == onMain && m.showsPreview():
+		m.fileLast = true
+	}
+
 	_, cmd := m.update(msg)
 	m.maxed = m.maxed && m.sess != "" && m.sessPos() != "editor" // nothing left to share the editor area with
 
@@ -2368,12 +2376,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // followCramp follows the session in or out of the editor area for room: in
-// it shows in front of the file, as a narrow screen asks; and when the focus
-// was left where it was, it stays on the view it was on (v, or the session
-// when it had the editor area, inSess) as the columns shift under it.
+// it shares the area with the file, the one that had the keyboard last in
+// front, the other in its tab; and when the focus was left where it was, it
+// stays on the view it was on (v, or the session when it had the editor
+// area, inSess) as the columns shift under it.
 func (m *Model) followCramp(focus int, v view, inSess bool) {
 	if m.cramped() {
-		m.preview = false
+		m.preview = m.fileLast && m.pv.kind != ""
 	}
 
 	if m.focus == focus {

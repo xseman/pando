@@ -158,7 +158,9 @@ editor < 20?
 ```
 
 A side opened from its rail stays open until the next resize (`unfold`). A
-dragged divider stops at `minEditor`. While a divider is dragged the columns stay as they were picked up
+dragged divider stops at `minEditor`. In step 1 the session and the file share
+the editor area, the one that had the keyboard last in front (`fileLast`).
+While a divider is dragged the columns stay as they were picked up
 (`drag.cramp`): letting it go docks the session again when there is room, or
 gives it the editor area when there is not; a maximized one (`maxed`) stays
 maximized. The session's column keeps its width in the settings meanwhile
