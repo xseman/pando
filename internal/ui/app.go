@@ -95,6 +95,7 @@ type drag struct {
 	slot   int    // dragStrip: where the tab would land, an index in stripOrder; -1 nowhere
 	x0     int    // dragTab: where it was picked up; dragMsgSel: the message text's screen origin, with y0
 	w0     int    // dragDivider: the column's configured width when picked up
+	cramp  bool   // dragDivider: the session had the editor area for room when picked up, and keeps it until let go
 	drop   *dropTarget
 	y0, h0 int
 	moved  bool
@@ -613,8 +614,20 @@ func (m *Model) loadIndex(open bool) tea.Cmd {
 
 // cols lists the sidebar columns from the left edge of the screen: left
 // columns, then right ones. Views missing from the settings (a fresh config,
-// or a view added later) join the left column next to main.
+// or a view added later) join the left column next to main. A session with
+// the editor area, maximized or for room, has no column.
 func (m *Model) cols() []col {
+	out := m.allCols()
+	if colWith(out, viewSession) >= 0 && (m.maxed || m.crampedBy(out)) {
+		out = removeView(out, viewSession)
+	}
+
+	return out
+}
+
+// allCols are the columns as the settings have them: the session's too while
+// it has the editor area, where it docks again.
+func (m *Model) allCols() []col {
 	seen := make([]bool, len(viewKeys))
 
 	var out []col
@@ -715,10 +728,6 @@ func (m *Model) cols() []col {
 		}
 	}
 
-	if colWith(out, viewSession) >= 0 && (m.maxed || m.crampedBy(out)) {
-		out = removeView(out, viewSession)
-	}
-
 	return out
 }
 
@@ -726,10 +735,12 @@ func (m *Model) cols() []col {
 // columns cs: at their widths they leave it under minEditor cells. The
 // session then takes the editor area, the files waiting in their tabs as
 // they do with session_position = "editor". Nothing is saved: a wider screen
-// docks it again. A dragged divider keeps its column where it is.
+// docks it again. While a divider is dragged the columns stay as they were
+// picked up, so the one dragged stays under the pointer; letting it go
+// settles them.
 func (m *Model) crampedBy(cs []col) bool {
 	if m.drag != nil && m.drag.kind == dragDivider {
-		return false
+		return m.drag.cramp
 	}
 
 	return m.w < 40 || m.overBy(m.wants(cs, m.hidden), minEditor) > 0
@@ -1403,8 +1414,13 @@ func (m *Model) setColWidth(i, w int) {
 		return
 	}
 
-	cs[i].width = w
-	sides := colSettings(cs)
+	// Saved with the session's column, also while it has the editor area.
+	all := m.allCols()
+	if j := slices.IndexFunc(all, func(c col) bool { return c.right == cs[i].right && slices.Equal(c.views, cs[i].views) }); j >= 0 {
+		all[j].width = w
+	}
+
+	sides := colSettings(all)
 	m.st.Settings.Left, m.st.Settings.Right = sides[0], sides[1]
 
 	if slices.Contains(cs[i].views, viewSession) { // this workspace's, saved with saveSessView
@@ -3173,7 +3189,7 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 		case m.side(i) == 0 && mo.X >= r.x+r.w && mo.X < r.x+r.w+gap, m.side(i) == 1 && mo.X >= r.x-gap && mo.X < r.x:
 			// The divider on a column's main side resizes that column.
 			if click && mo.Button == tea.MouseLeft && !m.railed(i) {
-				m.drag = &drag{kind: dragDivider, col: i, w0: m.cols()[i].width}
+				m.drag = &drag{kind: dragDivider, col: i, w0: m.cols()[i].width, cramp: m.cramped()}
 			}
 
 			return nil

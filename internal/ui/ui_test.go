@@ -611,6 +611,62 @@ func TestNarrowScreen(t *testing.T) {
 	checkWidths(t, m)
 }
 
+// TestNarrowScreenDrag: dragging a divider while the session has the editor
+// area for room keeps the columns as they were: the session neither docks
+// half way nor goes, and the divider moves its own column. Let go with room
+// enough, it docks beside the file again.
+func TestNarrowScreenDrag(t *testing.T) {
+	m := testModelSized(t, 200, 30)
+	m.st.Settings.Left = proto.Columns{{Views: []string{"files", "git", "search", "github"}, Width: 42}}
+	m.st.Settings.Right = proto.Columns{{Views: []string{"session"}, Width: 55}, {Views: []string{"agents"}, Width: 63}}
+	m.st.Settings.SessPos = "right"
+	fire(m, m.openFile(filepath.Join(m.ws, "README.md"), false))
+	m.switchSession("s1")
+
+	if !m.cramped() || !m.showsSession() {
+		t.Fatalf("200 wide: cramped %v, over the editor %v", m.cramped(), m.showsSession())
+	}
+
+	drag := func(v view, dx int, release bool) {
+		t.Helper()
+
+		r := m.colRect(m.colOf(v))
+
+		x := r.x + r.w
+		if m.side(m.colOf(v)) == 1 {
+			x = r.x - 1
+		}
+
+		m.Update(tea.MouseClickMsg{X: x, Y: 5, Button: tea.MouseLeft})
+
+		for _, d := range []int{dx / 2, dx} {
+			m.Update(tea.MouseMotionMsg{X: x + d, Y: 5, Button: tea.MouseLeft})
+
+			if !m.cramped() || !m.showsSession() {
+				t.Fatalf("dragging %s by %d: cramped %v, over the editor %v, docked %v", viewKeys[v], d, m.cramped(), m.showsSession(), m.sessDocked())
+			}
+		}
+
+		if release {
+			m.Update(tea.MouseReleaseMsg{X: x + dx, Y: 5, Button: tea.MouseLeft})
+		}
+	}
+
+	drag(viewAgents, -10, true) // wider: still no room
+	drag(viewFiles, 10, true)   // the left side, wider
+
+	if !m.cramped() || !m.showsSession() || m.colRect(m.colOf(viewAgents)).w != 73 || m.colRect(0).w != 52 {
+		t.Fatalf("both wider: cramped %v, over the editor %v, Spaces %d, left %d", m.cramped(), m.showsSession(), m.colRect(m.colOf(viewAgents)).w, m.colRect(0).w)
+	}
+
+	drag(viewAgents, 50, false)
+	m.Update(tea.MouseReleaseMsg{X: m.colRect(m.colOf(viewAgents)).x + 49, Y: 5, Button: tea.MouseLeft})
+
+	if m.cramped() || !m.sessDocked() || !m.showsPreview() {
+		t.Fatalf("Spaces narrowed, let go: cramped %v, docked %v, file %v", m.cramped(), m.sessDocked(), m.showsPreview())
+	}
+}
+
 func TestPanelBorders(t *testing.T) {
 	m := testModel(t)
 	m.switchSession("s1")
