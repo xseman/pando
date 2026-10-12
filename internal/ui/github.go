@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -68,9 +69,10 @@ type ghRes struct {
 	at     time.Time // when the answer came
 }
 
-// ghTTL is how long a list is trusted: what it shows rarely changes, so a
-// list older than this is fetched again behind the old one, which stays up
-// until the answer replaces it. An action, or ^r, fetches at once.
+// ghTTL is how long a list, a page or a pull request's diff is trusted: what
+// it shows rarely changes, so one older than this is fetched again behind the
+// old one, which stays up until the answer replaces it; a younger one is not
+// fetched at all. An action, or ^r, fetches at once.
 const ghTTL = 5 * time.Minute
 
 type ghMsg struct {
@@ -929,6 +931,15 @@ func (g *ghView) onDone(m *Model, msg ghDoneMsg) tea.Cmd {
 		m.flash(msg.text, false)
 	}
 
+	for k, c := range m.ghPages { // what changed may be on any of them: each is fetched again when opened
+		c.at = time.Time{}
+		m.ghPages[k] = c
+	}
+
+	if m.pv.kind == pvGH { // the page is where the action was asked for
+		return tea.Batch(g.refresh(m), m.pv.load(m))
+	}
+
 	return g.refresh(m)
 }
 
@@ -1326,63 +1337,133 @@ func (m *Model) ghTerminal(line string) tea.Cmd {
 	return tea.Batch(m.showTerminal(), m.spawn(m.ws, termAgent, m.rootOf(m.sess), nil, line, nil))
 }
 
-// ghDoc is a pull request or an issue as gh view prints it.
+// ghDoc is a pull request or an issue as gh view prints it, and its
+// conversation from GraphQL.
 type ghDoc struct {
 	git.Item
 
-	Body, State string
-	Comments    []struct {
-		Author    struct{ Login string }
-		Body      string
-		CreatedAt time.Time
+	Body, State    string
+	CreatedAt      time.Time
+	Assignees      []struct{ Login string }
+	Labels         []struct{ Name string }
+	ReviewRequests []struct{ Login, Slug string } // a user, or a team by its slug
+	LatestReviews  []struct {
+		Author struct{ Login string }
+		State  string
 	}
+	Timeline    []ghEntry `json:"-"`
+	TimelineErr error     `json:"-"` // the conversation could not be fetched: the page says so
 }
 
-// ghDocument is a pull request's or an issue's page as Markdown, from gh.
-func ghDocument(dir, kind, n string) (string, error) {
-	fields := "number,title,author,url,body,state,comments"
-	if kind == "pr" {
-		fields += ",isDraft,headRefName,baseRefName,statusCheckRollup"
+// ghReviewer is someone a pull request asked for a review, or who gave one,
+// with the mark the page shows: ● asked, ✓ approved, ✗ changes requested,
+// ○ commented.
+type ghReviewer struct{ login, mark string }
+
+// reviewers lists who was asked first, then who reviewed; one asked again
+// after reviewing is still asked.
+func (d ghDoc) reviewers() []ghReviewer {
+	var out []ghReviewer
+
+	for _, r := range d.ReviewRequests {
+		out = append(out, ghReviewer{cmp.Or(r.Login, r.Slug), "●"})
 	}
 
+	for _, r := range d.LatestReviews {
+		if slices.ContainsFunc(out, func(x ghReviewer) bool { return x.login == r.Author.Login }) {
+			continue
+		}
+
+		mark := map[string]string{"APPROVED": "✓", "CHANGES_REQUESTED": "✗"}[r.State]
+		out = append(out, ghReviewer{r.Author.Login, cmp.Or(mark, "○")})
+	}
+
+	return out
+}
+
+// people are the logins of the assignees, labels the names of the labels.
+func (d ghDoc) people() []string {
+	out := make([]string, len(d.Assignees))
+	for i, a := range d.Assignees {
+		out[i] = a.Login
+	}
+
+	return out
+}
+
+func (d ghDoc) labels() []string {
+	out := make([]string, len(d.Labels))
+	for i, l := range d.Labels {
+		out[i] = l.Name
+	}
+
+	return out
+}
+
+// ghDocument is a pull request's or an issue's page as Markdown, from gh,
+// and the document it was made of: the header needs its state. The
+// conversation is fetched beside it.
+func ghDocument(dir, kind, n string) (string, *ghDoc, error) {
+	fields := "number,title,author,url,body,state,createdAt,assignees,labels"
+	if kind == "pr" {
+		fields += ",isDraft,headRefName,baseRefName,headRefOid,isCrossRepository,statusCheckRollup,reviewRequests,latestReviews"
+	}
+
+	var (
+		tl    []ghEntry
+		tlErr error
+		wg    sync.WaitGroup
+	)
+
+	wg.Go(func() { tl, tlErr = ghTimeline(dir, kind, n) })
+
 	out, err := git.GH(dir, kind, "view", n, "--json", fields)
+
+	wg.Wait()
+
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	var d ghDoc
 	if err := json.Unmarshal([]byte(out), &d); err != nil {
-		return "", err
+		return "", nil, err
 	}
 
-	return ghMarkdown(kind, d), nil
+	d.Timeline, d.TimelineErr = tl, tlErr
+
+	return ghMarkdown(kind, d), &d, nil
 }
 
-// ghMarkdown lays a pull request or an issue out as GitHub's page does: the
-// title, who opened it and where it merges, its text, its checks and its
-// comments.
+// ghMarkdown writes a pull request or an issue as Markdown: the page's text,
+// which finds, copies and says whether a reload changed anything. The page
+// itself is laid out from the document (ghLayout), not from this.
 func ghMarkdown(kind string, d ghDoc) string {
 	var b strings.Builder
 
-	fmt.Fprintf(&b, "# %s #%d\n\n", d.Title, d.Number)
-
-	state := d.State
-	if state != "" {
-		state = state[:1] + strings.ToLower(state[1:])
-	}
-
-	if d.IsDraft {
-		state = "Draft"
-	}
+	b.WriteString("**" + d.Author.Login + "**")
 
 	if kind == "pr" {
-		fmt.Fprintf(&b, "**@%s** wants to merge `%s` into `%s` · %s", d.Author.Login, d.HeadRefName, d.BaseRefName, state)
+		b.WriteString(" · " + d.HeadRefName + " → " + d.BaseRefName)
+	}
 
-		if c := d.Checks(); c != "" {
-			b.WriteString(" · checks " + c)
+	b.WriteString("\n\n")
+
+	if rs := d.reviewers(); len(rs) > 0 {
+		names := make([]string, len(rs))
+		for i, r := range rs {
+			names[i] = "@" + r.login + " " + r.mark
 		}
-	} else {
-		fmt.Fprintf(&b, "**@%s** opened this issue · %s", d.Author.Login, state)
+
+		b.WriteString("- **Reviewers** " + strings.Join(names, " · ") + "\n")
+	}
+
+	if as := d.people(); len(as) > 0 {
+		b.WriteString("- **Assignees** @" + strings.Join(as, ", @") + "\n")
+	}
+
+	if ls := d.labels(); len(ls) > 0 {
+		b.WriteString("- **Labels** `" + strings.Join(ls, "` `") + "`\n")
 	}
 
 	body := strings.TrimSpace(d.Body)
@@ -1390,7 +1471,7 @@ func ghMarkdown(kind string, d ghDoc) string {
 		body = "_No description provided._"
 	}
 
-	b.WriteString("\n\n" + body + "\n")
+	b.WriteString("\n" + body + "\n")
 
 	if len(d.Rollup) > 0 {
 		b.WriteString("\n## Checks\n\n")
@@ -1401,12 +1482,22 @@ func ghMarkdown(kind string, d ghDoc) string {
 		}
 	}
 
-	if len(d.Comments) > 0 {
-		b.WriteString("\n## Comments\n")
+	for _, e := range d.Timeline {
+		fmt.Fprintf(&b, "\n%s %s %s %s\n", e.kind, e.author, e.oid, e.state)
 
-		for _, c := range d.Comments {
-			fmt.Fprintf(&b, "\n**@%s** · %s\n\n%s\n", c.Author.Login, c.CreatedAt.Format(time.DateOnly), strings.TrimSpace(c.Body))
+		if e.text != "" {
+			b.WriteString(e.text + "\n")
 		}
+
+		for _, t := range e.threads {
+			for _, c := range t.comments {
+				fmt.Fprintf(&b, "\n%s:%d %s\n%s\n", t.path, t.line, c.author, c.text)
+			}
+		}
+	}
+
+	if d.TimelineErr != nil {
+		b.WriteString("\nconversation: " + d.TimelineErr.Error() + "\n")
 	}
 
 	b.WriteString("\n" + d.URL + "\n")

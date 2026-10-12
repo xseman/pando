@@ -15,6 +15,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"charm.land/bubbles/v2/textarea"
+
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -64,23 +66,33 @@ type preview struct {
 	root   string
 	entry  git.Entry
 	rev    string
-	raw    string
-	err    string
-	lines  []string   // styled, one per source line
-	plain  [][]rune   // the same lines without styles
-	meta   []lineMeta // diff rows: line numbers and change kind
-	numW   int        // digits of the line-number gutter
-	ready  bool
-	wrap   bool
-	blanks string // render_whitespace, put on as the editor draws
-	top    int    // first visible screen row
-	hl     []rune // the word under the cursor, painted wherever else it stands
-	comp   completion
-	left   int // horizontal scroll in cells when not wrapping
-	wide   int // cells of the widest line, measured with the rows while not wrapping
-	cur    pos
-	anchor *pos // selection start; nil = no selection
-	reveal bool // center the cursor once the content loads
+	gh     *ghDoc // pvGH: the page's state, which its bar and buttons follow; nil until loaded
+	// pvGH: what a click on each row of the page does, the key of the hits the
+	// pointer lights, the comments folded, and the box at the end of it, which
+	// has the keyboard while composing.
+	ghHits    [][]ghHit
+	hot       string
+	folded    map[string]bool
+	compose   *textarea.Model
+	composing bool
+	bodies    map[ghBodyKey][2][]string // the page's Markdown bodies, laid out
+	raw       string
+	err       string
+	lines     []string   // styled, one per source line
+	plain     [][]rune   // the same lines without styles
+	meta      []lineMeta // diff rows: line numbers and change kind
+	numW      int        // digits of the line-number gutter
+	ready     bool
+	wrap      bool
+	blanks    string // render_whitespace, put on as the editor draws
+	top       int    // first visible screen row
+	hl        []rune // the word under the cursor, painted wherever else it stands
+	comp      completion
+	left      int // horizontal scroll in cells when not wrapping
+	wide      int // cells of the widest line, measured with the rows while not wrapping
+	cur       pos
+	anchor    *pos // selection start; nil = no selection
+	reveal    bool // center the cursor once the content loads
 	// transient is VS Code's preview editor, its tab in italics: the next
 	// editor opened transient takes its tab over, until pin keeps it.
 	transient bool
@@ -128,6 +140,8 @@ type previewMsg struct {
 	err          error
 	repo         string
 	revs         []git.Revision
+	gh           *ghDoc
+	cached       bool // from Model.ghPages, not fetched
 }
 
 func (p *preview) id() string {
@@ -189,7 +203,13 @@ func (p *preview) label(ws string) (name, context string) {
 
 	case pvGH:
 		kind, n, _ := strings.Cut(p.rev, "/")
-		return map[string]string{"pr": "PR", "issue": "Issue"}[kind] + " #" + n, "description"
+		context = "description"
+
+		if p.gh != nil {
+			context = p.gh.Title
+		}
+
+		return map[string]string{"pr": "PR", "issue": "Issue"}[kind] + " #" + n, context
 
 	case pvGHDiff: // its own tab name: the description's tab is PR #n too
 		return "PR #" + strings.TrimPrefix(p.rev, "pr/") + " changes", "gh pr diff"
@@ -224,7 +244,7 @@ func sameFile(a, b preview) bool {
 func (p *preview) snapshot() preview {
 	return preview{
 		kind: p.kind, path: p.path, name: p.name, draft: p.draft, draftM: p.draftM,
-		root: p.root, entry: p.entry, rev: p.rev,
+		root: p.root, entry: p.entry, rev: p.rev, gh: p.gh, folded: p.folded, compose: p.compose,
 		repo: p.repo, revs: p.revs, revIdx: p.revIdx, md: p.md,
 		cur: p.cur, top: p.top, left: p.left, buf: p.buf, trunc: p.trunc, used: p.used,
 		transient: p.transient,
@@ -966,6 +986,19 @@ func (p *preview) load(m *Model) tea.Cmd {
 
 	p.closeComp()
 
+	// A page or a diff from GitHub seen before shows at once, as it was; the
+	// fetch below brings the news behind it, unless it was fetched within
+	// ghTTL. ^r and every action still fetch.
+	if c, ok := m.ghPages[p.id()]; ok && p.fromGH() && !p.ready {
+		msg := previewMsg{key: p.id(), raw: c.raw, gh: c.doc, cached: true}
+		msg.lines, msg.plain, msg.meta, msg.numW = render(p.kind, p.path, c.raw, m.dark)
+		p.onLoad(m, msg)
+
+		if time.Since(c.at) < ghTTL {
+			return nil
+		}
+	}
+
 	cp, dark, key, full := *p, m.dark, p.id(), m.st.Settings.DiffFull
 	if p.draft != "" {
 		cp.raw = "" // force a render: the draft, not the file, is what shows
@@ -993,7 +1026,17 @@ func (p *preview) load(m *Model) tea.Cmd {
 			cp.repo, msg.repo, msg.revs = root, root, cp.revs
 		}
 
-		raw, err := cp.fetch(full)
+		var raw string
+
+		var err error
+
+		if cp.kind == pvGH {
+			kind, n, _ := strings.Cut(cp.rev, "/")
+			raw, msg.gh, err = ghDocument(cp.root, kind, n)
+		} else {
+			raw, err = cp.fetch(full)
+		}
+
 		msg.raw, msg.err = raw, err
 
 		if cp.kind == pvFile {
@@ -1077,10 +1120,6 @@ func (p *preview) fetch(full bool) (string, error) {
 
 		return out, err
 
-	case pvGH:
-		kind, n, _ := strings.Cut(p.rev, "/")
-		return ghDocument(p.root, kind, n)
-
 	case pvGHDiff:
 		return git.GH(p.root, "pr", "diff", strings.TrimPrefix(p.rev, "pr/"))
 	case pvRev:
@@ -1158,6 +1197,19 @@ func (p *preview) onLoad(m *Model, msg previewMsg) {
 	}
 
 	p.err = ""
+	if msg.gh != nil {
+		p.gh, p.bodies = msg.gh, nil
+	}
+
+	if p.fromGH() && !msg.cached {
+		if m.ghPages == nil {
+			m.ghPages = map[string]ghCached{}
+		}
+
+		// ponytail: pages stay for the life of the TUI; drop the oldest if memory ever shows.
+		m.ghPages[p.id()] = ghCached{raw: msg.raw, doc: msg.gh, at: time.Now()}
+	}
+
 	if msg.lines == nil {
 		p.revealCursor(m) // the content is unchanged, the cursor may not be
 		return
@@ -1902,6 +1954,14 @@ func (p *preview) renderRow(vr vrow, w int) string {
 			}
 		}
 
+		if p.hot != "" && vr.line < len(p.ghHits) {
+			for _, h := range p.ghHits[vr.line] {
+				if h.key == p.hot && h.lit1 > h.lit0 {
+					spans = append(spans, cellSpan{h.lit0, h.lit1, pal.hoverBg})
+				}
+			}
+		}
+
 		b.WriteString(paintSpans(styled, spans, start, end))
 
 	default:
@@ -1938,6 +1998,8 @@ func (p *preview) renderRow(vr vrow, w int) string {
 		if used := ansi.StringWidth(body); used < tw {
 			body += lipgloss.NewStyle().Background(bg).Render(blank(tw - used))
 		}
+	} else if p.kind == pvGH && vr.line == p.cur.line && !p.composing { // a GitHub page's cursor: its row, as a list's
+		body = underBg(body+blank(max(tw-ansi.StringWidth(body), 0)), pal.hoverBg)
 	}
 
 	return p.gutterText(vr.line, vr.from == 0) + body
@@ -2200,7 +2262,12 @@ func (p *preview) scrollRows(m *Model) int {
 // markdown is the file rendered w cells wide, cached while w stays.
 func (p *preview) markdown(m *Model, w int) (styled, plain []string) {
 	if p.mdW != w || p.mdLines == nil {
-		p.mdLines, p.mdPlain = renderMarkdown(p.text(), w, m.dark)
+		if p.kind == pvGH && p.gh != nil { // a page of GitHub is laid out from its document, not rendered
+			p.mdLines, p.mdPlain = p.ghLayout(m, w)
+		} else {
+			p.mdLines, p.mdPlain = renderMarkdown(p.text(), w, m.dark)
+		}
+
 		p.mdW = w
 	}
 
@@ -2222,18 +2289,23 @@ func mdWidth(m *Model, w int) int {
 // syncMarkdown puts the rendering, laid out for the current width, in place
 // of the source while md == 1.
 func (p *preview) syncMarkdown(m *Model) {
-	if p.md != 1 || !p.ready || p.mdShown == mdWidth(m, m.pvW()) {
+	w := mdWidth(m, m.pvW())
+	if p.kind == pvGH { // a page of GitHub has the whole panel: its sidebar needs the room
+		w = m.pvW()
+	}
+
+	if p.md != 1 || !p.ready || p.mdShown == w {
 		return
 	}
 
-	styled, plainLines := p.markdown(m, mdWidth(m, m.pvW()))
+	styled, plainLines := p.markdown(m, w)
 
 	p.lines, p.plain = styled, make([][]rune, len(plainLines))
 	for i, l := range plainLines {
 		p.plain[i] = []rune(l)
 	}
 
-	p.mdShown, p.vis, p.anchor = mdWidth(m, m.pvW()), nil, nil
+	p.mdShown, p.vis, p.anchor = w, nil, nil
 	p.cur.line = min(p.cur.line, p.lastLine())
 }
 
@@ -2357,8 +2429,15 @@ func (p *preview) hints(m *Model) string {
 		return " ↑↓ move  ⇧ select  m stage/revert lines  O file  s inline  q close"
 	case p.side(m):
 		return " ↑↓ scroll  p rendered  s source only  q close"
+	case p.composing:
+		return " ^s send  esc leave the box  ⏎ new line"
 	case p.kind == pvGH: // rendered only: no source to toggle to
-		return " ↑↓ move  ⇧ select  y copy  q close"
+		if tip := p.ghTip(m); tip != "" {
+			return " " + tip
+		}
+
+		return " ↑↓ move  ⇧ select  y copy  m menu  q close"
+
 	case p.md == 1:
 		return " ↑↓ move  ⇧ select  y copy  p source  s side by side  q close"
 	case p.vimOn(m) && p.vim.mode != vimInsert:
@@ -2477,7 +2556,12 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 
 	right, bw := []seg{{}}, 0
 
-	if !m.buttonsUp() {
+	if p.kind == pvGH && p.gh != nil {
+		var gs []seg
+
+		gs, _, bw = p.ghHeader(m, w)
+		right = append(right, gs...)
+	} else if !m.buttonsUp() {
 		var bs []seg
 
 		bs, bw = p.buttonSegs(m, w)
@@ -2513,6 +2597,16 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 	case p.side(m):
 		body = p.sideBody(m, tw, h)
 		return header, withBar(body, w, vbar{p.scrollRows(m), h, p.top}, vb), footer
+	}
+
+	if hot := p.ghHot(m, tw, h); hot != p.hot {
+		was := p.hot
+		p.hot = hot
+
+		if ghFramed(was) || ghFramed(hot) {
+			p.mdLines, p.mdShown = nil, 0
+			p.syncMarkdown(m)
+		}
 	}
 
 	p.hl, p.blanks = p.hlWord(), m.st.Settings.Blanks
@@ -3218,6 +3312,10 @@ func (p *preview) items(m *Model) []item {
 		}
 	}
 
+	if p.kind == pvGH && p.gh != nil {
+		items = append(items, p.ghItems()...)
+	}
+
 	items = append(items, p.conflictItems()...)
 	if p.kind == pvFile && p.editable() {
 		items = append(items, item{label: "Format Document", hint: "^⇧i", run: func(m *Model) tea.Cmd { return m.pv.formatDoc(m) }})
@@ -3544,6 +3642,10 @@ func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		return nil
 	}
 
+	if p.composing {
+		return p.composeKey(m, k)
+	}
+
 	if cmd, ok := p.compKey(m, k); ok {
 		return cmd
 	}
@@ -3553,6 +3655,10 @@ func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	}
 
 	if cmd, ok := p.vimKey(m, k); ok {
+		return cmd
+	}
+
+	if cmd, ok := p.ghKey(m, k); ok {
 		return cmd
 	}
 
@@ -3781,6 +3887,10 @@ func (p *preview) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 		case x < 3 && !p.pathHeader(): // the ✕ in the header
 			return m.closeEditor(m.edIdx)
 		default:
+			if a, ok := p.ghHit(m, x); ok {
+				return a.run(m)
+			}
+
 			if p.crumbClick(m, x, mo.X, mo.Y) {
 				return nil
 			}
@@ -3874,6 +3984,10 @@ func (p *preview) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 		}
 
 		np := p.posAt(w, x, y)
+
+		if cmd, ok := p.ghClick(m, np, mo); ok {
+			return cmd
+		}
 
 		switch n := m.clicks.count(mo.X, mo.Y); {
 		case mo.Mod&tea.ModShift != 0:

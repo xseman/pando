@@ -27,7 +27,7 @@ editable, and `editable` also refuses a truncated file and a rendering.
 | `show`   | a whole commit, `git show`                     | a drawer line (hash)               |
 | `rev`    | what one revision changed in the open file     | header `←` `→`, `H`                |
 | `cmp`    | one file of a range, `git diff RANGE -- file`  | a Compare drawer file              |
-| `gh`     | a pull request or issue, rendered Markdown     | GitHub ⏎                           |
+| `gh`     | a pull request or issue, buttons in the header | GitHub ⏎                           |
 | `ghdiff` | a pull request's changes, `gh pr diff`         | GitHub `d`                         |
 
 `load` runs `fetch` and `render` in a `tea.Cmd` (chroma for files,

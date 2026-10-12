@@ -125,7 +125,13 @@ var keybindings = []keybinding{
 	// ⌃⏎ a newline to an agent, F1 help, ⇧⌃v a paste, ⌃s the terminal's own.
 	{keys: []string{"f1"}, when: ctxNotTerm, run: func(m *Model, _ string) tea.Cmd { return m.commandPalette() }},
 	{keys: []string{"ctrl+shift+v"}, when: ctxNotTerm, run: func(m *Model, _ string) tea.Cmd { return m.toggleRendered() }},
-	{keys: []string{"ctrl+enter"}, when: ctxNotTerm, run: func(m *Model, _ string) tea.Cmd { return m.scm.commit(m) }},
+	{keys: []string{"ctrl+enter"}, when: ctxNotTerm, run: func(m *Model, _ string) tea.Cmd {
+		if m.pv.composing { // the box at the end of a page of GitHub: its text is sent, not the staged changes
+			return m.pv.ghSend(m, "")
+		}
+
+		return m.scm.commit(m)
+	}},
 	{keys: []string{"ctrl+tab"}, when: ctxNotTerm, run: func(m *Model, _ string) tea.Cmd { return m.cycleEditor(1) }},
 	{keys: []string{"ctrl+shift+tab"}, when: ctxNotTerm, run: func(m *Model, _ string) tea.Cmd { return m.cycleEditor(-1) }},
 	{keys: []string{"ctrl+s"}, when: ctxNotTerm, run: func(m *Model, _ string) tea.Cmd {

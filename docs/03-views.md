@@ -283,7 +283,69 @@ without gh the view does not exist.
 | Checkout in worktree (`w`) | the branch's worktree, else a new one (`git.CheckoutPR`) |
 | Start working (`w`, issue) | New Worktree prompt with `issue/<n>-<slug>`              |
 | Merge…                     | `gh pr merge --match-head-commit`                        |
+| Page header (`ghpage.go`)  | buttons and keys of the open `gh` page, see below        |
 | Create PR, Sign in         | typed into a new Terminal tab once it is idle            |
+
+### The conversation
+
+`ghTimeline` (`ghtimeline.go`) fetches it with one `gh api graphql` call beside
+`gh pr view`: commits, comments, reviews with their threads on the code, and
+events (review requested, assigned, labeled, closed, merged, …), in order,
+into `ghDoc.Timeline`. A reply joins the thread it answers. ponytail: the
+first 100 items; page through `pageInfo` when a conversation is longer.
+
+`ghLayout` (`ghlayout.go`) lays the page out from the document, replacing
+the Markdown rendering for kind `gh` (`preview.markdown`): a box for a
+comment, rows on the rail for the rest, each body rendered by
+`renderMarkdown` at the box's width. From `ghWideMin` cells the sidebar
+(`ghSide`) stands beside it; below, `ghMeta` puts its content in rows above.
+`preview.ghHits` says what a click, or ⏎ on the cursor's row, does on each
+row; `ghClick` takes the narrowest hit. `ghHot` is the `key` of the hit under
+the pointer (`preview.hot`): every hit with it tints its `lit` cells in
+`hover_bg` (a commit's row), and a key the layout draws (`ghFramed`: a box's
+top, its `⋯`, the comment box) lays the page out again, the frame in
+`header_accent` and the `⋯` a keycap. Frames are `sash_hover`, one that tags
+the reader `warn`. The page's cursor is its row in `hover_bg`, not the
+terminal's. Folds are `preview.folded`; a page from memory says how old it is
+beside Refresh.
+
+Answers stay in memory: `Model.ghPages` shows a page or a pull request's
+diff seen before at once, and `load` fetches it again behind it only when it
+is older than `ghTTL` (`ghCached.at`); `^r` fetches anyway, and an action
+(`ghView.onDone`) makes every page old. A list older than `ghTTL` is fetched
+again behind its rows (`ghView.ensure`); the lists of a project left behind
+are kept (`ghView.kept`) and shown while they are fetched again. A commit's
+row shows the local commit, `git fetch`ing the pull request only when it is
+missing.
+
+### The page's header
+
+A loaded `gh` page (`preview.gh`, its `ghDoc`) draws its state and buttons
+at the right end of the header row (`ghHeader`), no rows of its own; the title
+is the header's context and the body starts with who opened it and the branch.
+`ghActs` is the one list behind the buttons, the page's keys and its context
+menu, filtered by state (a closed pull request has Reopen, no Merge or
+Worktree) and grouped between rules. The `primary` one leads, with its name;
+when it is of group 0 its `▾` is that group's menu. The footer shows the name
+and key of the button under the pointer (`ghTip`). The state gives way when
+the row is short, the buttons never do.
+
+| Command                | gh                                                   |
+| ---------------------- | ---------------------------------------------------- |
+| Comment                | the box at the end of the page, `^s` sends it        |
+| Close, Reopen, Ready   | `gh pr close`, `reopen`, `ready [--undo]`            |
+| Edit Title, Reviewers… | `gh pr edit --title` or `--add-*` `--remove-*`       |
+
+An action answers with `ghDoneMsg`, which fetches the lists and the open page
+again. Each asks first (`ghConfirm`, a dialog); the merge dialog is the
+method's choice and names failing checks.
+
+The comment box is a `textarea` (`preview.compose`) drawn by `ghComposeRows` as
+the last rows of the page, one a page in `Model.ghDrafts`, so closing the page
+keeps what was typed. While `preview.composing` the page's `key` is
+`composeKey` and `typing()` is true, so the editor's chords stay text. `^s`
+(through `preview.save`) and `ctrl+enter` send; `ghSentMsg` empties the box
+only when gh took the text.
 
 ## Commands
 

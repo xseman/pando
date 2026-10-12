@@ -18,6 +18,7 @@ import (
 	"time"
 	"unicode"
 
+	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -175,8 +176,11 @@ type Model struct {
 	maxed     bool                   // the docked session or the file fills the editor area (the strip's button): preview says which
 	filters   [viewGitHub + 1]filter // per view
 	gh        ghView
-	hasGH     bool // gh is installed: the GitHub view shows
-	mouseX    int  // last mouse position (content rows) for hover
+	ghPages   map[string]ghCached        // the pages of pull requests and issues seen, shown again while they are fetched
+	ghDrafts  map[string]*textarea.Model // each page's comment box, kept with what was typed in it when the page closes
+	ghUser    string                     // who gh is signed in as: the comments that tag them are marked
+	hasGH     bool                       // gh is installed: the GitHub view shows
+	mouseX    int                        // last mouse position (content rows) for hover
 	mouseY    int
 	overBar   barPoint  // the scrollbar cell under the mouse: its slider hovers
 	overTab   string    // the tab under the mouse, in any strip: its chip hovers
@@ -431,7 +435,18 @@ func (m *Model) look() {
 func (m *Model) Init() tea.Cmd {
 	// m.pv is the editor New restored for the workspace; its content loads here.
 	return tea.Batch(waitEvent(m.events), tick(), tea.RequestBackgroundColor, tea.RequestForegroundColor,
-		m.refreshGit(), m.pv.load(m), m.loadDrafts(), loadUpdate(), m.ensureTerm(), m.gh.shown(m))
+		m.refreshGit(), m.pv.load(m), m.loadDrafts(), loadUpdate(), m.ensureTerm(), m.gh.shown(m), m.loadGHUser())
+}
+
+// ghUserMsg is who gh is signed in as, which `gh api user` tells once.
+type ghUserMsg string
+
+func (m *Model) loadGHUser() tea.Cmd {
+	if !m.hasGH {
+		return nil
+	}
+
+	return func() tea.Msg { return ghUserMsg(git.GHLogin()) }
 }
 
 func hexColor(c color.Color) string {
@@ -2536,6 +2551,21 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ghDoneMsg:
 		return m, m.gh.onDone(m, msg)
+	case ghUserMsg:
+		m.ghUser = string(msg)
+		m.pv.mdLines, m.pv.mdShown = nil, 0 // a page open is laid out again, with the comments that tag them marked
+
+		return m, nil
+
+	case ghSentMsg:
+		return m, m.onGHSent(msg)
+	case ghShownMsg:
+		if msg.err != nil {
+			return m, flash("commit: "+ghErrLine(msg.err), true)
+		}
+
+		return m, m.openShow(msg.root, msg.oid)
+
 	case ghCheckoutMsg:
 		return m, m.onGHCheckout(msg)
 
@@ -2664,6 +2694,10 @@ func (m *Model) paste(msg tea.PasteMsg) tea.Cmd {
 	case t != nil && t.find.editing: // the terminal's find, not its shell, nor a file's find left open
 		t.find.input, cmd = t.find.input.Update(msg)
 		cmd = tea.Batch(cmd, t.search(m, id, 2))
+
+	case m.pv.composing && m.focus == onMain:
+		*m.pv.compose, cmd = m.pv.compose.Update(msg)
+		m.pv.relayout(m)
 
 	case m.pv.find.editing && m.pv.repl.Focused():
 		m.pv.repl, cmd = m.pv.repl.Update(msg)
@@ -3741,7 +3775,7 @@ func (m *Model) View() tea.View {
 			v.Cursor = appCursor(m.colRect(m.focus).x+m.term.scr.CursorX, b+m.bodyTop(viewSession)+sessStripH+m.term.scr.CursorY, m.term.scr.CursorStyle)
 		}
 
-	case m.focus == onMain && m.showsPreview() && !m.pv.scrollOnly(m):
+	case m.focus == onMain && m.showsPreview() && !m.pv.scrollOnly(m) && m.pv.kind != pvGH: // a page's cursor is its tinted row
 		if x, y, ok := m.pv.cursor(c.w, m.pvH()); ok {
 			v.Cursor = tea.NewCursor(c.x+x, b+1+m.stripH()+y)
 			if m.pv.vimOn(m) && m.pv.vim.mode == vimInsert {
@@ -4968,7 +5002,7 @@ func (m *Model) runKey(key string) (tea.Cmd, bool) {
 
 // typing reports a focused text input, where keys are text, not commands.
 func (m *Model) typing() bool {
-	return m.scm.input.Focused() || m.sr.editing() || m.pv.find.editing ||
+	return m.scm.input.Focused() || m.sr.editing() || m.pv.find.editing || m.pv.composing && m.focus == onMain ||
 		slices.ContainsFunc(m.filters[:], func(f filter) bool { return f.editing })
 }
 

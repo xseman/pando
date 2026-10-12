@@ -637,6 +637,10 @@ func (p *preview) toggleComment(m *Model) tea.Cmd {
 // save writes the file; a foreign write in the meantime asks first, and a
 // buffer with no file yet asks where it goes.
 func (p *preview) save(m *Model, force bool) tea.Cmd {
+	if p.composing { // ⌃s in the box at the end of a page of GitHub sends it
+		return p.ghSend(m, "")
+	}
+
 	if p.buf == nil {
 		return nil
 	}

@@ -39,7 +39,7 @@ type palette struct {
 	blockedSoftBg, doneSoftBg                                                                                  color.Color // the other shade of their pulse
 	sliderBg, sliderHoverBg, sliderActiveBg, rulerBorder                                                       color.Color // VS Code's scrollbarSlider at rest, hovered and held over the editor, and editorOverviewRuler.border, the same as activityBar.border
 	tabBorder                                                                                                  color.Color // tab.border, a shade stronger for a terminal
-	sashHover                                                                                                  color.Color // VS Code's sash.hoverBorder: a divider under a resting pointer, a shade off the accent it drags in; also the focused commit message box's frame
+	sashHover                                                                                                  color.Color // VS Code's sash.hoverBorder: a divider under a resting pointer, a shade off the accent it drags in; also the focused commit message box's frame and a GitHub comment's
 	whitespace                                                                                                 color.Color // VS Code's editorWhitespace.foreground: the · and → of render_whitespace
 	mdCode, mdCodeBg                                                                                           color.Color // code in rendered Markdown: inline code's text, glow's salmon, and the background of it and of code blocks
 	lineNumber, lineNumberActive                                                                               color.Color // a file's line numbers and the cursor's, Dark and Light Modern's (subtler than 2026's); nil is the terminal's text color
@@ -402,6 +402,7 @@ var (
 		icSearch, icCase, icWord, icRegex, icEllipsis, icClearAll, icOptions, icPreview, icSource,
 		icPrevRev, icNextRev, icUp, icDown, icHistory, icTag, icDetach, icReplace, icPreserve, icReplaceAll, icTerminal, icDot,
 		icMainWt, icLinkedWt, icTabs, icWrap, icGitHub, icPR, icPRDraft, icPRNew, icIssue, icBell, icCheckAll,
+		icMerge, icCompare, icComment, icPRClosed, icReopen,
 	}
 )
 
@@ -414,6 +415,13 @@ var (
 	icIssue    = glyph{"issues", "\ueb0c", "#", ""}
 	icBell     = glyph{"bell", "\ueaa2", "!", ""}
 	icCheckAll = glyph{"check-all", "\uebb1", "✓", ""}
+	// The page's header buttons: their text is their name, which is all a terminal
+	// without the font can show.
+	icMerge    = glyph{"git-merge", "\ueafe", "Merge", ""}
+	icCompare  = glyph{"git-compare", "\ueafd", "Changes", ""}
+	icComment  = glyph{"comment", "\uea6b", "Comment", "💬"}
+	icPRClosed = glyph{"git-pull-request-closed", "\uebda", "Close", ""}
+	icReopen   = glyph{"issue-reopened", "\ueb0b", "Reopen", ""}
 )
 
 // viewIcon is a view's tab and rail icon. Spaces gets the windows glyph, the

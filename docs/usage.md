@@ -173,6 +173,60 @@ Issues and unread Notifications for the repository `gh` picks.
 
 Merge is in the `m` menu and merges only the head the list showed.
 
+An opened pull request or issue has its state and buttons in the header row,
+at the right end where VS Code puts an editor's actions: `● Open` (or Draft,
+Closed, Merged), `✓ 2/2` checks, then buttons. One is first and has its name
+and a `▾`, by state: Ready for Review for a draft, Merge while no check is in
+its way, else Worktree, Reopen for a closed one. The `▾` lists Worktree,
+Changes, Changed Files, Merge and Convert to Draft. The rest are icons: Worktree,
+Changes, Comment, Close, `↻` fetches again and `⋯` is the `m` menu. The footer
+names the button under the pointer. Click one, or press its key while the page
+has focus:
+
+| Key      | Does                                                              |
+| -------- | ----------------------------------------------------------------- |
+| `w` `d`  | worktree, changes                                                 |
+| `M` `R`  | merge, mark a draft ready for review                              |
+| `c`      | puts the cursor in the comment box at the end of the page         |
+| `x`      | closes an open pull request or issue, reopens a closed one        |
+| `ctrl+r` | fetches the page again; every action does it when gh has answered |
+
+Everything that changes the page asks first: merge (which says when its checks
+are failing or still running), close, reopen, ready for review and back to a
+draft. The title and the people are prompts, which the ⏎ confirms; a comment
+is sent by its own button or `ctrl+s`.
+
+At the end of the page is the box GitHub's has: Leave a comment, with Comment
+and Close (or Reopen) under it. `c`, a click in it or Quote Reply puts the
+cursor in it; ⏎ is a new line, `ctrl+s` sends, `esc` leaves the box with its
+text, which stays there even when the page is closed and opened again. Close
+with text in the box sends it as the comment of the close.
+
+Reviewers, assignees, labels and the title are in the `m` menu: a prompt with
+the current values, comma separated, that sends only what changed.
+
+Under the header the page is laid out as GitHub's is: the description and each
+comment in a box with its author and time across the top, the commits, review
+requests and other events as rows on a vertical rail, a review with what it
+said and the threads it started on a file under it. Every box has the same
+frame; one that tags you (`@login`, as `gh` knows you) has a yellow one and
+says "mentions you" in its header. In a panel 110 cells wide
+or more (the sidebars hidden with `ctrl+b`, or a wide terminal) the reviewers,
+assignees, labels and checks stand in a column beside it, each with a gear that edits it; in a
+narrower one they are rows above.
+
+| Click or `⏎` on | Does                                         |
+| --------------- | -------------------------------------------- |
+| a commit        | shows it, fetching the head first if needed  |
+| a box's header  | folds the comment, again unfolds it          |
+| the `⋯` of one  | Quote Reply, Fold, Open on GitHub, Copy Link |
+| a gear          | the prompt of its section                    |
+
+What was fetched stays in memory: a page or a diff seen in the last five
+minutes shows at once without asking GitHub, an older one is fetched again
+behind it, and so is a list older than five minutes; `ctrl+r` or any action
+fetches at once. A page shown from memory says how old it is beside Refresh.
+
 ![pull requests with their checks, one opened as its rendered description and as a diff, then checked out in a worktree of its own](demo/github.gif)
 
 ## Editor
