@@ -946,7 +946,12 @@ func (g *ghView) merge(m *Model, it git.Item) tea.Cmd {
 		}
 	}
 
-	m.modal = newDialog(fmt.Sprintf("Merge pull request #%d into %s?", it.Number, cmp.Or(it.BaseRefName, "its base")),
+	question := fmt.Sprintf("Merge pull request #%d into %s?", it.Number, cmp.Or(it.BaseRefName, "its base"))
+	if c := it.Checks(); c == "fail" || c == "pending" { // not in the way, but the reader's to know
+		question += map[string]string{"fail": " Its checks are failing.", "pending": " Its checks are still running."}[c]
+	}
+
+	m.modal = newDialog(question,
 		item{label: "Create Merge Commit", run: how("merge")},
 		item{label: "Squash and Merge", run: how("squash")},
 		item{label: "Rebase and Merge", run: how("rebase")},
