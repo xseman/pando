@@ -1782,6 +1782,12 @@ func sidebarRow(t *testing.T, m *Model, i int) string {
 	return ansi.Cut(strings.Split(checkWidths(t, m), "\n")[m.bodyTop(viewGit)+i], 0, m.colRect(0).w)
 }
 
+// elapse moves m's clock d on for a tip: the pointer's last move, the last
+// key or click and the last tip drawn all happened d earlier.
+func elapse(m *Model, d time.Duration) {
+	m.mouseAt, m.tipOff, m.tipSeen = m.mouseAt.Add(-d), m.tipOff.Add(-d), m.tipSeen.Add(-d)
+}
+
 // TestStatusAndDialogHover lights a status bar item under the pointer and
 // names it in a tip above it, and lights a dialog's button under the pointer
 // without moving the focus off the primary one; a click still runs it.
@@ -1792,7 +1798,7 @@ func TestStatusAndDialogHover(t *testing.T) {
 	x := strings.Index(ansi.Strip(status), "^⇧p")
 
 	m.Update(tea.MouseMotionMsg{X: x, Y: y})
-	m.mouseAt = time.Now().Add(-tipDelay)
+	elapse(m, tipDelay)
 
 	if lit, _ := m.statusLine(m.w); !strings.Contains(lit, bgParams(pal.keycapBg)) {
 		t.Fatalf("^⇧p under the pointer is not lit: %q", lit)
@@ -1870,7 +1876,7 @@ func TestTips(t *testing.T) {
 	tip := func(text string) bool { return strings.Contains(ansi.Strip(m.View().Content), "│ "+text+" │") }
 	rest := func(x, y int) {
 		m.Update(tea.MouseMotionMsg{X: x, Y: y})
-		m.mouseAt = time.Now().Add(-tipDelay)
+		elapse(m, tipDelay)
 	}
 
 	top, rc := m.bodyTop(viewGit), m.colRect(0)
@@ -1895,18 +1901,38 @@ func TestTips(t *testing.T) {
 		t.Fatal("the tip goes with the header buttons")
 	}
 
-	m.tipWake, m.mouseAt = false, time.Now()
+	m.tipDue, m.mouseAt = time.Time{}, time.Now()
 	if m.tipLater() == nil || m.tipLater() != nil {
 		t.Fatal("a pointer that moved wakes View once")
 	}
 
-	if _, cmd := m.Update(hoverMsg{}); cmd == nil || !m.tipWake {
-		t.Fatal("a wake before the pointer rested waits again")
+	m.tipDue = time.Now().Add(actionsLinger)
+	if m.tipLater() == nil {
+		t.Fatal("moving on wakes View before the last tip's time is up")
 	}
 
-	m.tipWake, m.mouseAt = false, time.Now().Add(-actionsLinger)
+	m.tipDue, m.mouseAt = time.Time{}, time.Now().Add(-actionsLinger)
 	if m.tipLater() != nil {
 		t.Fatal("past actionsLinger nothing is left to wake for")
+	}
+
+	// A key puts a tip away; moving on from it shows the next one at once.
+	rest(x, top+ch)
+
+	if !tip("Discard All Changes  d") {
+		t.Fatal("no tip after resting again")
+	}
+
+	press(m, "j")
+
+	if tip("Discard All Changes  d") {
+		t.Fatal("a key puts the tip away")
+	}
+
+	m.Update(tea.MouseMotionMsg{X: rc.x + m.barW(0) + m.scm.actions(m.scm.rows[ch], rc.w)[1].x, Y: top + ch})
+
+	if out := checkWidths(t, m); !tip("Stage All Changes") {
+		t.Fatalf("the next tip waits:\n%s", out)
 	}
 
 	m.Update(tea.MouseMotionMsg{X: rc.x + 1, Y: m.barH(0)})
@@ -1920,7 +1946,7 @@ func TestTips(t *testing.T) {
 
 	rest(tabAt(m, viewFiles), 0)
 
-	if out := checkWidths(t, m); !tip("Explorer  1") {
+	if out := checkWidths(t, m); !tip("Explorer  ^⇧e") {
 		t.Fatalf("no tip on Explorer's chip:\n%s", out)
 	}
 

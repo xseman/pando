@@ -1746,9 +1746,13 @@ func (s *scmView) commitRow(m *Model, root string, w int, hovered bool, mx int, 
 	switch {
 	case !hovered || muted:
 	case onMenu:
-		menu, m.tip = menu.Background(pal.buttonHoverBg), "More Actions…"
+		menu = menu.Background(pal.buttonHoverBg)
 	default:
 		label = label.Background(pal.buttonHoverBg)
+	}
+
+	if hovered && onMenu && edge == "" { // muted too: its menu still opens
+		m.tip = "More Actions…"
 	}
 
 	// part is n cells of the button in style st: its text, or on an edge row

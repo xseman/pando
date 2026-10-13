@@ -42,8 +42,9 @@ const (
 var (
 	viewTitles = []string{"Explorer", "Source Control", "Spaces", "Search", "Terminal", "Session", "GitHub"}
 	viewKeys   = []string{"files", "git", "agents", "search", "terminal", "session", "github"} // values of settings.left and settings.right
-	// viewHotkeys show each view: the Terminal's toggles the panel, the session's is none.
-	viewHotkeys = []string{"1", "2", "3", "4", "^`", "", "6"}
+	// viewHotkeys show each view from anywhere where there is such a key, else
+	// from a sidebar: the Terminal's toggles the panel, the session's is none.
+	viewHotkeys = []string{"^⇧e", "^⇧g", "3", "^⇧f", "^`", "", "6"}
 )
 
 // hasGH reports gh on the PATH, which the GitHub view needs; tests turn it off.
@@ -194,9 +195,11 @@ type Model struct {
 	sashAt    sash      // the divider under the mouse, noSash for none
 	sashSince time.Time // when the mouse came onto it
 	mouseAt   time.Time
-	tip       string   // the name and key of the button under the mouse in the frame being drawn
-	tipWake   bool     // a hoverMsg is on its way
-	index     struct { // workspace file list for quick open and the Files filter
+	tip       string    // the name and key of the button under the mouse in the frame being drawn
+	tipDue    time.Time // when the hoverMsg on its way comes, zero for none
+	tipSeen   time.Time // when a tip was last drawn: moving on, the next one shows at once
+	tipOff    time.Time // a key or a click puts the tip away until the pointer moves
+	index     struct {  // workspace file list for quick open and the Files filter
 		ws    string
 		files []string
 		at    time.Time
@@ -2232,36 +2235,43 @@ func viewTip(v view) string { return strings.TrimSpace(viewTitles[v] + "  " + vi
 
 // hoverMsg wakes View once the pointer has rested tipDelay, for the tip of
 // the button under it, and again at actionsLinger, when the tip goes with
-// the header actions.
-type hoverMsg struct{}
+// the header actions; due is when it was sent for.
+type hoverMsg struct{ due time.Time }
 
-// tipShown reports whether the pointer has rested long enough for a tip, and
-// not so long that it should be gone: a tip never sits over what is typed.
+// tipShown reports whether the pointer has rested long enough for a tip, or
+// just moved on from one, as VS Code's toolbars show the next at once; and
+// not so long that it should be gone, nor since a key or a click: a tip
+// never sits over what is typed.
 func (m *Model) tipShown() bool {
 	d := time.Since(m.mouseAt)
 
-	return d >= tipDelay && d < actionsLinger
+	return m.mouseAt.After(m.tipOff) && d < actionsLinger && (d >= tipDelay || time.Since(m.tipSeen) < tipDelay)
 }
 
-// tipLater wakes View at the next of those moments; one wake waits at a time,
-// put off while the pointer moves.
+// tipLater wakes View at the next of those moments, unless a wake on its way
+// comes first: one moving on to another button comes sooner than the one
+// taking the last tip down.
 func (m *Model) tipLater() tea.Cmd {
-	d := time.Since(m.mouseAt)
+	var due time.Time
 
-	switch {
-	case m.tipWake:
+	switch d := time.Since(m.mouseAt); {
+	case !m.mouseAt.After(m.tipOff): // put away: nothing to show until the pointer moves
 		return nil
 	case d < tipDelay:
-		d = tipDelay - d
+		due = m.mouseAt.Add(tipDelay)
 	case d < actionsLinger:
-		d = actionsLinger - d
+		due = m.mouseAt.Add(actionsLinger)
 	default:
 		return nil
 	}
 
-	m.tipWake = true
+	if !m.tipDue.IsZero() && !due.Before(m.tipDue) {
+		return nil
+	}
 
-	return tea.Tick(d, func(time.Time) tea.Msg { return hoverMsg{} })
+	m.tipDue = due
+
+	return tea.Tick(time.Until(due), func(time.Time) tea.Msg { return hoverMsg{due} })
 }
 
 // switchWorkspace opens path: the sidebar views, the session and the
@@ -2726,15 +2736,26 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(flash(msg.text, false), m.refreshGit())
 
 	case tea.KeyPressMsg:
+		m.tipOff = time.Now()
 		return m, m.key(msg)
+
 	case tea.PasteMsg:
 		return m, m.paste(msg)
 	case tea.MouseMsg:
-		return m, tea.Batch(m.mouse(msg), m.trackSash(), m.scm.hoverTip(m, msg), m.tipLater())
+		cmd := m.mouse(msg)
+		if _, click := msg.(tea.MouseClickMsg); click {
+			m.tipOff = time.Now()
+		}
+
+		return m, tea.Batch(cmd, m.trackSash(), m.scm.hoverTip(m, msg), m.tipLater())
+
 	case sashMsg: // the pointer has rested: View lights the sash
 		return m, nil
 	case hoverMsg: // the pointer has rested: View shows the tip under it, or takes it down
-		m.tipWake = false
+		if msg.due.Equal(m.tipDue) {
+			m.tipDue = time.Time{}
+		}
+
 		return m, m.tipLater()
 	}
 	// Other input messages.
@@ -3853,6 +3874,7 @@ func (m *Model) View() tea.View {
 	if m.tip != "" && m.tipShown() && m.modal == nil && m.drag == nil {
 		box, x, y := m.hoverBox([]string{m.tip})
 		m.overlayBox(lines, box, x, y)
+		m.tipSeen = time.Now()
 	}
 
 	cx, cy, caret := takeCaret(lines)

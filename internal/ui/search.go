@@ -634,6 +634,16 @@ func (s *searchView) lines(m *Model, w, h int) []string {
 	}
 
 	out = append(out, s.summary(m, w))
+
+	switch y, x := m.hoverRow(viewSearch), m.mouseCol(viewSearch); {
+	case y == 1 && x < 2:
+		m.tip = "Toggle Replace  ^h"
+	case y == len(out)-1 && x >= w-3:
+		m.tip = "Toggle Search Details  ^i"
+	case y == len(out)-1 && x >= w-6:
+		m.tip = pick(s.tree, "View as Tree  t", "View as List  t")
+	}
+
 	rows := s.rows()
 	bh := max(h-len(out), 0)
 	s.l.clamp(len(rows), bh)

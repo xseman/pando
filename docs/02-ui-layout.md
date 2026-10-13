@@ -216,10 +216,12 @@ Model.mouse
   left".
 - An icon button names itself and its key in a box under the pointer once
   it has rested `tipDelay`, until `actionsLinger` (`tipShown`, `hoverBox`):
-  header actions, activity bar chips, strip buttons and `+`, Source Control
-  rows and ∨, Search toggles, find widgets, status bar items. The frame notes the `tip` of the
-  button it draws under the mouse (`Model.tip`); `hoverMsg` wakes View at
-  both moments, one wake at a time (`tipLater`).
+  header actions, activity bar chips, strip buttons, `+` and `✕`, Source
+  Control rows and ∨, Search's toggles, ▸ and ⋯, find widgets, status bar
+  items. Moving on from a tip shows the next at once (`tipSeen`); a key or
+  a click puts it away until the pointer moves (`tipOff`). The frame notes
+  the `tip` of the button it draws under the mouse (`Model.tip`);
+  `hoverMsg` wakes View at both moments, the sooner one first (`tipLater`).
 
 ## Scrollbars
 

@@ -829,7 +829,7 @@ func (m *Model) editorStrip(w int) string {
 
 		chip := tabChip(t.label, t.active, bg)
 		if t.active && m.editors[t.i].id() == m.overX {
-			chip = closeHot(chip)
+			chip, m.tip = closeHot(chip), "Close  ^w"
 		}
 
 		if m.editors[t.i].transient {
@@ -3106,6 +3106,10 @@ func (p *preview) findBox(m *Model) (box []string, x, y int, ok bool) {
 	edge := findEdge(p.find.editing)
 	x, y = m.mainX()+x0, m.headH()+m.stripH()
 	m.noteTip(acts, x, y+1)
+
+	if p.editable() { // the chevron before the query
+		m.noteTip([]rowAction{{x: 2, w: 1, tip: "Toggle Replace  ^h"}}, x, y+1)
+	}
 
 	if p.replOn {
 		m.noteTip(p.replActs(field), x, y+2)

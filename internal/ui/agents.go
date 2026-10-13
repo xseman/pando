@@ -2648,7 +2648,7 @@ func (m *Model) sessionStrip(w int) string {
 	}
 
 	btns, _ := m.actSegs(m.sessionButtons(), x0, y)
-	m.notePlus("New Tab in Session", x0, y, w)
+	m.noteStrip("New Tab in Session", pick(m.overX == m.rootOf(m.sess), "Kill Tab…", "Kill Session…"), x0, y, w)
 
 	return m.stripMark(row(w, nil, tabSegs(tabs, m.overTab, m.overX), append(right, btns...)...), stripSession, 0)
 }
@@ -2730,11 +2730,15 @@ func (m *Model) sessionHint() (string, lipgloss.Style) {
 // newTermTip is the tip of the Terminal strip's +.
 const newTermTip = "New Terminal  ^⇧`"
 
-// notePlus notes tip while the mouse is on the + of the strip w cells wide
-// from screen column x0 on row y.
-func (m *Model) notePlus(tip string, x0, y, w int) {
-	if m.overTab == plusTab && m.mouseY == y && m.mouseX >= x0 && m.mouseX < x0+w {
-		m.tip = tip
+// noteStrip notes the tip of the + or of the active tab's ✕ under the mouse,
+// on the strip w cells wide from screen column x0 on row y.
+func (m *Model) noteStrip(plus, kill string, x0, y, w int) {
+	switch {
+	case m.mouseY != y || m.mouseX < x0 || m.mouseX >= x0+w:
+	case m.overTab == plusTab:
+		m.tip = plus
+	case m.overX != "":
+		m.tip = kill
 	}
 }
 
@@ -3258,7 +3262,7 @@ func (m *Model) termPanelLines(w, h int) []string {
 	}
 
 	btns, _ := m.actSegs(m.termButtons(), m.mainX(), m.mainH()+1)
-	m.notePlus(newTermTip, m.mainX(), m.mainH()+1, w)
+	m.noteStrip(newTermTip, "Kill Terminal…", m.mainX(), m.mainH()+1, w)
 
 	title := m.stripMark(row(w, nil, left, btns...), stripTerm, 1) // the tabs start past a space
 
@@ -3275,7 +3279,7 @@ func (m *Model) termPanelLines(w, h int) []string {
 func (m *Model) termLines(w, h int) []string {
 	i := m.colOf(viewTerm)
 	btns, _ := m.actSegs(m.termButtons(), m.colRect(i).x, m.barH(i))
-	m.notePlus(newTermTip, m.colRect(i).x, m.barH(i), w)
+	m.noteStrip(newTermTip, "Kill Terminal…", m.colRect(i).x, m.barH(i), w)
 	strip := m.stripMark(row(w, nil, tabSegs(m.termTabs(m.termStripW()), m.overTab, m.overX), btns...), stripTerm, 0)
 
 	return append([]string{strip, m.termRule(w, 0)}, m.termScreen(w, h-termStripH)...)
