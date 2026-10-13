@@ -290,12 +290,12 @@ func (t *term) findActs(id string, bw int) (field int, acts []rowAction) {
 	}
 
 	acts = []rowAction{
-		{g: icCase, run: toggle("alt+c")},
-		{g: icWord, run: toggle("alt+w")},
-		{g: icRegex, run: toggle("alt+r")},
-		{g: icUp, run: func(m *Model) tea.Cmd { return t.findGo(m, id, -1) }},
-		{g: icDown, run: func(m *Model) tea.Cmd { return t.findGo(m, id, 1) }},
-		{g: icClose, run: func(*Model) tea.Cmd { t.closeFind(); return nil }},
+		{g: icCase, tip: "Match Case  M-c", run: toggle("alt+c")},
+		{g: icWord, tip: "Match Whole Word  M-w", run: toggle("alt+w")},
+		{g: icRegex, tip: "Use Regular Expression  M-r", run: toggle("alt+r")},
+		{g: icUp, tip: "Previous Match  ⏎", run: func(m *Model) tea.Cmd { return t.findGo(m, id, -1) }},
+		{g: icDown, tip: "Next Match  ⇧⏎", run: func(m *Model) tea.Cmd { return t.findGo(m, id, 1) }},
+		{g: icClose, tip: "Close  esc", run: func(*Model) tea.Cmd { t.closeFind(); return nil }},
 	}
 
 	return findLayout(acts, bw), acts
@@ -327,6 +327,9 @@ func (m *Model) termFindBoxes() (boxes [][]string, xs, ys []int) {
 	add := func(t *term, id string, x, y, w, h int) {
 		if box, x0, ok := t.findBox(m, id, w, h); ok {
 			boxes, xs, ys = append(boxes, box), append(xs, x+x0), append(ys, y)
+			_, bw, _ := t.findRect(w, h)
+			_, acts := t.findActs(id, bw)
+			m.noteTip(acts, x+x0, y+1)
 		}
 	}
 

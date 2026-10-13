@@ -870,7 +870,7 @@ func (m *Model) actSegs(acts []rowAction, x0, y int) (segs []seg, bw int) {
 
 		switch {
 		case m.mouseY == y && mx >= a.x && mx < a.x+a.w:
-			st = keycapHot()
+			st, m.tip = keycapHot(), a.tip
 		case a.on:
 			st = fg(pal.headerAccent) // lit: the accent color, no block
 		}
@@ -2371,47 +2371,40 @@ func (p *preview) buttons(m *Model, w int) []rowAction {
 	var acts []rowAction
 
 	if m.canMax() { // first, so the others keep their places
-		acts = append(acts, rowAction{g: m.maxGlyph(), run: func(m *Model) tea.Cmd { return m.toggleMax(true) }})
+		acts = append(acts, rowAction{g: m.maxGlyph(), tip: m.maxTip(), run: func(m *Model) tea.Cmd { return m.toggleMax(true) }})
 	}
 
-	add := func(g glyph, k tea.KeyPressMsg) {
-		acts = append(acts, rowAction{g: g, run: func(m *Model) tea.Cmd { return m.pv.key(m, k) }})
+	add := func(g glyph, tip string, k tea.KeyPressMsg) {
+		acts = append(acts, rowAction{g: g, tip: tip + "  " + k.Text, run: func(m *Model) tea.Cmd { return m.pv.key(m, k) }})
 	}
 
-	pick := func(on bool, off, onG glyph) glyph {
-		if on {
-			return onG
-		}
-
-		return off
-	}
 	if p.kind == pvFile && isMarkdown(p.path) { // direct: in a file a letter is text
 		acts = append(acts,
-			rowAction{g: pick(p.md == 1, icPreview, icSource), run: func(m *Model) tea.Cmd { return m.toggleRendered() }},
-			rowAction{g: pick(p.md == 2, icSplit, icInline), run: func(m *Model) tea.Cmd { return m.pv.toggleMarkdown(m, 2) }})
+			rowAction{g: pick(p.md == 1, icPreview, icSource), tip: pick(p.md == 1, "Open Preview", "Show Source") + "  ^⇧v", run: func(m *Model) tea.Cmd { return m.toggleRendered() }},
+			rowAction{g: pick(p.md == 2, icSplit, icInline), tip: pick(p.md == 2, "Open Preview to the Side", "Close Preview") + "  M-v", run: func(m *Model) tea.Cmd { return m.pv.toggleMarkdown(m, 2) }})
 	}
 
 	if p.fileDiff() { // the whole file or the changes
-		add(pick(m.st.Settings.DiffFull, icUnfold, icFold), tea.KeyPressMsg{Code: 'z', Text: "z"})
+		add(pick(m.st.Settings.DiffFull, icUnfold, icFold), pick(m.st.Settings.DiffFull, "Show the Whole File", "Show Only the Changes"), tea.KeyPressMsg{Code: 'z', Text: "z"})
 	}
 
 	if p.meta != nil { // the file itself, then inline ↔ side by side
-		acts = append(acts, rowAction{g: icSource, run: func(m *Model) tea.Cmd { return m.pv.openHere(m) }})
-		add(pick(m.st.Settings.DiffView == "split", icSplit, icInline), tea.KeyPressMsg{Code: 's', Text: "s"})
+		acts = append(acts, rowAction{g: icSource, tip: "Open File  O", run: func(m *Model) tea.Cmd { return m.pv.openHere(m) }})
+		add(pick(m.st.Settings.DiffView == "split", icSplit, icInline), pick(m.st.Settings.DiffView == "split", "Side by Side View", "Inline View"), tea.KeyPressMsg{Code: 's', Text: "s"})
 	}
 
 	if p.kind == pvFile || p.kind == pvRev {
-		acts = append(acts, rowAction{g: icPrevRev, run: func(m *Model) tea.Cmd { return m.pv.stepRev(m, 1) }})
+		acts = append(acts, rowAction{g: icPrevRev, tip: "Open Changes with Previous Revision", run: func(m *Model) tea.Cmd { return m.pv.stepRev(m, 1) }})
 	}
 
 	if p.kind == pvRev {
-		acts = append(acts, rowAction{g: icNextRev, run: func(m *Model) tea.Cmd { return m.pv.stepRev(m, -1) }})
+		acts = append(acts, rowAction{g: icNextRev, tip: "Open Changes with Next Revision", run: func(m *Model) tea.Cmd { return m.pv.stepRev(m, -1) }})
 
-		add(icHistory, tea.KeyPressMsg{Code: 'H', Text: "H"})
+		add(icHistory, "Open Changes with Revision…", tea.KeyPressMsg{Code: 'H', Text: "H"})
 	}
 
 	if !p.scrollOnly(m) { // last, so it keeps its place whatever else the kind shows
-		acts = append(acts, rowAction{g: icWrap, on: p.wrap, run: func(m *Model) tea.Cmd { return m.toggleWrap() }})
+		acts = append(acts, rowAction{g: icWrap, tip: "Toggle Word Wrap  M-z", on: p.wrap, run: func(m *Model) tea.Cmd { return m.toggleWrap() }})
 	}
 
 	layoutRight(acts, w, 2)
@@ -3032,15 +3025,23 @@ func (p *preview) findH() int { return 3 + b2i(p.replOn) }
 // field is the query's width; the replace box below it is as wide.
 func (p *preview) findActs(bw int) (field int, acts []rowAction) {
 	acts = []rowAction{
-		{g: icCase, run: func(m *Model) tea.Cmd { m.pv.toggleFind(m, "alt+c"); return nil }},
-		{g: icWord, run: func(m *Model) tea.Cmd { m.pv.toggleFind(m, "alt+w"); return nil }},
-		{g: icRegex, run: func(m *Model) tea.Cmd { m.pv.toggleFind(m, "alt+r"); return nil }},
-		{g: icUp, run: func(m *Model) tea.Cmd { return m.pv.findGo(m, -1) }},
-		{g: icDown, run: func(m *Model) tea.Cmd { return m.pv.findGo(m, 1) }},
-		{g: icClose, run: func(m *Model) tea.Cmd { m.pv.closeFind(); return nil }},
+		{g: icCase, tip: "Match Case  M-c", run: func(m *Model) tea.Cmd { m.pv.toggleFind(m, "alt+c"); return nil }},
+		{g: icWord, tip: "Match Whole Word  M-w", run: func(m *Model) tea.Cmd { m.pv.toggleFind(m, "alt+w"); return nil }},
+		{g: icRegex, tip: "Use Regular Expression  M-r", run: func(m *Model) tea.Cmd { m.pv.toggleFind(m, "alt+r"); return nil }},
+		{g: icUp, tip: "Previous Match  ⇧⏎", run: func(m *Model) tea.Cmd { return m.pv.findGo(m, -1) }},
+		{g: icDown, tip: "Next Match  ⏎", run: func(m *Model) tea.Cmd { return m.pv.findGo(m, 1) }},
+		{g: icClose, tip: "Close  esc", run: func(m *Model) tea.Cmd { m.pv.closeFind(); return nil }},
 	}
 
 	return findLayout(acts, bw), acts
+}
+
+// noteTip notes the tip of the button of acts under the mouse, acts laid out
+// from screen column x0 on row y.
+func (m *Model) noteTip(acts []rowAction, x0, y int) {
+	if a, ok := hit(acts, m.mouseX-x0); ok && m.mouseY == y {
+		m.tip = a.tip
+	}
 }
 
 // findLayout places a find widget's six buttons (three toggles, previous,
@@ -3072,9 +3073,9 @@ func findLayout(acts []rowAction, bw int) (field int) {
 // preserve case, then replace and replace all.
 func (p *preview) replActs(field int) []rowAction {
 	acts := []rowAction{
-		{g: icPreserve, run: func(m *Model) tea.Cmd { m.pv.toggleFind(m, "alt+p"); return nil }},
-		{g: icReplace, run: func(m *Model) tea.Cmd { return m.pv.replaceOne(m) }},
-		{g: icReplaceAll, run: func(m *Model) tea.Cmd { return m.pv.replaceAll(m) }},
+		{g: icPreserve, tip: "Preserve Case  M-p", run: func(m *Model) tea.Cmd { m.pv.toggleFind(m, "alt+p"); return nil }},
+		{g: icReplace, tip: "Replace  ⏎", run: func(m *Model) tea.Cmd { return m.pv.replaceOne(m) }},
+		{g: icReplaceAll, tip: "Replace All  ^M-⏎", run: func(m *Model) tea.Cmd { return m.pv.replaceAll(m) }},
 	}
 	x := 4 + field
 
@@ -3103,6 +3104,12 @@ func (p *preview) findBox(m *Model) (box []string, x, y int, ok bool) {
 
 	field, acts := p.findActs(bw)
 	edge := findEdge(p.find.editing)
+	x, y = m.mainX()+x0, m.headH()+m.stripH()
+	m.noteTip(acts, x, y+1)
+
+	if p.replOn {
+		m.noteTip(p.replActs(field), x, y+2)
+	}
 
 	lead := "  "
 	if p.editable() { // the chevron opens the replace box; a read-only file has none
@@ -3140,7 +3147,7 @@ func (p *preview) findBox(m *Model) (box []string, x, y int, ok bool) {
 		box = append(box, r.String())
 	}
 
-	return append(box, edge.Render("╰"+rule+"╯")), m.mainX() + x0, m.headH() + m.stripH(), true
+	return append(box, edge.Render("╰"+rule+"╯")), x, y, true
 }
 
 // findLook is what one find widget shows on its query row.

@@ -1782,6 +1782,91 @@ func sidebarRow(t *testing.T, m *Model, i int) string {
 	return ansi.Cut(strings.Split(checkWidths(t, m), "\n")[m.bodyTop(viewGit)+i], 0, m.colRect(0).w)
 }
 
+// TestTips names the button under the pointer, and its key, in a box under
+// it once the pointer has rested tipDelay, and takes the box down at
+// actionsLinger with the header buttons: a view header's, an activity bar
+// chip, a Source Control row's, the editor strip's and the find widget's.
+// One wake waits at a time.
+func TestTips(t *testing.T) {
+	m := gitModel(t)
+	tip := func(text string) bool { return strings.Contains(ansi.Strip(m.View().Content), "│ "+text+" │") }
+	rest := func(x, y int) {
+		m.Update(tea.MouseMotionMsg{X: x, Y: y})
+		m.mouseAt = time.Now().Add(-tipDelay)
+	}
+
+	top, rc := m.bodyTop(viewGit), m.colRect(0)
+	ch := scmRowAt(m, rowSection, "Changes", "")
+	x := rc.x + m.barW(0) + m.scm.actions(m.scm.rows[ch], rc.w)[0].x
+
+	m.Update(tea.MouseMotionMsg{X: x, Y: top + ch})
+
+	if tip("Discard All Changes  d") {
+		t.Fatal("the tip waits for the pointer to rest")
+	}
+
+	rest(x, top+ch)
+
+	if out := checkWidths(t, m); !tip("Discard All Changes  d") {
+		t.Fatalf("no tip on the section's discard:\n%s", out)
+	}
+
+	m.mouseAt = time.Now().Add(-actionsLinger)
+
+	if tip("Discard All Changes  d") {
+		t.Fatal("the tip goes with the header buttons")
+	}
+
+	m.tipWake, m.mouseAt = false, time.Now()
+	if m.tipLater() == nil || m.tipLater() != nil {
+		t.Fatal("a pointer that moved wakes View once")
+	}
+
+	if _, cmd := m.Update(hoverMsg{}); cmd == nil || !m.tipWake {
+		t.Fatal("a wake before the pointer rested waits again")
+	}
+
+	m.tipWake, m.mouseAt = false, time.Now().Add(-actionsLinger)
+	if m.tipLater() != nil {
+		t.Fatal("past actionsLinger nothing is left to wake for")
+	}
+
+	m.Update(tea.MouseMotionMsg{X: rc.x + 1, Y: m.barH(0)})
+
+	commit := m.headerActions(0, viewGit, rc.w)[1]
+	rest(rc.x+m.barW(0)+commit.x+1, m.barH(0))
+
+	if out := checkWidths(t, m); !tip("Commit  C") {
+		t.Fatalf("no tip on the header's Commit:\n%s", out)
+	}
+
+	rest(tabAt(m, viewFiles), 0)
+
+	if out := checkWidths(t, m); !tip("Explorer  1") {
+		t.Fatalf("no tip on Explorer's chip:\n%s", out)
+	}
+
+	fire(m, m.openFile(filepath.Join(m.ws, "src", "deep", "x.go"), false))
+
+	bs := m.pv.buttons(m, m.mainW())
+	rest(m.mainX()+bs[len(bs)-1].x+1, 0)
+
+	if out := checkWidths(t, m); !tip("Toggle Word Wrap  M-z") {
+		t.Fatalf("no tip on the editor's wrap button:\n%s", out)
+	}
+
+	m.focus = onMain
+	press(m, "ctrl+f")
+
+	x0, bw, ok := m.pv.findRect(m)
+	_, fa := m.pv.findActs(bw)
+	rest(m.mainX()+x0+fa[0].x, m.headH()+m.stripH()+1)
+
+	if out := checkWidths(t, m); !ok || !tip("Match Case  M-c") {
+		t.Fatalf("no tip on the find widget's match case:\n%s", out)
+	}
+}
+
 func TestSectionActions(t *testing.T) {
 	m := gitModel(t)
 	top := m.bodyTop(viewGit)

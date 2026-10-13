@@ -2588,6 +2588,7 @@ func (m *Model) sessionStrip(w int) string {
 	}
 
 	btns, _ := m.actSegs(m.sessionButtons(), x0, y)
+	m.notePlus("New Tab in Session", x0, y, w)
 
 	return m.stripMark(row(w, nil, tabSegs(tabs, m.overTab, m.overX), append(right, btns...)...), stripSession, 0)
 }
@@ -2612,10 +2613,10 @@ func (m *Model) sessionButtons() []rowAction {
 	var acts []rowAction
 
 	if m.canMax() {
-		acts = append(acts, rowAction{g: m.maxGlyph(), run: func(m *Model) tea.Cmd { return m.toggleMax(false) }})
+		acts = append(acts, rowAction{g: m.maxGlyph(), tip: m.maxTip(), run: func(m *Model) tea.Cmd { return m.toggleMax(false) }})
 	}
 
-	acts = append(acts, rowAction{g: icClose, run: func(m *Model) tea.Cmd { return m.hideSession() }})
+	acts = append(acts, rowAction{g: icClose, tip: "Close (keeps running)", run: func(m *Model) tea.Cmd { return m.hideSession() }})
 	layoutRight(acts, m.sessW(), 2)
 
 	return acts
@@ -2664,6 +2665,17 @@ func (m *Model) sessionHint() (string, lipgloss.Style) {
 	}
 
 	return "", plain
+}
+
+// newTermTip is the tip of the Terminal strip's +.
+const newTermTip = "New Terminal  ^⇧`"
+
+// notePlus notes tip while the mouse is on the + of the strip w cells wide
+// from screen column x0 on row y.
+func (m *Model) notePlus(tip string, x0, y, w int) {
+	if m.overTab == plusTab && m.mouseY == y && m.mouseX >= x0 && m.mouseX < x0+w {
+		m.tip = tip
+	}
 }
 
 // tabSegs draws a strip's tabs, tab over in hover_bg and the ✕ of tab overX
@@ -3186,6 +3198,7 @@ func (m *Model) termPanelLines(w, h int) []string {
 	}
 
 	btns, _ := m.actSegs(m.termButtons(), m.mainX(), m.mainH()+1)
+	m.notePlus(newTermTip, m.mainX(), m.mainH()+1, w)
 
 	title := m.stripMark(row(w, nil, left, btns...), stripTerm, 1) // the tabs start past a space
 
@@ -3200,7 +3213,9 @@ func (m *Model) termPanelLines(w, h int) []string {
 // termLines are the panel in a column: its tab strip and buttons, the rule,
 // then the terminal screen.
 func (m *Model) termLines(w, h int) []string {
-	btns, _ := m.actSegs(m.termButtons(), m.colRect(m.colOf(viewTerm)).x, m.barH(m.colOf(viewTerm)))
+	i := m.colOf(viewTerm)
+	btns, _ := m.actSegs(m.termButtons(), m.colRect(i).x, m.barH(i))
+	m.notePlus(newTermTip, m.colRect(i).x, m.barH(i), w)
 	strip := m.stripMark(row(w, nil, tabSegs(m.termTabs(m.termStripW()), m.overTab, m.overX), btns...), stripTerm, 0)
 
 	return append([]string{strip, m.termRule(w, 0)}, m.termScreen(w, h-termStripH)...)
@@ -3243,16 +3258,14 @@ func (m *Model) termButtons() []rowAction {
 	var acts []rowAction
 
 	if m.termRows() > 0 {
-		g := icMax
-		if m.termMax {
-			g = icRestore
-		}
-
 		acts = append(acts,
-			rowAction{g: g, run: func(m *Model) tea.Cmd { return m.maximizeTerminal(!m.termMax) }},
-			rowAction{g: icClose, run: func(m *Model) tea.Cmd { return m.toggleTerminal() }})
+			rowAction{
+				g: pick(m.termMax, icMax, icRestore), tip: pick(m.termMax, "Maximize Panel  ^⇧↑", "Restore Panel  ^⇧↓"),
+				run: func(m *Model) tea.Cmd { return m.maximizeTerminal(!m.termMax) },
+			},
+			rowAction{g: icClose, tip: "Hide Panel  ^`", run: func(m *Model) tea.Cmd { return m.toggleTerminal() }})
 	} else {
-		acts = append(acts, rowAction{g: icClose, run: func(m *Model) tea.Cmd { return m.confirmKill(m.tv.id) }})
+		acts = append(acts, rowAction{g: icClose, tip: "Kill Terminal…", run: func(m *Model) tea.Cmd { return m.confirmKill(m.tv.id) }})
 	}
 
 	layoutRight(acts, m.termW(), 2)

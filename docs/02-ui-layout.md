@@ -213,6 +213,12 @@ Model.mouse
 - All-motion mouse mode: the row under the pointer paints `hoverBg`; header
   actions linger `actionsLinger` (3 s), since terminals never report "mouse
   left".
+- An icon button names itself and its key in a box under the pointer once
+  it has rested `tipDelay`, until `actionsLinger` (`tipShown`, `hoverBox`):
+  header actions, activity bar chips, strip buttons and `+`, Source Control
+  rows and ∨, Search toggles, find widgets. The frame notes the `tip` of the
+  button it draws under the mouse (`Model.tip`); `hoverMsg` wakes View at
+  both moments, one wake at a time (`tipLater`).
 
 ## Scrollbars
 

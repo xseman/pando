@@ -109,6 +109,31 @@ func frameLine(w, x int, glyph string, st lipgloss.Style) string {
 	return blank(x) + st.Render(strings.Repeat(glyph, max(w-x-1, 0))) + blank(min(w, 1))
 }
 
+// hoverBox puts pre-styled lines in a box by the mouse, under the pointer, or
+// over it when there is no room below: VS Code's hover.
+func (m *Model) hoverBox(lines []string) (box []string, x, y int) {
+	iw := 0
+	for _, l := range lines {
+		iw = max(iw, ansi.StringWidth(l)+2)
+	}
+
+	side := dim.Render("│")
+	box = append(box, dim.Render("╭"+strings.Repeat("─", iw)+"╮"))
+
+	for _, l := range lines {
+		box = append(box, side+row(iw, nil, []seg{sg(" "+l, plain)})+side)
+	}
+
+	box = append(box, dim.Render("╰"+strings.Repeat("─", iw)+"╯"))
+
+	x, y = max(min(m.mouseX+2, m.w-iw-2), 0), m.mouseY+1
+	if y+len(box) > m.panelH() {
+		y = max(m.mouseY-len(box), 0) // above the pointer instead
+	}
+
+	return box, x, y
+}
+
 // center places s in the middle of w cells.
 func center(s string, w int) string {
 	sw := ansi.StringWidth(s)

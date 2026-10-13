@@ -275,14 +275,14 @@ func (s *searchView) toggle(m *Model, key string) tea.Cmd {
 // the replacement.
 func (s *searchView) toggles(w int, box *textinput.Model) []rowAction {
 	acts := []rowAction{
-		{g: icCase, run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+c") }},
-		{g: icWord, run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+w") }},
-		{g: icRegex, run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+r") }},
+		{g: icCase, tip: "Match Case  M-c", run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+c") }},
+		{g: icWord, tip: "Match Whole Word  M-w", run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+w") }},
+		{g: icRegex, tip: "Use Regular Expression  M-r", run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+r") }},
 	}
 	if box == &s.replace {
 		acts = []rowAction{
-			{g: icPreserve, run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+p") }},
-			{g: icReplaceAll, run: func(m *Model) tea.Cmd { return s.confirmReplaceAll(m) }},
+			{g: icPreserve, tip: "Preserve Case  M-p", run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+p") }},
+			{g: icReplaceAll, tip: "Replace All…", run: func(m *Model) tea.Cmd { return s.confirmReplaceAll(m) }},
 		}
 	}
 
@@ -663,6 +663,10 @@ func (s *searchView) inputRow(m *Model, in *textinput.Model, w int) string {
 		acts = s.toggles(w, in)
 		for _, a := range acts {
 			tw += a.w
+		}
+
+		if a, ok := hit(acts, m.mouseCol(viewSearch)); ok && m.hoverRow(viewSearch) == 1+b2i(in == &s.replace) {
+			m.tip = a.tip
 		}
 	}
 

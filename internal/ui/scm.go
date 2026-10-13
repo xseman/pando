@@ -533,6 +533,7 @@ func untrackedPaths(st git.Status) []string {
 type rowAction struct {
 	g    glyph
 	text string // a label after the glyph, for a button that needs saying
+	tip  string // its name and key, for a button that does not say them
 	x, w int
 	on   bool // a toggle that is set, drawn lit
 	run  func(m *Model) tea.Cmd
@@ -580,7 +581,9 @@ func (s *scmView) actions(r scmRow, w int) []rowAction {
 
 	var acts []rowAction
 
-	add := func(g glyph, run func(*Model) tea.Cmd) { acts = append(acts, rowAction{g: g, run: run}) }
+	add := func(g glyph, tip string, run func(*Model) tea.Cmd) {
+		acts = append(acts, rowAction{g: g, tip: tip, run: run})
+	}
 	tail := 3 // " M "
 
 	if r.title == cmpTitle { // read-only: nothing to stage or discard
@@ -592,47 +595,47 @@ func (s *scmView) actions(r scmRow, w int) []rowAction {
 		tail = len(r.text) + 3 // " 12 " and a space
 		switch r.title {
 		case "Merge Changes":
-			add(icAdd, func(m *Model) tea.Cmd { return s.stageConflicts(m, root, "") })
+			add(icAdd, "Stage All Merge Changes", func(m *Model) tea.Cmd { return s.stageConflicts(m, root, "") })
 		case "Staged Changes":
-			add(icRemove, git1("unstaging", git.UnstageAll))
+			add(icRemove, "Unstage All Changes  u", git1("unstaging", git.UnstageAll))
 		case "Changes":
-			add(icDiscard, func(m *Model) tea.Cmd { return s.confirmDiscardAll(m, root) })
-			add(icAdd, s.stageTracked(root))
+			add(icDiscard, "Discard All Changes  d", func(m *Model) tea.Cmd { return s.confirmDiscardAll(m, root) })
+			add(icAdd, "Stage All Changes", s.stageTracked(root))
 
 		case "Untracked Changes":
-			add(icDiscard, func(m *Model) tea.Cmd { return s.confirmDeleteUntracked(m, root, "") })
-			add(icAdd, s.stageUntracked(root))
+			add(icDiscard, "Delete Untracked Files  d", func(m *Model) tea.Cmd { return s.confirmDeleteUntracked(m, root, "") })
+			add(icAdd, "Stage Untracked  U", s.stageUntracked(root))
 		}
 
 	case rowDir: // " ● ", the same column as a file's letter
 		dir := git.Entry{Path: r.path}
 		switch r.title {
 		case "Merge Changes":
-			add(icAdd, func(m *Model) tea.Cmd { return s.stageConflicts(m, root, dir.Path) })
+			add(icAdd, "Stage Merge Changes", func(m *Model) tea.Cmd { return s.stageConflicts(m, root, dir.Path) })
 		case "Staged Changes":
-			add(icRemove, git1("unstaging", func(root string) error { return git.Unstage(root, dir) }))
+			add(icRemove, "Unstage Changes", git1("unstaging", func(root string) error { return git.Unstage(root, dir) }))
 		case "Untracked Changes":
-			add(icDiscard, func(m *Model) tea.Cmd { return s.confirmDeleteUntracked(m, root, dir.Path) })
-			add(icAdd, git1("staging", func(root string) error { return git.Stage(root, dir) }))
+			add(icDiscard, "Delete Untracked Files  d", func(m *Model) tea.Cmd { return s.confirmDeleteUntracked(m, root, dir.Path) })
+			add(icAdd, "Stage Changes", git1("staging", func(root string) error { return git.Stage(root, dir) }))
 
 		default:
-			add(icAdd, git1("staging", func(root string) error { return git.Stage(root, dir) }))
+			add(icAdd, "Stage Changes", git1("staging", func(root string) error { return git.Stage(root, dir) }))
 		}
 
 	case rowFile:
 		e := r.entry
 		if e.Letter != 'D' && e.XY != "DD" {
-			add(icSource, func(m *Model) tea.Cmd { return m.openFile(filepath.Join(root, e.Path), false) })
+			add(icSource, "Open File  O", func(m *Model) tea.Cmd { return m.openFile(filepath.Join(root, e.Path), false) })
 		}
 
 		switch {
 		case e.Letter == '!': // VS Code's merge group: stage only, no discard
-			add(icAdd, func(m *Model) tea.Cmd { return s.stageConflict(m, root, e) })
+			add(icAdd, "Stage Changes", func(m *Model) tea.Cmd { return s.stageConflict(m, root, e) })
 		case e.Staged:
-			add(icRemove, git1("unstaging", func(root string) error { return git.Unstage(root, e) }))
+			add(icRemove, "Unstage Changes", git1("unstaging", func(root string) error { return git.Unstage(root, e) }))
 		default:
-			add(icDiscard, func(m *Model) tea.Cmd { return s.confirmDiscard(m, root, e) })
-			add(icAdd, git1("staging", func(root string) error { return git.Stage(root, e) }))
+			add(icDiscard, "Discard Changes  d", func(m *Model) tea.Cmd { return s.confirmDiscard(m, root, e) })
+			add(icAdd, "Stage Changes", git1("staging", func(root string) error { return git.Stage(root, e) }))
 		}
 	}
 
@@ -654,9 +657,15 @@ func (m *Model) mouseCol(v view) int {
 	return mx
 }
 
-// actionSegs draws row r's hover buttons, the one under the mouse raised.
+// actionSegs draws row r's hover buttons, the one under the mouse raised and
+// its tip noted.
 func (s *scmView) actionSegs(m *Model, r scmRow, w int) []seg {
-	return drawActions(s.actions(r, w), m.mouseCol(viewGit))
+	acts, mx := s.actions(r, w), m.mouseCol(viewGit)
+	if a, ok := hit(acts, mx); ok {
+		m.tip = a.tip
+	}
+
+	return drawActions(acts, mx)
 }
 
 // drawActions draws hover buttons acts, the one under column mx raised.
@@ -1570,6 +1579,7 @@ func (s *scmView) messageRow(m *Model, root string, line, w int, hovered bool) s
 		// The raised button runs into the edge: ▕ only draws the cell's right
 		// sliver, so its own background would leave a gap before the border.
 		btn, sep, end = keycapHot(), sep.Background(pal.keycapBg), end.Background(pal.keycapBg)
+		m.tip = "Generate Commit Message…"
 	}
 
 	bar := sep.Render("▏") // splits the ∨ off as the Commit button does
@@ -1736,7 +1746,7 @@ func (s *scmView) commitRow(m *Model, root string, w int, hovered bool, mx int, 
 	switch {
 	case !hovered || muted:
 	case onMenu:
-		menu = menu.Background(pal.buttonHoverBg)
+		menu, m.tip = menu.Background(pal.buttonHoverBg), "More Actions…"
 	default:
 		label = label.Background(pal.buttonHoverBg)
 	}
@@ -2603,31 +2613,8 @@ func (s *scmView) tipBox(m *Model) (box []string, x, y int, ok bool) {
 	}
 
 	lines := strings.Split(ansi.Wrap(s.tip.msg, max(min(72, m.w-6), 10), ""), "\n")
-	lines = lines[:min(len(lines), m.panelH()-2)]
-
-	iw := 0
-	for _, l := range lines {
-		iw = max(iw, ansi.StringWidth(l)+2)
-	}
-
-	side := dim.Render("│")
-	box = append(box, dim.Render("╭"+strings.Repeat("─", iw)+"╮"))
-
-	for i, l := range lines {
-		st := plain
-		if i == 0 {
-			st = st.Bold(true) // the subject
-		}
-
-		box = append(box, side+row(iw, nil, []seg{sg(" "+l, st)})+side)
-	}
-
-	box = append(box, dim.Render("╰"+strings.Repeat("─", iw)+"╯"))
-
-	x, y = max(min(m.mouseX+2, m.w-iw-2), 0), m.mouseY+1
-	if y+len(box) > m.panelH() {
-		y = max(m.mouseY-len(box), 0) // above the pointer instead
-	}
+	lines[0] = bold.Render(lines[0]) // the subject
+	box, x, y = m.hoverBox(lines[:min(len(lines), m.panelH()-2)])
 
 	return box, x, y, true
 }

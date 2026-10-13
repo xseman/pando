@@ -42,6 +42,8 @@ const (
 var (
 	viewTitles = []string{"Explorer", "Source Control", "Spaces", "Search", "Terminal", "Session", "GitHub"}
 	viewKeys   = []string{"files", "git", "agents", "search", "terminal", "session", "github"} // values of settings.left and settings.right
+	// viewHotkeys show each view: the Terminal's toggles the panel, the session's is none.
+	viewHotkeys = []string{"1", "2", "3", "4", "^`", "", "6"}
 )
 
 // hasGH reports gh on the PATH, which the GitHub view needs; tests turn it off.
@@ -191,6 +193,8 @@ type Model struct {
 	sashAt    sash      // the divider under the mouse, noSash for none
 	sashSince time.Time // when the mouse came onto it
 	mouseAt   time.Time
+	tip       string   // the name and key of the button under the mouse in the frame being drawn
+	tipWake   bool     // a hoverMsg is on its way
 	index     struct { // workspace file list for quick open and the Files filter
 		ws    string
 		files []string
@@ -1809,6 +1813,18 @@ func (m *Model) maxGlyph() glyph {
 	return icMax
 }
 
+// maxTip names what the maximize button does now.
+func (m *Model) maxTip() string { return pick(m.maxed, "Maximize", "Restore") }
+
+// pick is onV when on, else off.
+func pick[T any](on bool, off, onV T) T {
+	if on {
+		return onV
+	}
+
+	return off
+}
+
 // toggleMax is the maximize button: the session (file false) or the file over
 // the whole editor area, the other one gone until it is pressed again.
 func (m *Model) toggleMax(file bool) tea.Cmd {
@@ -2116,12 +2132,13 @@ func (m *Model) tabs(s int) []tab {
 	return out
 }
 
-// titleAction is a hover button at the right end of a view header.
+// titleAction is a hover button at the right end of a view header; its tip
+// names it and its key.
 type titleAction struct {
-	label string
-	x, w  int
-	hot   bool // under the mouse
-	run   func(m *Model) tea.Cmd
+	label, tip string
+	x, w       int
+	hot        bool // under the mouse
+	run        func(m *Model) tea.Cmd
 }
 
 // ponytail: terminals send no "mouse left" event, so header actions show for
@@ -2146,51 +2163,51 @@ func (m *Model) headerActions(s int, v view, w int) []titleAction {
 
 	var acts []titleAction
 
-	add := func(g glyph, run func(*Model) tea.Cmd) {
-		acts = append(acts, titleAction{label: " " + g.s() + " ", run: run})
+	add := func(g glyph, tip string, run func(*Model) tea.Cmd) {
+		acts = append(acts, titleAction{label: " " + g.s() + " ", tip: tip, run: run})
 	}
 
 	switch v {
 	case viewFiles:
-		add(icNewFile, func(m *Model) tea.Cmd { return m.ex.action("n")(m) })
-		add(icNewDir, func(m *Model) tea.Cmd { return m.ex.action("N")(m) })
-		add(icRefresh, func(m *Model) tea.Cmd { m.ex.rebuild(m); return m.refreshGit() })
-		add(icCollapse, func(m *Model) tea.Cmd { m.ex.collapseAll(m); return nil })
+		add(icNewFile, "New File…  n", func(m *Model) tea.Cmd { return m.ex.action("n")(m) })
+		add(icNewDir, "New Folder…  N", func(m *Model) tea.Cmd { return m.ex.action("N")(m) })
+		add(icRefresh, "Refresh  r", func(m *Model) tea.Cmd { m.ex.rebuild(m); return m.refreshGit() })
+		add(icCollapse, "Collapse All  C", func(m *Model) tea.Cmd { m.ex.collapseAll(m); return nil })
 
 	case viewGit:
-		mode := icTree
+		mode, label := icTree, "View as Tree"
 		if m.st.Settings.GitTree {
-			mode = icList
+			mode, label = icList, "View as List"
 		}
 
-		add(icBranch, m.scm.branchPicker)
-		add(icCheck, m.scm.commit)
-		add(mode, m.scm.toggleTree)
-		add(icRefresh, func(m *Model) tea.Cmd { return tea.Batch(m.refreshGit(), m.scm.loadDrawers(m)) })
-		add(icCollapse, func(m *Model) tea.Cmd { m.scm.collapseAll(m); return nil })
+		add(icBranch, "Switch Branch…  B", m.scm.branchPicker)
+		add(icCheck, "Commit  C", m.scm.commit)
+		add(mode, label+"  t", m.scm.toggleTree)
+		add(icRefresh, "Refresh  r", func(m *Model) tea.Cmd { return tea.Batch(m.refreshGit(), m.scm.loadDrawers(m)) })
+		add(icCollapse, "Collapse All", func(m *Model) tea.Cmd { m.scm.collapseAll(m); return nil })
 
 	case viewSearch:
-		add(icReplace, func(*Model) tea.Cmd { return m.sr.toggleReplace() })
-		add(icRefresh, m.sr.restart)
-		add(icClearAll, func(m *Model) tea.Cmd { m.sr.query.Reset(); m.sr.clear(); return nil })
-		add(icCollapse, func(m *Model) tea.Cmd { m.sr.collapseAll(); return nil })
+		add(icReplace, "Toggle Replace  ^h", func(*Model) tea.Cmd { return m.sr.toggleReplace() })
+		add(icRefresh, "Rerun Search  ^r", m.sr.restart)
+		add(icClearAll, "Clear Results  x", func(m *Model) tea.Cmd { m.sr.query.Reset(); m.sr.clear(); return nil })
+		add(icCollapse, "Collapse All  C", func(m *Model) tea.Cmd { m.sr.collapseAll(); return nil })
 
 	case viewTerm, viewSession: // their buttons are in their tab strips
 
 	case viewGitHub:
-		add(icPRNew, func(m *Model) tea.Cmd { return m.ghTerminal("gh pr create") })
-		add(icRefresh, m.gh.refresh)
-		add(icCollapse, func(m *Model) tea.Cmd { m.gh.collapseAll(); return nil })
+		add(icPRNew, "Create Pull Request", func(m *Model) tea.Cmd { return m.ghTerminal("gh pr create") })
+		add(icRefresh, "Refresh  ^r", m.gh.refresh)
+		add(icCollapse, "Collapse All  C", func(m *Model) tea.Cmd { m.gh.collapseAll(); return nil })
 
 	case viewAgents:
-		add(icAdd, func(m *Model) tea.Cmd { return m.ag.newSession(m, m.ag.selected(m)) })
-		add(icWorktree, func(m *Model) tea.Cmd { return m.ag.newWorktree(m, m.ag.selected(m)) })
-		add(icRefresh, func(*Model) tea.Cmd { return tea.Batch(loadState(), loadWorkspaces(), loadSessions()) })
-		add(icOptions, func(m *Model) tea.Cmd { return m.ag.viewMenu(m, m.mouseX, m.mouseY+1) })
+		add(icAdd, "New Session…  n", func(m *Model) tea.Cmd { return m.ag.newSession(m, m.ag.selected(m)) })
+		add(icWorktree, "New Worktree…  w", func(m *Model) tea.Cmd { return m.ag.newWorktree(m, m.ag.selected(m)) })
+		add(icRefresh, "Refresh  r", func(*Model) tea.Cmd { return tea.Batch(loadState(), loadWorkspaces(), loadSessions()) })
+		add(icOptions, "View Options…  o", func(m *Model) tea.Cmd { return m.ag.viewMenu(m, m.mouseX, m.mouseY+1) })
 	}
 
 	if m.barH(s) == 0 && bw == 0 { // no activity bar to hold the gear
-		add(icGear, func(m *Model) tea.Cmd { m.modal = settingsModal(m); return nil })
+		add(icGear, settingsTip, func(m *Model) tea.Cmd { m.modal = settingsModal(m); return nil })
 	}
 
 	x := w
@@ -2202,6 +2219,46 @@ func (m *Model) headerActions(s int, v view, w int) []titleAction {
 	}
 
 	return acts
+}
+
+// settingsTip is the tip of the gear that opens the settings.
+const settingsTip = "Open Settings  ^,"
+
+// viewTip names view v and its key, for its activity bar chip.
+func viewTip(v view) string { return strings.TrimSpace(viewTitles[v] + "  " + viewHotkeys[v]) }
+
+// hoverMsg wakes View once the pointer has rested tipDelay, for the tip of
+// the button under it, and again at actionsLinger, when the tip goes with
+// the header actions.
+type hoverMsg struct{}
+
+// tipShown reports whether the pointer has rested long enough for a tip, and
+// not so long that it should be gone: a tip never sits over what is typed.
+func (m *Model) tipShown() bool {
+	d := time.Since(m.mouseAt)
+
+	return d >= tipDelay && d < actionsLinger
+}
+
+// tipLater wakes View at the next of those moments; one wake waits at a time,
+// put off while the pointer moves.
+func (m *Model) tipLater() tea.Cmd {
+	d := time.Since(m.mouseAt)
+
+	switch {
+	case m.tipWake:
+		return nil
+	case d < tipDelay:
+		d = tipDelay - d
+	case d < actionsLinger:
+		d = actionsLinger - d
+	default:
+		return nil
+	}
+
+	m.tipWake = true
+
+	return tea.Tick(d, func(time.Time) tea.Msg { return hoverMsg{} })
 }
 
 // switchWorkspace opens path: the sidebar views, the session and the
@@ -2666,9 +2723,12 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.PasteMsg:
 		return m, m.paste(msg)
 	case tea.MouseMsg:
-		return m, tea.Batch(m.mouse(msg), m.trackSash(), m.scm.hoverTip(m, msg))
+		return m, tea.Batch(m.mouse(msg), m.trackSash(), m.scm.hoverTip(m, msg), m.tipLater())
 	case sashMsg: // the pointer has rested: View lights the sash
 		return m, nil
+	case hoverMsg: // the pointer has rested: View shows the tip under it, or takes it down
+		m.tipWake = false
+		return m, m.tipLater()
 	}
 	// Other input messages.
 	var cmds []tea.Cmd
@@ -3680,6 +3740,8 @@ func (m *Model) View() tea.View {
 		return v
 	}
 
+	m.tip = "" // the frame notes the button under the mouse again
+
 	cs, c := m.layout()
 	b := m.bord()
 
@@ -3777,6 +3839,11 @@ func (m *Model) View() tea.View {
 		for i, box := range boxes {
 			m.overlayBox(lines, box, xs[i], ys[i])
 		}
+	}
+
+	if m.tip != "" && m.tipShown() && m.modal == nil && m.drag == nil {
+		box, x, y := m.hoverBox([]string{m.tip})
+		m.overlayBox(lines, box, x, y)
 	}
 
 	cx, cy, caret := takeCaret(lines)
@@ -4149,6 +4216,10 @@ func (m *Model) activityBar(s, w int) []string {
 			cx = t.x + t.chipW
 		}
 
+		if hot(t.x, t.chipW) {
+			m.tip = viewTip(t.v)
+		}
+
 		segs = append(segs, sgOwn(t.label, st))
 		if t.badge != "" {
 			segs = append(segs, sg(t.badge, fg(pal.attention)))
@@ -4161,7 +4232,7 @@ func (m *Model) activityBar(s, w int) []string {
 
 	gearMark := rule(gw)
 	if hot(w-gw, gw) { // the gear is a chip too
-		gearMark = sg(strings.Repeat("─", gw), fg(pal.sashHover))
+		gearMark, m.tip = sg(strings.Repeat("─", gw), fg(pal.sashHover)), settingsTip
 	}
 
 	return []string{
@@ -4272,12 +4343,16 @@ func (m *Model) vertBar(s, w int) []string {
 			st = st.Foreground(pal.attention).Bold(true)
 		}
 
+		if hot(t.x) {
+			m.tip = viewTip(t.v)
+		}
+
 		chipAt(t.x, viewIcon(t.v), st, markColor(on, hot(t.x)))
 	}
 
 	st := dim
 	if hot(gearRow) {
-		st = fg(pal.sashHover)
+		st, m.tip = fg(pal.sashHover), settingsTip
 	}
 
 	chipAt(gearRow, icGear, st, markColor(false, hot(gearRow)))
@@ -4316,7 +4391,7 @@ func (m *Model) viewHeader(s int, v view, w int) string {
 		for _, a := range acts {
 			st := dim
 			if a.hot {
-				st = keycapHot()
+				st, m.tip = keycapHot(), a.tip
 			}
 
 			right = append(right, sg(a.label, st))
