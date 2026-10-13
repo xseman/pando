@@ -641,7 +641,7 @@ func (s *searchView) lines(m *Model, w, h int) []string {
 	case y == len(out)-1 && x >= w-3:
 		m.tip = "Toggle Files to Include  ^i"
 	case y == len(out)-1 && x >= w-6:
-		m.tip = pick(s.tree, "View as Tree  t", "View as List  t")
+		m.tip = ifElse(s.tree, "View as List  t", "View as Tree  t")
 	}
 
 	rows := s.rows()

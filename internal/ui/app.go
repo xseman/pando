@@ -42,9 +42,9 @@ const (
 var (
 	viewTitles = []string{"Explorer", "Source Control", "Spaces", "Search", "Terminal", "Session", "GitHub"}
 	viewKeys   = []string{"files", "git", "agents", "search", "terminal", "session", "github"} // values of settings.left and settings.right
-	// viewHotkeys show each view from anywhere where there is such a key, else
+	// showKeys show each view from anywhere where there is such a key, else
 	// from a sidebar: the Terminal's toggles the panel, the session's is none.
-	viewHotkeys = []string{"^⇧e", "^⇧g", "3", "^⇧f", "^`", "", "6"}
+	showKeys = []string{"^⇧e", "^⇧g", "3", "^⇧f", "^`", "", "6"}
 )
 
 // hasGH reports gh on the PATH, which the GitHub view needs; tests turn it off.
@@ -196,7 +196,7 @@ type Model struct {
 	sashSince time.Time // when the mouse came onto it
 	mouseAt   time.Time
 	tip       string    // the name and key of the button under the mouse in the frame being drawn
-	tipDue    time.Time // when the hoverMsg on its way comes, zero for none
+	tipDue    time.Time // when the tipWakeMsg on its way comes, zero for none
 	tipSeen   time.Time // when a tip was last drawn: moving on, the next one shows at once
 	tipOff    time.Time // a key or a click puts the tip away until the pointer moves
 	index     struct {  // workspace file list for quick open and the Files filter
@@ -1810,24 +1810,18 @@ func (m *Model) canMax() bool { return m.maxed || m.sessDocked() }
 
 // maxGlyph is the maximize button's, VS Code's: it restores while the editor
 // area is taken.
-func (m *Model) maxGlyph() glyph {
-	if m.maxed {
-		return icRestore
-	}
-
-	return icMax
-}
+func (m *Model) maxGlyph() glyph { return ifElse(m.maxed, icRestore, icMax) }
 
 // maxTip names what the maximize button does now.
-func (m *Model) maxTip() string { return pick(m.maxed, "Maximize", "Restore") }
+func (m *Model) maxTip() string { return ifElse(m.maxed, "Restore", "Maximize") }
 
-// pick is onV when on, else off.
-func pick[T any](on bool, off, onV T) T {
-	if on {
-		return onV
+// ifElse is a when c holds, else b.
+func ifElse[T any](c bool, a, b T) T {
+	if c {
+		return a
 	}
 
-	return off
+	return b
 }
 
 // toggleMax is the maximize button: the session (file false) or the file over
@@ -2180,14 +2174,11 @@ func (m *Model) headerActions(s int, v view, w int) []titleAction {
 		add(icCollapse, "Collapse All  C", func(m *Model) tea.Cmd { m.ex.collapseAll(m); return nil })
 
 	case viewGit:
-		mode, label := icTree, "View as Tree"
-		if m.st.Settings.GitTree {
-			mode, label = icList, "View as List"
-		}
+		tree := m.st.Settings.GitTree
 
 		add(icBranch, "Switch Branch…  B", m.scm.branchPicker)
 		add(icCheck, "Commit  C", m.scm.commit)
-		add(mode, label+"  t", m.scm.toggleTree)
+		add(ifElse(tree, icList, icTree), ifElse(tree, "View as List  t", "View as Tree  t"), m.scm.toggleTree)
 		add(icRefresh, "Refresh  r", func(m *Model) tea.Cmd { return tea.Batch(m.refreshGit(), m.scm.loadDrawers(m)) })
 		add(icCollapse, "Collapse All", func(m *Model) tea.Cmd { m.scm.collapseAll(m); return nil })
 
@@ -2231,12 +2222,12 @@ func (m *Model) headerActions(s int, v view, w int) []titleAction {
 const settingsTip = "Open Settings  ^,"
 
 // viewTip names view v and its key, for its activity bar chip.
-func viewTip(v view) string { return strings.TrimSpace(viewTitles[v] + "  " + viewHotkeys[v]) }
+func viewTip(v view) string { return strings.TrimSpace(viewTitles[v] + "  " + showKeys[v]) }
 
-// hoverMsg wakes View once the pointer has rested tipDelay, for the tip of
+// tipWakeMsg wakes View once the pointer has rested tipDelay, for the tip of
 // the button under it, and again at actionsLinger, when the tip goes with
 // the header actions; due is when it was sent for.
-type hoverMsg struct{ due time.Time }
+type tipWakeMsg struct{ due time.Time }
 
 // tipShown reports whether the pointer has rested long enough for a tip, or
 // just moved on from one, as VS Code's toolbars show the next at once; and
@@ -2271,7 +2262,7 @@ func (m *Model) tipLater() tea.Cmd {
 
 	m.tipDue = due
 
-	return tea.Tick(time.Until(due), func(time.Time) tea.Msg { return hoverMsg{due} })
+	return tea.Tick(time.Until(due), func(time.Time) tea.Msg { return tipWakeMsg{due} })
 }
 
 // switchWorkspace opens path: the sidebar views, the session and the
@@ -2751,7 +2742,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case sashMsg: // the pointer has rested: View lights the sash
 		return m, nil
-	case hoverMsg: // the pointer has rested: View shows the tip under it, or takes it down
+	case tipWakeMsg: // the pointer has rested: View shows the tip under it, or takes it down
 		if msg.due.Equal(m.tipDue) {
 			m.tipDue = time.Time{}
 		}
@@ -4997,10 +4988,10 @@ func (m *Model) viewItems() []item {
 	items := []item{
 		{label: "New Untitled File", hint: "^n", run: func(m *Model) tea.Cmd { return m.newUntitled() }},
 		{label: "Quick Open…", hint: "^p", run: func(m *Model) tea.Cmd { return m.loadIndex(true) }},
-		{label: "Show Explorer", hint: viewHotkeys[viewFiles], run: show(viewFiles)},
-		{label: "Show Source Control", hint: viewHotkeys[viewGit], run: show(viewGit)},
-		{label: "Show Spaces", hint: viewHotkeys[viewAgents], run: show(viewAgents)},
-		{label: "Show Search", hint: viewHotkeys[viewSearch], run: show(viewSearch)},
+		{label: "Show Explorer", hint: showKeys[viewFiles], run: show(viewFiles)},
+		{label: "Show Source Control", hint: showKeys[viewGit], run: show(viewGit)},
+		{label: "Show Spaces", hint: showKeys[viewAgents], run: show(viewAgents)},
+		{label: "Show Search", hint: showKeys[viewSearch], run: show(viewSearch)},
 		{label: "Toggle Terminal", hint: "^`", run: func(m *Model) tea.Cmd { return m.toggleTerminal() }},
 	}
 	if m.hasGH {

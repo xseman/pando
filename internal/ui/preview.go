@@ -2380,17 +2380,19 @@ func (p *preview) buttons(m *Model, w int) []rowAction {
 
 	if p.kind == pvFile && isMarkdown(p.path) { // direct: in a file a letter is text
 		acts = append(acts,
-			rowAction{g: pick(p.md == 1, icPreview, icSource), tip: pick(p.md == 1, "Open Preview", "Show Source") + "  ^⇧v", run: func(m *Model) tea.Cmd { return m.toggleRendered() }},
-			rowAction{g: pick(p.md == 2, icSplit, icInline), tip: pick(p.md == 2, "Open Preview to the Side", "Close Preview") + "  M-v", run: func(m *Model) tea.Cmd { return m.pv.toggleMarkdown(m, 2) }})
+			rowAction{g: ifElse(p.md == 1, icSource, icPreview), tip: ifElse(p.md == 1, "Show Source", "Open Preview") + "  ^⇧v", run: func(m *Model) tea.Cmd { return m.toggleRendered() }},
+			rowAction{g: ifElse(p.md == 2, icInline, icSplit), tip: ifElse(p.md == 2, "Close Preview", "Open Preview to the Side") + "  M-v", run: func(m *Model) tea.Cmd { return m.pv.toggleMarkdown(m, 2) }})
 	}
 
 	if p.fileDiff() { // the whole file or the changes
-		add(pick(m.st.Settings.DiffFull, icUnfold, icFold), pick(m.st.Settings.DiffFull, "Show the Whole File", "Show Only the Changes"), tea.KeyPressMsg{Code: 'z', Text: "z"})
+		full := m.st.Settings.DiffFull
+		add(ifElse(full, icFold, icUnfold), ifElse(full, "Show Only the Changes", "Show the Whole File"), tea.KeyPressMsg{Code: 'z', Text: "z"})
 	}
 
 	if p.meta != nil { // the file itself, then inline ↔ side by side
 		acts = append(acts, rowAction{g: icSource, tip: "Open File  O", run: func(m *Model) tea.Cmd { return m.pv.openHere(m) }})
-		add(pick(m.st.Settings.DiffView == "split", icSplit, icInline), pick(m.st.Settings.DiffView == "split", "Side by Side View", "Inline View"), tea.KeyPressMsg{Code: 's', Text: "s"})
+		split := m.st.Settings.DiffView == "split"
+		add(ifElse(split, icInline, icSplit), ifElse(split, "Inline View", "Side by Side View"), tea.KeyPressMsg{Code: 's', Text: "s"})
 	}
 
 	if p.kind == pvFile || p.kind == pvRev {

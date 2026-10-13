@@ -222,7 +222,7 @@ Model.mouse
   items. Moving on from a tip shows the next at once (`tipSeen`); a key, a
   click or the wheel puts it away until the pointer moves (`tipOff`). The frame notes
   the `tip` of the button it draws under the mouse (`Model.tip`);
-  `hoverMsg` wakes View at both moments, the sooner one first (`tipLater`).
+  `tipWakeMsg` wakes View at both moments, the sooner one first (`tipLater`).
 
 ## Scrollbars
 

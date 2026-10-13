@@ -3334,7 +3334,7 @@ func (m *Model) termButtons() []rowAction {
 	if m.termRows() > 0 {
 		acts = append(acts,
 			rowAction{
-				g: pick(m.termMax, icMax, icRestore), tip: pick(m.termMax, "Maximize Panel  ^⇧↑", "Restore Panel  ^⇧↓"),
+				g: ifElse(m.termMax, icRestore, icMax), tip: ifElse(m.termMax, "Restore Panel  ^⇧↓", "Maximize Panel  ^⇧↑"),
 				run: func(m *Model) tea.Cmd { return m.maximizeTerminal(!m.termMax) },
 			},
 			rowAction{g: icClose, tip: "Close Terminal  ^`", run: func(m *Model) tea.Cmd { return m.toggleTerminal() }})

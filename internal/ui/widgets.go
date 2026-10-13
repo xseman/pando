@@ -1244,7 +1244,7 @@ func (md *modal) dialogView(iw int) string {
 
 		switch hot := i == md.hover; {
 		case i == md.l.sel:
-			st = lipgloss.NewStyle().Background(pick(hot, pal.buttonBg, pal.buttonHoverBg)).Foreground(pal.buttonFg)
+			st = lipgloss.NewStyle().Background(ifElse(hot, pal.buttonHoverBg, pal.buttonBg)).Foreground(pal.buttonFg)
 		case hot:
 			st = st.Background(pal.selBg)
 		}
