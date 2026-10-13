@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textarea"
@@ -613,6 +614,7 @@ type modal struct {
 	treeable bool                             // offer the list/tree toggle
 	dialog   bool                             // a question: the title as its message, the items as a row of buttons
 	hover    int                              // a dialog's button under the pointer, -1 for none
+	pattern  string                           // the query as the labels show it matched
 	l        list
 	x, y     int // anchor; x < 0 centers
 }
@@ -852,6 +854,10 @@ func (md *modal) refilter() {
 		q = strings.TrimSpace(q)
 	}
 
+	md.pattern = strings.Join(slices.DeleteFunc(strings.Fields(q), func(w string) bool { // what the labels show matched: no @ or ! tokens
+		return len(w) > 1 && (w[0] == '@' || w[0] == '!')
+	}), " ")
+
 	type hit struct{ i, score int }
 
 	var hits []hit
@@ -988,6 +994,10 @@ func (md *modal) refilter() {
 	if last && len(always) > 0 {
 		md.disp = append(md.disp, item{})
 		md.disp = append(md.disp, always...)
+	}
+
+	if q != "" && len(md.disp) == 0 {
+		md.disp = append(md.disp, item{label: "No matching results", sep: true})
 	}
 
 	md.l = list{sel: -1}
@@ -1184,7 +1194,7 @@ func (md *modal) view(m *Model) (string, int, int) {
 			}
 		}
 
-		left := []seg{sg(" "+it.label, st)}
+		left := append([]seg{sg(" ", st)}, marked(it.label, fuzzyHits(md.pattern, it.label), st)...)
 		if it.inline != "" {
 			left = append(left, sg(" "+it.inline, note))
 		}
@@ -1493,12 +1503,18 @@ func (md *modal) mouse(m *Model, msg tea.MouseMsg) tea.Cmd {
 
 // fuzzy scores a case-insensitive subsequence match; -1 = no match.
 func fuzzy(pattern, s string) int {
+	best, _ := fuzzyFrom(pattern, s)
+	return best
+}
+
+// fuzzyFrom is fuzzy and where in s its best match starts, -1 for none.
+func fuzzyFrom(pattern, s string) (best, from int) {
 	if pattern == "" {
-		return 0
+		return 0, -1
 	}
 
 	p, ls := strings.ToLower(pattern), strings.ToLower(s)
-	best := -1
+	best, from = -1, -1
 	// ponytail: greedy match from every occurrence of the first rune, O(n·m); fine for paths.
 	for start := strings.IndexByte(ls, p[0]); start >= 0; {
 		score, pi, prev := 0, 0, -2
@@ -1524,7 +1540,9 @@ func fuzzy(pattern, s string) int {
 			break // later starts cannot match either
 		}
 
-		best = max(best, score*100-len(s))
+		if sc := score*100 - len(s); sc > best {
+			best, from = sc, start
+		}
 
 		next := strings.IndexByte(ls[start+1:], p[0])
 		if next < 0 {
@@ -1534,7 +1552,51 @@ func fuzzy(pattern, s string) int {
 		start += next + 1
 	}
 
-	return best
+	return best, from
+}
+
+// fuzzyHits are the bytes of s that pattern's best match takes, for a row to
+// show them; none without a match, or where s is not plain ASCII there.
+func fuzzyHits(pattern, s string) []int {
+	_, at := fuzzyFrom(pattern, s)
+	if at < 0 || len(strings.ToLower(s)) != len(s) {
+		return nil
+	}
+
+	var out []int
+
+	p, ls := strings.ToLower(pattern), strings.ToLower(s)
+	for i, pi := at, 0; i < len(ls) && pi < len(p); i++ {
+		if ls[i] == p[pi] {
+			if s[i] >= utf8.RuneSelf { // a byte inside a rune
+				return nil
+			}
+
+			out, pi = append(out, i), pi+1
+		}
+	}
+
+	return out
+}
+
+// marked is label in st with the bytes at, a fuzzy match, in the accent:
+// VS Code's list.highlightForeground.
+func marked(label string, at []int, st lipgloss.Style) []seg {
+	hi := st.Foreground(pal.headerAccent).Bold(true)
+
+	var out []seg
+
+	last := 0
+
+	for _, i := range at {
+		if i > last {
+			out = append(out, sg(label[last:i], st))
+		}
+
+		out, last = append(out, sg(label[i:i+1], hi)), i+1
+	}
+
+	return append(out, sg(label[last:], st))
 }
 
 func openExternal(path string) error {

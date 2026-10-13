@@ -1782,6 +1782,41 @@ func sidebarRow(t *testing.T, m *Model, i int) string {
 	return ansi.Cut(strings.Split(checkWidths(t, m), "\n")[m.bodyTop(viewGit)+i], 0, m.colRect(0).w)
 }
 
+// TestPickerMatches marks a picker query's matched characters in the accent
+// and says when nothing matches, as VS Code's quick pick does.
+func TestPickerMatches(t *testing.T) {
+	if got := fuzzyHits("rdm", "README.md"); !slices.Equal(got, []int{0, 3, 4}) {
+		t.Fatalf("rdm in README.md takes %v", got)
+	}
+
+	if got := fuzzyHits("é", "café"); got != nil {
+		t.Fatalf("a rune is not cut for a mark: %v", got)
+	}
+
+	var parts []string
+	for _, s := range marked("README.md", fuzzyHits("rdm", "README.md"), plain) {
+		parts = append(parts, s.s)
+	}
+
+	if !slices.Equal(parts, []string{"R", "EA", "D", "M", "E.md"}) {
+		t.Fatalf("marked %q", parts)
+	}
+
+	m := testModel(t)
+	m.modal = newPicker("Pick", []item{{label: "README.md", run: func(*Model) tea.Cmd { return nil }}})
+	press(m, "r", "d", "m")
+
+	if box, _, _ := m.modal.view(m); !strings.Contains(box, fgParams(pal.headerAccent)) {
+		t.Fatalf("no mark on the match: %q", box)
+	}
+
+	press(m, "z")
+
+	if out := checkWidths(t, m); !strings.Contains(out, "No matching results") {
+		t.Fatalf("an empty list says nothing:\n%s", out)
+	}
+}
+
 // elapse moves m's clock d on for a tip: the pointer's last move, the last
 // key or click and the last tip drawn all happened d earlier.
 func elapse(m *Model, d time.Duration) {

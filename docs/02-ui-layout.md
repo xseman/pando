@@ -276,6 +276,10 @@ One at a time (`Model.modal`): menu, picker (fuzzy), prompt, or dialog
 | `hint`     | right-aligned                                            |
 | `detail`   | row under the selection only                             |
 
+A picker marks the characters its query matched in each label in the
+accent, VS Code's `list.highlightForeground` (`fuzzyHits`, `marked`), and
+says _No matching results_ when nothing is left.
+
 A dialog's buttons run `items[0]` (primary, focused) to `cancelItem()`,
 drawn primary rightmost with Cancel before it. `←→` `tab` walk, `⏎` runs,
 `esc` cancels; the button under the pointer lights without taking the focus
