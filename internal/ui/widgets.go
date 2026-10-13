@@ -128,8 +128,8 @@ func (m *Model) hoverBox(lines []string) (box []string, x, y int) {
 	box = append(box, dim.Render("╰"+strings.Repeat("─", iw)+"╯"))
 
 	x, y = max(min(m.mouseX+2, m.w-iw-2), 0), m.mouseY+1
-	if y+len(box) > m.panelH() {
-		y = max(m.mouseY-len(box), 0) // above the pointer instead
+	if y+len(box) > m.panelH() { // above the pointer instead, over the frame's bottom edge from the status bar
+		y = max(min(m.mouseY, m.panelH())-len(box), 0)
 	}
 
 	return box, x, y

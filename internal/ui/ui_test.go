@@ -1828,11 +1828,14 @@ func elapse(m *Model, d time.Duration) {
 // without moving the focus off the primary one; a click still runs it.
 func TestStatusAndDialogHover(t *testing.T) {
 	m := testModel(t)
-	y := m.h - 1 + m.bord()
-	status, _ := m.statusLine(m.w)
-	x := strings.Index(ansi.Strip(status), "^⇧p")
+	palette := func() int {
+		status, _ := m.statusLine(m.w)
+		before, _, _ := strings.Cut(ansi.Strip(status), "^⇧p")
 
-	m.Update(tea.MouseMotionMsg{X: x, Y: y})
+		return ansi.StringWidth(before)
+	}
+
+	m.Update(tea.MouseMotionMsg{X: palette(), Y: m.h - 1 + m.bord()})
 	elapse(m, tipDelay)
 
 	if lit, _ := m.statusLine(m.w); !strings.Contains(lit, bgParams(pal.keycapBg)) {
@@ -1842,6 +1845,19 @@ func TestStatusAndDialogHover(t *testing.T) {
 	if out := checkWidths(t, m); !strings.Contains(out, "│ Show All Commands │") {
 		t.Fatalf("no tip over the status bar:\n%s", out)
 	}
+	// Framed, the tip stays over the frame's bottom edge, off the bar.
+	m.st.Settings.Borders = true
+	m.resize()
+	m.Update(tea.MouseMotionMsg{X: palette(), Y: m.h - 1 + 2*m.bord()}) // the screen's row: the frame's top edge comes first
+	elapse(m, tipDelay)
+
+	out := strings.Split(checkWidths(t, m), "\n")
+	if !strings.Contains(out[len(out)-1], "^⇧p") || !strings.Contains(out[len(out)-4], "│ Show All Commands │") {
+		t.Fatalf("the tip covers the status bar:\n%s", strings.Join(out, "\n"))
+	}
+
+	m.st.Settings.Borders = false
+	m.resize()
 
 	ran := ""
 	m.modal = newDialog("Delete it?",
