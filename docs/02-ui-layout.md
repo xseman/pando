@@ -44,7 +44,8 @@ tick (2 s) ─▶ refreshGit, reloadIfLive, saveDrafts, saveEditors, …
 - `layout` places the columns, split by a one-cell divider (facing frame
   edges with `borders`).
 - Status bar buttons: the branch opens the branch picker, the project a
-  project switcher, the agent count the navigator.
+  project switcher, the agent count the navigator. Each lights under the
+  pointer and has a tip.
 - Focus is a column index, `onMain` or `onPanel`; `ctrl+]` cycles left →
   main → panel → right (`cycleFocus`).
 
@@ -216,7 +217,7 @@ Model.mouse
 - An icon button names itself and its key in a box under the pointer once
   it has rested `tipDelay`, until `actionsLinger` (`tipShown`, `hoverBox`):
   header actions, activity bar chips, strip buttons and `+`, Source Control
-  rows and ∨, Search toggles, find widgets. The frame notes the `tip` of the
+  rows and ∨, Search toggles, find widgets, status bar items. The frame notes the `tip` of the
   button it draws under the mouse (`Model.tip`); `hoverMsg` wakes View at
   both moments, one wake at a time (`tipLater`).
 
@@ -275,4 +276,5 @@ One at a time (`Model.modal`): menu, picker (fuzzy), prompt, or dialog
 
 A dialog's buttons run `items[0]` (primary, focused) to `cancelItem()`,
 drawn primary rightmost with Cancel before it. `←→` `tab` walk, `⏎` runs,
-`esc` cancels.
+`esc` cancels; the button under the pointer lights without taking the focus
+(`modal.hover`).

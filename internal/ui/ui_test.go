@@ -1782,6 +1782,52 @@ func sidebarRow(t *testing.T, m *Model, i int) string {
 	return ansi.Cut(strings.Split(checkWidths(t, m), "\n")[m.bodyTop(viewGit)+i], 0, m.colRect(0).w)
 }
 
+// TestStatusAndDialogHover lights a status bar item under the pointer and
+// names it in a tip above it, and lights a dialog's button under the pointer
+// without moving the focus off the primary one; a click still runs it.
+func TestStatusAndDialogHover(t *testing.T) {
+	m := testModel(t)
+	y := m.h - 1 + m.bord()
+	status, _ := m.statusLine(m.w)
+	x := strings.Index(ansi.Strip(status), "^⇧p")
+
+	m.Update(tea.MouseMotionMsg{X: x, Y: y})
+	m.mouseAt = time.Now().Add(-tipDelay)
+
+	if lit, _ := m.statusLine(m.w); !strings.Contains(lit, bgParams(pal.keycapBg)) {
+		t.Fatalf("^⇧p under the pointer is not lit: %q", lit)
+	}
+
+	if out := checkWidths(t, m); !strings.Contains(out, "│ Show All Commands │") {
+		t.Fatalf("no tip over the status bar:\n%s", out)
+	}
+
+	ran := ""
+	m.modal = newDialog("Delete it?",
+		item{label: "Delete", run: func(*Model) tea.Cmd { ran = "delete"; return nil }},
+		item{label: "Cancel", run: func(*Model) tea.Cmd { ran = "cancel"; return nil }})
+
+	box, bx, by := m.modal.view(m)
+	rows := strings.Split(ansi.Strip(box), "\n")
+	cx := bx + strings.Index(rows[len(rows)-2], "Cancel")
+
+	m.Update(tea.MouseMotionMsg{X: cx, Y: by + len(rows) - 2})
+
+	if m.modal.hover != 1 || m.modal.l.sel != 0 {
+		t.Fatalf("hover %d, focus %d: want Cancel lit, Delete focused", m.modal.hover, m.modal.l.sel)
+	}
+
+	if box, _, _ := m.modal.view(m); !strings.Contains(box, bgParams(pal.selBg)) {
+		t.Fatal("the hovered Cancel is not lit")
+	}
+
+	click(m, cx, by+len(rows)-2, tea.MouseLeft)
+
+	if ran != "cancel" {
+		t.Fatalf("a click on the lit button ran %q", ran)
+	}
+}
+
 // TestCommitButtonBusy keeps the Commit button as it is while other work
 // runs in its repository, staging or a message being written; its own work
 // shimmers in its place.

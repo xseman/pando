@@ -4458,16 +4458,17 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 		zones       []rowAction
 	)
 	// The branch and the project are buttons: lit under the mouse, as VS Code's
-	// status bar items are.
-	button := func(text string, st lipgloss.Style, run func(*Model) tea.Cmd) {
+	// status bar items are, and named by a tip.
+	over := func(x, w int) bool { return m.mouseY == m.h-1+m.bord() && m.mouseX >= x && m.mouseX < x+w }
+	button := func(text, tip string, st lipgloss.Style, run func(*Model) tea.Cmd) {
 		x, w := 0, ansi.StringWidth(text)
 		for _, sg := range left {
 			x += ansi.StringWidth(sg.s)
 		}
 
 		seg := sg(text, st)
-		if m.mouseY == m.h-1+m.bord() && m.mouseX >= x && m.mouseX < x+w {
-			seg = sgOwn(text, st.Background(pal.keycapBg)) // over the bar's own background
+		if over(x, w) {
+			seg, m.tip = sgOwn(text, st.Background(pal.keycapBg)), tip // over the bar's own background
 		}
 
 		left = append(left, seg)
@@ -4483,12 +4484,12 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 			branch += " " + m.aheadBehind(root, st, "↑%s ↓%s")
 		}
 
-		button(branch+" ", fg(pal.headerAccent), func(m *Model) tea.Cmd { return m.scm.branchPicker(m) })
+		button(branch+" ", "Switch Branch…", fg(pal.headerAccent), func(m *Model) tea.Cmd { return m.scm.branchPicker(m) })
 
 		name = filepath.Base(root)
 	}
 
-	button(" "+name+" ", dim, func(m *Model) tea.Cmd { return m.projectPicker() })
+	button(" "+name+" ", "Open Project…", dim, func(m *Model) tea.Cmd { return m.projectPicker() })
 
 	if m.msg != "" && time.Since(m.msgAt) < 5*time.Second {
 		st := fg(pal.ok)
@@ -4499,29 +4500,33 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 		left = append(left, sg(" ", st))
 		left = append(left, m.fx.segs("flash", m.msg, st)...)
 	}
-	// Each right-hand item carries the action its click runs; they are laid
-	// out from the edge inwards once the list is complete.
-	var runs []func(m *Model) tea.Cmd
+	// Each right-hand item carries the action its click runs and its tip; they
+	// are laid out from the edge inwards once the list is complete.
+	var (
+		runs []func(m *Model) tea.Cmd
+		tips []string
+	)
 
 	// An item is one or more segments: a shimmering label is several.
 	var items [][]seg
 
-	addSegs := func(run func(m *Model) tea.Cmd, ss ...seg) {
-		items = append(items, ss)
-		runs = append(runs, run)
+	addSegs := func(tip string, run func(m *Model) tea.Cmd, ss ...seg) {
+		items, runs, tips = append(items, ss), append(runs, run), append(tips, tip)
 	}
-	add := func(text string, st lipgloss.Style, run func(m *Model) tea.Cmd) { addSegs(run, sg(text, st)) }
+	add := func(text string, st lipgloss.Style, tip string, run func(m *Model) tea.Cmd) {
+		addSegs(tip, run, sg(text, st))
+	}
 
 	searchRun := func(m *Model) tea.Cmd { return tea.Batch(m.showView(viewSearch), m.sr.focus()) }
 	if n := m.attentionCount(); n > 0 {
-		add(" ! "+m.fx.text("attention", strconv.Itoa(n))+" ", fg(pal.attention), func(m *Model) tea.Cmd { return m.agentNavigator() })
+		add(" ! "+m.fx.text("attention", strconv.Itoa(n))+" ", fg(pal.attention), "Go to Agent or Worktree…  M-t", func(m *Model) tea.Cmd { return m.agentNavigator() })
 	}
 
 	switch n := m.sr.matches(); {
 	case m.sr.busy:
-		addSegs(searchRun, m.shimmer(" searching… ", dim, bold)...)
+		addSegs("Show Search  ^⇧f", searchRun, m.shimmer(" searching… ", dim, bold)...)
 	case n > 0:
-		add(" "+m.fx.text("results", strconv.Itoa(n))+strings.TrimPrefix(plural(n, "result"), strconv.Itoa(n))+" ", dim, searchRun)
+		add(" "+m.fx.text("results", strconv.Itoa(n))+strings.TrimPrefix(plural(n, "result"), strconv.Itoa(n))+" ", dim, "Show Search  ^⇧f", searchRun)
 	}
 
 	if m.showsPreview() && m.pv.md != 1 && !m.pv.scrollOnly(m) {
@@ -4534,20 +4539,20 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 			pos = fmt.Sprintf(" Ln %d, Col %d (%d selected) ", c.line+1, c.col+1, n)
 		}
 
-		add(pos, dim, func(m *Model) tea.Cmd { return m.gotoLineQuery(":") })
+		add(pos, dim, "Go to Line/Column…  ^g", func(m *Model) tea.Cmd { return m.gotoLineQuery(":") })
 
 		if m.pv.kind == pvFile || m.pv.kind == pvRev {
-			add(" "+indentLabel(m.st.Settings)+" ", dim, func(m *Model) tea.Cmd { return m.indentPicker() })
+			add(" "+indentLabel(m.st.Settings)+" ", dim, "Select Indentation…", func(m *Model) tea.Cmd { return m.indentPicker() })
 		}
 	}
 
-	add(" ^⇧p ", dim, func(m *Model) tea.Cmd { return m.commandPalette() })
+	add(" ^⇧p ", dim, "Show All Commands", func(m *Model) tea.Cmd { return m.commandPalette() })
 
 	if chip, run := m.updateChip(); chip != nil {
-		addSegs(run, chip...)
+		addSegs("", run, chip...)
 	}
 
-	x := w
+	x, hot := w, -1
 
 	for i := len(items) - 1; i >= 0; i-- {
 		rw := 0
@@ -4558,11 +4563,21 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 		x -= rw
 		if runs[i] != nil {
 			zones = append(zones, rowAction{x: x, w: rw, run: runs[i]})
+
+			if over(x, rw) {
+				hot, m.tip = i, tips[i]
+			}
 		}
 	}
 
-	for _, it := range items {
-		right = append(right, it...)
+	for i, it := range items {
+		for _, s := range it {
+			if i == hot { // lit as the branch and the project are
+				s = sgOwn(s.s, s.st.Background(pal.keycapBg))
+			}
+
+			right = append(right, s)
+		}
 	}
 
 	return row(w, pal.sectionBg, left, right...), zones

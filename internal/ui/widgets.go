@@ -612,6 +612,7 @@ type modal struct {
 	complete func(v string) []string          // a prompt's suggestions for what is typed: the rest shows dimmed, tab or → takes it
 	treeable bool                             // offer the list/tree toggle
 	dialog   bool                             // a question: the title as its message, the items as a row of buttons
+	hover    int                              // a dialog's button under the pointer, -1 for none
 	l        list
 	x, y     int // anchor; x < 0 centers
 }
@@ -733,7 +734,7 @@ func newMenu(title string, x, y int, items ...item) *modal {
 // carry no detail: refilter would add rows and shift what buttons returns.
 func newDialog(msg string, items ...item) *modal {
 	md := newMenu(msg, -1, 0, items...)
-	md.dialog = true
+	md.dialog, md.hover = true, -1
 
 	return md
 }
@@ -1230,8 +1231,12 @@ func (md *modal) dialogView(iw int) string {
 
 	for k, i := range order {
 		st := lipgloss.NewStyle().Background(pal.mutedButtonBg).Foreground(pal.mutedButtonFg)
-		if i == md.l.sel {
-			st = lipgloss.NewStyle().Background(pal.buttonBg).Foreground(pal.buttonFg)
+
+		switch hot := i == md.hover; {
+		case i == md.l.sel:
+			st = lipgloss.NewStyle().Background(pick(hot, pal.buttonBg, pal.buttonHoverBg)).Foreground(pal.buttonFg)
+		case hot:
+			st = st.Background(pal.selBg)
 		}
 
 		b.WriteString(strings.Repeat(" ", max(xs[k]-at, 0)) + st.Render(" "+labels[k]+" "))
@@ -1426,7 +1431,16 @@ func (md *modal) mouse(m *Model, msg tea.MouseMsg) tea.Cmd {
 	x, y, w, h, rows := md.rect(m)
 	inside := mo.X >= x && mo.X < x+w && mo.Y >= y && mo.Y < y+h
 
-	if md.dialog { // a click runs a button or, outside, cancels; hover leaves the focus, as VS Code's
+	if md.dialog { // a click runs a button or, outside, cancels; hover lights a button and leaves the focus, as VS Code's
+		md.hover = -1
+
+		order, labels, xs := md.buttonRow(w - 2)
+		for k, i := range order {
+			if bx := x + 1 + xs[k]; mo.Y == y+h-2 && mo.X >= bx && mo.X < bx+ansi.StringWidth(labels[k])+2 {
+				md.hover = i
+			}
+		}
+
 		if _, ok := msg.(tea.MouseClickMsg); !ok || mo.Y != y+h-2 && inside {
 			return nil
 		}
@@ -1436,12 +1450,9 @@ func (md *modal) mouse(m *Model, msg tea.MouseMsg) tea.Cmd {
 			return nil
 		}
 
-		order, labels, xs := md.buttonRow(w - 2)
-		for k, i := range order {
-			if bx := x + 1 + xs[k]; mo.X >= bx && mo.X < bx+ansi.StringWidth(labels[k])+2 {
-				md.l.sel = i
-				return md.choose(m, i)
-			}
+		if md.hover >= 0 {
+			md.l.sel = md.hover
+			return md.choose(m, md.hover)
 		}
 
 		return nil
