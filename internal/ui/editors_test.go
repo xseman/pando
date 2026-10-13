@@ -367,16 +367,27 @@ func TestTabChips(t *testing.T) {
 		t.Fatalf("the long name is cut: %q", got[0].label)
 	}
 
-	// A shell's tab has no status glyph: a server's logs are not an agent at work.
+	// A shell's tab has no status glyph: a server's logs are not an agent at
+	// work. An agent started in a tab or a terminal shows its own.
+	m.st.Agents["claude"] = []string{"claude", "--verbose"}
 	busy := []proto.Session{
 		{SessionSpec: proto.SessionSpec{ID: "a", Agent: "claude"}, Status: "running"},
-		{SessionSpec: proto.SessionSpec{ID: "b", Agent: tabAgent}, Status: "running"},
+		{SessionSpec: proto.SessionSpec{ID: "b", Agent: tabAgent}, Status: "running", Program: "node"},
 		{SessionSpec: proto.SessionSpec{ID: "c", Agent: termAgent}, Status: "running"},
+		{SessionSpec: proto.SessionSpec{ID: "d", Agent: tabAgent}, Status: "running", Program: "claude"},
+		{SessionSpec: proto.SessionSpec{ID: "e", Agent: termAgent}, Status: "idle", Program: "claude"},
 	}
 
 	got := m.tabsFor(100, busy, "a")
-	if !strings.Contains(got[0].label, "◐") || strings.Contains(got[1].label, "◐") || strings.Contains(got[2].label, "◐") {
-		t.Fatalf("only the agent's tab shows its state: %q", []string{got[0].label, got[1].label, got[2].label})
+
+	var labels []string
+	for _, t := range got[:len(busy)] {
+		labels = append(labels, t.label)
+	}
+
+	if !strings.Contains(labels[0], "◐") || strings.Contains(labels[1], "◐") || strings.Contains(labels[2], "◐") ||
+		!strings.Contains(labels[3], "◐") || !strings.Contains(labels[4], "○") {
+		t.Fatalf("agents' tabs show their state, shells' none: %q", labels)
 	}
 }
 

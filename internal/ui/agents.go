@@ -2531,10 +2531,11 @@ func (m *Model) tabsFor(w int, sessions []proto.Session, active string) []sessTa
 
 	for i, s := range sessions {
 		// A shell's screen says nothing about an agent's state: a server
-		// printing logs would read as working. Only the agent shows a glyph.
+		// printing logs would read as working. Only an agent shows a glyph,
+		// one started by hand in a tab or a terminal too.
 		glyph := ""
 
-		if s.Agent != termAgent && s.Agent != tabAgent {
+		if s.Agent != termAgent && s.Agent != tabAgent || m.runsAgent(s) {
 			g, _ := sessionGlyph(s)
 			glyph = m.spin(g, s) + " "
 		}
@@ -2735,6 +2736,19 @@ func (m *Model) sessionHint() (string, lipgloss.Style) {
 	}
 
 	return "", plain
+}
+
+// runsAgent reports an agent in the foreground of shell s, a tab or a
+// terminal, claude typed at its prompt: the daemon reads its screen as it
+// does an agent session's, so its state is worth a glyph.
+func (m *Model) runsAgent(s proto.Session) bool {
+	for name, cmd := range m.st.Agents {
+		if name != "shell" && name != "terminal" && len(cmd) > 0 && filepath.Base(cmd[0]) == s.Program {
+			return true
+		}
+	}
+
+	return false
 }
 
 // newTermTip is the tip of the Terminal strip's +.

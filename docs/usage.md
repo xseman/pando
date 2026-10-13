@@ -90,7 +90,8 @@ checkout.
 - A session re-roots Explorer and Source Control to its worktree.
 - Each session has shell tabs (the strip's `+`) and its own Terminal panel.
   `[` `]` step through its tabs; `alt+t` picks a session. Spaces shows the
-  tab count (`⧉ 2`) on a session with more than one.
+  tab count (`⧉ 2`) on a session with more than one. An agent started in a
+  tab, claude typed at its prompt, shows its state on the tab.
 - Drag over a terminal to select and copy; `ctrl+f` finds in its scrollback.
 
 | Mark | State     | Means                                                     |

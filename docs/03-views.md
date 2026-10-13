@@ -157,9 +157,10 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
   read, turns only with a program other than itself in front (`works`): its
   prompt's echo reads as running for a moment. A server printing in one
   keeps it turning, a redraw every 250 ms.
-- A tab strip draws the glyph on the agent's tab only: a shell tab or a
-  Terminal panel tab reads its screen like an agent's, so a server's logs
-  would show as working.
+- A tab strip draws the glyph on an agent's tab only, one started by hand
+  in a shell tab or a Terminal panel tab too (`runsAgent`, its `Program`):
+  a shell's screen reads like an agent's, so a server's logs would show as
+  working.
 - `session_highlight` tints blocked, exited and done rows (`sessionTint`);
   the tint pulses until the session is clicked or shown (`pulses`). A
   session row carries its tabs' tint; selected, it still pulses for one.
