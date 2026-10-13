@@ -96,7 +96,7 @@ checkout.
 | Mark | State     | Means                                                     |
 | ---- | --------- | --------------------------------------------------------- |
 | `×`  | `blocked` | waits for you: a permission or a question                 |
-| `◐`  | `running` | works                                                     |
+| `◐`  | `running` | works; it turns while it does                             |
 | `◐`  | `shell`   | running a shell command, in the background too (blue)     |
 | `✓`  | `done`    | finished, not looked at yet                               |
 | `○`  | `idle`    | at its prompt                                             |

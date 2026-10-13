@@ -460,6 +460,49 @@ func sessionGlyph(s proto.Session) (string, color.Color) {
 	return "○ ", pal.ok
 }
 
+// spinStep is how long a working session's ◐ holds each quarter turn: a
+// turn a second, every spinner on screen in step.
+const spinStep = 250 * time.Millisecond
+
+// spinGlyph is glyph g at moment t: ◐ turned a quarter per spinStep, any
+// other glyph as it is.
+func spinGlyph(g string, t time.Time) string {
+	rest, ok := strings.CutPrefix(g, "◐")
+	if !ok {
+		return g
+	}
+
+	return []string{"◐", "◓", "◑", "◒"}[t.UnixMilli()/spinStep.Milliseconds()%4] + rest
+}
+
+// spin is glyph g as drawn now: turning while animations are on.
+func (m *Model) spin(g string) string {
+	if !m.fx.on {
+		return g
+	}
+
+	return spinGlyph(g, time.Now())
+}
+
+// spinning reports a session or tab whose ◐ turns.
+func (m *Model) spinning() bool {
+	return m.fx.on && slices.ContainsFunc(m.mainSessions(), func(s proto.Session) bool {
+		g, _ := sessionGlyph(s)
+		return g == "◐ "
+	})
+}
+
+// spinLater sends the next spinMsg while a session works, one at a time.
+func (m *Model) spinLater() tea.Cmd {
+	if m.spinWake || !m.spinning() {
+		return nil
+	}
+
+	m.spinWake = true
+
+	return tea.Tick(spinStep, func(time.Time) tea.Msg { return spinMsg{} })
+}
+
 // sessionState names what a session's symbol says: blocked, running,
 // exited, done (finished unseen) or idle.
 func sessionState(s proto.Session) string {
@@ -620,7 +663,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 
 			glyph, c := groupGlyph(ss)
 
-			return row(rw, bg, []seg{sg(" "+chevron(open), dim), sg(glyph, fg(c)), sg(r.when, base.Bold(true))})
+			return row(rw, bg, []seg{sg(" "+chevron(open), dim), sg(m.spin(glyph), fg(c)), sg(r.when, base.Bold(true))})
 
 		case agProject:
 			open := !a.collapsed[r.project]
@@ -644,7 +687,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 				}
 			}
 
-			return row(rw, bg, append([]seg{sg(" "+chevron(open), dim), sg(glyph, fg(c)), sg(agLabel(r), base.Bold(true))}, plus...))
+			return row(rw, bg, append([]seg{sg(" "+chevron(open), dim), sg(m.spin(glyph), fg(c)), sg(agLabel(r), base.Bold(true))}, plus...))
 
 		case agWorkspace:
 			// The project's own checkout, which only closes, in the accent and
@@ -714,7 +757,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			status = icTabs.s() + " " + strconv.Itoa(len(tabs)) + " · " + status
 		}
 
-		left := append([]seg{sg(conn, dim), sg(glyph, fg(c))}, m.fx.segs("sess:"+r.s.ID, sessionName(r.s), nameSt)...)
+		left := append([]seg{sg(conn, dim), sg(m.spin(glyph), fg(c))}, m.fx.segs("sess:"+r.s.ID, sessionName(r.s), nameSt)...)
 
 		return row(rw, bg, append(left, sg(titleAfter(r.s), nameSt)), sg(" "+status+" ", dim))
 	}
@@ -2483,7 +2526,7 @@ func (m *Model) tabsFor(w int, sessions []proto.Session, active string) []sessTa
 
 		if s.Agent != termAgent && s.Agent != tabAgent {
 			g, _ := sessionGlyph(s)
-			glyph = g + " "
+			glyph = m.spin(g) + " "
 		}
 
 		name, end := m.fx.text("sess:"+s.ID, sessionName(s)), " "+tabClose(s.ID == active)

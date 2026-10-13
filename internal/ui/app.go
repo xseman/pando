@@ -163,6 +163,7 @@ type Model struct {
 	seen        map[string]string // session to the state it was last clicked or shown in
 	blinkOn     bool              // a pulsing tint is at its full shade
 	blinking    bool              // its ticker runs
+	spinWake    bool              // a spinMsg is on its way
 	fx          effects           // text effects running, and what they compare against
 	events      <-chan proto.Event
 	inputs      chan proto.InputParams
@@ -237,6 +238,7 @@ type (
 	sessionsMsg   []proto.Session
 	tickMsg       struct{}
 	blinkMsg      struct{}
+	spinMsg       struct{} // turns every working session's ◐
 	flashMsg      struct {
 		text string
 		err  bool
@@ -2430,7 +2432,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	m.noteFx()
 
-	return m, tea.Batch(cmd, m.animate())
+	return m, tea.Batch(cmd, m.animate(), m.spinLater())
 }
 
 // followCramp follows the session in or out of the editor area for room: in
@@ -2493,6 +2495,10 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case fxTickMsg:
 		return m, m.onFxTick()
+
+	case spinMsg: // View turns the spinners; Update's spinLater sends the next
+		m.spinWake = false
+		return m, nil
 
 	case tickMsg:
 		m.ex.rebuild(m)

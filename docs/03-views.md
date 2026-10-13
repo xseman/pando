@@ -151,6 +151,9 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
 `attention`; an `exited` row is a failure, shown as `exit N`.
 
 - Rows roll up the most demanding glyph of what they hold (`groupGlyph`).
+- A working `◐` turns a quarter every `spinStep` (250 ms), in Spaces and on
+  tabs, every one in step (`spinGlyph`); `spinMsg` ticks only while one
+  works, and `animations = false` stops it.
 - A tab strip draws the glyph on the agent's tab only: a shell tab or a
   Terminal panel tab reads its screen like an agent's, so a server's logs
   would show as working.

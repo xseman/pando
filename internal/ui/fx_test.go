@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -58,6 +59,45 @@ func TestMorphCells(t *testing.T) {
 
 	if cs := morphCells("", "abc", 0); cs[0].tone != toneNoise || cs[1].tone != toneNoise {
 		t.Fatalf("a decode starts in noise: %+v", cs)
+	}
+}
+
+// TestSpinner turns a working session's ◐ a quarter per spinStep, every
+// spinner in step, while animations are on; the ticker runs only while one
+// works.
+func TestSpinner(t *testing.T) {
+	t0 := time.UnixMilli(0)
+
+	var got []string
+	for i := range 5 {
+		got = append(got, spinGlyph("◐ ", t0.Add(time.Duration(i)*spinStep)))
+	}
+
+	if want := []string{"◐ ", "◓ ", "◑ ", "◒ ", "◐ "}; !slices.Equal(got, want) || spinGlyph("○ ", t0) != "○ " {
+		t.Fatalf("turns %v, want %v", got, want)
+	}
+
+	m := fxModel(t)
+	if m.spinning() || m.spinWake {
+		t.Fatal("an idle session does not turn")
+	}
+
+	running := slices.Clone(m.sessions)
+	running[0].Status = "running"
+
+	if _, cmd := m.Update(sessionsMsg(running)); cmd == nil || !m.spinning() || !m.spinWake {
+		t.Fatal("a working session starts the ticker")
+	}
+
+	if _, cmd := m.Update(spinMsg{}); cmd == nil || !m.spinWake {
+		t.Fatal("the ticker goes on while it works")
+	}
+
+	m.st.Settings.Anim = false
+	m.Update(spinMsg{})
+
+	if m.spinning() || m.spinWake || m.spin("◐ ") != "◐ " {
+		t.Fatal("animations off, ◐ stands still")
 	}
 }
 
