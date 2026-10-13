@@ -396,12 +396,13 @@ var (
 	icMainWt     = glyph{"home", "\ueb06", "⌂", ""}           // a project's own checkout
 	icLinkedWt   = glyph{"source-control", "\uea68", "⑂", ""} // a linked worktree of it
 	icTabs       = glyph{"window", "\ueb7f", "⧉", ""}         // a session's tab count in Spaces
+	icResume     = glyph{"comment-discussion", "\ueac7", "↺", ""}
 	allGlyphs    = []glyph{
 		icFiles, icGit, icSpaces, icAgents, icGear, icNewFile, icNewDir, icRefresh, icCollapse, icTree, icList,
 		icAdd, icRemove, icDiscard, icWorktree, icSparkle, icCheck, icChevron, icClose, icMax, icRestore, icBranch, icPublish, icSync, icSplit, icInline, icUnfold, icFold,
 		icSearch, icCase, icWord, icRegex, icEllipsis, icClearAll, icOptions, icPreview, icSource,
 		icPrevRev, icNextRev, icUp, icDown, icHistory, icTag, icDetach, icReplace, icPreserve, icReplaceAll, icTerminal, icDot,
-		icMainWt, icLinkedWt, icTabs, icWrap, icGitHub, icPR, icPRDraft, icPRNew, icIssue, icBell, icCheckAll,
+		icMainWt, icLinkedWt, icTabs, icResume, icWrap, icGitHub, icPR, icPRDraft, icPRNew, icIssue, icBell, icCheckAll,
 		icMerge, icCompare, icComment, icPRClosed, icReopen,
 	}
 )

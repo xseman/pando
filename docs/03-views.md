@@ -129,7 +129,7 @@ re-roots Explorer and Source Control to its worktree.
 
 ```text
 ▾ ◐ repo +⎇ New Worktree  project: most demanding session's glyph (· none), button (hover)
-   ⌂ main + New Session 2  the project's own checkout, button (hover), session count
+   ⌂ main + New Session  ↺ Resume 2  the project's own checkout, buttons (hover), session count
    ├─ ◐ claude · fix   ⧉ 2 · running   tab count, with more than its own
    └─ ○ shell          idle
    ⑂ feat/x         1   linked worktree (dimmed)
@@ -171,13 +171,14 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
 | `x`            | kill                     | linked: delete folder, keep branch; checkout: close | close (`project.remove`) |
 | drag, `alt+↑↓` | reorder (`session.move`) | reorder (`workspace.move`)                          | reorder (`project.move`) |
 | `n`, hover btn | its worktree's harness   | the harness (`harnessPicker`)                       | a worktree or a new one  |
+| Resume         | menu: in its worktree    | hover btn, menu (`resumePicker`)                    |                          |
 
 - A click on a session opens its one tab with a new state (`newsTab`);
   with several, the tab shown last, and again it puts the session away.
 - The right-click menu groups by action, rules from `menuGroups`: create
-  (New Session, New Worktree, Add / Open Project), the row's own (Rename,
-  Move), go to / view options, then remove. A session's title menu: where it
-  sits (Move to Editor Area, Dock), Rename, then Close and Kill.
+  (New Session, Resume Session, New Worktree, Add / Open Project), the row's
+  own (Rename, Move), go to / view options, then remove. A session's title
+  menu: where it sits (Move to Editor Area, Dock), Rename, then Close and Kill.
 - `x` kills the sessions in the way first (`killThen`), after asking.
 - _New Worktree…_ (`w`) offers a random branch (`workspace.new`).
 - Session reordering applies under Sort by Created + Group by Workspace only;
@@ -214,6 +215,12 @@ daemon saw it run in (`seen_env`) that no profile sets; the choice goes in
 (`worktreePicker`), _New Worktree…_ included (`sessionWorktreeMsg`). The `+`
 follows the name of the row under the pointer, or of the selected one while
 Spaces has the keyboard (`agents.actions`).
+
+A worktree's _Resume_ (`resumePicker`) starts one that continues a
+conversation: an installed agent's `[resume_id]` without the id, which for
+claude lists the worktree's conversations (`claude --resume`), else its
+`[resume]`. It asks for the agent only when more than one can, then the
+profile, whose config holds the conversations.
 
 A session has tabs (`tabsOf`): `+` adds a shell that dies with it, `[` `]`
 cycle, middle click or `✕` kills after asking. A session with more than its

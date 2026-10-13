@@ -1115,8 +1115,8 @@ func TestSpacesNewSession(t *testing.T) {
 		t.Fatalf("the project's button asks for the branch: drag %+v, %+v", m.drag, m.modal)
 	}
 
-	if acts := m.ag.actions(rows[feat]); len(acts) != 1 || acts[0].text != "New Session" {
-		t.Fatalf("a worktree's button starts a session: %+v", acts)
+	if acts := m.ag.actions(rows[feat]); len(acts) != 2 || acts[0].text != "New Session" || acts[1].text != "Resume" || acts[1].x != acts[0].x+acts[0].w {
+		t.Fatalf("a worktree's buttons start a session and, right after, resume one: %+v", acts)
 	}
 
 	// n on the project row asks which worktree.
@@ -1195,6 +1195,67 @@ func TestNewSessionProfile(t *testing.T) {
 	}
 
 	checkWidths(t, m)
+}
+
+// TestSpacesResume resumes from a worktree's Resume: an installed agent runs
+// its [resume_id] without the id, claude's picker, else its [resume]. One
+// agent alone goes straight to its profile; none says so. The menu offers it
+// on the rows that name a worktree.
+func TestSpacesResume(t *testing.T) {
+	m := testModel(t)
+	m.st.Agents = map[string][]string{"shell": {"sh"}, "claude": {"sh"}, "codex": {"sh"}, "gemini": {"sh"}, "gone": {"pando-no-such-harness"}}
+	m.st.Resume = map[string][]string{"claude": {"claude", "--continue"}, "codex": {"codex", "resume", "--last"}, "gone": {"gone", "--continue"}}
+	m.st.ResumeID = map[string][]string{"claude": {"claude", "--resume", "{id}"}}
+	press(m, "3")
+
+	rows := m.ag.rows(m) // the project, its checkout, s1
+	resume := m.ag.actions(rows[1])[1].run
+	hints := func() []string {
+		var out []string
+		for _, it := range m.modal.disp {
+			out = append(out, it.hint)
+		}
+
+		return out
+	}
+
+	m.Update(tea.MouseMotionMsg{X: m.colRect(m.colOf(viewAgents)).x + 1, Y: m.bodyTop(viewAgents) + 1})
+	checkWidths(t, m)
+
+	if line := ansi.Strip(m.ag.lines(m, 40, len(rows))[1]); !strings.Contains(line, "main + New Session  ↺ Resume ") {
+		t.Fatalf("the hovered checkout shows Resume after New Session: %q", line)
+	}
+
+	resume(m)
+
+	if m.modal == nil || m.modal.title != "Resume in "+filepath.Base(m.ws) || !slices.Equal(labels(m), []string{"claude", "codex"}) ||
+		!slices.Equal(hints(), []string{"claude --resume", "codex resume --last"}) {
+		t.Fatalf("Resume asks which agent, and shows what it runs: %v %v", labels(m), hints())
+	}
+
+	m.modal = nil
+	m.st.Agents = map[string][]string{"shell": {"sh"}, "claude": {"sh"}}
+	m.st.Settings.Profiles = map[string]map[string][]string{"claude": {"work": {"CLAUDE_CONFIG_DIR=/opt/work"}}}
+	resume(m)
+
+	if m.modal == nil || m.modal.title != "claude profile" || hints()[0] != "claude --resume" {
+		t.Fatalf("claude alone asks only for the profile it resumes in: %+v", m.modal)
+	}
+
+	m.modal = nil
+	m.st.Agents = map[string][]string{"shell": {"sh"}}
+	fire(m, resume(m))
+
+	if m.modal != nil || m.msg != "no installed agent can resume" {
+		t.Fatalf("nothing installed resumes: %+v %q", m.modal, m.msg)
+	}
+
+	for i, want := range []bool{false, true, true} {
+		m.ag.l.sel = i
+		if got := slices.ContainsFunc(m.ag.items(m), func(it item) bool { return it.label == "Resume Session…" }); got != want {
+			t.Errorf("row %d (%+v) offers Resume Session…: %v", i, rows[i], got)
+		}
+	}
 }
 
 // TestSpacesDragWorktree drags a project's checkout below its linked

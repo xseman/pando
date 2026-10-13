@@ -995,7 +995,7 @@ func (m *Model) harnessPicker(ws string) tea.Cmd {
 
 	for _, name := range m.harnesses() {
 		items = append(items, item{label: name, hint: strings.Join(m.st.Agents[name], " "), run: func(m *Model) tea.Cmd {
-			if m.profilePicker(ws, name) {
+			if m.profilePicker(ws, name, nil) {
 				return nil
 			}
 
@@ -1012,15 +1012,60 @@ func (m *Model) harnessPicker(ws string) tea.Cmd {
 	return nil
 }
 
-// profilePicker asks which profile a new session of agent in ws runs with:
-// its default, which sets nothing, its [profiles], then each config pando saw
-// it run in that none of them sets. It reports whether there was a choice.
-func (m *Model) profilePicker(ws, agent string) bool {
-	run := func(env []string) func(*Model) tea.Cmd {
-		return func(m *Model) tea.Cmd { return m.spawn(ws, agent, "", nil, "", env) }
+// resumePicker is a worktree's Resume: a session in ws runs an installed
+// agent's resumeCmd. It asks which agent when more than one can, then, as a
+// new session does, the profile, whose config holds the conversations.
+func (m *Model) resumePicker(ws string) tea.Cmd {
+	var items []item
+
+	for _, name := range m.harnesses() {
+		cmd := m.resumeCmd(name)
+		if cmd == nil {
+			continue
+		}
+
+		items = append(items, item{label: name, hint: strings.Join(cmd, " "), run: func(m *Model) tea.Cmd {
+			if m.profilePicker(ws, name, cmd) {
+				return nil
+			}
+
+			return m.newSession(ws, name, cmd)
+		}})
 	}
 
-	items := []item{{label: "default", hint: strings.Join(m.st.Agents[agent], " "), run: run(nil)}}
+	switch len(items) {
+	case 0:
+		return flash("no installed agent can resume", true)
+	case 1:
+		return items[0].run(m)
+	}
+
+	m.modal = newPicker("Resume in "+filepath.Base(ws), items)
+
+	return nil
+}
+
+// resumeCmd is what Resume runs for agent: its [resume_id] without the id,
+// claude's picker of the directory's conversations, else its [resume], which
+// continues the last one. Nil when it has neither.
+func (m *Model) resumeCmd(agent string) []string {
+	if t := m.st.ResumeID[agent]; len(t) > 0 {
+		return slices.DeleteFunc(slices.Clone(t), func(a string) bool { return a == "{id}" })
+	}
+
+	return m.st.Resume[agent]
+}
+
+// profilePicker asks which profile a new session of agent in ws runs with:
+// its default, which sets nothing, its [profiles], then each config pando saw
+// it run in that none of them sets. The session runs cmd, nil for the agent's
+// preset. It reports whether there was a choice.
+func (m *Model) profilePicker(ws, agent string, cmd []string) bool {
+	run := func(env []string) func(*Model) tea.Cmd {
+		return func(m *Model) tea.Cmd { return m.spawn(ws, agent, "", cmd, "", env) }
+	}
+
+	items := []item{{label: "default", hint: cmp.Or(strings.Join(cmd, " "), strings.Join(m.st.Agents[agent], " ")), run: run(nil)}}
 
 	var set [][]string
 
@@ -1250,18 +1295,21 @@ func removeLabel(r *agRow) string {
 }
 
 // actions are row r's hover buttons, right after its name: a project's New
-// Worktree (then its harness), a worktree's New Session.
+// Worktree (then its harness), a worktree's New Session and Resume.
 func (a *agents) actions(r agRow) []rowAction {
 	head := " " + chevron(!a.collapsed[r.project]) + "· " + agLabel(r) // any status glyph is a cell and a space
 
-	act := rowAction{g: icAdd, text: "New Session", run: func(m *Model) tea.Cmd { return a.newSession(m, &r) }}
+	acts := []rowAction{{g: icAdd, text: "New Session", run: func(m *Model) tea.Cmd { return a.newSession(m, &r) }}}
 
 	switch {
 	case r.kind == agWorkspace:
 		head = "   " + wtGlyph(r.ws).s() + " " + wsName(r.ws)
+
+		acts = append(acts, rowAction{g: icResume, text: "Resume", run: func(m *Model) tea.Cmd { return m.resumePicker(r.ws.Path) }})
+
 	case r.kind == agProject && r.project != "":
-		act.g, act.text = icWorktree, "New Worktree"
-		act.run = func(m *Model) tea.Cmd {
+		acts[0].g, acts[0].text = icWorktree, "New Worktree"
+		acts[0].run = func(m *Model) tea.Cmd {
 			m.promptWorktree(r.project, git.RandomBranch(), true)
 			return nil
 		}
@@ -1270,9 +1318,13 @@ func (a *agents) actions(r agRow) []rowAction {
 		return nil
 	}
 
-	act.x, act.w = ansi.StringWidth(head), ansi.StringWidth(act.label())
+	x := ansi.StringWidth(head)
+	for i := range acts {
+		acts[i].x, acts[i].w = x, ansi.StringWidth(acts[i].label())
+		x += acts[i].w
+	}
 
-	return []rowAction{act}
+	return acts
 }
 
 // sessionsIn are the sessions to kill to empty workspaces paths. A Terminal
@@ -1340,6 +1392,11 @@ func (a *agents) items(m *Model) []item {
 	goTo := []item{
 		{label: "Go to Agent or Worktree…", hint: "M-t", run: func(m *Model) tea.Cmd { return m.agentNavigator() }},
 		{label: "View Options…", hint: "o", run: func(m *Model) tea.Cmd { return a.viewMenu(m, m.mouseX, m.mouseY) }},
+	}
+
+	if r != nil && (r.kind == agWorkspace || r.kind == agSession) { // a worktree to resume in
+		ws := r.ws.Path
+		create = slices.Insert(create, 1, item{label: "Resume Session…", run: func(m *Model) tea.Cmd { return m.resumePicker(ws) }})
 	}
 
 	var row, remove []item // what the selected row can do, and its end
