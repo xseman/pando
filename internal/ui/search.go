@@ -1079,7 +1079,7 @@ func (s *searchView) inputKey(m *Model, k tea.KeyPressMsg) tea.Cmd {
 
 		return s.focus()
 
-	case "alt+c", "alt+w", "alt+r":
+	case "alt+c", "alt+w", "alt+r", "alt+p":
 		return s.toggle(m, k.String())
 	case "ctrl+h":
 		return s.toggleReplace()

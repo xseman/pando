@@ -222,3 +222,14 @@ func TestSearchPage(t *testing.T) {
 		t.Fatalf("pgup back to the top: sel %d, top %d", m.sr.l.sel, m.sr.l.top)
 	}
 }
+
+// TestSearchPreserveCaseKey toggles Preserve Case with M-p while a box of
+// Search's has the keyboard, as its button's tip says.
+func TestSearchPreserveCaseKey(t *testing.T) {
+	m := testModel(t)
+	press(m, "4", "ctrl+h", "alt+p")
+
+	if !m.sr.editing() || !m.sr.preserveCase {
+		t.Fatalf("M-p in the query box: editing %v, preserve case %v", m.sr.editing(), m.sr.preserveCase)
+	}
+}
