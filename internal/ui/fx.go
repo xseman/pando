@@ -45,8 +45,9 @@ const fxBand = 3
 
 // Morph timing, in frames: a character is noise for fxNoise frames before it
 // settles, the settling runs left to right over at most fxSpread frames, and
-// each character is up to fxJitter frames off its neighbour.
-const fxNoise, fxSpread, fxJitter = 3, 12, 4
+// each character is up to fxJitter frames off its neighbour. A morph is over
+// within half a second or so: it marks a change, it is not a show.
+const fxNoise, fxSpread, fxJitter = 2, 5, 2
 
 // anim is one effect running on a key's text.
 type anim struct {
@@ -98,17 +99,25 @@ func noise(i, t int) string { return string(scrambleGlyphs[fxHash(i, t)%len(scra
 // settleAt is the frame character i of n settles on in a morph.
 func settleAt(i, n int) int { return fxNoise + i*min(n, fxSpread)/max(n, 1) + fxHash(i, 0)%fxJitter }
 
-func morphDur(from, to string) int {
-	n := max(len([]rune(from)), len([]rune(to)))
-	return fxNoise + min(n, fxSpread) + fxJitter
+// morphW is how many cells a morph from from to to draws: to's, so a name
+// that gets shorter does not wait out the morph to shrink; from's when to is
+// empty, a dissolve.
+func morphW(from, to string) int {
+	if to == "" {
+		return len([]rune(from))
+	}
+
+	return len([]rune(to))
 }
 
+func morphDur(from, to string) int { return fxNoise + min(morphW(from, to), fxSpread) + fxJitter }
+
 // morphCells is frame t of from turning into to: a character both share
-// stays, the others show from, then noise, then to. Characters past the end
-// of to settle as blanks, so the width holds until the morph ends.
+// stays, the others show from, then noise, then to. A dissolve's characters
+// settle as blanks, so the width holds until the morph ends.
 func morphCells(from, to string, t int) []cell {
 	f, g := []rune(from), []rune(to)
-	n := max(len(f), len(g))
+	n := morphW(from, to)
 	out := make([]cell, 0, n)
 
 	for i := range n {

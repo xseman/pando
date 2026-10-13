@@ -382,3 +382,7 @@ effect keyed by its subject (`sess:ID`, `ws:PATH`); drawing asks `fx.text` or
 | sweep    | session starts waiting or finishes                    |
 | roll     | counts: changes, ahead/behind, results, sessions      |
 | shimmer  | Syncing…, Committing…, Searching…, Loading…           |
+
+A morph or decode is as wide as the new text from its first frame, so a
+shorter name never waits to shrink, and is over in about half a second
+(`fxNoise`, `fxSpread`, `fxJitter`, `morphW`); a dissolve keeps the old width.

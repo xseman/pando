@@ -3,6 +3,7 @@ package ui
 import (
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	"github.com/charmbracelet/x/ansi"
@@ -10,21 +11,31 @@ import (
 	"github.com/xseman/pando/internal/proto"
 )
 
-// TestMorphCells is a morph's contract: every frame is as wide as the wider
-// text, a character both texts share never scrambles, and the last frame is
-// the new text, blanks where the old one was longer.
+// TestMorphCells is a morph's contract: every frame is as wide as the new
+// text, so a name that gets shorter never waits to shrink (a dissolve, into
+// nothing, as wide as the old one), a character both texts share never
+// scrambles, the last frame is the new text, and none runs past 600 ms.
 func TestMorphCells(t *testing.T) {
 	for _, c := range [][2]string{
 		{"", "fix login bug"},
 		{"claude", "claude · fix"},
 		{"a much longer old name", "short"},
+		{"go test -race ./internal/ui/", "fish"},
 		{"main", "feature/x"},
 		{"same", "same"},
 		{"gone", ""},
 	} {
 		from, to := c[0], c[1]
-		n := max(utf8.RuneCountInString(from), utf8.RuneCountInString(to))
+
+		n := utf8.RuneCountInString(to)
+		if to == "" {
+			n = utf8.RuneCountInString(from)
+		}
+
 		d := morphDur(from, to)
+		if time.Duration(d)*fxFrame > 600*time.Millisecond {
+			t.Fatalf("%q→%q runs %d frames", from, to, d)
+		}
 
 		for f := range d {
 			cs := morphCells(from, to, f)
