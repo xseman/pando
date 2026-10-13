@@ -129,9 +129,10 @@ area; opening a file docks it back, `sessSide`).
   (`toggleMax`, also _Toggle Session / Editor Maximized_) gives the whole editor
   area to the session or to the file, the other one waiting; pressed again it
   docks them side by side. A maximized session restores from the right end of
-  its tab strip, the first row. Not saved (`maxed`: `cols` drops the column,
-  `preview` says who shows), but each workspace keeps its own while another is
-  shown (`maxedIn`); opening a file over a maximized session restores.
+  its tab strip, the first row (`maxed`: `cols` drops the column, `preview`
+  says who shows). Each worktree keeps its own with its session view, a
+  restart too (`session_views`' `max`: `session` or `file`); opening a file
+  over a maximized session restores.
 
 ## Terminal panel
 
@@ -143,7 +144,8 @@ the mouse rests on it or drags. `panelTopH` counts the three rows.
 
 Like the session's, the strip has the buttons (`termButtons`: maximize and ✕
 under the editor, ✕ closing the shell in a column) always shown and a rule
-under it, `termStripH` rows over the screen; a column has no header row.
+under it, `termStripH` rows over the screen; a column has no header row. Each
+worktree keeps its panel maximized or not, a restart too (`terminals`' `max`).
 
 ## Short of room
 

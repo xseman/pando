@@ -2952,6 +2952,51 @@ func TestSessionMaxPerWorkspace(t *testing.T) {
 	}
 }
 
+// TestMaxSurvivesRestart: a maximized session, a maximized file and a
+// maximized Terminal panel come back so in a pando started again, as a
+// worktree's session view and panel are saved.
+func TestMaxSurvivesRestart(t *testing.T) {
+	m := testModelSized(t, 140, 30)
+	m.sessions = []proto.Session{{SessionSpec: proto.SessionSpec{ID: "s1", Workspace: m.ws, Agent: "claude", Cmd: []string{"claude"}}, Status: "idle"}}
+	f := filepath.Join(m.ws, "a.txt")
+	mustWrite(t, f, "a\n")
+	fire(m, m.openFile(f, false))
+	m.switchSession("s1")
+	m.splitTo(viewSession, 1)
+
+	restart := func() *Model { // what quitting saves, then a new pando on it
+		m.saveEditors()
+		m.saveSessView()
+		m.saveTerm()
+
+		again := New(m.st, m.wss, m.sessions, m.ws, nil)
+		again.Update(tea.WindowSizeMsg{Width: 140, Height: 30})
+
+		return again
+	}
+
+	m.toggleMax(false)
+
+	if again := restart(); !again.maxed || !again.showsSession() {
+		t.Fatalf("the session maximized: maxed %v, over the editor %v", again.maxed, again.showsSession())
+	}
+
+	m.toggleMax(false)
+	m.toggleMax(true)
+
+	if again := restart(); !again.maxed || !again.showsPreview() || again.showsSession() {
+		t.Fatalf("the file maximized: maxed %v, file %v", again.maxed, again.showsPreview())
+	}
+
+	m.toggleMax(true)
+	m.toggleTerminal()
+	m.maximizeTerminal(true)
+
+	if again := restart(); again.maxed || !again.termMax || again.termRows() != m.termRows() {
+		t.Fatalf("the panel maximized: maxed %v, panel %v, %d rows", again.maxed, again.termMax, again.termRows())
+	}
+}
+
 // TestSessionDock drags the agent session by its title beside the editor, so a
 // file shows next to it; widened over the editor it takes the editor area
 // back; Close and a second click in Agents take it off screen, running on.

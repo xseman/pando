@@ -178,8 +178,7 @@ type Model struct {
 	saidCtrlJ bool
 	tv        termPanel              // the Terminal panel's shell
 	termMax   bool                   // the panel fills the editor area (⌃⇧↑)
-	maxed     bool                   // the docked session or the file fills the editor area (the strip's button): preview says which
-	maxedIn   map[string]bool        // maxed of each workspace left, back when it is switched to
+	maxed     bool                   // the docked session or the file fills the editor area (the strip's button): preview says which; saved with the session view
 	fileLast  bool                   // of the file and the session, the file had the keyboard last: it shows when they share the editor area for room
 	filters   [viewGitHub + 1]filter // per view
 	gh        ghView
@@ -1058,7 +1057,10 @@ func (m *Model) sessView() proto.SessionView {
 		}
 	}
 
-	v.Position = m.sessPos()
+	v.Position, v.Max = m.sessPos(), ""
+	if m.maxed {
+		v.Max = ifElse(m.preview, "file", "session")
+	}
 
 	return v
 }
@@ -1141,7 +1143,7 @@ func (m *Model) saveTerm() tea.Cmd {
 		return nil
 	}
 
-	t := proto.Terminal{Open: m.termOpen(), Tab: m.tv.id}
+	t := proto.Terminal{Open: m.termOpen(), Tab: m.tv.id, Max: m.termMax}
 	if _, ok := m.st.Terminals[m.ws]; ok && t == m.savedTerm {
 		return nil
 	}
@@ -2275,14 +2277,8 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 		return unfolded
 	}
 
-	saved := tea.Batch(unfolded, m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts())
+	saved := tea.Batch(unfolded, m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts()) // the maximized one and the panel's too
 	m.savedDrafts = nil
-
-	if m.maxedIn == nil {
-		m.maxedIn = map[string]bool{}
-	}
-
-	m.maxedIn[m.ws] = m.maxed
 	open := m.termOpen()
 	m.scm.cmps[m.ws] = m.scm.cmp
 	m.ws = path
@@ -2310,15 +2306,23 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 	}
 
 	restored := m.restoreEditors()
-	m.maxed = m.maxedIn[path]                                 // as the workspace was left: the restored tabs do not undo it
-	m.preview = m.preview && (m.sess == "" || m.sessDocked()) // a session over the editor is what shows; the tabs wait in the strip
-	// The panel as this workspace left it: open or shut, on the shell it
-	// showed; its session's column too.
+	// As the workspace was left, a restart too: the session or a file
+	// maximized, which the restored tabs do not undo; else a session over
+	// the editor is what shows, the tabs waiting in the strip.
+	switch was := m.st.SessionViews[path].Max; {
+	case was == "file" && m.edIdx >= 0:
+		m.maxed, m.preview = true, true
+	default:
+		m.maxed = was == "session"
+		m.preview = m.preview && (m.sess == "" || m.sessDocked())
+	}
+	// The panel as this workspace left it: open or shut, maximized or not,
+	// on the shell it showed; its session's column too.
 	m.savedTerm, m.tv.id, m.tv.term = m.st.Terminals[path], "", term{}
 	m.savedSess = m.st.SessionViews[path]
+	m.termMax = m.savedTerm.Max && m.termOpen()
 
 	if open != m.termOpen() && m.w > 0 { // New switches before the window has a size
-		m.termMax = false
 		m.resize()
 		m.fixFocus()
 	}

@@ -186,6 +186,7 @@ type Editors struct {
 type Terminal struct {
 	Open bool   `json:"open"`
 	Tab  string `json:"tab,omitempty"` // the shell it showed
+	Max  bool   `json:"max,omitempty"` // it filled the editor area (⌃⇧↑)
 }
 
 // SessionView is a workspace's session as state.json keeps it, so every
@@ -195,6 +196,7 @@ type Terminal struct {
 type SessionView struct {
 	Position string `json:"position"`        // "left" | "right" | "editor"
 	Width    int    `json:"width,omitempty"` // the column's cells; 0 = half the editor area
+	Max      string `json:"max,omitempty"`   // what filled the editor area, the other waiting: "session", "file" or ""
 }
 
 // Editor is one open file with its cursor (0-based) and scroll. An untitled

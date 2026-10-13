@@ -190,8 +190,8 @@ tick, on leaving the workspace and on quitting.
 | `sessions`       | session specs a restarted daemon respawns                       |
 | `drafts`         | per repository, the commit message; `""`                        |
 | `editors`        | per workspace, the tab strip; `null` or empty `open`            |
-| `terminals`      | per workspace, panel `open` and the shell `tab`; `null`         |
-| `session_views`  | per workspace, session `position` and `width` (0: half); `null` |
+| `terminals`      | per workspace, panel `open`, the shell `tab`, `max`; `null`     |
+| `session_views`  | per workspace, `position`, `width` (0: half), `max`; `null`     |
 | `last_workspace` | reopened when pando starts outside a repository                 |
 | `spaces_folded`  | folded Spaces headings, paths and `time:…`; sent whole          |
 | `seen_env`       | per program, the `[resume_env]` values seen; never, edit it out |
