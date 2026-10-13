@@ -64,7 +64,8 @@ func TestMorphCells(t *testing.T) {
 
 // TestSpinner turns a working session's ◐ a quarter per spinStep, every
 // spinner in step, while animations are on; the ticker runs only while one
-// works.
+// works, which a plain shell does only with a program other than itself in
+// front.
 func TestSpinner(t *testing.T) {
 	t0 := time.UnixMilli(0)
 
@@ -83,7 +84,15 @@ func TestSpinner(t *testing.T) {
 	}
 
 	running := slices.Clone(m.sessions)
-	running[0].Status = "running"
+	running[0].Status, running[0].Program = "running", "fish"
+
+	m.Update(sessionsMsg(running))
+
+	if m.spinning() {
+		t.Fatal("a shell echoing at its prompt does not turn")
+	}
+
+	running[0].Program = "make"
 
 	if _, cmd := m.Update(sessionsMsg(running)); cmd == nil || !m.spinning() || !m.spinWake {
 		t.Fatal("a working session starts the ticker")

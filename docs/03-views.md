@@ -153,7 +153,9 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
 - Rows roll up the most demanding glyph of what they hold (`groupGlyph`).
 - A working `◐` turns a quarter every `spinStep` (250 ms), in Spaces and on
   tabs, every one in step (`spinGlyph`); `spinMsg` ticks only while one
-  works, and `animations = false` stops it.
+  works, and `animations = false` stops it. A plain shell, with no screen to
+  read, turns only with a program other than itself in front (`works`): its
+  prompt's echo reads as running for a moment.
 - A tab strip draws the glyph on the agent's tab only: a shell tab or a
   Terminal panel tab reads its screen like an agent's, so a server's logs
   would show as working.

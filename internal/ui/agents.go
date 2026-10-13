@@ -475,24 +475,34 @@ func spinGlyph(g string, t time.Time) string {
 	return []string{"◐", "◓", "◑", "◒"}[t.UnixMilli()/spinStep.Milliseconds()%4] + rest
 }
 
-// spin is glyph g as drawn now: turning while animations are on.
-func (m *Model) spin(g string) string {
-	if !m.fx.on {
+// spin is glyph g of sessions ss as drawn now: ◐ turns while one of them
+// works, with animations on.
+func (m *Model) spin(g string, ss ...proto.Session) string {
+	if !m.fx.on || !slices.ContainsFunc(ss, works) {
 		return g
 	}
 
 	return spinGlyph(g, time.Now())
 }
 
-// spinning reports a session or tab whose ◐ turns.
-func (m *Model) spinning() bool {
-	return m.fx.on && slices.ContainsFunc(m.mainSessions(), func(s proto.Session) bool {
-		g, _ := sessionGlyph(s)
-		return g == "◐ "
-	})
+// works reports s running for real: an agent by its screen, a plain shell,
+// which has no screen to read, only while a program other than the shell is
+// in front; a prompt's echo or redraw reads as running for a moment too.
+func works(s proto.Session) bool {
+	if g, _ := sessionGlyph(s); g != "◐ " {
+		return false
+	}
+
+	plain := s.Agent == "shell" || s.Agent == tabAgent
+
+	return !plain || s.Program != "" && !slices.Contains(shells, s.Program)
 }
 
-// spinLater sends the next spinMsg while a session works, one at a time.
+// spinning reports a session or tab whose ◐ turns.
+func (m *Model) spinning() bool { return m.fx.on && slices.ContainsFunc(m.mainSessions(), works) }
+
+// spinLater sends the next spinMsg while a session works, one at a time, on
+// the clock's spinStep boundaries, so no quarter turn is skipped.
 func (m *Model) spinLater() tea.Cmd {
 	if m.spinWake || !m.spinning() {
 		return nil
@@ -500,7 +510,7 @@ func (m *Model) spinLater() tea.Cmd {
 
 	m.spinWake = true
 
-	return tea.Tick(spinStep, func(time.Time) tea.Msg { return spinMsg{} })
+	return tea.Every(spinStep, func(time.Time) tea.Msg { return spinMsg{} })
 }
 
 // sessionState names what a session's symbol says: blocked, running,
@@ -663,7 +673,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 
 			glyph, c := groupGlyph(ss)
 
-			return row(rw, bg, []seg{sg(" "+chevron(open), dim), sg(m.spin(glyph), fg(c)), sg(r.when, base.Bold(true))})
+			return row(rw, bg, []seg{sg(" "+chevron(open), dim), sg(m.spin(glyph, ss...), fg(c)), sg(r.when, base.Bold(true))})
 
 		case agProject:
 			open := !a.collapsed[r.project]
@@ -687,7 +697,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 				}
 			}
 
-			return row(rw, bg, append([]seg{sg(" "+chevron(open), dim), sg(m.spin(glyph), fg(c)), sg(agLabel(r), base.Bold(true))}, plus...))
+			return row(rw, bg, append([]seg{sg(" "+chevron(open), dim), sg(m.spin(glyph, ss...), fg(c)), sg(agLabel(r), base.Bold(true))}, plus...))
 
 		case agWorkspace:
 			// The project's own checkout, which only closes, in the accent and
@@ -757,7 +767,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			status = icTabs.s() + " " + strconv.Itoa(len(tabs)) + " · " + status
 		}
 
-		left := append([]seg{sg(conn, dim), sg(m.spin(glyph), fg(c))}, m.fx.segs("sess:"+r.s.ID, sessionName(r.s), nameSt)...)
+		left := append([]seg{sg(conn, dim), sg(m.spin(glyph, tabs...), fg(c))}, m.fx.segs("sess:"+r.s.ID, sessionName(r.s), nameSt)...)
 
 		return row(rw, bg, append(left, sg(titleAfter(r.s), nameSt)), sg(" "+status+" ", dim))
 	}
@@ -2526,7 +2536,7 @@ func (m *Model) tabsFor(w int, sessions []proto.Session, active string) []sessTa
 
 		if s.Agent != termAgent && s.Agent != tabAgent {
 			g, _ := sessionGlyph(s)
-			glyph = m.spin(g) + " "
+			glyph = m.spin(g, s) + " "
 		}
 
 		name, end := m.fx.text("sess:"+s.ID, sessionName(s)), " "+tabClose(s.ID == active)
