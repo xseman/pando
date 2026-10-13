@@ -1782,6 +1782,27 @@ func sidebarRow(t *testing.T, m *Model, i int) string {
 	return ansi.Cut(strings.Split(checkWidths(t, m), "\n")[m.bodyTop(viewGit)+i], 0, m.colRect(0).w)
 }
 
+// TestCommitButtonBusy keeps the Commit button as it is while other work
+// runs in its repository, staging or a message being written; its own work
+// shimmers in its place.
+func TestCommitButtonBusy(t *testing.T) {
+	m := gitModel(t)
+	root, w := m.scm.root(), m.colRect(0).w
+	idle := m.scm.commitRow(m, root, w, false, -1, "")
+
+	for _, label := range []string{"staging", "suggesting", "switching"} {
+		m.scm.busy, m.scm.busyRoot = label, root
+		if got := m.scm.commitRow(m, root, w, false, -1, ""); got != idle {
+			t.Fatalf("%s changes the button: %q, want %q", label, ansi.Strip(got), ansi.Strip(idle))
+		}
+	}
+
+	m.scm.busy = "committing"
+	if got := ansi.Strip(m.scm.commitRow(m, root, w, false, -1, "")); !strings.Contains(got, "Committing…") {
+		t.Fatalf("committing: %q", got)
+	}
+}
+
 // TestFlashOneLine flashes the line of a multi-line error worth reading, so
 // the status bar stays one row: a rejected push's error: line.
 func TestFlashOneLine(t *testing.T) {

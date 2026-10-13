@@ -1677,8 +1677,8 @@ const (
 // the branch is ahead or behind, else a Commit that has nothing to do.
 func (s *scmView) action(root string) string {
 	st := s.status[root]
-	if s.busy != "" && s.busyRoot == root {
-		return map[string]string{"publishing": actPublish, "syncing": actSync}[s.busy]
+	if act := map[string]string{"publishing": actPublish, "syncing": actSync}[s.busy]; act != "" && s.busyRoot == root {
+		return act
 	}
 
 	switch {
@@ -1701,7 +1701,7 @@ func (s *scmView) action(root string) string {
 // draws the blank row above (▁) or below (▔) the button as a sliver of its
 // colors, so it stands a few pixels taller than one cell.
 func (s *scmView) commitRow(m *Model, root string, w int, hovered bool, mx int, edge string) string {
-	st, act, busy := s.status[root], s.action(root), s.busyRoot == root && s.busy != ""
+	st, act, busy := s.status[root], s.action(root), s.ownBusy(root)
 
 	var text string
 
@@ -1795,6 +1795,13 @@ func (s *scmView) unstaged(root string) bool {
 	st := s.status[root]
 
 	return s.action(root) == actCommit && st.Op == "" && len(st.Staged) == 0
+}
+
+// ownBusy reports the action button's own work running in root: a commit
+// (a merge's Continue too), a publish or a sync. Staging, a checkout or a
+// message being written leave the button as it is.
+func (s *scmView) ownBusy(root string) bool {
+	return s.busyRoot == root && slices.Contains([]string{"committing", "publishing", "syncing"}, s.busy)
 }
 
 // press runs the action button of the active repository.
