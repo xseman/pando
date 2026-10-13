@@ -235,17 +235,10 @@ func (d ghDoc) checksSeg() (seg, bool) {
 	return sg(fmt.Sprintf("%s %d/%d ", mark, pass, len(d.Rollup)), fg(statusColor(letter))), true
 }
 
-// ghBtn is a button of the page's header: its columns and what it runs, and
-// what the footer says while the pointer is on it.
-type ghBtn struct {
-	rowAction
-	tip string
-}
-
 // ghHeader draws the page's state and buttons as the right end of the header
 // row, w cells wide. The leading button has a ▾ beside it that lists the
 // commands of its group; the state gives way when the row is short.
-func (p *preview) ghHeader(m *Model, w int) (segs []seg, btns []ghBtn, width int) {
+func (p *preview) ghHeader(m *Model, w int) (segs []seg, btns []rowAction, width int) {
 	d := p.gh
 	all := p.ghActs()
 	name, _ := p.label(m.ws)
@@ -253,7 +246,7 @@ func (p *preview) ghHeader(m *Model, w int) (segs []seg, btns []ghBtn, width int
 	type piece struct {
 		text string
 		st   lipgloss.Style
-		btn  *ghBtn
+		btn  *rowAction
 	}
 
 	var (
@@ -279,7 +272,7 @@ func (p *preview) ghHeader(m *Model, w int) (segs []seg, btns []ghBtn, width int
 	}
 
 	add := func(text string, tip string, st lipgloss.Style, run func(*Model) tea.Cmd) {
-		pieces = append(pieces, piece{text: text, st: st, btn: &ghBtn{rowAction: rowAction{run: run}, tip: tip}})
+		pieces = append(pieces, piece{text: text, st: st, btn: &rowAction{tip: tip, run: run}})
 	}
 
 	btnAll := slices.DeleteFunc(slices.Clone(all), func(a ghAct) bool { return a.btn == "" })
@@ -342,7 +335,7 @@ func (p *preview) ghHeader(m *Model, w int) (segs []seg, btns []ghBtn, width int
 			btns = append(btns, *q.btn)
 
 			if mx := m.mouseX - m.mainX(); m.mouseY == y && mx >= x && mx < x+tw {
-				st = keycapHot()
+				st, m.tip = keycapHot(), q.btn.tip
 			}
 		}
 
@@ -354,34 +347,14 @@ func (p *preview) ghHeader(m *Model, w int) (segs []seg, btns []ghBtn, width int
 }
 
 // ghHit is the page's header button at column x, if any.
-func (p *preview) ghHit(m *Model, x int) (ghBtn, bool) {
+func (p *preview) ghHit(m *Model, x int) (rowAction, bool) {
 	if p.kind != pvGH || p.gh == nil {
-		return ghBtn{}, false
+		return rowAction{}, false
 	}
 
 	_, btns, _ := p.ghHeader(m, m.mainW())
 
-	for _, b := range btns {
-		if x >= b.x && x < b.x+b.w {
-			return b, true
-		}
-	}
-
-	return ghBtn{}, false
-}
-
-// ghTip is the name and key of the header button under the pointer, which the
-// footer shows in place of its hints.
-func (p *preview) ghTip(m *Model) string {
-	if p.gh == nil || m.mouseY != m.stripH() {
-		return ""
-	}
-
-	if b, ok := p.ghHit(m, m.mouseX-m.mainX()); ok {
-		return b.tip
-	}
-
-	return ""
+	return hit(btns, x)
 }
 
 // ghDo runs gh in dir and reports text, then the lists and the open page are

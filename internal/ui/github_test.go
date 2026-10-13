@@ -682,7 +682,7 @@ func ghHeaderText(m *Model) string {
 }
 
 // ghButton is the header button whose tip starts with tip.
-func ghButton(t *testing.T, m *Model, tip string) ghBtn {
+func ghButton(t *testing.T, m *Model, tip string) rowAction {
 	t.Helper()
 
 	_, btns, _ := m.pv.ghHeader(m, m.mainW())
@@ -694,7 +694,7 @@ func ghButton(t *testing.T, m *Model, tip string) ghBtn {
 
 	t.Fatalf("no %q button in %+v", tip, btns)
 
-	return ghBtn{}
+	return rowAction{}
 }
 
 // TestGitHubPageHeader: a pull request's page has its state and buttons at
@@ -738,11 +738,13 @@ func TestGitHubPageHeader(t *testing.T) {
 		t.Errorf("gh calls %q", calls)
 	}
 
-	// Under the pointer the footer names the button.
-	m.mouseX, m.mouseY = m.mainX()+b.x, m.stripH()
+	// Resting on a button names it and its key in a tip by the pointer, as
+	// every other button does.
+	m.Update(tea.MouseMotionMsg{X: m.mainX() + b.x, Y: m.stripH()})
+	elapse(m, tipDelay)
 
-	if h := m.pv.hints(m); !strings.Contains(h, "Close Pull Request") || !strings.Contains(h, "x") {
-		t.Errorf("hints %q", h)
+	if out := ansi.Strip(m.View().Content); !strings.Contains(out, "│ Close Pull Request  x │") {
+		t.Errorf("no tip by the pointer:\n%s", out)
 	}
 
 	m.mouseX, m.mouseY = 0, 0

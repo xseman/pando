@@ -2427,10 +2427,6 @@ func (p *preview) hints(m *Model) string {
 	case p.composing:
 		return " ^s send  esc leave the box  ⏎ new line"
 	case p.kind == pvGH: // rendered only: no source to toggle to
-		if tip := p.ghTip(m); tip != "" {
-			return " " + tip
-		}
-
 		return " ↑↓ move  ⇧ select  y copy  m menu  q close"
 
 	case p.md == 1:

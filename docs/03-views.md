@@ -342,9 +342,9 @@ is the header's context and the body starts with who opened it and the branch.
 `ghActs` is the one list behind the buttons, the page's keys and its context
 menu, filtered by state (a closed pull request has Reopen, no Merge or
 Worktree) and grouped between rules. The `primary` one leads, with its name;
-when it is of group 0 its `▾` is that group's menu. The footer shows the name
-and key of the button under the pointer (`ghTip`). The state gives way when
-the row is short, the buttons never do.
+when it is of group 0 its `▾` is that group's menu. A button's tip names it
+and its key by the pointer, as every other button's does. The state gives
+way when the row is short, the buttons never do.
 
 | Command                | gh                                                   |
 | ---------------------- | ---------------------------------------------------- |

@@ -186,8 +186,8 @@ Closed, Merged), `✓ 2/2` checks, then buttons. One is first and has its name
 and a `▾`, by state: Ready for Review for a draft, Merge while no check is in
 its way, else Worktree, Reopen for a closed one. The `▾` lists Worktree,
 Changes, Changed Files, Merge and Convert to Draft. The rest are icons: Worktree,
-Changes, Comment, Close, `↻` fetches again and `⋯` is the `m` menu. The footer
-names the button under the pointer. Click one, or press its key while the page
+Changes, Comment, Close, `↻` fetches again and `⋯` is the `m` menu. Rest the
+pointer on one for its name and key. Click one, or press its key while the page
 has focus:
 
 | Key      | Does                                                              |
