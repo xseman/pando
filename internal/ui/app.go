@@ -2248,7 +2248,7 @@ func (m *Model) tipLater() tea.Cmd {
 	var due time.Time
 
 	switch d := time.Since(m.mouseAt); {
-	case !m.mouseAt.After(m.tipOff): // put away: nothing to show until the pointer moves
+	case !m.st.Settings.Tips, !m.mouseAt.After(m.tipOff): // off, or put away until the pointer moves
 		return nil
 	case d < tipDelay:
 		due = m.mouseAt.Add(tipDelay)
@@ -3866,7 +3866,7 @@ func (m *Model) View() tea.View {
 		}
 	}
 
-	if m.tip != "" && m.tipShown() && m.modal == nil && m.drag == nil {
+	if m.tip != "" && m.st.Settings.Tips && m.tipShown() && m.modal == nil && m.drag == nil {
 		box, x, y := m.hoverBox([]string{m.tip})
 		m.overlayBox(lines, box, x, y)
 		m.tipSeen = time.Now()
@@ -4911,6 +4911,7 @@ func settingsItems(m *Model) []item {
 		{label: "Panel borders", hint: onOff(s.Borders), run: func(m *Model) tea.Cmd {
 			return tea.Batch(m.setSettings(map[string]any{"panel_borders": !m.st.Settings.Borders}), m.fetchScreen())
 		}},
+		{label: "Tooltips", hint: onOff(s.Tips), run: func(m *Model) tea.Cmd { return m.setSettings(map[string]any{"tooltips": !m.st.Settings.Tips}) }},
 		{},
 		heading("Explorer"),
 		{label: "Hidden files", hint: onOff(s.Hidden), run: func(m *Model) tea.Cmd { return m.setSettings(map[string]any{"hidden": !m.st.Settings.Hidden}) }},

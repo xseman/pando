@@ -135,7 +135,7 @@ func testModelSized(t *testing.T, w, h int) *Model {
 	mustWrite(t, filepath.Join(root, "README.md"), "# hi\n")
 	mustWrite(t, filepath.Join(root, ".env"), "A=1\n")
 	st := proto.State{
-		Settings: proto.Settings{Width: 30, Icons: "ascii", SessPos: "editor", Crumbs: true}, Projects: []string{root},
+		Settings: proto.Settings{Width: 30, Icons: "ascii", SessPos: "editor", Crumbs: true, Tips: true}, Projects: []string{root},
 		Agents: map[string][]string{"shell": {"sh"}},
 	}
 	wss := []proto.Workspace{{Path: root, Project: root, Branch: "main", Main: true}}
@@ -1972,6 +1972,16 @@ func TestTips(t *testing.T) {
 	if tip("Discard All Changes…  d") {
 		t.Fatal("the tip goes with the header buttons")
 	}
+
+	m.st.Settings.Tips = false
+
+	rest(x, top+ch)
+
+	if tip("Discard All Changes…  d") || m.tipLater() != nil {
+		t.Fatal("tooltips = false shows none, nor wakes View for one")
+	}
+
+	m.st.Settings.Tips = true
 
 	m.tipDue, m.mouseAt = time.Time{}, time.Now()
 	if m.tipLater() == nil || m.tipLater() != nil {

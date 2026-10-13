@@ -48,6 +48,7 @@ config.toml edited ───────────┘  └─ "state" event �
 | `activity_bar`        | `top`       | `top` (above the view), `side` (down the sidebar edge)                         |
 | `panel_borders`       | `true`      | titled border around each panel                                                |
 | `animations`          | `true`      | names morph, counts roll, busy labels shimmer                                  |
+| `tooltips`            | `true`      | an icon button's name and key in a box by the pointer                          |
 | `width`               | `40`        | default column width                                                           |
 | `width_right`         | `32`        | right                                                                          |
 | `left`, `right`       | `[]`        | sidebar columns: [Columns](#columns)                                           |
