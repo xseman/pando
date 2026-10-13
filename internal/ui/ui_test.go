@@ -1921,7 +1921,8 @@ func TestFlashOneLine(t *testing.T) {
 // it once the pointer has rested tipDelay, and takes the box down at
 // actionsLinger with the header buttons: a view header's, an activity bar
 // chip, a Source Control row's, the editor strip's and the find widget's.
-// One wake waits at a time.
+// A key or a click puts it away; moving on shows the next one at once, and
+// the wake for it goes out before the last tip's time is up.
 func TestTips(t *testing.T) {
 	m := gitModel(t)
 	tip := func(text string) bool { return strings.Contains(ansi.Strip(m.View().Content), "│ "+text+" │") }
@@ -1936,19 +1937,19 @@ func TestTips(t *testing.T) {
 
 	m.Update(tea.MouseMotionMsg{X: x, Y: top + ch})
 
-	if tip("Discard All Changes  d") {
+	if tip("Discard All Changes…  d") {
 		t.Fatal("the tip waits for the pointer to rest")
 	}
 
 	rest(x, top+ch)
 
-	if out := checkWidths(t, m); !tip("Discard All Changes  d") {
+	if out := checkWidths(t, m); !tip("Discard All Changes…  d") {
 		t.Fatalf("no tip on the section's discard:\n%s", out)
 	}
 
 	m.mouseAt = time.Now().Add(-actionsLinger)
 
-	if tip("Discard All Changes  d") {
+	if tip("Discard All Changes…  d") {
 		t.Fatal("the tip goes with the header buttons")
 	}
 
@@ -1970,13 +1971,13 @@ func TestTips(t *testing.T) {
 	// A key puts a tip away; moving on from it shows the next one at once.
 	rest(x, top+ch)
 
-	if !tip("Discard All Changes  d") {
+	if !tip("Discard All Changes…  d") {
 		t.Fatal("no tip after resting again")
 	}
 
 	press(m, "j")
 
-	if tip("Discard All Changes  d") {
+	if tip("Discard All Changes…  d") {
 		t.Fatal("a key puts the tip away")
 	}
 
@@ -1999,6 +2000,13 @@ func TestTips(t *testing.T) {
 
 	if out := checkWidths(t, m); !tip("Explorer  ^⇧e") {
 		t.Fatalf("no tip on Explorer's chip:\n%s", out)
+	}
+
+	click(m, tabAt(m, viewFiles), 0, tea.MouseLeft)
+	elapse(m, tipDelay)
+
+	if tip("Explorer  ^⇧e") {
+		t.Fatal("a click puts the tip away, its release too")
 	}
 
 	fire(m, m.openFile(filepath.Join(m.ws, "src", "deep", "x.go"), false))

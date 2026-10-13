@@ -43,9 +43,10 @@ tick (2 s) ─▶ refreshGit, reloadIfLive, saveDrafts, saveEditors, …
 
 - `layout` places the columns, split by a one-cell divider (facing frame
   edges with `borders`).
-- Status bar buttons: the branch opens the branch picker, the project a
-  project switcher, the agent count the navigator. Each lights under the
-  pointer and has a tip.
+- Status bar items: the branch opens the branch picker, the project a
+  project switcher, the waiting count the navigator, the results Search,
+  Ln/Col go to line, the indentation its picker, `^⇧p` the palette, the
+  update installs or restarts. Each lights under the pointer and has a tip.
 - Focus is a column index, `onMain` or `onPanel`; `ctrl+]` cycles left →
   main → panel → right (`cycleFocus`).
 
@@ -218,8 +219,8 @@ Model.mouse
   it has rested `tipDelay`, until `actionsLinger` (`tipShown`, `hoverBox`):
   header actions, activity bar chips, strip buttons, `+` and `✕`, Source
   Control rows and ∨, Search's toggles, ▸ and ⋯, find widgets, status bar
-  items. Moving on from a tip shows the next at once (`tipSeen`); a key or
-  a click puts it away until the pointer moves (`tipOff`). The frame notes
+  items. Moving on from a tip shows the next at once (`tipSeen`); a key, a
+  click or the wheel puts it away until the pointer moves (`tipOff`). The frame notes
   the `tip` of the button it draws under the mouse (`Model.tip`);
   `hoverMsg` wakes View at both moments, the sooner one first (`tipLater`).
 

@@ -599,11 +599,11 @@ func (s *scmView) actions(r scmRow, w int) []rowAction {
 		case "Staged Changes":
 			add(icRemove, "Unstage All Changes  u", git1("unstaging", git.UnstageAll))
 		case "Changes":
-			add(icDiscard, "Discard All Changes  d", func(m *Model) tea.Cmd { return s.confirmDiscardAll(m, root) })
+			add(icDiscard, "Discard All Changes…  d", func(m *Model) tea.Cmd { return s.confirmDiscardAll(m, root) })
 			add(icAdd, "Stage All Changes", s.stageTracked(root))
 
 		case "Untracked Changes":
-			add(icDiscard, "Delete Untracked Files  d", func(m *Model) tea.Cmd { return s.confirmDeleteUntracked(m, root, "") })
+			add(icDiscard, "Delete Untracked Files…  d", func(m *Model) tea.Cmd { return s.confirmDeleteUntracked(m, root, "") })
 			add(icAdd, "Stage Untracked  U", s.stageUntracked(root))
 		}
 
@@ -615,7 +615,7 @@ func (s *scmView) actions(r scmRow, w int) []rowAction {
 		case "Staged Changes":
 			add(icRemove, "Unstage Changes", git1("unstaging", func(root string) error { return git.Unstage(root, dir) }))
 		case "Untracked Changes":
-			add(icDiscard, "Delete Untracked Files  d", func(m *Model) tea.Cmd { return s.confirmDeleteUntracked(m, root, dir.Path) })
+			add(icDiscard, "Delete Untracked Files…  d", func(m *Model) tea.Cmd { return s.confirmDeleteUntracked(m, root, dir.Path) })
 			add(icAdd, "Stage Changes", git1("staging", func(root string) error { return git.Stage(root, dir) }))
 
 		default:
@@ -630,12 +630,12 @@ func (s *scmView) actions(r scmRow, w int) []rowAction {
 
 		switch {
 		case e.Letter == '!': // VS Code's merge group: stage only, no discard
-			add(icAdd, "Stage Changes", func(m *Model) tea.Cmd { return s.stageConflict(m, root, e) })
+			add(icAdd, "Stage Changes  ⏎", func(m *Model) tea.Cmd { return s.stageConflict(m, root, e) })
 		case e.Staged:
-			add(icRemove, "Unstage Changes", git1("unstaging", func(root string) error { return git.Unstage(root, e) }))
+			add(icRemove, "Unstage Changes  ⏎", git1("unstaging", func(root string) error { return git.Unstage(root, e) }))
 		default:
-			add(icDiscard, "Discard Changes  d", func(m *Model) tea.Cmd { return s.confirmDiscard(m, root, e) })
-			add(icAdd, "Stage Changes", git1("staging", func(root string) error { return git.Stage(root, e) }))
+			add(icDiscard, "Discard Changes…  d", func(m *Model) tea.Cmd { return s.confirmDiscard(m, root, e) })
+			add(icAdd, "Stage Changes  ⏎", git1("staging", func(root string) error { return git.Stage(root, e) }))
 		}
 	}
 
@@ -2591,8 +2591,8 @@ func (s *scmView) commitAt(m *Model, y int) string {
 	return ""
 }
 
-// tipDelay is how long the mouse rests on a commit before its message
-// shows, VS Code's workbench.hover.delay.
+// tipDelay is how long the pointer rests before a tip shows, a commit's
+// message or a button's name, VS Code's workbench.hover.delay.
 const tipDelay = 500 * time.Millisecond
 
 // hoverTip follows the commit under the mouse: a move onto one wakes the
@@ -2619,7 +2619,7 @@ func (s *scmView) hoverTip(m *Model, msg tea.MouseMsg) tea.Cmd {
 
 // tipBox is the hovered commit's whole message, in a box by the mouse.
 func (s *scmView) tipBox(m *Model) (box []string, x, y int, ok bool) {
-	if !s.tip.loaded || s.tip.msg == "" || s.commitAt(m, m.hoverRow(viewGit)) != s.tip.hash {
+	if !s.tip.loaded || s.tip.msg == "" || s.commitAt(m, m.hoverRow(viewGit)) != s.tip.hash || !m.mouseAt.After(m.tipOff) {
 		return nil, 0, 0, false
 	}
 

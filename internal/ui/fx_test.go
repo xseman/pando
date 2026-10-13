@@ -102,10 +102,20 @@ func TestSpinner(t *testing.T) {
 		t.Fatal("the ticker goes on while it works")
 	}
 
-	m.st.Settings.Anim = false
+	running[0].Status = "idle"
+	m.Update(sessionsMsg(running))
 	m.Update(spinMsg{})
 
-	if m.spinning() || m.spinWake || m.spin("◐ ") != "◐ " {
+	if m.spinning() || m.spinWake {
+		t.Fatal("the ticker stops with the work")
+	}
+
+	running[0].Status = "running"
+	m.st.Settings.Anim = false
+	m.Update(sessionsMsg(running))
+	m.Update(spinMsg{})
+
+	if m.spinning() || m.spinWake || m.spin("◐ ", running[0]) != "◐ " {
 		t.Fatal("animations off, ◐ stands still")
 	}
 }

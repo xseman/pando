@@ -2743,7 +2743,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.paste(msg)
 	case tea.MouseMsg:
 		cmd := m.mouse(msg)
-		if _, click := msg.(tea.MouseClickMsg); click {
+		if _, moved := msg.(tea.MouseMotionMsg); !moved { // a click's release, or the wheel, too
 			m.tipOff = time.Now()
 		}
 
@@ -4561,17 +4561,17 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 			pos = fmt.Sprintf(" Ln %d, Col %d (%d selected) ", c.line+1, c.col+1, n)
 		}
 
-		add(pos, dim, "Go to Line/Column…  ^g", func(m *Model) tea.Cmd { return m.gotoLineQuery(":") })
+		add(pos, dim, "Go to Line…  ^g", func(m *Model) tea.Cmd { return m.gotoLineQuery(":") })
 
 		if m.pv.kind == pvFile || m.pv.kind == pvRev {
-			add(" "+indentLabel(m.st.Settings)+" ", dim, "Select Indentation…", func(m *Model) tea.Cmd { return m.indentPicker() })
+			add(" "+indentLabel(m.st.Settings)+" ", dim, "Change Indentation…", func(m *Model) tea.Cmd { return m.indentPicker() })
 		}
 	}
 
 	add(" ^⇧p ", dim, "Show All Commands", func(m *Model) tea.Cmd { return m.commandPalette() })
 
 	if chip, run := m.updateChip(); chip != nil {
-		addSegs("", run, chip...)
+		addSegs(map[string]string{"available": "Install pando v" + m.upd.Latest, "ready": "Restart to Update"}[m.upd.State], run, chip...)
 	}
 
 	x, hot := w, -1
@@ -4997,10 +4997,10 @@ func (m *Model) viewItems() []item {
 	items := []item{
 		{label: "New Untitled File", hint: "^n", run: func(m *Model) tea.Cmd { return m.newUntitled() }},
 		{label: "Quick Open…", hint: "^p", run: func(m *Model) tea.Cmd { return m.loadIndex(true) }},
-		{label: "Show Explorer", hint: "1", run: show(viewFiles)},
-		{label: "Show Source Control", hint: "2", run: show(viewGit)},
-		{label: "Show Spaces", hint: "3", run: show(viewAgents)},
-		{label: "Show Search", hint: "4", run: show(viewSearch)},
+		{label: "Show Explorer", hint: viewHotkeys[viewFiles], run: show(viewFiles)},
+		{label: "Show Source Control", hint: viewHotkeys[viewGit], run: show(viewGit)},
+		{label: "Show Spaces", hint: viewHotkeys[viewAgents], run: show(viewAgents)},
+		{label: "Show Search", hint: viewHotkeys[viewSearch], run: show(viewSearch)},
 		{label: "Toggle Terminal", hint: "^`", run: func(m *Model) tea.Cmd { return m.toggleTerminal() }},
 	}
 	if m.hasGH {

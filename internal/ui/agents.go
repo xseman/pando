@@ -2658,7 +2658,7 @@ func (m *Model) sessionStrip(w int) string {
 	}
 
 	btns, _ := m.actSegs(m.sessionButtons(), x0, y)
-	m.noteStrip("New Tab in Session", pick(m.overX == m.rootOf(m.sess), "Kill Tab…", "Kill Session…"), x0, y, w)
+	m.noteStrip("New Tab in Session", "Kill Session…", x0, y, w)
 
 	return m.stripMark(row(w, nil, tabSegs(tabs, m.overTab, m.overX), append(right, btns...)...), stripSession, 0)
 }
@@ -3337,7 +3337,7 @@ func (m *Model) termButtons() []rowAction {
 				g: pick(m.termMax, icMax, icRestore), tip: pick(m.termMax, "Maximize Panel  ^⇧↑", "Restore Panel  ^⇧↓"),
 				run: func(m *Model) tea.Cmd { return m.maximizeTerminal(!m.termMax) },
 			},
-			rowAction{g: icClose, tip: "Hide Panel  ^`", run: func(m *Model) tea.Cmd { return m.toggleTerminal() }})
+			rowAction{g: icClose, tip: "Close Terminal  ^`", run: func(m *Model) tea.Cmd { return m.toggleTerminal() }})
 	} else {
 		acts = append(acts, rowAction{g: icClose, tip: "Kill Terminal…", run: func(m *Model) tea.Cmd { return m.confirmKill(m.tv.id) }})
 	}

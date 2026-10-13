@@ -3108,7 +3108,7 @@ func (p *preview) findBox(m *Model) (box []string, x, y int, ok bool) {
 	m.noteTip(acts, x, y+1)
 
 	if p.editable() { // the chevron before the query
-		m.noteTip([]rowAction{{x: 2, w: 1, tip: "Toggle Replace  ^h"}}, x, y+1)
+		m.noteTip([]rowAction{{x: 1, w: 3, tip: "Toggle Replace  ^h"}}, x, y+1) // where a click takes it
 	}
 
 	if p.replOn {
