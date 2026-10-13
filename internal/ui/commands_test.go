@@ -1258,6 +1258,48 @@ func TestSpacesResume(t *testing.T) {
 	}
 }
 
+// TestSpacesHeaderResume is Resume in Spaces' header, right after New
+// Session: in the selected row's worktree, a project asking which one first.
+func TestSpacesHeaderResume(t *testing.T) {
+	m := testModel(t)
+	m.st.Agents = map[string][]string{"shell": {"sh"}, "claude": {"sh"}, "codex": {"sh"}}
+	m.st.Resume = map[string][]string{"codex": {"codex", "resume", "--last"}}
+	m.st.ResumeID = map[string][]string{"claude": {"claude", "--resume", "{id}"}}
+	press(m, "3")
+
+	s := m.colOf(viewAgents)
+	rc := m.colRect(s)
+	m.Update(tea.MouseMotionMsg{X: rc.x + 1, Y: m.barH(s)})
+
+	acts := m.headerActions(s, viewAgents, rc.w)
+	if len(acts) < 2 || acts[0].tip != "New Session…  n" || acts[1].tip != "Resume Session…" {
+		t.Fatalf("Resume follows New Session in the header: %+v", acts)
+	}
+
+	m.ag.l.sel = 1 // the checkout, under the project
+	acts[1].run(m)
+
+	if m.modal == nil || m.modal.title != "Resume in "+filepath.Base(m.ws) || !slices.Equal(labels(m), []string{"claude", "codex"}) {
+		t.Fatalf("the selected worktree resumes in itself: %+v %v", m.modal, labels(m))
+	}
+
+	m.modal = nil
+	m.ag.l.sel = 0
+	acts[1].run(m)
+
+	if m.modal == nil || !slices.Equal(labels(m), []string{"⌂ main"}) {
+		t.Fatalf("the selected project asks which worktree, no new one: %v", labels(m))
+	}
+
+	m.modal.choose(m, 0)
+
+	if m.modal == nil || !slices.Equal(labels(m), []string{"claude", "codex"}) {
+		t.Fatalf("the worktree picked, the agent next: %v", labels(m))
+	}
+
+	checkWidths(t, m)
+}
+
 // TestSpacesDragWorktree drags a project's checkout below its linked
 // worktree: the slot is marked under that worktree's last session, a
 // workspaces event mid-drag keeps it, the release moves each with its

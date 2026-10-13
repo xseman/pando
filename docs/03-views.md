@@ -165,13 +165,13 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
 
 ### Keys
 
-| Action         | Session                  | Worktree                                            | Project                  |
-| -------------- | ------------------------ | --------------------------------------------------- | ------------------------ |
-| click          | open; again puts it away | switch                                              | fold                     |
-| `x`            | kill                     | linked: delete folder, keep branch; checkout: close | close (`project.remove`) |
-| drag, `alt+↑↓` | reorder (`session.move`) | reorder (`workspace.move`)                          | reorder (`project.move`) |
-| `n`, hover btn | its worktree's harness   | the harness (`harnessPicker`)                       | a worktree or a new one  |
-| Resume         | menu: in its worktree    | hover btn, menu (`resumePicker`)                    |                          |
+| Action         | Session                    | Worktree                                            | Project                  |
+| -------------- | -------------------------- | --------------------------------------------------- | ------------------------ |
+| click          | open; again puts it away   | switch                                              | fold                     |
+| `x`            | kill                       | linked: delete folder, keep branch; checkout: close | close (`project.remove`) |
+| drag, `alt+↑↓` | reorder (`session.move`)   | reorder (`workspace.move`)                          | reorder (`project.move`) |
+| `n`, hover btn | its worktree's harness     | the harness (`harnessPicker`)                       | a worktree or a new one  |
+| Resume         | menu, header: its worktree | hover btn, menu, header (`resumePicker`)            | header: which worktree   |
 
 - A click on a session opens its one tab with a new state (`newsTab`);
   with several, the tab shown last, and again it puts the session away.
@@ -220,7 +220,9 @@ A worktree's _Resume_ (`resumePicker`) starts one that continues a
 conversation: an installed agent's `[resume_id]` without the id, which for
 claude lists the worktree's conversations (`claude --resume`), else its
 `[resume]`. It asks for the agent only when more than one can, then the
-profile, whose config holds the conversations.
+profile, whose config holds the conversations. The header's `↺`, after `+`,
+resumes in the selected row's worktree, a project asking which
+(`agents.resume`).
 
 A session has tabs (`tabsOf`): `+` adds a shell that dies with it, `[` `]`
 cycle, middle click or `✕` kills after asking. A session with more than its

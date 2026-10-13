@@ -125,9 +125,9 @@ aider = ["aider", "--restore-chat-history"]
   included. `pando claude` starts claude as a Claude Code background session,
   which outlives the restart; with `claude_background` (the default) every
   resumed claude comes back that way.
-- By hand: a worktree's _Resume_ in Spaces (hover it, or its menu) lists
-  that worktree's claude conversations (`claude --resume`); an agent without
-  such a list continues its last.
+- By hand: _Resume_ in Spaces (a worktree's row under the pointer, its menu,
+  or `↺` in the header) lists that worktree's claude conversations
+  (`claude --resume`); an agent without such a list continues its last.
 
 ![a claude conversation, pando closed and its daemon stopped; the next pando brings the session back and claude continues the same conversation](demo/resume.gif)
 

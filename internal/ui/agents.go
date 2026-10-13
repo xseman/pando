@@ -955,20 +955,37 @@ func (m *Model) workspaceFor(r *agRow) string {
 // new one, the session goes into; any other row asks only for the harness.
 func (a *agents) newSession(m *Model, r *agRow) tea.Cmd {
 	if r != nil && r.kind == agProject && r.project != "" {
-		return m.worktreePicker(r.project)
+		return m.worktreePicker(r.project, false)
 	}
 
 	return m.harnessPicker(m.workspaceFor(r))
 }
 
+// resume is the header's Resume: in row r's worktree, as newSession's; a
+// project asks which of its worktrees.
+func (a *agents) resume(m *Model, r *agRow) tea.Cmd {
+	if r != nil && r.kind == agProject && r.project != "" {
+		return m.worktreePicker(r.project, true)
+	}
+
+	return m.resumePicker(m.workspaceFor(r))
+}
+
 // worktreePicker asks which of project's worktrees a new session goes into,
-// or a new one, then which harness it runs.
-func (m *Model) worktreePicker(project string) tea.Cmd {
+// or a new one, then which harness it runs. With resume it asks where
+// Resume runs (resumePicker), offering no new one: it would have nothing to
+// resume.
+func (m *Model) worktreePicker(project string, resume bool) tea.Cmd {
+	title, then := "New session in ", (*Model).harnessPicker
 	items := []item{{label: "New Worktree…", run: func(m *Model) tea.Cmd {
 		m.promptWorktree(project, git.RandomBranch(), true)
 
 		return nil
 	}}}
+
+	if resume {
+		title, then, items = "Resume in ", (*Model).resumePicker, nil
+	}
 
 	for _, w := range m.wss {
 		if w.Project != project {
@@ -978,11 +995,11 @@ func (m *Model) worktreePicker(project string) tea.Cmd {
 		path := w.Path
 		items = append(items, item{
 			label: wtGlyph(w).s() + " " + wsName(w), hint: plural(m.sessionCount(path), "session"),
-			run: func(m *Model) tea.Cmd { return m.harnessPicker(path) },
+			run: func(m *Model) tea.Cmd { return then(m, path) },
 		})
 	}
 
-	m.modal = newPicker("New session in "+filepath.Base(project), items)
+	m.modal = newPicker(title+filepath.Base(project), items)
 
 	return nil
 }
