@@ -1782,6 +1782,17 @@ func sidebarRow(t *testing.T, m *Model, i int) string {
 	return ansi.Cut(strings.Split(checkWidths(t, m), "\n")[m.bodyTop(viewGit)+i], 0, m.colRect(0).w)
 }
 
+// TestFlashOneLine flashes the line of a multi-line error worth reading, so
+// the status bar stays one row: a rejected push's error: line.
+func TestFlashOneLine(t *testing.T) {
+	m := testModel(t)
+	m.flash("To github.com:o/r.git\n ! [rejected]        main -> main (fetch first)\nerror: failed to push some refs to 'github.com:o/r.git'", true)
+
+	if out := checkWidths(t, m); !strings.Contains(out, "error: failed to push") || strings.Contains(out, "rejected") {
+		t.Fatalf("status bar:\n%s", out)
+	}
+}
+
 // TestTips names the button under the pointer, and its key, in a box under
 // it once the pointer has rested tipDelay, and takes the box down at
 // actionsLinger with the header buttons: a view header's, an activity bar

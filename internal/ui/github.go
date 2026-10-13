@@ -164,13 +164,18 @@ func ghErrKind(stderr string) int {
 	return ghErrOther
 }
 
-// ghErrLine is the line of gh's (or git's) error worth a flash: git's
-// fatal: line when there is one, else the first.
-func ghErrLine(err error) string {
-	lines := strings.Split(strings.TrimSpace(err.Error()), "\n")
-	for _, l := range lines {
-		if strings.HasPrefix(l, "fatal: ") {
-			return l
+// ghErrLine is the line of gh's (or git's) error worth a flash.
+func ghErrLine(err error) string { return errLine(err.Error()) }
+
+// errLine is the line of a message worth a flash, which is one row: git's
+// fatal: line when there is one, then its error: line, else the first.
+func errLine(s string) string {
+	lines := strings.Split(strings.TrimSpace(s), "\n")
+	for _, prefix := range []string{"fatal: ", "error: "} {
+		for _, l := range lines {
+			if strings.HasPrefix(l, prefix) {
+				return l
+			}
 		}
 	}
 

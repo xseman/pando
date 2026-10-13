@@ -2858,8 +2858,10 @@ func reconnect() tea.Cmd {
 	})
 }
 
+// flash shows text in the status bar for a while: the line of it worth
+// reading (errLine), as a git error's stderr would break the bar into rows.
 func (m *Model) flash(text string, isErr bool) {
-	m.msg, m.msgErr, m.msgAt = text, isErr, time.Now()
+	m.msg, m.msgErr, m.msgAt = errLine(text), isErr, time.Now()
 }
 
 func (m *Model) onEvent(ev proto.Event) tea.Cmd {
