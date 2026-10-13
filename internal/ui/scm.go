@@ -480,7 +480,7 @@ func (s *scmView) onCompare(m *Model, msg cmpMsg) tea.Cmd {
 // cmpCloseX is the column of the ✕ on the Compare drawer's header: before
 // the ⇕ of an open drawer, else last.
 func (s *scmView) cmpCloseX(m *Model) int {
-	return m.colRect(m.colOf(viewGit)).w - 2 - 2*b2i(m.pane(cmpTitle).Open)
+	return m.bodyW(viewGit) - 2 - 2*b2i(m.pane(cmpTitle).Open)
 }
 
 // closeCompare drops the comparison the Compare drawer shows.
@@ -642,6 +642,14 @@ func (s *scmView) actions(r scmRow, w int) []rowAction {
 	layoutRight(acts, w-tail, 2) // " g ": a space either side
 
 	return acts
+}
+
+// bodyW is how wide view v's rows are drawn: its column without a vertical
+// activity bar, which clicks must lay their buttons out on too.
+func (m *Model) bodyW(v view) int {
+	i := m.colOf(v)
+
+	return m.colRect(i).w - m.barW(i)
 }
 
 // mouseCol is the mouse's column in view v's rows, as clicks count it: a
@@ -2929,7 +2937,7 @@ func (s *scmView) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 		return tea.Batch(s.onSelect(m), s.menu(m, mo.X, mo.Y))
 	}
 
-	w := m.colRect(m.colOf(viewGit)).w
+	w := m.bodyW(viewGit)
 	if n > h && w > 1 && (key != "" || py >= len(s.pinned(max(l.top, 1), h)) || !s.spans(i)) {
 		w-- // the pane's scrollbar takes the last column, except beside the message box and buttons
 	}

@@ -1885,6 +1885,26 @@ func TestStatusAndDialogHover(t *testing.T) {
 	}
 }
 
+// TestSideBarClicks clicks a Source Control button beside a vertical
+// activity bar: what is drawn under the pointer runs, the + staging rather
+// than the ↶ beside it asking to discard.
+func TestSideBarClicks(t *testing.T) {
+	m := gitModel(t)
+	m.setSettings(map[string]any{"activity_bar": "side"})
+
+	i := m.colOf(viewGit)
+	ch := scmRowAt(m, rowSection, "Changes", "")
+	plus := m.scm.actions(m.scm.rows[ch], m.bodyW(viewGit))[1]
+	x, y := m.colRect(i).x+m.barW(i)+plus.x+1, m.bodyTop(viewGit)+ch
+
+	m.Update(tea.MouseMotionMsg{X: x, Y: y})
+	click(m, x, y, tea.MouseLeft)
+
+	if m.barW(i) == 0 || m.modal != nil || m.scm.busy != "staging" {
+		t.Fatalf("bar %d: the + under the pointer stages: busy %q, a modal %v", m.barW(i), m.scm.busy, m.modal != nil)
+	}
+}
+
 // TestCommitButtonBusy keeps the Commit button as it is while other work
 // runs in its repository, staging or a message being written; its own work
 // shimmers in its place.

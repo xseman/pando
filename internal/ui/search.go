@@ -1230,7 +1230,7 @@ func (s *searchView) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 		return nil
 	}
 
-	w := m.colRect(m.colOf(viewSearch)).w
+	w := m.bodyW(viewSearch)
 
 	switch {
 	case y == 0: // the frame above the boxes
