@@ -12,16 +12,22 @@ what `state.json` remembers. Keys: [09-keys.md](09-keys.md).
 
 ```text
 config   $PANDO_CONFIG_DIR | os.UserConfigDir()/pando (~/.config/pando)
-├ config.toml   what you configure
-└ state.json    what pando remembers
+├ config.toml   what you configure, every instance
+├ state.json    what pando remembers
+└ instances/<name>/state.json   what instance <name> remembers
 data     $PANDO_DATA_DIR | $XDG_DATA_HOME/pando | ~/.local/share/pando
 ├ drafts/       unsaved editor text
 └ worktrees/<project>/<branch>/   worktrees pando creates
 runtime  $PANDO_RUNTIME_DIR | $XDG_RUNTIME_DIR/pando | /tmp/pando-<uid>
 ├ pando.sock    the socket every client dials (path ≤ ~104 bytes)
 ├ pando.lock    flock: one daemon per runtime dir
-└ daemon.log    daemon stderr: config errors, unknown keys
+├ daemon.log    daemon stderr: config errors, unknown keys
+└ instances/<name>/   the same for instance <name>, when PANDO_RUNTIME_DIR is unset
 ```
+
+An instance (`pando --instance NAME`, `PANDO_INSTANCE`) is a daemon with a
+socket and a `state.json` of its own; `--instance` drops an inherited
+`PANDO_RUNTIME_DIR`, and `default` names the default instance.
 
 ## Changes
 

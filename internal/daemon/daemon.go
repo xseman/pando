@@ -64,6 +64,16 @@ func ConfigDir() string {
 	return filepath.Join(d, "pando")
 }
 
+// StateDir is where state.json lives: the config directory, or for a named
+// instance a directory of its own inside it.
+func StateDir() string {
+	if n := proto.Instance(); n != "" {
+		return filepath.Join(ConfigDir(), "instances", n)
+	}
+
+	return ConfigDir()
+}
+
 // DataDir is where drafts and other per-workspace data live.
 func DataDir() string {
 	if d := os.Getenv("PANDO_DATA_DIR"); d != "" {
@@ -79,13 +89,14 @@ func DataDir() string {
 	return filepath.Join(h, ".local", "share", "pando")
 }
 
-// New loads config and state and respawns persisted sessions.
-func New(configDir, dataDir string) (*Daemon, error) {
+// New loads config.toml from configDir and state.json from stateDir, and
+// respawns persisted sessions.
+func New(configDir, stateDir, dataDir string) (*Daemon, error) {
 	proto.BuildID() // before a rebuild replaces the executable
 
 	d := &Daemon{
-		statePath: filepath.Join(configDir, "state.json"), cfgPath: filepath.Join(configDir, "config.toml"),
-		dataDir: dataDir, sessions: map[string]*session{},
+		statePath: filepath.Join(stateDir, "state.json"), cfgPath: filepath.Join(configDir, "config.toml"),
+		dataDir: dataDir, sessions: map[string]*session{}, state: proto.State{Instance: proto.Instance()},
 		subs: map[chan proto.Event]struct{}{}, pending: map[string]bool{},
 		upd: proto.Update{Current: update.Version},
 	}

@@ -1823,6 +1823,24 @@ func elapse(m *Model, d time.Duration) {
 	m.mouseAt, m.tipOff, m.tipSeen = m.mouseAt.Add(-d), m.tipOff.Add(-d), m.tipSeen.Add(-d)
 }
 
+// TestInstanceChip leads the status bar with a named instance in the badge's
+// colors, its tip saying how to open it again.
+func TestInstanceChip(t *testing.T) {
+	m := testModel(t)
+	m.st.Instance = "nike"
+
+	if status, _ := m.statusLine(m.w); !strings.HasPrefix(ansi.Strip(status), " nike ") || !strings.Contains(status, bgParams(pal.badgeBg)) {
+		t.Fatalf("no instance chip: %q", ansi.Strip(status))
+	}
+
+	m.Update(tea.MouseMotionMsg{X: 1, Y: m.h - 1 + m.bord()})
+	elapse(m, tipDelay)
+
+	if out := checkWidths(t, m); !strings.Contains(out, "│ Instance  pando --instance nike │") {
+		t.Fatalf("no tip on the chip:\n%s", out)
+	}
+}
+
 // TestStatusAndDialogHover lights a status bar item under the pointer and
 // names it in a tip above it, and lights a dialog's button under the pointer
 // without moving the focus off the primary one; a click still runs it.

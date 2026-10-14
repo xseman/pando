@@ -213,9 +213,10 @@ func TestColumnsUnmarshalTOMLUnencodable(t *testing.T) {
 }
 
 func TestDir(t *testing.T) {
-	t.Run("runtime dir wins", func(t *testing.T) {
+	t.Run("runtime dir wins, over an instance too", func(t *testing.T) {
 		t.Setenv("XDG_RUNTIME_DIR", "/run/user/1000")
 		t.Setenv("PANDO_RUNTIME_DIR", "/tmp/gvt/run")
+		t.Setenv("PANDO_INSTANCE", "nike") // a session's own commands reach their daemon
 
 		if got := Dir(); got != "/tmp/gvt/run" {
 			t.Fatalf("Dir: got %q, want /tmp/gvt/run", got)
@@ -226,14 +227,33 @@ func TestDir(t *testing.T) {
 
 		t.Setenv("PANDO_RUNTIME_DIR", "")
 		t.Setenv("XDG_RUNTIME_DIR", xdg)
+		t.Setenv("PANDO_INSTANCE", "")
 
 		if got, want := Dir(), filepath.Join(xdg, "pando"); got != want {
 			t.Fatalf("Dir: got %q, want %q", got, want)
 		}
 	})
+	t.Run("a named instance lives inside the default's", func(t *testing.T) {
+		xdg := "/run/user/1000"
+
+		t.Setenv("PANDO_RUNTIME_DIR", "")
+		t.Setenv("XDG_RUNTIME_DIR", xdg)
+		t.Setenv("PANDO_INSTANCE", "nike")
+
+		if got, want := Dir(), filepath.Join(xdg, "pando", "instances", "nike"); got != want || Instance() != "nike" {
+			t.Fatalf("Dir: got %q, want %q", got, want)
+		}
+
+		t.Setenv("PANDO_INSTANCE", "default")
+
+		if got, want := Dir(), filepath.Join(xdg, "pando"); got != want || Instance() != "" {
+			t.Fatalf("the default by name: got %q, want %q", got, want)
+		}
+	})
 	t.Run("temp dir fallback", func(t *testing.T) {
 		t.Setenv("PANDO_RUNTIME_DIR", "")
 		t.Setenv("XDG_RUNTIME_DIR", "")
+		t.Setenv("PANDO_INSTANCE", "")
 
 		want := filepath.Join(os.TempDir(), "pando-"+strconv.Itoa(os.Getuid()))
 		if got := Dir(); got != want {

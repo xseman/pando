@@ -25,6 +25,11 @@ If `PANDO_RUNTIME_DIR` is set in your environment, every command follows it;
 an unset variable means the user's real daemon. Do not set or change it to
 work around an error.
 
+`PANDO_INSTANCE` names the instance you run in: a pando with projects and
+sessions of its own, which your commands reach. Put `--instance NAME` first
+only when the user names another one (`pando --instance work session ls`);
+`pando instance ls` lists them.
+
 `PANDO_SESSION` is set inside a session pando started. If it is set, you are
 running **inside** one of pando's own sessions — that id is your own terminal.
 Never kill, rename or send input to it.

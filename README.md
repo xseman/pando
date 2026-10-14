@@ -65,6 +65,8 @@ Needs git. Optional: `gh` for GitHub, `rg` for search, language servers
 - **Layout**: a terminal panel, draggable views and columns, VS Code's 2026
   themes, remappable keys.
 - **CLI and API**: JSON over a unix socket; self-update on Linux and macOS.
+- **Instances**: `pando --instance work` is a separate pando, with projects
+  and sessions of its own and your settings.
 
 ## Quick start
 

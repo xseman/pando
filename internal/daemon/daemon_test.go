@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"net"
@@ -33,7 +34,7 @@ func start(t *testing.T) func() *Daemon {
 	}
 
 	boot := func() *Daemon {
-		d, err := New(filepath.Join(tmp, "cfg"), filepath.Join(tmp, "data"))
+		d, err := New(filepath.Join(tmp, "cfg"), filepath.Join(tmp, "cfg"), filepath.Join(tmp, "data"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -513,11 +514,38 @@ func TestConcurrentState(t *testing.T) {
 	}
 }
 
+// TestInstanceState keeps a named instance's state.json in a directory of its
+// own, config.toml shared with the default instance, and names the instance
+// in the state it sends.
+func TestInstanceState(t *testing.T) {
+	cfg := t.TempDir()
+	t.Setenv("PANDO_CONFIG_DIR", cfg)
+	t.Setenv("PANDO_INSTANCE", "nike")
+
+	d, err := New(ConfigDir(), StateDir(), t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := d.setState(json.RawMessage(`{"settings":{"diff_view":"split"},"drafts":{"/p":"x"}}`)); err != nil {
+		t.Fatal(err)
+	}
+
+	state := mustRead(t, filepath.Join(cfg, "instances", "nike", "state.json"))
+	if b := mustRead(t, filepath.Join(cfg, "config.toml")); !strings.Contains(b, `diff_view = "split"`) || !strings.Contains(state, `"/p": "x"`) {
+		t.Fatalf("config.toml:\n%s\nstate.json:\n%s", b, state)
+	}
+
+	if _, err := os.Stat(filepath.Join(cfg, "state.json")); !errors.Is(err, os.ErrNotExist) || d.state.Instance != "nike" {
+		t.Fatalf("the default's state.json: %v, instance %q", err, d.state.Instance)
+	}
+}
+
 func TestConfig(t *testing.T) {
 	cfg := t.TempDir()
 	path := filepath.Join(cfg, "config.toml")
 
-	d, err := New(cfg, t.TempDir())
+	d, err := New(cfg, cfg, t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -595,7 +623,7 @@ func TestConfig(t *testing.T) {
 	}
 
 	// A fresh config directory gets the defaults.
-	fresh, err := New(t.TempDir(), t.TempDir())
+	fresh, err := New(t.TempDir(), t.TempDir(), t.TempDir())
 	if s := fresh.state.Settings; err != nil || !s.Hidden || !s.GitDeco || !s.GitTree || !s.Borders || s.Width != 40 || s.Theme != "vscode" || s.Icons == "" {
 		t.Fatalf("defaults: %v %+v", err, s)
 	}

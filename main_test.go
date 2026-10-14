@@ -5,6 +5,7 @@ package main
 import (
 	"flag"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -228,6 +229,69 @@ func TestE2E(t *testing.T) {
 
 	if !strings.Contains(text, "E2E_42") {
 		t.Fatalf("session output: %q", text)
+	}
+}
+
+// TestInstance takes a leading --instance off the arguments into the
+// environment the daemon and its sessions inherit, over the runtime directory
+// a session's commands inherit, and refuses a name that is no path segment.
+func TestInstance(t *testing.T) {
+	for _, tc := range []struct {
+		args, rest []string
+		env        string // PANDO_INSTANCE after it
+	}{
+		{[]string{"--instance", "nike", "session", "ls"}, []string{"session", "ls"}, "nike"},
+		{[]string{"--instance", "work"}, nil, "work"},
+		{[]string{"--instance", "default", "stop"}, []string{"stop"}, "default"},
+		{[]string{"ls", "--instance", "nike"}, []string{"ls", "--instance", "nike"}, ""}, // a leading flag only
+	} {
+		t.Setenv("PANDO_INSTANCE", "")
+		t.Setenv("PANDO_RUNTIME_DIR", "/run/session")
+
+		rest, err := instance(tc.args)
+		_, kept := os.LookupEnv("PANDO_RUNTIME_DIR")
+
+		if err != nil || !slices.Equal(rest, tc.rest) || os.Getenv("PANDO_INSTANCE") != tc.env || kept != (tc.env == "") {
+			t.Errorf("%q: rest %q err %v instance %q runtime dir kept %v", tc.args, rest, err, os.Getenv("PANDO_INSTANCE"), kept)
+		}
+	}
+
+	for _, args := range [][]string{{"--instance", "../x"}, {"--instance", "a b"}, {"--instance", strings.Repeat("a", 33)}} {
+		if _, err := instance(args); err == nil {
+			t.Errorf("%q: no error", args)
+		}
+	}
+
+	t.Setenv("PANDO_INSTANCE", "a b")
+
+	if _, err := instance(nil); err == nil {
+		t.Error("PANDO_INSTANCE=\"a b\": no error")
+	}
+}
+
+// TestInstances lists the default instance, then every named one with a
+// state directory, each running while its socket answers.
+func TestInstances(t *testing.T) {
+	cfg := t.TempDir()
+	t.Setenv("PANDO_CONFIG_DIR", cfg)
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	mustWrite(t, filepath.Join(cfg, "instances", "work", "state.json"), "{}")
+	mustWrite(t, filepath.Join(cfg, "instances", "nike", "state.json"), "{}")
+
+	if err := os.MkdirAll(proto.InstanceDir("nike"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	ln, err := net.Listen("unix", filepath.Join(proto.InstanceDir("nike"), "pando.sock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer func() { _ = ln.Close() }()
+
+	var b strings.Builder
+	if err := instances(&b, nil); err != nil || b.String() != "default\tstopped\nnike\trunning\nwork\tstopped\n" {
+		t.Fatalf("instance ls: %v\n%s", err, b.String())
 	}
 }
 

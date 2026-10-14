@@ -4,15 +4,18 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	_ "embed"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -25,6 +28,10 @@ import (
 )
 
 const usage = `pando — terminal sidebar with agent sessions
+
+  pando [--instance NAME] ...   run any command below in instance NAME: its own daemon,
+                                projects and sessions, config.toml shared (PANDO_INSTANCE)
+  pando instance ls             list the instances, running or stopped
 
   pando                         open the TUI in the project opened last
   pando DIR                     add DIR to the projects and open it
@@ -80,6 +87,11 @@ func main() {
 }
 
 func run(args []string) error {
+	args, err := instance(args)
+	if err != nil {
+		return err
+	}
+
 	if len(args) == 0 {
 		return ui.Run("") // no directory: the workspace shown last reopens
 	}
@@ -111,6 +123,8 @@ func run(args []string) error {
 
 	case "claude":
 		return claudeBackground(rest)
+	case "instance":
+		return instances(os.Stdout, rest)
 	}
 
 	if err := proto.EnsureDaemon(); err != nil {
@@ -273,6 +287,57 @@ func arg(rest []string, i int, def string) string {
 	}
 
 	return def
+}
+
+// instanceName is what --instance and PANDO_INSTANCE take: one path segment,
+// short enough for the socket path under it.
+var instanceName = regexp.MustCompile(`^[A-Za-z0-9_-]{1,32}$`)
+
+// instance takes a leading --instance NAME off args, for the command after it
+// and the daemon and sessions that command starts. Given, it beats the
+// runtime directory a session's own pando commands inherit.
+func instance(args []string) ([]string, error) {
+	if len(args) > 1 && args[0] == "--instance" {
+		_ = os.Unsetenv("PANDO_RUNTIME_DIR")
+		_ = os.Setenv("PANDO_INSTANCE", args[1])
+		args = args[2:]
+	}
+
+	if n := os.Getenv("PANDO_INSTANCE"); n != "" && !instanceName.MatchString(n) {
+		return nil, fmt.Errorf("instance %q: letters, digits, - and _, at most 32", n)
+	}
+
+	return args, nil
+}
+
+// instances lists to w the default instance and every named one that has run,
+// each running or stopped.
+func instances(w io.Writer, rest []string) error {
+	if arg(rest, 0, "ls") != "ls" {
+		return errors.New("instance ls")
+	}
+
+	names := []string{""} // the default
+
+	entries, _ := os.ReadDir(filepath.Join(daemon.ConfigDir(), "instances")) // none yet: the default alone
+	for _, e := range entries {
+		if e.IsDir() {
+			names = append(names, e.Name())
+		}
+	}
+
+	for _, n := range names {
+		state := "stopped"
+
+		if c, err := net.DialTimeout("unix", filepath.Join(proto.InstanceDir(n), "pando.sock"), time.Second); err == nil {
+			_ = c.Close()
+			state = "running"
+		}
+
+		_, _ = fmt.Fprintf(w, "%s\t%s\n", cmp.Or(n, "default"), state)
+	}
+
+	return nil
 }
 
 func project(rest []string) error {
@@ -531,6 +596,12 @@ func serve() error {
 		return err
 	}
 
+	// An instance's state directory is how pando instance ls finds it, even
+	// before its first save.
+	if err := os.MkdirAll(daemon.StateDir(), 0o755); err != nil {
+		return err
+	}
+
 	lock, err := os.OpenFile(filepath.Join(dir, "pando.lock"), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return err
@@ -553,7 +624,7 @@ func serve() error {
 		return err
 	}
 
-	d, err := daemon.New(daemon.ConfigDir(), daemon.DataDir())
+	d, err := daemon.New(daemon.ConfigDir(), daemon.StateDir(), daemon.DataDir())
 	if err != nil {
 		_ = ln.Close()
 		return err

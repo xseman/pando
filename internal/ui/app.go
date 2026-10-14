@@ -4492,6 +4492,17 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 		zones = append(zones, rowAction{x: x, w: w, run: run})
 	}
 
+	// A named instance leads, as VS Code's remote indicator does; its tip says
+	// how to open it again.
+	if n := m.st.Instance; n != "" {
+		text := " " + n + " "
+		if over(0, ansi.StringWidth(text)) {
+			m.tip = "Instance  pando --instance " + n
+		}
+
+		left = append(left, sgOwn(text, lipgloss.NewStyle().Foreground(pal.badgeFg).Background(pal.badgeBg)))
+	}
+
 	name := filepath.Base(m.ws)
 	if root := m.scm.root(); root != "" {
 		st := m.scm.status[root]

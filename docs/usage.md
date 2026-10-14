@@ -12,6 +12,7 @@ The user guide. Settings: [06-config.md](06-config.md); keys:
 - [Editor](#editor)
 - [Settings, keys, updates](#settings-keys-updates)
 - [CLI](#cli)
+- [Instances](#instances)
 - [Files](#files)
 
 ## Projects, worktrees, sessions
@@ -304,15 +305,36 @@ drive pando too: `pando skill` prints [the agent guide](../skills/pando/SKILL.md
 
 ![the CLI: a worktree, claude started in it, a prompt that blocks until the turn is over, and the diff it left](demo/cli.gif)
 
+## Instances
+
+`pando --instance work` opens a separate pando: a daemon, projects and
+sessions of its own, the same `config.toml` and data directory. The first
+start creates it; the status bar names it.
+
+```sh
+pando --instance work                # the TUI, in instance work
+pando --instance work session ls     # any command, in it
+pando instance ls                    # every instance, running or stopped
+pando --instance work stop
+```
+
+A session's own `pando` commands reach the instance it runs in;
+`--instance default` reaches the default one. `PANDO_INSTANCE=work` does
+what `--instance work` does, except inside a session, whose
+`PANDO_RUNTIME_DIR` wins. To forget an instance, stop it and remove
+`~/.config/pando/instances/work`.
+
 ## Files
 
-| Path                              | Holds                                     |
-| --------------------------------- | ----------------------------------------- |
-| `$XDG_RUNTIME_DIR/pando/`         | `pando.sock`, `daemon.log`                |
-| `~/.config/pando/config.toml`     | settings, agent presets                   |
-| `~/.config/pando/state.json`      | projects, open editors, session specs     |
-| `~/.local/share/pando/worktrees/` | worktrees created by pando                |
-| `~/.local/share/pando/drafts/`    | unsaved editor text                       |
+| Path                                       | Holds                                     |
+| ------------------------------------------ | ----------------------------------------- |
+| `$XDG_RUNTIME_DIR/pando/`                  | `pando.sock`, `daemon.log`                |
+| `~/.config/pando/config.toml`              | settings, agent presets                   |
+| `~/.config/pando/state.json`               | projects, open editors, session specs     |
+| `~/.local/share/pando/worktrees/`          | worktrees created by pando                |
+| `~/.local/share/pando/drafts/`             | unsaved editor text                       |
+| `$XDG_RUNTIME_DIR/pando/instances/NAME/`   | instance NAME's socket and log            |
+| `~/.config/pando/instances/NAME/`          | instance NAME's `state.json`              |
 
 On macOS the config lives in `~/Library/Application Support/pando`.
 `PANDO_RUNTIME_DIR`, `PANDO_CONFIG_DIR` and `PANDO_DATA_DIR` override them.

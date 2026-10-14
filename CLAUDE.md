@@ -99,7 +99,8 @@ libgit2: git is shelled out.
 - Unix socket paths cap at ~104 bytes: tests and manual runs need a short
   `PANDO_RUNTIME_DIR`.
 - Always set `PANDO_RUNTIME_DIR`, `PANDO_CONFIG_DIR`, `PANDO_DATA_DIR` when
-  running pando by hand, or you talk to the real daemon.
+  running pando by hand, or you talk to the real daemon. `--instance` drops
+  `PANDO_RUNTIME_DIR`: with it, isolate through `XDG_RUNTIME_DIR` too.
 - `pando stop` before removing a test runtime directory. In a test the
   runtime directory must be a `t.TempDir()`: a `defer os.RemoveAll` runs
   before every `t.Cleanup`, so it takes the socket away and the shutdown

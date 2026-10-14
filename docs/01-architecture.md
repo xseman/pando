@@ -32,6 +32,13 @@ Killing a TUI never kills a session.
 - Runtime dir: `PANDO_RUNTIME_DIR`, else `$XDG_RUNTIME_DIR/pando`, else
   `/tmp/pando-<uid>`; it holds the socket, `pando.lock` (`flock`, one daemon)
   and `daemon.log`.
+- An instance is another daemon (`proto.Instance`, `PANDO_INSTANCE`): its
+  runtime dir is `instances/<name>/` in the default's (`InstanceDir`), its
+  `state.json` `instances/<name>/` in the config dir (`daemon.StateDir`);
+  `config.toml` and the data dir are shared, and `State.Instance` names it to
+  the TUI's status bar. A leading `--instance` sets it and drops an inherited
+  `PANDO_RUNTIME_DIR`, which otherwise wins: a session's commands reach their
+  own daemon. `pando instance ls` dials each one's socket.
 - Any client autostarts the daemon (`proto.EnsureDaemon`). `ping` returns the
   build id; a TUI whose build differs restarts the daemon, silently when no
   session runs, otherwise after asking (`staleModal`): a restart kills the PTYs.

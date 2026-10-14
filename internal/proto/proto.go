@@ -173,6 +173,9 @@ type State struct {
 	// Seen is per program the [resume_env] variables pando saw it run with,
 	// KEY=VALUE: a new session of it offers them after its Profiles.
 	Seen map[string][][]string `json:"seen_env,omitempty"`
+	// Instance is the daemon's instance, "" for the default one; state.json
+	// does not keep it.
+	Instance string `json:"instance,omitempty"`
 }
 
 // Editors is a workspace's tab strip as state.json keeps it, VS Code's
@@ -416,18 +419,42 @@ type FocusParams struct {
 	Open      string `json:"open,omitempty"`
 }
 
+// Instance names the pando instance this process belongs to, from
+// PANDO_INSTANCE: "" for the default one. A named instance runs a daemon of
+// its own, with its own socket and state.json; config.toml and the data
+// directory are shared.
+func Instance() string {
+	if n := os.Getenv("PANDO_INSTANCE"); n != "default" {
+		return n
+	}
+
+	return ""
+}
+
 // Dir is pando's runtime directory, holding the socket, the lock and the
-// daemon log.
+// daemon log: PANDO_RUNTIME_DIR, which a session's own pando commands
+// inherit, else the instance's.
 func Dir() string {
 	if d := os.Getenv("PANDO_RUNTIME_DIR"); d != "" {
 		return d
 	}
 
-	if d := os.Getenv("XDG_RUNTIME_DIR"); d != "" {
-		return filepath.Join(d, "pando")
+	return InstanceDir(Instance())
+}
+
+// InstanceDir is the runtime directory of instance name, "" for the default
+// one; a named one lives inside the default's.
+func InstanceDir(name string) string {
+	d := filepath.Join(os.TempDir(), fmt.Sprintf("pando-%d", os.Getuid()))
+	if x := os.Getenv("XDG_RUNTIME_DIR"); x != "" {
+		d = filepath.Join(x, "pando")
 	}
 
-	return filepath.Join(os.TempDir(), fmt.Sprintf("pando-%d", os.Getuid()))
+	if name == "" {
+		return d
+	}
+
+	return filepath.Join(d, "instances", name)
 }
 
 // SocketPath is the unix socket every client dials.
