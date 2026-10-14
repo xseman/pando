@@ -423,8 +423,8 @@ func TestAgentsTreeGaps(t *testing.T) {
 		t.Fatalf("no Spaces header:\n%s", strings.Join(lines, "\n"))
 	}
 
-	if body := ansi.Cut(lines[top+gap], 0, 30); strings.TrimSpace(ansi.Strip(body)) != "" {
-		t.Fatalf("the gap row draws something: %q", body)
+	if body := ansi.Strip(ansi.Cut(lines[top+gap], 1, 30)); strings.Trim(body, "─") != "" {
+		t.Fatalf("the gap row draws a rule over the project: %q", body)
 	}
 	// ↓ from the last row of the first project lands on the second project.
 	m.ag.l.sel = gap - 1
@@ -456,7 +456,7 @@ func TestAgentsTreeGaps(t *testing.T) {
 	}
 
 	m.ag.l.sel = gap - 1
-	// A click on the blank row keeps the selection where it was.
+	// A click on the rule keeps the selection where it was.
 	cs, _ := m.layout()
 	click(m, cs[0].x+1, top+gap, tea.MouseLeft)
 
@@ -464,13 +464,24 @@ func TestAgentsTreeGaps(t *testing.T) {
 		t.Fatalf("click on the gap moved the selection to %d", m.ag.l.sel)
 	}
 	// Two folded projects are two rows, no gap between them, pinned to the
-	// panel's bottom edge by the blank rows above them.
+	// panel's bottom edge by the blank rows above them: no rule over either,
+	// and no New Worktree on them.
 	m.ag.collapsed = map[string]bool{m.ws: true, other: true}
 
 	folded := m.ag.rows(m)
 	if n := len(folded); n != m.bodyH(viewAgents) || folded[n-2].kind != agProject || folded[n-1].kind != agProject ||
 		slices.ContainsFunc(folded[:n-2], func(r agRow) bool { return r.kind != agGap }) {
 		t.Fatalf("folded projects stack without a gap at the bottom: %+v", folded)
+	}
+
+	for i, l := range m.ag.lines(m, 30, len(folded))[:len(folded)-2] {
+		if strings.TrimSpace(ansi.Strip(l)) != "" {
+			t.Fatalf("padding line %d draws %q", i, ansi.Strip(l))
+		}
+	}
+
+	if acts := m.ag.actions(m, folded[len(folded)-1]); acts != nil {
+		t.Fatalf("a folded project shows no buttons: %+v", acts)
 	}
 	// ↑ and home off the bottom walk the padding back to a project.
 	m.ag.l.sel = len(folded) - 1

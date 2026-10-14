@@ -26,7 +26,7 @@ const (
 	agProject = iota
 	agWorkspace
 	agSession
-	agGap  // the blank row between two projects; nothing selects it
+	agGap  // the row before an open heading, drawn as a rule over it; blank before the folded and as the padding that sinks them; nothing selects it
 	agTime // a heading of no project: Pinned, or Group by Time's Today, Yesterday, …
 )
 
@@ -64,10 +64,10 @@ func (a *agents) rows(m *Model) []agRow {
 	// Pinned is a pane of its own over the tree, its border the gap.
 	pins := a.pinnedRows(m, sessions, q)
 	if q == "" {
-		return append(pins, a.pinFolded(m, withGaps(out), a.pane(m, pins, m.bodyH(viewAgents)).lines)...)
+		return append(pins, a.pinFolded(m, a.withGaps(out), a.pane(m, pins, m.bodyH(viewAgents)).lines)...)
 	}
 
-	return append(matching(q, pins), withGaps(matching(q, out))...)
+	return append(matching(q, pins), a.withGaps(matching(q, out))...)
 }
 
 // matching are the rows that match q, plus the heading and worktree they sit
@@ -211,13 +211,13 @@ func (a *agents) fold(k string, shut bool) {
 	}
 }
 
-// withGaps puts a blank row before a project, herdr's gap between two spaces,
-// but only where the project above it unfolded: the gap separates rows that
-// belong to something, so a run of folded projects stays a tight list.
-func withGaps(rows []agRow) []agRow {
+// withGaps puts a row before every open heading but the first, drawn as a
+// rule over it, VS Code's border over a pane; and a blank one before the
+// folded that follow an open one, so a run of them stays a tight list.
+func (a *agents) withGaps(rows []agRow) []agRow {
 	out := make([]agRow, 0, len(rows)+4)
 	for i, r := range rows {
-		if (r.kind == agProject || r.kind == agTime) && i > 0 && rows[i-1].kind != r.kind {
+		if (r.kind == agProject || r.kind == agTime) && i > 0 && (!a.collapsed[foldKey(r)] || rows[i-1].kind != r.kind) {
 			out = append(out, agRow{kind: agGap})
 		}
 
@@ -850,7 +850,11 @@ func (a *agents) lines(m *Model, w, h int) []string {
 
 	draw := func(i, y, rw int) string { // row i on line y
 		r := rows[i]
-		if r.kind == agGap {
+		if r.kind == agGap { // the rule over an open heading, or a blank
+			if h := i + 1; h < len(rows) && (rows[h].kind == agProject || rows[h].kind == agTime) && (!a.collapsed[foldKey(rows[h])] || m.query(viewAgents) != "") {
+				return ruleRow(rw, nil)
+			}
+
 			return blank(rw)
 		}
 
@@ -1693,7 +1697,7 @@ func (a *agents) actions(m *Model, r agRow) []rowAction {
 
 		acts = append(acts, rowAction{g: icResume, text: "Resume", run: func(m *Model) tea.Cmd { return m.resumePicker(r.ws.Path) }})
 
-	case r.kind == agProject && r.project != "":
+	case r.kind == agProject && r.project != "" && !a.collapsed[r.project]: // folded, it shows nothing
 		acts[0].g, acts[0].text = icWorktree, "New Worktree"
 		acts[0].run = func(m *Model) tea.Cmd {
 			m.promptWorktree(r.project, git.RandomBranch(), true)

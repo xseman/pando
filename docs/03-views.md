@@ -141,12 +141,13 @@ re-roots Explorer and Source Control to its worktree.
    └─ ○ shell          idle
    ⑂ feat/x         1   linked worktree (dimmed)
    └─ ○ shell          idle
-                        gap: only after an unfolded project
+──────────────────────────  a rule over every open heading but the first (withGaps)
 ▾ ○ other
    ⌂ main           1
    └─ ○ shell          idle
 
-▸ · folded              folded projects sink to the bottom (pinFolded)
+▸ · folded              folded projects sink to the bottom (pinFolded): no rule, no button
+▸ · folded
 ```
 
 ### Status
