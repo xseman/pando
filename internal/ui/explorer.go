@@ -224,7 +224,9 @@ func (e *explorer) lines(m *Model, w, h int) []string {
 		}
 
 		return row(rw, bg, []seg{
-			sg(" "+strings.Repeat("  ", n.depth)+chev, dim),
+			sg(" ", dim),
+			sg(strings.Repeat("│ ", n.depth), fg(pal.whitespace)), // VS Code's indent guides, one under each open folder's chevron
+			sg(chev, dim),
 			iconSeg(n.name, n.dir, open),
 			sg(n.name, name),
 		}, right...)

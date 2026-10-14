@@ -51,6 +51,8 @@ Show Hidden Files and Sort by Type / Name (`explorer_sort`) added.
 - Duplicate offers `main copy.go`, then `main copy 2.go` (`os.CopyFS` for a
   folder).
 - Find in Folder opens Search with `dir/**`, globs escaped.
+- An open folder draws a `│` under its chevron down its children, VS Code's
+  indent guides (`renderIndentGuides: always`), in `whitespace`'s color.
 
 ## Source Control
 

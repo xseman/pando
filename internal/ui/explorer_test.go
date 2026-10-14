@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // submit presses enter in a prompt and delivers what its command produces.
@@ -359,5 +360,35 @@ func TestExplorerCutCopyPaste(t *testing.T) {
 
 	if m.ex.clip != filepath.Join(m.ws, "x.go") || !m.ex.cut {
 		t.Fatal("a move that failed keeps the cut for another try")
+	}
+}
+
+// TestExplorerIndentGuides draws VS Code's indent guides: a rule under each
+// open folder's chevron down its children, none at the root.
+func TestExplorerIndentGuides(t *testing.T) {
+	m := testModel(t)
+	mustWrite(t, filepath.Join(m.ws, "src", "y.go"), "")
+	m.ex.expanded[filepath.Join(m.ws, "src")] = true
+	m.ex.expanded[filepath.Join(m.ws, "src", "deep")] = true
+	m.ex.rebuild(m)
+
+	lines := m.ex.lines(m, 40, len(m.ex.nodes))
+	prefix := func(name string) string {
+		t.Helper()
+
+		i := slices.IndexFunc(m.ex.nodes, func(n exNode) bool { return n.name == name })
+		if i < 0 {
+			t.Fatalf("no %s in %+v", name, m.ex.nodes)
+		}
+
+		before, _, _ := strings.Cut(ansi.Strip(lines[i]), name)
+
+		return before
+	}
+
+	for name, want := range map[string]string{"src": " ▾ ", "deep": " │ ▾ ", "x.go": " │ │   ", "y.go": " │   ", "README.md": "   "} {
+		if got := prefix(name); !strings.HasPrefix(got, want) || strings.Count(got, "│") != strings.Count(want, "│") {
+			t.Errorf("%s: %q, want guides %q", name, got, want)
+		}
 	}
 }
