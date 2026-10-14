@@ -1905,7 +1905,10 @@ func (m *Model) sessionTitleMenu() tea.Cmd {
 	}
 
 	return m.menuOf(menuGroups(place,
-		[]item{{label: "Rename…", run: func(m *Model) tea.Cmd { return m.renameSession(id) }}},
+		[]item{
+			{label: "Rename…", run: func(m *Model) tea.Cmd { return m.renameSession(id) }},
+			{label: m.pinLabel(m.rootOf(id)), run: func(m *Model) tea.Cmd { return m.togglePin(m.rootOf(id)) }},
+		},
 		[]item{
 			{label: "Close (keeps running)", run: func(m *Model) tea.Cmd { return m.hideSession() }},
 			{label: "Kill Session…", run: func(m *Model) tea.Cmd { return m.confirmKill(id) }},
@@ -2543,8 +2546,9 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case draftsMsg:
 		return m, m.onDrafts(msg)
 	case stateMsg:
-		full := m.st.Settings.DiffFull
+		full, sel := m.st.Settings.DiffFull, m.ag.selected(m)
 		m.st = proto.State(msg)
+		m.ag.follow(m, sel) // another TUI's pin adds rows above it
 		m.look()
 		m.resize()
 		m.syncWrap()

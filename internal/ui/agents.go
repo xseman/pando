@@ -27,8 +27,11 @@ const (
 	agWorkspace
 	agSession
 	agGap  // the blank row between two projects; nothing selects it
-	agTime // a heading of Group by Time: Today, Yesterday, …
+	agTime // a heading of no project: Pinned, or Group by Time's Today, Yesterday, …
 )
+
+// pinnedHead is the heading over the pinned sessions, an agTime row.
+const pinnedHead = "Pinned"
 
 type agRow struct {
 	kind    int
@@ -36,6 +39,7 @@ type agRow struct {
 	ws      proto.Workspace
 	s       proto.Session
 	when    string // agTime: the heading
+	pinned  bool   // a session's copy under Pinned
 }
 
 // agents is the Project → Workspace → Session tree.
@@ -50,11 +54,11 @@ type newSessionMsg proto.Session
 func (a *agents) rows(m *Model) []agRow {
 	q, sessions := m.query(viewAgents), m.listedSessions()
 
-	var out []agRow
+	out := a.pinnedRows(m, sessions, q)
 	if m.st.Settings.SpGroup == "time" {
-		out = a.timeRows(m, sessions, q)
+		out = append(out, a.timeRows(m, sessions, q)...)
 	} else {
-		out = a.treeRows(m, sessions, q)
+		out = append(out, a.treeRows(m, sessions, q)...)
 	}
 
 	if q == "" {
@@ -366,6 +370,64 @@ func (a *agents) timeRows(m *Model, sessions []proto.Session, q string) []agRow 
 	return out
 }
 
+// pinnedRows are the Pinned heading and the pinned sessions under it, in the
+// order they were pinned; each stays in the tree too.
+func (a *agents) pinnedRows(m *Model, sessions []proto.Session, q string) []agRow {
+	var out []agRow
+
+	for _, id := range m.st.Pinned {
+		i := slices.IndexFunc(sessions, func(s proto.Session) bool { return s.ID == id })
+		if i < 0 {
+			continue
+		}
+
+		ws := proto.Workspace{Path: sessions[i].Workspace}
+		if w := m.workspace(ws.Path); w != nil {
+			ws = *w
+		}
+
+		out = append(out, agRow{kind: agSession, ws: ws, s: sessions[i], pinned: true})
+	}
+
+	switch {
+	case out == nil:
+		return nil
+	case a.collapsed[timeKey(pinnedHead)] && q == "":
+		out = nil
+	}
+
+	return append([]agRow{{kind: agTime, when: pinnedHead}}, out...)
+}
+
+// togglePin pins session id under Pinned, or unpins it, dropping the
+// sessions gone since; Spaces keeps its selection on the row it was on.
+func (m *Model) togglePin(id string) tea.Cmd {
+	sel := m.ag.selected(m)
+
+	pins := slices.DeleteFunc(append([]string{}, m.st.Pinned...), func(p string) bool { return p == id || m.session(p) == nil }) // not nil: null would keep the list saved before
+	if !slices.Contains(m.st.Pinned, id) {
+		pins = append(pins, id)
+	}
+
+	m.st.Pinned = pins
+
+	if sel != nil {
+		m.ag.follow(m, sel)
+		m.ag.l.snap(m.bodyH(viewAgents)) // a pin adds rows above it
+	}
+
+	return do("state.set", map[string]any{"spaces_pinned": pins})
+}
+
+// pinLabel is the menu item that pins session id, or unpins it.
+func (m *Model) pinLabel(id string) string {
+	if slices.Contains(m.st.Pinned, id) {
+		return "Unpin Session"
+	}
+
+	return "Pin Session"
+}
+
 // timeKey is a time heading's key in collapsed, apart from every project
 // path, which is absolute.
 func timeKey(bucket string) string { return "time:" + bucket }
@@ -655,8 +717,10 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		bg, base := m.rowColors(viewAgents, i == a.l.sel, y == hover)
 
 		var plus []seg // the + under the pointer, or on the selection while Spaces has the keyboard
-		if y == hover || i == a.l.sel && m.focused(viewAgents) {
-			plus = drawActions(a.actions(r), mx)
+
+		pointed := y == hover || i == a.l.sel && m.focused(viewAgents)
+		if pointed && r.kind != agSession { // a session's is its pin, in the gutter
+			plus = drawActions(a.actions(m, r), mx)
 		}
 
 		switch r.kind {
@@ -666,7 +730,12 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			var ss []proto.Session
 
 			for _, s := range m.listedSessions() {
-				if timeBucket(m.sessionTime(s), time.Now()) == r.when {
+				in := timeBucket(m.sessionTime(s), time.Now()) == r.when
+				if r.when == pinnedHead {
+					in = slices.Contains(m.st.Pinned, s.ID)
+				}
+
+				if in {
 					ss = append(ss, m.tabsOf(s.ID)...)
 				}
 			}
@@ -721,9 +790,25 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			return row(rw, bg, append(left, plus...), right...)
 		}
 		// herdr's tree: sessions hang off their branch, the last one on └─.
-		conn := "   ├─ "
+		conn := "├─ "
 		if i+1 == len(rows) || rows[i+1].kind != agSession {
-			conn = "   └─ "
+			conn = "└─ "
+		}
+		// The gutter before it holds the pin: lit on a pinned session, dim
+		// on the row pointed at, raised with its tip under the pointer.
+		pin := a.actions(m, r)[0]
+		_, onPin := hit([]rowAction{pin}, mx)
+		onPin = onPin && y == hover
+
+		gutter := sg("   ", dim)
+
+		switch {
+		case onPin:
+			gutter, m.tip = sgOwn(pin.label(), keycapHot()), pin.tip
+		case pin.on:
+			gutter = sg(pin.label(), fg(pal.headerAccent))
+		case pointed:
+			gutter = sg(pin.label(), dim)
 		}
 
 		// A session carries the most demanding of its tabs, as a herdr
@@ -754,7 +839,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			status = "shell"
 		}
 
-		if m.st.Settings.SpGroup == "time" { // no project tree to say where it runs
+		if m.st.Settings.SpGroup == "time" || r.pinned { // no project tree to say where it runs
 			where := r.ws.Branch
 			if where == "" {
 				where = filepath.Base(r.ws.Path)
@@ -770,11 +855,11 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		// A name the row cuts, at 32 cells or at the column's edge, shows
 		// whole in a tip.
 		g, after, right := m.spin(glyph, tabs...), titleAfter(r.s), " "+status+" "
-		if full := fullName(r.s); y == hover && (full != sessionName(r.s) || ansi.StringWidth(conn+g+full+after+right) > rw) {
+		if full := fullName(r.s); y == hover && !onPin && (full != sessionName(r.s) || ansi.StringWidth(gutter.s+conn+g+full+after+right) > rw) {
 			m.tip = full + after
 		}
 
-		left := append([]seg{sg(conn, dim), sg(g, fg(c))}, m.fx.segs("sess:"+r.s.ID, sessionName(r.s), nameSt)...)
+		left := append([]seg{gutter, sg(conn, dim), sg(g, fg(c))}, m.fx.segs("sess:"+r.s.ID, sessionName(r.s), nameSt)...)
 
 		return row(rw, bg, append(left, sg(after, nameSt)), sg(right, dim))
 	}
@@ -835,12 +920,21 @@ func (a *agents) follow(m *Model, r *agRow) {
 
 	same := func(o agRow) bool { // a session is itself under any heading, as Group by Time moves it
 		if r.kind == agSession {
-			return o.kind == agSession && o.s.ID == r.s.ID
+			return o.kind == agSession && o.s.ID == r.s.ID && o.pinned == r.pinned
 		}
 
 		return o.kind == r.kind && o.project == r.project && o.ws.Path == r.ws.Path && o.when == r.when
 	}
-	if i := slices.IndexFunc(a.rows(m), same); i >= 0 {
+
+	rows := a.rows(m)
+
+	i := slices.IndexFunc(rows, same)
+	if i < 0 && r.pinned { // unpinned: onto the tree's copy
+		r = &agRow{kind: agSession, s: r.s}
+		i = slices.IndexFunc(rows, same)
+	}
+
+	if i >= 0 {
 		a.l.sel = i
 	}
 }
@@ -882,7 +976,8 @@ func (a *agents) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		a.step(rows, h, h)
 	case "alt+up", "alt+down":
 		d := map[bool]int{true: -1, false: 1}[k.String() == "alt+up"]
-		if r != nil && r.kind == agSession {
+
+		if r != nil && r.kind == agSession && !r.pinned { // Pinned keeps the order they were pinned in
 			return a.shiftSession(m, r.s.ID, d)
 		}
 
@@ -909,6 +1004,11 @@ func (a *agents) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	case "R":
 		if r != nil && r.kind == agSession {
 			return m.renameSession(r.s.ID)
+		}
+
+	case "p":
+		if r != nil && r.kind == agSession {
+			return m.togglePin(r.s.ID)
 		}
 
 	case "x", "d", "delete":
@@ -1372,8 +1472,18 @@ func removeLabel(r *agRow) string {
 }
 
 // actions are row r's hover buttons, right after its name: a project's New
-// Worktree (then its harness), a worktree's New Session and Resume.
-func (a *agents) actions(r agRow) []rowAction {
+// Worktree (then its harness), a worktree's New Session and Resume; a
+// session's is its pin, in the gutter before it.
+func (a *agents) actions(m *Model, r agRow) []rowAction {
+	if r.kind == agSession {
+		pin := rowAction{g: icPin, tip: m.pinLabel(r.s.ID) + "  p", on: slices.Contains(m.st.Pinned, r.s.ID), w: 3, run: func(m *Model) tea.Cmd { return m.togglePin(r.s.ID) }}
+		if pin.on {
+			pin.g = icPinned
+		}
+
+		return []rowAction{pin}
+	}
+
 	head := " " + chevron(!a.collapsed[r.project]) + "· " + agLabel(r) // any status glyph is a cell and a space
 
 	acts := []rowAction{{g: icAdd, text: "New Session", run: func(m *Model) tea.Cmd { return a.newSession(m, &r) }}}
@@ -1497,8 +1607,10 @@ func (a *agents) items(m *Model) []item {
 	if r != nil && r.kind == agSession {
 		id := r.s.ID
 
-		row = append(row, item{label: "Rename Session…", hint: "R", run: func(m *Model) tea.Cmd { return m.renameSession(id) }})
-		if m.sessionsMovable() && len(m.siblings(id)) > 1 {
+		row = append(row,
+			item{label: "Rename Session…", hint: "R", run: func(m *Model) tea.Cmd { return m.renameSession(id) }},
+			item{label: m.pinLabel(id), hint: "p", run: func(m *Model) tea.Cmd { return m.togglePin(id) }})
+		if !r.pinned && m.sessionsMovable() && len(m.siblings(id)) > 1 {
 			row = append(row,
 				item{label: "Move Session Up", hint: "M-↑", run: func(m *Model) tea.Cmd { return a.shiftSession(m, id, -1) }},
 				item{label: "Move Session Down", hint: "M-↓", run: func(m *Model) tea.Cmd { return a.shiftSession(m, id, 1) }})
@@ -1607,7 +1719,7 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 			return a.menu(m, mo.X, mo.Y)
 		}
 
-		if act, ok := hit(a.actions(rows[i]), x); ok && mo.Button == tea.MouseLeft {
+		if act, ok := hit(a.actions(m, rows[i]), x); ok && mo.Button == tea.MouseLeft {
 			return act.run(m)
 		}
 		// A project row drags up and down the list; a press that never leaves
@@ -1626,7 +1738,7 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 			}
 		}
 
-		if id := rows[i].s.ID; mo.Button == tea.MouseLeft && rows[i].kind == agSession && m.sessionsMovable() {
+		if id := rows[i].s.ID; mo.Button == tea.MouseLeft && rows[i].kind == agSession && !rows[i].pinned && m.sessionsMovable() {
 			if sibs := m.siblings(id); len(sibs) > 1 {
 				m.drag = &drag{kind: dragRow, sess: id, y0: mo.Y}
 				return nil
@@ -1742,7 +1854,7 @@ func (a *agents) dropSlot(m *Model, rows []agRow) (at, h, band int) {
 
 	key := func(r agRow) string {
 		switch {
-		case d.sess != "" && r.kind == agSession:
+		case d.sess != "" && r.kind == agSession && !r.pinned:
 			return r.s.ID
 		case d.ws != "" && r.kind == agWorkspace:
 			return r.ws.Path
@@ -1925,7 +2037,7 @@ func (a *agents) sessionAt(m *Model, y int) string {
 	}
 
 	rows := a.rows(m)
-	if i := a.l.at(y, len(rows)); i >= 0 && rows[i].kind == agSession {
+	if i := a.l.at(y, len(rows)); i >= 0 && rows[i].kind == agSession && !rows[i].pinned {
 		return rows[i].s.ID
 	}
 
@@ -2059,7 +2171,7 @@ func (a *agents) moveSession(m *Model, id, to string) {
 	m.sessions = slices.Insert(rest, k, moved...)
 
 	rows := a.rows(m)
-	if r := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agSession && r.s.ID == id }); r >= 0 {
+	if r := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agSession && r.s.ID == id && !r.pinned }); r >= 0 {
 		a.l.sel = r
 		a.l.snap(m.bodyH(viewAgents))
 	}

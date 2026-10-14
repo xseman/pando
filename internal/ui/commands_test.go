@@ -961,7 +961,7 @@ func TestSpacesDragSession(t *testing.T) {
 	press(m, "3")
 	checkWidths(t, m)
 	cs, _ := m.layout()
-	x, top := cs[m.colOf(viewAgents)].x+1, m.bodyTop(viewAgents)
+	x, top := cs[m.colOf(viewAgents)].x+4, m.bodyTop(viewAgents) // past the pin in the gutter
 	ids := func() string {
 		var out []string
 		for _, s := range m.sessions {
@@ -1060,7 +1060,7 @@ func TestSpacesSelectionFollowsSort(t *testing.T) {
 	press(m, "3")
 	checkWidths(t, m)
 	cs, _ := m.layout()
-	x, top := cs[m.colOf(viewAgents)].x+1, m.bodyTop(viewAgents)
+	x, top := cs[m.colOf(viewAgents)].x+4, m.bodyTop(viewAgents) // past the pin in the gutter
 
 	click(m, x, top+3-m.ag.l.top, tea.MouseLeft) // project, worktree, s1, s2
 
@@ -1101,7 +1101,7 @@ func TestSpacesNewSession(t *testing.T) {
 	// The project row's New Worktree under the pointer asks for the branch, not a drag.
 	cs, _ := m.layout()
 	i := m.colOf(viewAgents)
-	acts := m.ag.actions(rows[0])
+	acts := m.ag.actions(m, rows[0])
 	x, y := cs[i].x+m.barW(i)+acts[0].x+1, m.bodyTop(viewAgents)
 	m.Update(tea.MouseMotionMsg{X: x, Y: y})
 
@@ -1115,7 +1115,7 @@ func TestSpacesNewSession(t *testing.T) {
 		t.Fatalf("the project's button asks for the branch: drag %+v, %+v", m.drag, m.modal)
 	}
 
-	if acts := m.ag.actions(rows[feat]); len(acts) != 2 || acts[0].text != "New Session" || acts[1].text != "Resume" || acts[1].x != acts[0].x+acts[0].w {
+	if acts := m.ag.actions(m, rows[feat]); len(acts) != 2 || acts[0].text != "New Session" || acts[1].text != "Resume" || acts[1].x != acts[0].x+acts[0].w {
 		t.Fatalf("a worktree's buttons start a session and, right after, resume one: %+v", acts)
 	}
 
@@ -1209,7 +1209,7 @@ func TestSpacesResume(t *testing.T) {
 	press(m, "3")
 
 	rows := m.ag.rows(m) // the project, its checkout, s1
-	resume := m.ag.actions(rows[1])[1].run
+	resume := m.ag.actions(m, rows[1])[1].run
 	hints := func() []string {
 		var out []string
 		for _, it := range m.modal.disp {
@@ -4117,4 +4117,157 @@ func TestClickOpensNewsTab(t *testing.T) {
 	if m.inView(m.sess) {
 		t.Fatalf("two tabs with news: the second click puts it away, as before: %q", m.sess)
 	}
+}
+
+// TestSpacesPin pins sessions under Pinned, on top and in the order they
+// were pinned, each staying in the tree: p, the gutter's button and the
+// menus pin and unpin, and the selection stays on the row it was on.
+func TestSpacesPin(t *testing.T) {
+	m := testModel(t)
+	s2 := proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: m.ws, Agent: "claude"}, Status: "idle"}
+	m.Update(sessionsMsg{m.sessions[0], s2})
+	press(m, "3")
+
+	shape := func() (out []string) {
+		for _, r := range m.ag.rows(m) {
+			switch {
+			case r.kind == agTime:
+				out = append(out, r.when)
+			case r.kind == agSession && r.pinned:
+				out = append(out, "pin:"+r.s.ID)
+			case r.kind == agSession:
+				out = append(out, r.s.ID)
+			case r.kind == agGap:
+				out = append(out, "")
+			default:
+				out = append(out, "ws")
+			}
+		}
+
+		return out
+	}
+
+	m.ag.l.sel = 3 // s2 in the tree
+	press(m, "p")
+
+	if want := []string{"Pinned", "pin:s2", "", "ws", "ws", "s1", "s2"}; !slices.Equal(m.st.Pinned, []string{"s2"}) || !slices.Equal(shape(), want) {
+		t.Fatalf("p pins s2: %v, rows %q want %q", m.st.Pinned, shape(), want)
+	}
+
+	if r := m.ag.selected(m); r == nil || r.s.ID != "s2" || r.pinned {
+		t.Fatalf("the selection stays on the tree's s2: %+v", r)
+	}
+
+	lines := m.ag.lines(m, 40, len(m.ag.rows(m)))
+	if l := ansi.Strip(lines[1]); !strings.HasPrefix(l, " ⊙ └─ ") || !strings.HasSuffix(strings.TrimRight(l, " "), "main · idle") {
+		t.Fatalf("the pinned row: its pin, and the branch it runs on: %q", l)
+	}
+
+	if l := ansi.Strip(lines[5]); !strings.HasPrefix(l, "   ├─ ") {
+		t.Fatalf("an unpinned row keeps its gutter blank: %q", l)
+	}
+
+	if l := ansi.Strip(lines[6]); !strings.HasPrefix(l, " ⊙ └─ ") {
+		t.Fatalf("the tree's copy shows its pin: %q", l)
+	}
+	// The gutter of s1's row pins it, after s2; its tip wins over a cut name's.
+	m.sessions[0].Name = strings.Repeat("long", 10)
+	x, y := m.colRect(m.colOf(viewAgents)).x+1, m.bodyTop(viewAgents)+5
+	m.Update(tea.MouseMotionMsg{X: x, Y: y})
+
+	if l := ansi.Strip(m.ag.lines(m, 40, len(m.ag.rows(m)))[5]); !strings.HasPrefix(l, " ⊙ ├─ ") || m.tip != "Pin Session  p" {
+		t.Fatalf("the hovered row shows the pin button, its tip under the pointer: %q, tip %q", l, m.tip)
+	}
+
+	click(m, x, y, tea.MouseLeft)
+
+	if !slices.Equal(m.st.Pinned, []string{"s2", "s1"}) || m.modal != nil {
+		t.Fatalf("the gutter pins s1: %v", m.st.Pinned)
+	}
+	// Under Pinned a session unpins but does not move.
+	m.ag.l.sel = 1
+
+	labels := func(items []item) (out []string) {
+		for _, it := range items {
+			out = append(out, it.label)
+		}
+
+		return out
+	}
+	if ls := labels(m.ag.items(m)); !slices.Contains(ls, "Unpin Session") || slices.Contains(ls, "Move Session Down") {
+		t.Fatalf("the pinned row's menu: %q", ls)
+	}
+
+	press(m, "alt+down")
+
+	if !slices.Equal(m.st.Pinned, []string{"s2", "s1"}) || m.sessions[1].ID != "s2" {
+		t.Fatalf("alt+↓ under Pinned moves nothing: %v", m.st.Pinned)
+	}
+
+	press(m, "p")
+
+	if r := m.ag.selected(m); !slices.Equal(m.st.Pinned, []string{"s1"}) || r == nil || r.s.ID != "s2" || r.pinned {
+		t.Fatalf("unpinned under Pinned, the selection goes to the tree's copy: %v %+v", m.st.Pinned, r)
+	}
+	// The session title's menu pins too, a gone session drops out of the list.
+	m.st.Pinned = []string{"gone", "s1"}
+	m.sess = "s2"
+	m.sessionTitleMenu()
+
+	if i := slices.IndexFunc(m.modal.disp, func(it item) bool { return it.label == "Pin Session" }); i < 0 {
+		t.Fatalf("the title menu: %q", labels(m.modal.disp))
+	} else {
+		m.modal.choose(m, i)
+	}
+
+	if !slices.Equal(m.st.Pinned, []string{"s1", "s2"}) {
+		t.Fatalf("the title menu pins s2, gone drops: %v", m.st.Pinned)
+	}
+	// Another TUI's pin or unpin keeps the selection on its row.
+	m.ag.l.sel = slices.IndexFunc(m.ag.rows(m), func(r agRow) bool { return r.kind == agSession && r.s.ID == "s1" && !r.pinned })
+
+	for _, pins := range [][]string{nil, {"s1", "s2"}} {
+		st := m.st
+		st.Pinned = pins
+		m.Update(stateMsg(st))
+
+		if r := m.ag.selected(m); r == nil || r.s.ID != "s1" || r.pinned {
+			t.Fatalf("pinned elsewhere %v, the selection moved: %+v", pins, r)
+		}
+	}
+	// Unpinned elsewhere, the copy under Pinned hands it to the tree's.
+	m.ag.l.sel = slices.IndexFunc(m.ag.rows(m), func(r agRow) bool { return r.s.ID == "s1" && r.pinned })
+	st := m.st
+	st.Pinned = []string{"s2"}
+	m.Update(stateMsg(st))
+
+	if r := m.ag.selected(m); r == nil || r.s.ID != "s1" || r.pinned {
+		t.Fatalf("unpinned elsewhere, the selection: %+v", r)
+	}
+
+	st.Pinned = []string{"s1", "s2"}
+	m.Update(stateMsg(st))
+	// Folded, Pinned keeps its place on top; the Filter applies to it.
+	m.ag.l.sel = 0
+	press(m, "enter")
+
+	if want := []string{"Pinned", "", "ws", "ws", "s1", "s2"}; !slices.Equal(shape(), want) || !m.ag.collapsed[timeKey(pinnedHead)] {
+		t.Fatalf("folded Pinned: %q want %q", shape(), want)
+	}
+
+	m.ag.unfold(m, timeKey(pinnedHead))
+	m.st.Settings.SpHide = []string{"idle"}
+
+	if slices.Contains(shape(), "Pinned") {
+		t.Fatalf("the Filter hides pinned idle sessions: %q", shape())
+	}
+
+	m.st.Settings.SpHide = nil
+	m.st.Settings.SpGroup = "time"
+
+	if rows := shape(); len(rows) < 4 || rows[0] != "Pinned" || rows[3] != "" {
+		t.Fatalf("Group by Time keeps Pinned on top: %q", rows)
+	}
+
+	checkWidths(t, m)
 }

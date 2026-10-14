@@ -96,6 +96,8 @@ checkout.
   tab count (`⧉ 2`) on a session with more than one. An agent started in a
   tab, claude typed at its prompt, shows its state on the tab.
 - Drag over a terminal to select and copy; `ctrl+f` finds in its scrollback.
+- `p` in Spaces, the `⊙` left of a session's row or its right-click menu
+  pins it: Spaces lists it under Pinned on top, and in its tree as before.
 
 | Mark | State     | Means                                                     |
 | ---- | --------- | --------------------------------------------------------- |

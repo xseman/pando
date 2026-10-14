@@ -128,9 +128,12 @@ Sessions belong to worktrees, worktrees to projects. Switching a session
 re-roots Explorer and Source Control to its worktree.
 
 ```text
+▾ ◐ Pinned                 pinned sessions, in the order pinned; folds, stays on top
+ ⊙ └─ ◐ claude · fix  main · running   a copy: the session stays in the tree too
+
 ▾ ◐ repo +⎇ New Worktree  project: most demanding session's glyph (· none), button (hover)
    ⌂ main + New Session  ↺ Resume 2  the project's own checkout, buttons (hover), session count
-   ├─ ◐ claude · fix   ⧉ 2 · running   tab count, with more than its own
+ ⊙ ├─ ◐ claude · fix   ⧉ 2 · running   tab count, with more than its own; ⊙ pinned
    └─ ○ shell          idle
    ⑂ feat/x         1   linked worktree (dimmed)
    └─ ○ shell          idle
@@ -184,12 +187,15 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
   with several, the tab shown last, and again it puts the session away.
 - The right-click menu groups by action, rules from `menuGroups`: create
   (New Session, Resume Session, New Worktree, Add / Open Project), the row's
-  own (Rename, Move), go to / view options, then remove. A session's title
-  menu: where it sits (Move to Editor Area, Dock), Rename, then Close and Kill.
+  own (Rename, Pin, Move), go to / view options, then remove. A session's title
+  menu: where it sits (Move to Editor Area, Dock), Rename and Pin, then Close and Kill.
 - `x` kills the sessions in the way first (`killThen`), after asking.
 - _New Worktree…_ (`w`) offers a random branch (`workspace.new`).
 - Session reordering applies under Sort by Created + Group by Workspace only;
   an open project's under Sort Projects Manually only.
+- `p`, the gutter's ⊙ (on hover) or the menu pins a session, or unpins it
+  (`togglePin`, `spaces_pinned`). Pinned lists it again on top, an `agTime`
+  heading (`pinnedRows`): Filter and search apply, reordering does not.
 - A folded project tops the folded list (`spaces_folded`); unfolded, it goes
   last among the open ones, saved there (Sort Projects Manually only).
 - `alt+t` opens the agent navigator, a picker with `@blocked`, `@running`,
