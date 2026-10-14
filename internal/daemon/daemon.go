@@ -772,8 +772,9 @@ func (d *Daemon) save() error {
 		Worktrees map[string][]string          `json:"worktrees,omitempty"`
 		Last      string                       `json:"last_workspace,omitempty"`
 		Folded    []string                     `json:"spaces_folded,omitempty"`
+		Pinned    []string                     `json:"spaces_pinned,omitempty"`
 		Seen      map[string][][]string        `json:"seen_env,omitempty"`
-	}{d.state.Projects, d.state.Drafts, d.state.Editors, d.state.Terminals, d.state.SessionViews, d.state.Sessions, d.state.Worktrees, d.state.LastWorkspace, d.state.Folded, d.state.Seen}, "", "  ")
+	}{d.state.Projects, d.state.Drafts, d.state.Editors, d.state.Terminals, d.state.SessionViews, d.state.Sessions, d.state.Worktrees, d.state.LastWorkspace, d.state.Folded, d.state.Pinned, d.state.Seen}, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -852,6 +853,7 @@ func (d *Daemon) setState(raw json.RawMessage) (any, error) {
 		SessViews map[string]*proto.SessionView `json:"session_views"` // null forgets the workspace
 		Last      *string                       `json:"last_workspace"`
 		Folded    *[]string                     `json:"spaces_folded"` // the whole list, replacing the last
+		Pinned    *[]string                     `json:"spaces_pinned"` // the whole list, replacing the last
 	}
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, err
@@ -939,7 +941,11 @@ func (d *Daemon) setState(raw json.RawMessage) (any, error) {
 		d.state.Folded = *p.Folded
 	}
 
-	if p.Drafts != nil || p.Editors != nil || p.Terminals != nil || p.SessViews != nil || p.Last != nil || p.Folded != nil {
+	if p.Pinned != nil {
+		d.state.Pinned = *p.Pinned
+	}
+
+	if p.Drafts != nil || p.Editors != nil || p.Terminals != nil || p.SessViews != nil || p.Last != nil || p.Folded != nil || p.Pinned != nil {
 		err = errors.Join(err, d.save())
 	}
 	d.mu.Unlock()

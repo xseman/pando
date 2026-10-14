@@ -201,6 +201,7 @@ tick, on leaving the workspace and on quitting.
 | `session_views`  | per workspace, `position`, `width` (0: half), `max`; `null`     |
 | `last_workspace` | reopened when pando starts outside a repository                 |
 | `spaces_folded`  | folded Spaces headings, paths and `time:…`; sent whole          |
+| `spaces_pinned`  | pinned Spaces session ids, in the order pinned; sent whole      |
 | `seen_env`       | per program, the `[resume_env]` values seen; never, edit it out |
 
 ```json

@@ -170,6 +170,9 @@ type State struct {
 	// a time heading, so a restart keeps them shut. Its order is the folded
 	// projects', the one folded last first.
 	Folded []string `json:"spaces_folded,omitempty"`
+	// Pinned is the session ids Spaces shows under Pinned, in the order
+	// they were pinned.
+	Pinned []string `json:"spaces_pinned,omitempty"`
 	// Seen is per program the [resume_env] variables pando saw it run with,
 	// KEY=VALUE: a new session of it offers them after its Profiles.
 	Seen map[string][][]string `json:"seen_env,omitempty"`
