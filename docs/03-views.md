@@ -130,9 +130,11 @@ Sessions belong to worktrees, worktrees to projects. Switching a session
 re-roots Explorer and Source Control to its worktree.
 
 ```text
-▾ ◐ Pinned                 pinned sessions, in the order pinned; folds, stays on top
- ⊙ └─ ◐ claude · fix  main · running   a copy: the session stays in the tree too
-
+▾ ◐ PINNED            1   a pane over the tree (pinPane): its strip, folds, stays on top
+──────────────────────────
+   ⌂ main          repo   a pinned session's worktree, its project where the branch leaves room
+ ⊙ └─ ◐ claude · fix   running   pinned sessions in the order pinned, copies: each stays in the tree too
+──────────────────────────  its border: drag for spaces_pinned_height, the most it takes
 ▾ ◐ repo +⎇ New Worktree  project: most demanding session's glyph (· none), button (hover)
    ⌂ main + New Session  ↺ Resume 2  the project's own checkout, buttons (hover), session count
  ⊙ ├─ ◐ claude · fix   ⧉ 2 · running   tab count, with more than its own; ⊙ pinned
@@ -197,7 +199,11 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
   an open project's under Sort Projects Manually only.
 - `p`, the gutter's ⊙ (on hover) or the menu pins a session, or unpins it
   (`togglePin`, `spaces_pinned`). Pinned lists it again on top, an `agTime`
-  heading (`pinnedRows`): Filter and search apply, reordering does not.
+  heading (`pinnedRows`), under its worktree so a long branch leaves the
+  name its room: Filter and search apply, reordering does not.
+- Pinned is a pane as tall as its rows, at most `spaces_pinned_height`
+  (a third of the view unset); past that it scrolls on its own (`ptop`), the
+  tree under it too (`l.top`). One selection walks both (`snap`, `rowAt`).
 - A folded project tops the folded list (`spaces_folded`); unfolded, it goes
   last among the open ones, saved there (Sort Projects Manually only).
 - `alt+t` opens the agent navigator, a picker with `@blocked`, `@running`,

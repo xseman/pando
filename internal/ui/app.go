@@ -86,8 +86,8 @@ func railW() int { return actW() }
 type drag struct {
 	kind   int
 	col    int    // dragDivider: the column being resized
-	pane   string // dragPane: Git drawer title, or GitHub section title with v viewGitHub
-	v      view   // dragTab: the tab being dragged; dragPane: viewGit or viewGitHub
+	pane   string // dragPane: Git drawer title, GitHub section title with v viewGitHub, pinnedHead with viewAgents
+	v      view   // dragTab: the tab being dragged; dragPane: viewGit, viewGitHub or viewAgents
 	proj   string // dragRow: the project being moved in the Spaces list
 	sess   string // dragRow: the session being moved under its worktree instead
 	ws     string // dragRow: the worktree being moved under its project instead
@@ -432,7 +432,7 @@ func New(st proto.State, wss []proto.Workspace, ss []proto.Session, ws string, e
 		m.ag.fold(k, true)
 	}
 
-	m.ag.l.sel = slices.IndexFunc(m.ag.rows(m), func(r agRow) bool { return r.kind == agWorkspace && r.ws.Path == ws })
+	m.ag.l.sel = slices.IndexFunc(m.ag.rows(m), func(r agRow) bool { return r.kind == agWorkspace && r.ws.Path == ws && !r.pinned })
 
 	return m
 }
@@ -1283,7 +1283,7 @@ func (m *Model) listBar(v view, y int) (listBar, bool) {
 	case viewFiles:
 		b = listBar{geo: func() vbar { return vbar{len(m.ex.nodes), m.bodyH(viewFiles), m.ex.l.top} }, to: func(top int) tea.Cmd { m.ex.l.top = top; return nil }}
 	case viewAgents:
-		b = listBar{geo: func() vbar { return vbar{len(m.ag.rows(m)), m.bodyH(viewAgents), m.ag.l.top} }, to: func(top int) tea.Cmd { m.ag.l.top = top; return nil }}
+		return m.ag.bar(m, y)
 	case viewGitHub:
 		return m.gh.bar(m, y)
 	case viewSearch:
@@ -3657,6 +3657,10 @@ func (m *Model) dragMouse(msg tea.MouseMsg) tea.Cmd {
 			return m.gh.dragPane(m, d, mo.Y, release)
 		}
 
+		if d.v == viewAgents {
+			return m.ag.dragPane(m, d, mo.Y, release)
+		}
+
 		return m.scm.dragPane(m, d, mo.Y, release)
 
 	case dragSelect:
@@ -3963,7 +3967,8 @@ var (
 // colSash is the edge of column i toward the editor.
 func colSash(i int) sash { return sash{col: i} }
 
-// paneSash is the header of pane in view v, viewGit or viewGitHub.
+// paneSash is the header of pane in view v, viewGit or viewGitHub, or the
+// border under Spaces' Pinned pane.
 func paneSash(v view, pane string) sash { return sash{col: -3, v: v, pane: pane} }
 
 // sashDelay is how long the pointer rests on a sash before it lights, VS
@@ -4018,8 +4023,15 @@ func (m *Model) sashUnder(x, y int) sash {
 }
 
 // paneSashUnder is the pane header under the mouse that a drag resizes: an
-// open Source Control drawer's, or a GitHub section's below another open one.
+// open Source Control drawer's, a GitHub section's below another open one,
+// or the border under Spaces' Pinned pane.
 func (m *Model) paneSashUnder() sash {
+	if y := m.hoverRow(viewAgents); y >= 0 {
+		if p := m.ag.pane(m, m.ag.rows(m), m.bodyH(viewAgents)); p.n > 0 && y == p.lines-1 {
+			return paneSash(viewAgents, pinnedHead)
+		}
+	}
+
 	if y := m.hoverRow(viewGit); y >= 0 && len(m.scm.repos) > 0 {
 		_, ds := m.scm.geometry(m, m.scm.paneH(m))
 		for j, d := range ds {

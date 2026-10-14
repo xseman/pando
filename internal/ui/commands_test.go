@@ -449,7 +449,7 @@ func TestAgentsTreeGaps(t *testing.T) {
 	}
 
 	m.ag.l.sel = gap - 2
-	m.ag.step(rows, 2, m.bodyH(viewAgents))
+	m.ag.step(m, rows, 2)
 
 	if m.ag.l.sel != gap+1 {
 		t.Fatalf("step 2 onto the gap: sel = %d, want %d", m.ag.l.sel, gap+1)
@@ -4135,6 +4135,8 @@ func TestSpacesPin(t *testing.T) {
 				out = append(out, r.when)
 			case r.kind == agSession && r.pinned:
 				out = append(out, "pin:"+r.s.ID)
+			case r.kind == agWorkspace && r.pinned:
+				out = append(out, "pin:ws")
 			case r.kind == agSession:
 				out = append(out, r.s.ID)
 			case r.kind == agGap:
@@ -4150,7 +4152,7 @@ func TestSpacesPin(t *testing.T) {
 	m.ag.l.sel = 3 // s2 in the tree
 	press(m, "p")
 
-	if want := []string{"Pinned", "pin:s2", "", "ws", "ws", "s1", "s2"}; !slices.Equal(m.st.Pinned, []string{"s2"}) || !slices.Equal(shape(), want) {
+	if want := []string{"Pinned", "pin:ws", "pin:s2", "ws", "ws", "s1", "s2"}; !slices.Equal(m.st.Pinned, []string{"s2"}) || !slices.Equal(shape(), want) {
 		t.Fatalf("p pins s2: %v, rows %q want %q", m.st.Pinned, shape(), want)
 	}
 
@@ -4158,28 +4160,34 @@ func TestSpacesPin(t *testing.T) {
 		t.Fatalf("the selection stays on the tree's s2: %+v", r)
 	}
 
-	lines := m.ag.lines(m, 40, len(m.ag.rows(m)))
-	if l := ansi.Strip(lines[1]); !strings.HasPrefix(l, " ⊙ └─ ") || !strings.HasSuffix(strings.TrimRight(l, " "), "main · idle") {
-		t.Fatalf("the pinned row: its pin, and the branch it runs on: %q", l)
+	// The strip, its rule, s2's worktree with its branch and project, s2, the
+	// border, then the tree.
+	lines := m.ag.lines(m, 40, m.bodyH(viewAgents))
+	if l := strings.TrimRight(ansi.Strip(lines[2]), " "); !strings.HasPrefix(l, "   ⌂ main") || !strings.HasSuffix(l, filepath.Base(m.ws)) {
+		t.Fatalf("the pinned worktree: its branch, its project: %q", l)
+	}
+
+	if l := strings.TrimRight(ansi.Strip(lines[3]), " "); !strings.HasPrefix(l, " ⊙ └─ ") || strings.Contains(l, "main") {
+		t.Fatalf("the pinned row: its pin, no branch: %q", l)
 	}
 
 	m.ag.l.sel = 5 // s1, selected while Spaces has the keyboard
 
-	if l := ansi.Strip(m.ag.lines(m, 40, len(m.ag.rows(m)))[5]); !strings.HasPrefix(l, "   ├─ ") {
+	if l := ansi.Strip(m.ag.lines(m, 40, m.bodyH(viewAgents))[7]); !strings.HasPrefix(l, "   ├─ ") {
 		t.Fatalf("an unpinned row keeps its gutter blank, selected too: %q", l)
 	}
 
 	m.ag.l.sel = 6
 
-	if l := ansi.Strip(lines[6]); !strings.HasPrefix(l, " ⊙ └─ ") {
+	if l := ansi.Strip(lines[8]); !strings.HasPrefix(l, " ⊙ └─ ") {
 		t.Fatalf("the tree's copy shows its pin: %q", l)
 	}
 	// The gutter of s1's row pins it, after s2; its tip wins over a cut name's.
 	m.sessions[0].Name = strings.Repeat("long", 10)
-	x, y := m.colRect(m.colOf(viewAgents)).x+1, m.bodyTop(viewAgents)+5
+	x, y := m.colRect(m.colOf(viewAgents)).x+1, m.bodyTop(viewAgents)+7
 	m.Update(tea.MouseMotionMsg{X: x, Y: y})
 
-	if l := ansi.Strip(m.ag.lines(m, 40, len(m.ag.rows(m)))[5]); !strings.HasPrefix(l, " ⊙ ├─ ") || m.tip != "Pin Session  p" {
+	if l := ansi.Strip(m.ag.lines(m, 40, m.bodyH(viewAgents))[7]); !strings.HasPrefix(l, " ⊙ ├─ ") || m.tip != "Pin Session  p" {
 		t.Fatalf("the hovered row shows the pin button, its tip under the pointer: %q, tip %q", l, m.tip)
 	}
 
@@ -4188,8 +4196,15 @@ func TestSpacesPin(t *testing.T) {
 	if !slices.Equal(m.st.Pinned, []string{"s2", "s1"}) || m.modal != nil {
 		t.Fatalf("the gutter pins s1: %v", m.st.Pinned)
 	}
-	// Under Pinned a session unpins but does not move.
+	// Under Pinned a session unpins but does not move, nor does its worktree.
 	m.ag.l.sel = 1
+	press(m, "alt+down")
+
+	if !slices.Equal(m.ag.shownProjects(m), []string{m.ws}) || m.wss[0].Path != m.ws || m.ag.l.sel != 1 {
+		t.Fatalf("alt+↓ on a pinned worktree moves nothing: sel %d", m.ag.l.sel)
+	}
+
+	m.ag.l.sel = 2
 
 	labels := func(items []item) (out []string) {
 		for _, it := range items {
@@ -4255,7 +4270,7 @@ func TestSpacesPin(t *testing.T) {
 	m.ag.l.sel = 0
 	press(m, "enter")
 
-	if want := []string{"Pinned", "", "ws", "ws", "s1", "s2"}; !slices.Equal(shape(), want) || !m.ag.collapsed[timeKey(pinnedHead)] {
+	if want := []string{"Pinned", "ws", "ws", "s1", "s2"}; !slices.Equal(shape(), want) || !m.ag.collapsed[timeKey(pinnedHead)] {
 		t.Fatalf("folded Pinned: %q want %q", shape(), want)
 	}
 
@@ -4269,8 +4284,61 @@ func TestSpacesPin(t *testing.T) {
 	m.st.Settings.SpHide = nil
 	m.st.Settings.SpGroup = "time"
 
-	if rows := shape(); len(rows) < 4 || rows[0] != "Pinned" || rows[3] != "" {
+	if rows := shape(); len(rows) < 5 || !slices.Equal(rows[:4], []string{"Pinned", "pin:ws", "pin:s1", "pin:s2"}) || !slices.Contains(timeBuckets, rows[4]) {
 		t.Fatalf("Group by Time keeps Pinned on top: %q", rows)
+	}
+
+	checkWidths(t, m)
+}
+
+// TestSpacesPinnedPane frames Pinned as a pane over the tree: its strip, a
+// rule, its sessions and a border whose drag sets spaces_pinned_height, the
+// most it takes; past that it scrolls on its own.
+func TestSpacesPinnedPane(t *testing.T) {
+	m := testModel(t)
+
+	var ss []proto.Session
+	for _, id := range []string{"s1", "s2", "s3", "s4"} {
+		ss = append(ss, proto.Session{SessionSpec: proto.SessionSpec{ID: id, Workspace: m.ws, Agent: "shell", Name: id}, Status: "idle"})
+	}
+
+	m.Update(sessionsMsg(ss))
+	m.st.Pinned = []string{"s1", "s2", "s3"}
+	press(m, "3")
+
+	h := m.bodyH(viewAgents)
+	lines := func() (out []string) {
+		for _, l := range m.ag.lines(m, 40, h) {
+			out = append(out, strings.TrimRight(ansi.Strip(l), " "))
+		}
+
+		return out
+	}
+	rule := func(l string) bool { return l != "" && strings.Trim(l, "─") == "" }
+
+	p := m.ag.pane(m, m.ag.rows(m), h) // the worktree, then its three sessions
+	if l := lines(); p.h != 4 || !strings.HasPrefix(l[0], " ▾ ○ PINNED ") || !strings.HasSuffix(l[0], " 3") || !rule(l[1]) || !rule(l[6]) || !strings.HasPrefix(l[7], " ▾ ○ "+filepath.Base(m.ws)) {
+		t.Fatalf("the pane, %+v in %d lines: %q", p, h, l)
+	}
+	// Its border dragged up to one row, the pane scrolls its sessions.
+	x, top := m.colRect(m.colOf(viewAgents)).x+4, m.bodyTop(viewAgents)
+	m.Update(tea.MouseClickMsg{X: x, Y: top + 6, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
+	m.Update(tea.MouseReleaseMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
+
+	if p = m.ag.pane(m, m.ag.rows(m), h); m.st.Settings.SpPinH != 1 || p.h != 1 || p.lines != 4 || m.drag != nil {
+		t.Fatalf("the border dragged up three rows: spaces_pinned_height %d, %+v", m.st.Settings.SpPinH, p)
+	}
+
+	m.ag.l.sel = 4 // s3 under Pinned
+	m.ag.snap(m)
+
+	if l := lines(); m.ag.ptop != 3 || m.ag.l.top != 0 || !strings.Contains(l[2], "s3") || !rule(l[3]) {
+		t.Fatalf("the pane scrolls to s3, the tree stays: ptop %d top %d %q", m.ag.ptop, m.ag.l.top, l)
+	}
+
+	if i := m.ag.rowAt(m, m.ag.rows(m), 2); i != 4 || m.ag.rowAt(m, m.ag.rows(m), 3) != -1 {
+		t.Fatalf("line 2 is s3, line 3 the border: %d", i)
 	}
 
 	checkWidths(t, m)

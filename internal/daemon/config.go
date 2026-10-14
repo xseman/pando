@@ -226,6 +226,7 @@ func (c *config) encode() []byte {
 	kv("", "spaces_hide", list(s.SpHide))
 	kv("Spaces: projects in their \"manual\" order (drag, alt+up/down) or by \"updated\",\n"+
 		"the one whose sessions printed last first.", "spaces_project_sort", s.SpProj)
+	kv("Spaces: the most rows the Pinned pane takes, as its border is dragged; 0 a third\nof the view.", "spaces_pinned_height", s.SpPinH)
 	b.WriteString("\n# Sidebar columns per side, from the screen edge toward main, each with its tabs\n" +
 		"# and optional width. Views: \"files\", \"git\", \"agents\", \"search\", \"session\"; unlisted\n" +
 		"# views join the left column next to main.\n")

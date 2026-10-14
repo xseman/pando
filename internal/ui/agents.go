@@ -39,7 +39,7 @@ type agRow struct {
 	ws      proto.Workspace
 	s       proto.Session
 	when    string // agTime: the heading
-	pinned  bool   // a session's copy under Pinned
+	pinned  bool   // a row under Pinned: a session's copy, or its worktree's
 }
 
 // agents is the Project → Workspace → Session tree.
@@ -47,6 +47,7 @@ type agents struct {
 	l         list
 	collapsed map[string]bool
 	folded    []string // the collapsed keys in the order the folded list shows them, the one folded last first
+	ptop      int      // the Pinned pane's first row in view; l.top is the tree's
 }
 
 type newSessionMsg proto.Session
@@ -54,17 +55,24 @@ type newSessionMsg proto.Session
 func (a *agents) rows(m *Model) []agRow {
 	q, sessions := m.query(viewAgents), m.listedSessions()
 
-	out := a.pinnedRows(m, sessions, q)
+	var out []agRow
 	if m.st.Settings.SpGroup == "time" {
-		out = append(out, a.timeRows(m, sessions, q)...)
+		out = a.timeRows(m, sessions, q)
 	} else {
-		out = append(out, a.treeRows(m, sessions, q)...)
+		out = a.treeRows(m, sessions, q)
+	}
+	// Pinned is a pane of its own over the tree, its border the gap.
+	pins := a.pinnedRows(m, sessions, q)
+	if q == "" {
+		return append(pins, a.pinFolded(m, withGaps(out), a.pane(m, pins, m.bodyH(viewAgents)).lines)...)
 	}
 
-	if q == "" {
-		return a.pinFolded(m, withGaps(out))
-	}
-	// Keep matching rows plus the project and worktree they sit under.
+	return append(matching(q, pins), withGaps(matching(q, out))...)
+}
+
+// matching are the rows that match q, plus the heading and worktree they sit
+// under.
+func matching(q string, out []agRow) []agRow {
 	keep := make([]bool, len(out))
 	project, ws := -1, -1
 
@@ -98,7 +106,7 @@ func (a *agents) rows(m *Model) []agRow {
 		}
 	}
 
-	return withGaps(shown)
+	return shown
 }
 
 // treeRows are Group by Workspace's rows: project, worktree, session. A
@@ -222,10 +230,11 @@ func withGaps(rows []agRow) []agRow {
 // pinFolded pads the tree with blank rows before its first folded project, so
 // the folded sit on the panel's bottom edge as VS Code's collapsed views do. A
 // tree taller than the panel scrolls as it is; all folded, they all sink.
-func (a *agents) pinFolded(m *Model, rows []agRow) []agRow {
+// The Pinned pane takes the panel's first above lines.
+func (a *agents) pinFolded(m *Model, rows []agRow, above int) []agRow {
 	k := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agProject && a.collapsed[r.project] })
 
-	pad := m.bodyH(viewAgents) - len(rows)
+	pad := m.bodyH(viewAgents) - above - len(rows)
 	if m.st.Settings.SpGroup == "time" || k < 0 || pad <= 0 {
 		return rows
 	}
@@ -370,10 +379,15 @@ func (a *agents) timeRows(m *Model, sessions []proto.Session, q string) []agRow 
 	return out
 }
 
-// pinnedRows are the Pinned heading and the pinned sessions under it, in the
-// order they were pinned; each stays in the tree too.
+// pinnedRows are the Pinned heading and the pinned sessions under it, under
+// their worktree as in the tree, so a branch shows once and whole: the
+// worktrees in the order their first session was pinned, the sessions in
+// the order they were. Each stays in the tree too.
 func (a *agents) pinnedRows(m *Model, sessions []proto.Session, q string) []agRow {
-	var out []agRow
+	var (
+		wss []proto.Workspace
+		by  = map[string][]agRow{}
+	)
 
 	for _, id := range m.st.Pinned {
 		i := slices.IndexFunc(sessions, func(s proto.Session) bool { return s.ID == id })
@@ -386,17 +400,27 @@ func (a *agents) pinnedRows(m *Model, sessions []proto.Session, q string) []agRo
 			ws = *w
 		}
 
-		out = append(out, agRow{kind: agSession, ws: ws, s: sessions[i], pinned: true})
+		if by[ws.Path] == nil {
+			wss = append(wss, ws)
+		}
+
+		by[ws.Path] = append(by[ws.Path], agRow{kind: agSession, ws: ws, s: sessions[i], pinned: true})
 	}
 
-	switch {
-	case out == nil:
+	if wss == nil {
 		return nil
-	case a.collapsed[timeKey(pinnedHead)] && q == "":
-		out = nil
 	}
 
-	return append([]agRow{{kind: agTime, when: pinnedHead}}, out...)
+	out := []agRow{{kind: agTime, when: pinnedHead}}
+	if a.collapsed[timeKey(pinnedHead)] && q == "" {
+		return out
+	}
+
+	for _, ws := range wss {
+		out = append(append(out, agRow{kind: agWorkspace, project: ws.Project, ws: ws, pinned: true}), by[ws.Path]...)
+	}
+
+	return out
 }
 
 // togglePin pins session id under Pinned, or unpins it, dropping the
@@ -413,10 +437,129 @@ func (m *Model) togglePin(id string) tea.Cmd {
 
 	if sel != nil {
 		m.ag.follow(m, sel)
-		m.ag.l.snap(m.bodyH(viewAgents)) // a pin adds rows above it
+		m.ag.snap(m) // a pin adds rows above it
 	}
 
 	return do("state.set", map[string]any{"spaces_pinned": pins})
+}
+
+// pinPane is the Pinned pane over the tree, framed as VS Code's panel is: a
+// strip, a rule under it, the sessions, and the border it is resized by. n
+// is the rows it holds (the heading, then the worktrees and sessions), h
+// those in view, lines the view lines it takes. Zero without pins.
+type pinPane struct{ n, h, lines int }
+
+// pane is the Pinned pane of rows in a view h lines high: as tall as its
+// sessions, at most spaces_pinned_height (unset, a third of the view), and
+// leaving the tree a line.
+func (a *agents) pane(m *Model, rows []agRow, h int) pinPane {
+	if len(rows) == 0 || rows[0].kind != agTime || rows[0].when != pinnedHead {
+		return pinPane{}
+	}
+
+	p := pinPane{n: 1, lines: 2} // the strip and the border
+	for p.n < len(rows) && rows[p.n].pinned {
+		p.n++
+	}
+
+	if p.h = max(min(p.n-1, cmp.Or(max(m.st.Settings.SpPinH, 0), h/3), h-4), 0); p.h > 0 {
+		p.lines += 1 + p.h // the rule and the sessions
+	}
+
+	return p
+}
+
+// rowAt is the row of rows on line y of the view, -1 on none: the rule, the
+// border, past the end.
+func (a *agents) rowAt(m *Model, rows []agRow, y int) int {
+	p := a.pane(m, rows, m.bodyH(viewAgents))
+
+	switch {
+	case y < 0:
+		return -1
+	case y == 0 && p.n > 0:
+		return 0
+	case y < p.lines:
+		if i := y - 1 + a.ptop; y >= 2 && y < 2+p.h && i < p.n {
+			return i
+		}
+
+		return -1
+	}
+
+	if i := a.l.at(y-p.lines, len(rows)-p.n); i >= 0 {
+		return p.n + i
+	}
+
+	return -1
+}
+
+// snap scrolls the selection into view: the Pinned pane's or the tree's.
+func (a *agents) snap(m *Model) {
+	rows, h := a.rows(m), m.bodyH(viewAgents)
+	p := a.pane(m, rows, h)
+
+	switch {
+	case a.l.sel < 0:
+	case a.l.sel < p.n: // the heading is the strip, always in view
+		l := list{sel: a.l.sel - 1, top: a.ptop}
+		l.snap(p.h)
+		a.ptop = max(l.top, 0)
+
+	default:
+		l := list{sel: a.l.sel - p.n, top: a.l.top}
+		l.snap(h - p.lines)
+		a.l.top = l.top
+	}
+}
+
+// bar is the scrollbar beside line y of Spaces: the Pinned pane's or the tree's.
+func (a *agents) bar(m *Model, y int) (listBar, bool) {
+	h := m.bodyH(viewAgents)
+	geo := func() (pinPane, int) {
+		rows := a.rows(m)
+
+		return a.pane(m, rows, h), len(rows)
+	}
+
+	p, _ := geo()
+	b := listBar{id: "list:agents", row: y - p.lines, geo: func() vbar {
+		p, n := geo()
+
+		return vbar{n - p.n, h - p.lines, a.l.top}
+	}, to: func(top int) tea.Cmd { a.l.top = top; return nil }}
+
+	if y >= 2 && y < 2+p.h {
+		b = listBar{id: "list:agents:pinned", row: y - 2, geo: func() vbar {
+			p, _ := geo()
+
+			return vbar{p.n - 1, p.h, a.ptop}
+		}, to: func(top int) tea.Cmd { a.ptop = top; return nil }}
+	}
+
+	g := b.geo()
+
+	return b, g.on() && b.row >= 0 && b.row < g.h
+}
+
+// dragPane moves the Pinned pane's border, VS Code's sash under a pane: the
+// height it reaches is the most the pane takes, saved on release.
+func (a *agents) dragPane(m *Model, d *drag, y int, release bool) tea.Cmd {
+	if release {
+		m.drag = nil
+
+		if !d.moved {
+			return nil
+		}
+
+		return m.setSettings(map[string]any{"spaces_pinned_height": m.st.Settings.SpPinH})
+	}
+
+	if d.moved = d.moved || y != d.y0; d.moved {
+		m.st.Settings.SpPinH = max(d.h0+y-d.y0, 1) // pane keeps it inside the view
+	}
+
+	return nil
 }
 
 // pinLabel is the menu item that pins session id, or unpins it.
@@ -694,24 +837,21 @@ func groupGlyph(ss []proto.Session) (string, color.Color) {
 
 func (a *agents) lines(m *Model, w, h int) []string {
 	rows := a.rows(m)
+	p := a.pane(m, rows, h)
 
-	slot, mark, band := a.dropSlot(m, rows) // the drop mark takes rows of its own
-	n := len(rows) + mark
-	a.l.clamp(n, h)
+	slot, mark, band := a.dropSlot(m, rows) // the drop mark takes rows of its own, in the tree
+	n := len(rows) - p.n + mark             // the tree's, under the Pinned pane
+	a.l.sel = min(a.l.sel, len(rows)-1)
+	a.l.top = max(min(a.l.top, n-(h-p.lines)), 0)
 
 	hover, mx := m.hoverRow(viewAgents), m.mouseCol(viewAgents)
 	a.l.bar = m.barState("list:agents")
 	every := m.mainSessions() // their tabs too, which roll up
 
-	draw := func(i, rw int) string {
+	draw := func(i, y, rw int) string { // row i on line y
 		r := rows[i]
 		if r.kind == agGap {
 			return blank(rw)
-		}
-
-		y := i - a.l.top
-		if slot >= 0 && i >= slot {
-			y += mark
 		}
 
 		bg, base := m.rowColors(viewAgents, i == a.l.sel, y == hover)
@@ -727,7 +867,10 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		case agTime:
 			open := !a.collapsed[timeKey(r.when)]
 
-			var ss []proto.Session
+			var (
+				ss []proto.Session
+				k  int
+			)
 
 			for _, s := range m.listedSessions() {
 				in := timeBucket(m.sessionTime(s), time.Now()) == r.when
@@ -736,13 +879,18 @@ func (a *agents) lines(m *Model, w, h int) []string {
 				}
 
 				if in {
-					ss = append(ss, m.tabsOf(s.ID)...)
+					ss, k = append(ss, m.tabsOf(s.ID)...), k+1
 				}
 			}
 
 			glyph, c := groupGlyph(ss)
 
-			return row(rw, bg, []seg{sg(" "+chevron(open), dim), sg(m.spin(glyph, ss...), fg(c)), sg(r.when, base.Bold(true))})
+			label, right := r.when, []seg(nil)
+			if r.when == pinnedHead { // the pane's strip
+				label, right = strings.ToUpper(r.when), []seg{sg(strconv.Itoa(k)+" ", dim)}
+			}
+
+			return row(rw, bg, []seg{sg(" "+chevron(open), dim), sg(m.spin(glyph, ss...), fg(c)), sg(label, base.Bold(true))}, right...)
 
 		case agProject:
 			open := !a.collapsed[r.project]
@@ -781,7 +929,14 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			}
 
 			var right []seg
-			if n := m.sessionCount(r.ws.Path); n > 0 {
+
+			switch n := m.sessionCount(r.ws.Path); {
+			case r.pinned: // its project, where the branch leaves room: a branch is in more than one
+				if p := filepath.Base(r.project) + " "; r.project != "" && 6+ansi.StringWidth(wsName(r.ws)+p) <= rw {
+					right = append(right, sg(p, dim))
+				}
+
+			case n > 0:
 				right = append(right, sg(m.fx.text("wsn:"+r.ws.Path, strconv.Itoa(n))+" ", dim))
 			}
 
@@ -840,7 +995,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			status = "shell"
 		}
 
-		if m.st.Settings.SpGroup == "time" || r.pinned { // no project tree to say where it runs
+		if m.st.Settings.SpGroup == "time" && !r.pinned { // no project tree to say where it runs
 			where := r.ws.Branch
 			if where == "" {
 				where = filepath.Base(r.ws.Path)
@@ -865,18 +1020,46 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		return row(rw, bg, append(left, sg(after, nameSt)), sg(right, dim))
 	}
 
-	return a.l.render(w, h, n, func(i, rw int) string {
+	var out []string
+
+	if p.n > 0 {
+		out = append(out, draw(0, 0, w))
+
+		if p.h > 0 {
+			body := list{top: a.ptop, bar: m.barState("list:agents:pinned")}
+			body.clamp(p.n-1, p.h)
+			a.ptop = body.top
+
+			out = append(out, ruleRow(w, nil))
+			out = append(out, body.render(w, p.h, p.n-1, func(i, rw int) string { return draw(1+i, 2+i-body.top, rw) })...)
+		}
+
+		border := ruleRow(w, nil)
+		if st, ok := m.sashStyle(paneSash(viewAgents, pinnedHead)); ok {
+			border = ruleRow(w, nil, st)
+		}
+
+		out = append(out, border)
+	}
+
+	if slot >= 0 {
+		slot -= p.n
+	}
+
+	return append(out, a.l.render(w, h-p.lines, n, func(i, rw int) string {
+		y := p.lines + i - a.l.top
+
 		switch {
 		case slot < 0 || i < slot:
-			return draw(i, rw)
+			return draw(p.n+i, y, rw)
 		case i == slot+band: // a band in the selection's tint, thick enough to see while dragging
 			return row(rw, pal.selBg, nil)
 		case i < slot+mark:
 			return blank(rw)
 		}
 
-		return draw(i-mark, rw)
-	})
+		return draw(p.n+i-mark, y, rw)
+	})...)
 }
 
 // reveal selects workspace path's row, its project unfolded, as a click on it
@@ -894,9 +1077,9 @@ func (a *agents) reveal(m *Model, path string) tea.Cmd {
 	}
 
 	rows := a.rows(m)
-	if i := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agWorkspace && r.ws.Path == path }); i >= 0 {
+	if i := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agWorkspace && r.ws.Path == path && !r.pinned }); i >= 0 {
 		a.l.sel = i
-		a.l.snap(m.bodyH(viewAgents))
+		a.snap(m)
 	}
 
 	return saved
@@ -924,14 +1107,15 @@ func (a *agents) follow(m *Model, r *agRow) {
 			return o.kind == agSession && o.s.ID == r.s.ID && o.pinned == r.pinned
 		}
 
-		return o.kind == r.kind && o.project == r.project && o.ws.Path == r.ws.Path && o.when == r.when
+		return o.kind == r.kind && o.project == r.project && o.ws.Path == r.ws.Path && o.when == r.when && o.pinned == r.pinned
 	}
 
 	rows := a.rows(m)
 
 	i := slices.IndexFunc(rows, same)
 	if i < 0 && r.pinned { // unpinned: onto the tree's copy
-		r = &agRow{kind: agSession, s: r.s}
+		tree := *r
+		tree.pinned, r = false, &tree
 		i = slices.IndexFunc(rows, same)
 	}
 
@@ -944,17 +1128,27 @@ func (a *agents) follow(m *Model, r *agRow) {
 // one row at a time, so ↑↓ and a page never park on one. A walk that meets the
 // end of the list turns back: with every project folded, the padding that
 // pins them down opens the list.
-func (a *agents) step(rows []agRow, d, h int) {
+func (a *agents) step(m *Model, rows []agRow, d int) {
 	n, s := len(rows), min(max(d, -1), 1)
-	a.l.move(d, n, h)
+	if n == 0 {
+		return
+	}
 
-	for a.l.sel >= 0 && a.l.sel < n && rows[a.l.sel].kind == agGap {
+	if a.l.sel < 0 { // none selected yet: the first
+		a.l.sel = 0
+	} else {
+		a.l.sel = max(0, min(n-1, a.l.sel+d))
+	}
+
+	for a.l.sel < n && rows[a.l.sel].kind == agGap {
 		if (s < 0 && a.l.sel == 0) || (s > 0 && a.l.sel == n-1) {
 			s = -s
 		}
 
-		a.l.move(s, n, h)
+		a.l.sel = max(0, min(n-1, a.l.sel+s))
 	}
+
+	a.snap(m) // in the Pinned pane or the tree, wherever it landed
 }
 
 func (a *agents) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
@@ -968,17 +1162,21 @@ func (a *agents) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 
 	switch k.String() {
 	case "up", "k":
-		a.step(rows, -1, h)
+		a.step(m, rows, -1)
 	case "down", "j":
-		a.step(rows, 1, h)
+		a.step(m, rows, 1)
 	case "pgup":
-		a.step(rows, -h, h)
+		a.step(m, rows, -h)
 	case "pgdown":
-		a.step(rows, h, h)
+		a.step(m, rows, h)
 	case "alt+up", "alt+down":
 		d := map[bool]int{true: -1, false: 1}[k.String() == "alt+up"]
 
-		if r != nil && r.kind == agSession && !r.pinned { // Pinned keeps the order they were pinned in
+		if r != nil && r.pinned { // Pinned keeps the order they were pinned in
+			return nil
+		}
+
+		if r != nil && r.kind == agSession {
 			return a.shiftSession(m, r.s.ID, d)
 		}
 
@@ -991,9 +1189,9 @@ func (a *agents) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		}
 
 	case "g", "home":
-		a.step(rows, -n, h)
+		a.step(m, rows, -n)
 	case "G", "end":
-		a.step(rows, n, h)
+		a.step(m, rows, n)
 	case "enter", "space", "l":
 		return a.activate(m, r)
 	case "n":
@@ -1042,7 +1240,7 @@ func (a *agents) activate(m *Model, r *agRow) tea.Cmd {
 		}
 
 		a.follow(m, r) // a folded project sinks below the open ones, an unfolded one goes last among them
-		a.l.snap(m.bodyH(viewAgents))
+		a.snap(m)
 
 		return saved
 
@@ -1589,7 +1787,7 @@ func (a *agents) items(m *Model) []item {
 
 	var row, remove []item // what the selected row can do, and its end
 
-	if r != nil && r.kind == agWorkspace && len(m.worktreesOf(r.project)) > 1 {
+	if r != nil && r.kind == agWorkspace && !r.pinned && len(m.worktreesOf(r.project)) > 1 {
 		path := r.ws.Path
 
 		row = append(row,
@@ -1706,11 +1904,25 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 	rows := a.rows(m)
 	h := m.bodyH(viewAgents)
 
+	p := a.pane(m, rows, h)
+
 	switch msg.(type) {
 	case tea.MouseWheelMsg:
-		a.l.wheel(wheelDelta(mo), len(rows), h)
+		if y >= 2 && y < 2+p.h { // over the pinned sessions
+			l := list{top: a.ptop}
+			l.wheel(wheelDelta(mo), p.n-1, p.h)
+			a.ptop = l.top
+		} else {
+			a.l.wheel(wheelDelta(mo), len(rows)-p.n, h-p.lines)
+		}
+
 	case tea.MouseClickMsg:
-		i := a.l.at(y, len(rows))
+		if p.n > 0 && y == p.lines-1 && mo.Button == tea.MouseLeft { // the border: a drag resizes Pinned
+			m.drag = &drag{kind: dragPane, v: viewAgents, pane: pinnedHead, y0: mo.Y, h0: p.h}
+			return nil
+		}
+
+		i := a.rowAt(m, rows, y)
 		if i < 0 || rows[i].kind == agGap {
 			return nil
 		}
@@ -1732,7 +1944,7 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 		// A worktree drags the same way among its project's, taking its
 		// sessions along, and a session among its worktree's; a press that
 		// never leaves its row switches to it on the release.
-		if w := rows[i].ws.Path; mo.Button == tea.MouseLeft && rows[i].kind == agWorkspace {
+		if w := rows[i].ws.Path; mo.Button == tea.MouseLeft && rows[i].kind == agWorkspace && !rows[i].pinned {
 			if wts := m.worktreesOf(rows[i].project); len(wts) > 1 {
 				m.drag = &drag{kind: dragRow, ws: w, y0: mo.Y}
 				return nil
@@ -1802,14 +2014,21 @@ func (a *agents) dragRowTo(m *Model, d *drag, y int, release bool) tea.Cmd {
 // project's, a project folded or open as it is (projectDrop); "" for none
 // or its own.
 func (a *agents) dropOn(m *Model, d *drag) string {
-	y := m.hoverRow(viewAgents)
+	rows, y := a.rows(m), m.hoverRow(viewAgents)
+
+	p := a.pane(m, rows, m.bodyH(viewAgents))
+	if y >= 0 && y < p.lines { // nothing drops into Pinned
+		return ""
+	}
+
+	i := p.n + a.l.top + y - p.lines // the tree's row on line y, the drop mark counted
 	// Over the drop mark it stays; the rows below it sit lower by its rows.
-	if at, mark, _ := a.dropSlot(m, a.rows(m)); at >= 0 && y >= 0 && a.l.top+y >= at {
-		if a.l.top+y < at+mark {
+	if at, mark, _ := a.dropSlot(m, rows); at >= 0 && y >= 0 && i >= at {
+		if i < at+mark {
 			return d.to
 		}
 
-		y -= mark
+		y, i = y-mark, i-mark
 	}
 
 	var (
@@ -1830,7 +2049,7 @@ func (a *agents) dropOn(m *Model, d *drag) string {
 		return ""
 
 	default:
-		return a.projectDrop(m, d.proj, a.rows(m), a.l.top+y)
+		return a.projectDrop(m, d.proj, rows, i)
 	}
 
 	if !ok || over == cmp.Or(d.ws, d.sess, d.proj) {
@@ -1857,7 +2076,7 @@ func (a *agents) dropSlot(m *Model, rows []agRow) (at, h, band int) {
 		switch {
 		case d.sess != "" && r.kind == agSession && !r.pinned:
 			return r.s.ID
-		case d.ws != "" && r.kind == agWorkspace:
+		case d.ws != "" && r.kind == agWorkspace && !r.pinned:
 			return r.ws.Path
 		case d.proj != "" && r.kind == agProject:
 			return r.project
@@ -1998,7 +2217,7 @@ func (a *agents) moveProject(m *Model, from, to string) {
 	rows := a.rows(m)
 	if k := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agProject && r.project == from }); k >= 0 {
 		a.l.sel = k
-		a.l.snap(m.bodyH(viewAgents))
+		a.snap(m)
 	}
 }
 
@@ -2038,7 +2257,7 @@ func (a *agents) sessionAt(m *Model, y int) string {
 	}
 
 	rows := a.rows(m)
-	if i := a.l.at(y, len(rows)); i >= 0 && rows[i].kind == agSession && !rows[i].pinned {
+	if i := a.rowAt(m, rows, y); i >= 0 && rows[i].kind == agSession && !rows[i].pinned {
 		return rows[i].s.ID
 	}
 
@@ -2075,7 +2294,7 @@ func (a *agents) workspaceAt(m *Model, y int) string {
 	}
 
 	rows := a.rows(m)
-	if i := a.l.at(y, len(rows)); i >= 0 && rows[i].kind == agWorkspace {
+	if i := a.rowAt(m, rows, y); i >= 0 && rows[i].kind == agWorkspace && !rows[i].pinned {
 		return rows[i].ws.Path
 	}
 
@@ -2113,9 +2332,9 @@ func (a *agents) moveWorkspace(m *Model, from, to string) {
 	m.wss = slices.Insert(slices.Delete(slices.Clone(m.wss), i, i+1), j, w)
 
 	rows := a.rows(m)
-	if k := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agWorkspace && r.ws.Path == from }); k >= 0 {
+	if k := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agWorkspace && r.ws.Path == from && !r.pinned }); k >= 0 {
 		a.l.sel = k
-		a.l.snap(m.bodyH(viewAgents))
+		a.snap(m)
 	}
 }
 
@@ -2174,7 +2393,7 @@ func (a *agents) moveSession(m *Model, id, to string) {
 	rows := a.rows(m)
 	if r := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agSession && r.s.ID == id && !r.pinned }); r >= 0 {
 		a.l.sel = r
-		a.l.snap(m.bodyH(viewAgents))
+		a.snap(m)
 	}
 }
 
