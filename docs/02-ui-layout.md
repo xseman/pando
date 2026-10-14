@@ -221,11 +221,14 @@ Model.mouse
   it has rested `tipDelay`, until `actionsLinger` (`tipShown`, `hoverBox`):
   header actions, activity bar chips, strip buttons, `+` and `✕`, Source
   Control rows and ∨, Search's toggles, ▸ and ⋯, find widgets, status bar
-  items. Moving on from a tip shows the next at once (`tipSeen`); a key, a
-  click or the wheel puts it away until the pointer moves (`tipOff`). The frame notes
-  the `tip` of the button it draws under the mouse (`Model.tip`);
-  `tipWakeMsg` wakes View at both moments, the sooner one first (`tipLater`).
-  `tooltips = false`, or Settings' _Tooltips_, turns them off.
+  items. A session name its Spaces row or its tab cuts, at 32 cells
+  (`sessionName`) or at the edge, shows whole the same way (`fullName`,
+  `sessTab.tip`). Moving on from a tip shows the next at once (`tipSeen`);
+  a key, a click or the wheel puts it away until the pointer moves
+  (`tipOff`). The frame notes the `tip` of the button it draws under the
+  mouse (`Model.tip`); `tipWakeMsg` wakes View at both moments, the sooner
+  one first (`tipLater`). `tooltips = false`, or Settings' _Tooltips_, turns
+  them off.
 
 ## Scrollbars
 

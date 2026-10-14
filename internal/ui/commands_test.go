@@ -2844,6 +2844,55 @@ func TestSessionNames(t *testing.T) {
 	}
 }
 
+// TestSessionNameTips shows a session's whole name in a tip where its Spaces
+// row or its tab cuts it, and none where it fits.
+func TestSessionNameTips(t *testing.T) {
+	m := testModel(t)
+	tip := func(text string) bool { return strings.Contains(ansi.Strip(m.View().Content), "│ "+text+" │") }
+	rest := func(x, y int) {
+		m.Update(tea.MouseMotionMsg{X: x, Y: y})
+		elapse(m, tipDelay)
+	}
+
+	long := "Add a Count method to every collection in the store"
+	m.sessions[0].Program, m.sessions[0].Title = "claude", "✳ "+long
+	press(m, "3")
+
+	i := m.colOf(viewAgents)
+	x, y := m.colRect(i).x+m.barW(i)+8, m.bodyTop(viewAgents)+2 // s1's row, under its project and checkout
+	rest(x, y)
+
+	if out := checkWidths(t, m); !tip(long) {
+		t.Fatalf("no tip on the cut row:\n%s", out)
+	}
+
+	m.sessions[0].Title = "✳ Count"
+
+	rest(x, y)
+
+	if tip("Count") {
+		t.Fatal("a name that fits has no tip")
+	}
+
+	m.sessions[0].Title = "✳ " + long
+	m.focus = onMain
+	m.switchSession("s1")
+
+	tabs := m.sessionTabs(m.sessW())
+	rest(m.mainX()+tabs[0].x+2, 0)
+
+	if out := checkWidths(t, m); !tip(long) {
+		t.Fatalf("no tip on the cut tab:\n%s", out)
+	}
+
+	btns := m.sessionButtons()
+	rest(m.mainX()+btns[len(btns)-1].x+1, 0)
+
+	if !tip("Close (keeps running)") {
+		t.Fatal("past the tabs a button keeps its tip")
+	}
+}
+
 // TestWorkspaceBranchRefresh reloads the worktree list when the open worktree
 // checked out another branch, once per branch.
 func TestWorkspaceBranchRefresh(t *testing.T) {

@@ -80,9 +80,10 @@ checkout.
   worktree keeps it while you are in another.
 - Drag a view's tab to move it, a divider to resize. A second click on the
   open view's icon hides its sidebar; `ctrl+b` hides both.
-- Rest the pointer on an icon button for its name and key (Settings'
-  _Tooltips_ turns that off). A view's header buttons show for a few seconds
-  after the pointer moves over the view.
+- Rest the pointer on an icon button for its name and key, or on a session
+  whose name is cut for the whole of it (Settings' _Tooltips_ turns that
+  off). A view's header buttons show for a few seconds after the pointer
+  moves over the view.
 
 ## Sessions
 

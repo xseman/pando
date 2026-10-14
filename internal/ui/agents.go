@@ -767,9 +767,16 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			status = icTabs.s() + " " + strconv.Itoa(len(tabs)) + " · " + status
 		}
 
-		left := append([]seg{sg(conn, dim), sg(m.spin(glyph, tabs...), fg(c))}, m.fx.segs("sess:"+r.s.ID, sessionName(r.s), nameSt)...)
+		// A name the row cuts, at 32 cells or at the column's edge, shows
+		// whole in a tip.
+		g, after, right := m.spin(glyph, tabs...), titleAfter(r.s), " "+status+" "
+		if full := fullName(r.s); y == hover && (full != sessionName(r.s) || ansi.StringWidth(conn+g+full+after+right) > rw) {
+			m.tip = full + after
+		}
 
-		return row(rw, bg, append(left, sg(titleAfter(r.s), nameSt)), sg(" "+status+" ", dim))
+		left := append([]seg{sg(conn, dim), sg(g, fg(c))}, m.fx.segs("sess:"+r.s.ID, sessionName(r.s), nameSt)...)
+
+		return row(rw, bg, append(left, sg(after, nameSt)), sg(right, dim))
 	}
 
 	return a.l.render(w, h, n, func(i, rw int) string {
@@ -2401,6 +2408,7 @@ type sessTab struct {
 	id     string
 	x, w   int
 	label  string
+	tip    string // the session's whole name, when label cuts it
 	active bool
 	plus   bool
 	bg     color.Color // session_highlight's tint
@@ -2527,7 +2535,7 @@ func (m *Model) ensureTerm() tea.Cmd {
 func (m *Model) tabsFor(w int, sessions []proto.Session, active string) []sessTab {
 	room := w - 3 // the + keeps its place after the tabs
 
-	labels, widths, total, at := make([]string, len(sessions)), make([]int, len(sessions)), 0, -1
+	labels, tips, widths, total, at := make([]string, len(sessions)), make([]string, len(sessions)), make([]int, len(sessions)), 0, -1
 
 	for i, s := range sessions {
 		// A shell's screen says nothing about an agent's state: a server
@@ -2545,10 +2553,14 @@ func (m *Model) tabsFor(w int, sessions []proto.Session, active string) []sessTa
 			at = i
 		}
 		// A name too long for the strip on its own is cut, so every tab,
-		// the active one above all, can show.
+		// the active one above all, can show; its tip has it whole.
 		frame := ansi.StringWidth(" "+glyph+end) + tabGap
 		if ansi.StringWidth(name) > room-frame {
 			name = ansi.Truncate(name, max(room-frame, 1), "…")
+		}
+
+		if full := fullName(s); full != sessionName(s) || ansi.StringWidth(full) > room-frame {
+			tips[i] = full
 		}
 
 		labels[i] = " " + glyph + name + end
@@ -2570,7 +2582,7 @@ func (m *Model) tabsFor(w int, sessions []proto.Session, active string) []sessTa
 
 	for i := start; i < len(sessions) && x+widths[i]+tabGap <= room; i++ {
 		s := sessions[i]
-		out = append(out, sessTab{id: s.ID, x: x, w: widths[i], label: labels[i], active: s.ID == active, bg: m.highlight(s)})
+		out = append(out, sessTab{id: s.ID, x: x, w: widths[i], label: labels[i], tip: tips[i], active: s.ID == active, bg: m.highlight(s)})
 		x += widths[i] + tabGap
 	}
 
@@ -2581,10 +2593,13 @@ func (m *Model) tabsFor(w int, sessions []proto.Session, active string) []sessTa
 // names its tab.
 var shells = []string{"bash", "zsh", "fish", "sh", "dash", "ksh", "tcsh", "nu", "elvish", "xonsh"}
 
-// sessionName is what a session's tab says: the name it was renamed to, else
-// what runs in it, in the words of its terminal title (Claude Code titles the
-// task it works on), else its agent, or its shell's program.
-func sessionName(s proto.Session) string {
+// sessionName is what a session's tab says: its fullName, cut to 32 cells.
+func sessionName(s proto.Session) string { return ansi.Truncate(fullName(s), 32, "…") }
+
+// fullName is a session's whole name: the name it was renamed to, else what
+// runs in it, in the words of its terminal title (Claude Code titles the task
+// it works on), else its agent, or its shell's program.
+func fullName(s proto.Session) string {
 	name := s.Agent
 	switch {
 	case s.Name != "":
@@ -2599,7 +2614,7 @@ func sessionName(s proto.Session) string {
 		name = filepath.Base(s.Cmd[0])
 	}
 
-	return ansi.Truncate(name, 32, "…")
+	return name
 }
 
 // titleAfter is " · title" for a title the session's name does not already say.
@@ -2659,7 +2674,7 @@ func (m *Model) sessionStrip(w int) string {
 	}
 
 	btns, _ := m.actSegs(m.sessionButtons(), x0, y)
-	m.noteStrip("New Tab in Session", "Kill Session…", x0, y, w)
+	m.noteStrip(tabs, "New Tab in Session", "Kill Session…", x0, y, w)
 
 	return m.stripMark(row(w, nil, tabSegs(tabs, m.overTab, m.overX), append(right, btns...)...), stripSession, 0)
 }
@@ -2755,14 +2770,21 @@ func (m *Model) runsAgent(s proto.Session) bool {
 const newTermTip = "New Terminal  ^⇧`"
 
 // noteStrip notes the tip of the + or of the active tab's ✕ under the mouse,
-// on the strip w cells wide from screen column x0 on row y.
-func (m *Model) noteStrip(plus, kill string, x0, y, w int) {
+// else of a tab of tabs that cuts its name, on the strip w cells wide from
+// screen column x0 on row y.
+func (m *Model) noteStrip(tabs []sessTab, plus, kill string, x0, y, w int) {
 	switch {
 	case m.mouseY != y || m.mouseX < x0 || m.mouseX >= x0+w:
 	case m.overTab == plusTab:
 		m.tip = plus
 	case m.overX != "":
 		m.tip = kill
+	default:
+		for _, t := range tabs {
+			if t.id == m.overTab && t.tip != "" { // the +'s id is "", as is overTab past the tabs
+				m.tip = t.tip
+			}
+		}
 	}
 }
 
@@ -3280,13 +3302,13 @@ func (m *Model) termPanelLines(w, h int) []string {
 		st = accent
 	}
 
-	left := []seg{sg(" "+icTerminal.s()+" ", st)}
-	if tabs := m.termTabs(m.termStripW()); len(tabs) > 0 {
+	left, tabs := []seg{sg(" "+icTerminal.s()+" ", st)}, m.termTabs(m.termStripW())
+	if len(tabs) > 0 {
 		left = append([]seg{sg(" ", plain)}, tabSegs(tabs, m.overTab, m.overX)...)
 	}
 
 	btns, _ := m.actSegs(m.termButtons(), m.mainX(), m.mainH()+1)
-	m.noteStrip(newTermTip, "Kill Terminal…", m.mainX(), m.mainH()+1, w)
+	m.noteStrip(tabs, newTermTip, "Kill Terminal…", m.mainX(), m.mainH()+1, w)
 
 	title := m.stripMark(row(w, nil, left, btns...), stripTerm, 1) // the tabs start past a space
 
@@ -3303,8 +3325,9 @@ func (m *Model) termPanelLines(w, h int) []string {
 func (m *Model) termLines(w, h int) []string {
 	i := m.colOf(viewTerm)
 	btns, _ := m.actSegs(m.termButtons(), m.colRect(i).x, m.barH(i))
-	m.noteStrip(newTermTip, "Kill Terminal…", m.colRect(i).x, m.barH(i), w)
-	strip := m.stripMark(row(w, nil, tabSegs(m.termTabs(m.termStripW()), m.overTab, m.overX), btns...), stripTerm, 0)
+	tabs := m.termTabs(m.termStripW())
+	m.noteStrip(tabs, newTermTip, "Kill Terminal…", m.colRect(i).x, m.barH(i), w)
+	strip := m.stripMark(row(w, nil, tabSegs(tabs, m.overTab, m.overX), btns...), stripTerm, 0)
 
 	return append([]string{strip, m.termRule(w, 0)}, m.termScreen(w, h-termStripH)...)
 }
