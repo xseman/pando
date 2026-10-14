@@ -4163,9 +4163,13 @@ func TestSpacesPin(t *testing.T) {
 		t.Fatalf("the pinned row: its pin, and the branch it runs on: %q", l)
 	}
 
-	if l := ansi.Strip(lines[5]); !strings.HasPrefix(l, "   ├─ ") {
-		t.Fatalf("an unpinned row keeps its gutter blank: %q", l)
+	m.ag.l.sel = 5 // s1, selected while Spaces has the keyboard
+
+	if l := ansi.Strip(m.ag.lines(m, 40, len(m.ag.rows(m)))[5]); !strings.HasPrefix(l, "   ├─ ") {
+		t.Fatalf("an unpinned row keeps its gutter blank, selected too: %q", l)
 	}
+
+	m.ag.l.sel = 6
 
 	if l := ansi.Strip(lines[6]); !strings.HasPrefix(l, " ⊙ └─ ") {
 		t.Fatalf("the tree's copy shows its pin: %q", l)

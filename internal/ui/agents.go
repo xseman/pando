@@ -795,7 +795,8 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			conn = "└─ "
 		}
 		// The gutter before it holds the pin: lit on a pinned session, dim
-		// on the row pointed at, raised with its tip under the pointer.
+		// on the row under the pointer (not the selection), raised with its
+		// tip under the pointer.
 		pin := a.actions(m, r)[0]
 		_, onPin := hit([]rowAction{pin}, mx)
 		onPin = onPin && y == hover
@@ -807,7 +808,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			gutter, m.tip = sgOwn(pin.label(), keycapHot()), pin.tip
 		case pin.on:
 			gutter = sg(pin.label(), fg(pal.headerAccent))
-		case pointed:
+		case y == hover:
 			gutter = sg(pin.label(), dim)
 		}
 
