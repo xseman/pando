@@ -1091,6 +1091,28 @@ func UnlockWorktree(root, path string) error {
 	return err
 }
 
+// FilesNamed lists the files under root that match patterns, pathspecs such
+// as "*.db", tracked or not and ignored ones too: a database is seldom
+// committed. The paths are relative to root.
+func FilesNamed(root string, patterns ...string) ([]string, error) {
+	out, err := Run(root, append([]string{"ls-files", "-z", "--cached", "--others", "--"}, patterns...)...)
+	if err != nil {
+		return nil, err
+	}
+
+	var files []string
+
+	for f := range strings.SplitSeq(out, "\x00") {
+		if f != "" {
+			files = append(files, filepath.FromSlash(f))
+		}
+	}
+
+	slices.Sort(files)
+
+	return slices.Compact(files), nil // an unmerged file is listed once per stage
+}
+
 // ListFiles returns repo-relative files honoring .gitignore, capped at limit.
 // Outside a repo it walks the directory, skipping dot-dirs.
 func ListFiles(dir string, limit int) []string {

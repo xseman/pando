@@ -1177,3 +1177,20 @@ func FuzzParseSuggestion(f *testing.F) {
 		}
 	})
 }
+
+func TestFilesNamed(t *testing.T) {
+	root := repo(t)
+	for _, f := range []string{"a.db", "data/b.sqlite", "c.sqlite3", "notes.txt", "node_modules/x/d.db"} {
+		mustWrite(t, filepath.Join(root, f), "x")
+	}
+
+	mustWrite(t, filepath.Join(root, ".gitignore"), "data/\nnode_modules\n")
+	mustGit(t, root, "add", "a.db", ".gitignore")
+
+	files, err := FilesNamed(root, "*.db", "*.sqlite", "*.sqlite3")
+	want := []string{"a.db", "c.sqlite3", filepath.FromSlash("data/b.sqlite"), filepath.FromSlash("node_modules/x/d.db")}
+
+	if err != nil || !slices.Equal(files, want) {
+		t.Fatalf("FilesNamed: %v %q, want %q", err, files, want)
+	}
+}
