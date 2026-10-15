@@ -87,7 +87,7 @@ func (m *Model) saveDrafts() tea.Cmd {
 	live := map[string]bool{}
 
 	for _, e := range m.editors {
-		if e.kind != pvFile {
+		if e.kind != pvFile || e.cell != nil { // a table cell's value goes with its table
 			continue
 		}
 
@@ -260,8 +260,9 @@ func (m *Model) saveAs(i int, path string, then func(m *Model) tea.Cmd) tea.Cmd 
 
 	was := *p
 	// The path decides the formatter and the lexer, so it goes on first;
-	// format_on_save then runs the way an ordinary ⌃s runs it.
-	p.path, p.name, p.draft = path, "", ""
+	// format_on_save then runs the way an ordinary ⌃s runs it. A table
+	// cell's value saved as a file is that file's now.
+	p.path, p.name, p.draft, p.cell = path, "", "", nil
 	note := ""
 
 	if onScreen && m.st.Settings.FmtSave && len(m.formatCommand(path)) > 0 {
@@ -271,7 +272,7 @@ func (m *Model) saveAs(i int, path string, then func(m *Model) tea.Cmd) tea.Cmd 
 	}
 
 	if err := p.buf.save(path, true); err != nil {
-		p.path, p.name = was.path, was.name // nothing was written: stay untitled
+		p.path, p.name, p.draft, p.cell = was.path, was.name, was.draft, was.cell // nothing was written: stay untitled
 		return flash(err.Error(), true)
 	}
 

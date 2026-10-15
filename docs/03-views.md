@@ -6,7 +6,7 @@ geometry is in [02-ui-layout.md](02-ui-layout.md).
 Contents: [Shape](#shape) · [Explorer](#explorer) ·
 [Source Control](#source-control) · [Spaces](#spaces) ·
 [Terminal](#terminal) · [Search](#search) · [GitHub](#github) ·
-[Commands](#commands) · [Text effects](#text-effects)
+[Databases](#databases) · [Commands](#commands) · [Text effects](#text-effects)
 
 ## Shape
 
@@ -19,14 +19,15 @@ key(m, k), mouse(m, msg, y) ──▶ the same rows (l.at(y) for a click)
 items(m) ──▶ context menu + command palette
 ```
 
-| View           | Key | File          | Rows                                             |
-| -------------- | --- | ------------- | ------------------------------------------------ |
-| Explorer       | `1` | `explorer.go` | directory tree, git decorations                  |
-| Source Control | `2` | `scm.go`      | message box, action button, sections, drawers    |
-| Spaces         | `3` | `agents.go`   | project → worktree → session tree                |
-| Search         | `4` | `search.go`   | query boxes, matches by file                     |
-| Terminal       | `5` | `agents.go`   | shells under the editor or in a sidebar          |
-| GitHub         | `6` | `github.go`   | pull requests, notifications, issues; needs `gh` |
+| View           | Key | File           | Rows                                                                         |
+| -------------- | --- | -------------- | ---------------------------------------------------------------------------- |
+| Explorer       | `1` | `explorer.go`  | directory tree, git decorations                                              |
+| Source Control | `2` | `scm.go`       | message box, action button, sections, drawers                                |
+| Spaces         | `3` | `agents.go`    | project → worktree → session tree                                            |
+| Search         | `4` | `search.go`    | query boxes, matches by file                                                 |
+| Terminal       | `5` | `agents.go`    | shells under the editor or in a sidebar                                      |
+| GitHub         | `6` | `github.go`    | pull requests, notifications, issues; needs `gh`                             |
+| Databases      | `7` | `databases.go` | SQLite files, `.env` and `[databases]` servers, their tables; needs a client |
 
 `ctrl+f` filters a list (`startFilter`) from a framed box under the header.
 
@@ -378,6 +379,62 @@ keeps what was typed. While `preview.composing` the page's `key` is
 `composeKey` and `typing()` is true, so the editor's chords stay text. `^s`
 (through `preview.save`) and `ctrl+enter` send; `ghSentMsg` empties the box
 only when gh took the text.
+
+## Databases
+
+Databases and their tables through their clients (`internal/db`): sqlite3,
+psql, mariadb or mysql. `hasDB` (one of them on the `PATH`) is read once at
+start; without any the view does not exist.
+
+```text
+ DATABASES                   +  ⟳  -
+ ▾ app.db
+     ◫ adults                 view    a view: read only
+     ▦ orders                         ⏎ opens it in an editor tab
+ ▸ cache.sqlite data                  its tables are read when it unfolds
+ ▸ .env                    mariadb    the worktree's .env DATABASE_URL
+ ▾ local                  postgres    a [databases] entry, by name
+     ▦ audit.events                   a schema other than the connection's
+```
+
+- Files: `git ls-files -co` for `*.db`, `*.sqlite`, `*.sqlite3`, ignored ones
+  too (`git.FilesNamed`), kept when the header says SQLite (`db.IsSQLite`: no
+  Thumbs.db). Listed again while shown once `dbTTL` (10 s) passed, and on `r`.
+- Explorer and quick open hand a SQLite file over (`openFile` → `revealDB`):
+  the view shows it unfolded, kept while its workspace shows (`extra`) when
+  the listing does not find it.
+- Servers (`sources`): `DATABASE_URL` in the worktree's `.env` (`envURL`, read
+  with the listing), then `[databases]` from config.toml by name. A URL that
+  does not parse says so under its row.
+- A server that wants a password (`db.ErrPassword`) asks for it once a run
+  (`askPassword`, hidden input, the server named; with another box open it
+  only says so, and asks when the source is read again, `r` or unfolded);
+  it stays in memory (`dbView.passwords`) under the source's name, kept if
+  the source still names that server when it is typed, and the `.env`'s
+  dropped when the `.env` names another; it goes to the client in its
+  environment, never on its command line. A table tab is its server's:
+  reopened after its connection names another, the table opens in a tab of
+  its own. A `[databases]` entry named `.env` is skipped: the worktree's
+  takes that name.
+- `n` or the header's `+` opens the connection form (`connform.go`), `e` and
+  `D` edit or remove a `[databases]` entry; a modal (`modal.form`) in the
+  editor area. Type cycles PostgreSQL, MariaDB, MySQL, SQLite (a file:
+  `sqlite:///path`); a password written into a URL by hand (`user:pw@`, or
+  libpq's `password=`, shown in the masked box) stays there while the box
+  holds it, the form adds none; the name defaults to database@host;
+  Options is the URL's query (`sslmode=require`; for MariaDB only TLS and
+  transport options pass, `mariadbOptions`, as a `.env` is not trusted);
+  `ctrl+t` reads the tables to test it; `⏎` saves through `state.set`
+  `databases`.
+- `t` opens the source's client in the Terminal panel, for SQL the grid
+  does not run ([04-preview.md](04-preview.md#tables)).
+- Save: Forever keeps the password in the system keyring (`db.SavePassword`:
+  secret-tool on Linux, security on macOS), under service `pando` and the
+  connection's name; Until restart keeps it in memory. A client finds it by
+  `db.DB.Keyring` when no password is given, one keyring call per name a run.
+- A table opens in an editor tab, transient on a click, pinned on a double
+  click or Open Table; opening one whose tab is open shows that tab, edits
+  and all: [04-preview.md](04-preview.md#tables).
 
 ## Commands
 

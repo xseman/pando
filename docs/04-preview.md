@@ -14,6 +14,7 @@ storage: [06-config.md](06-config.md).
 - [Merge conflicts](#merge-conflicts)
 - [Suggestions and formatting](#suggestions-and-formatting)
 - [Language servers](#language-servers)
+- [Tables](#tables)
 
 ## Kinds and loading
 
@@ -29,6 +30,7 @@ editable, and `editable` also refuses a truncated file and a rendering.
 | `cmp`    | one file of a range, `git diff RANGE -- file`  | a Compare drawer file              |
 | `gh`     | a pull request or issue, buttons in the header | GitHub ⏎                           |
 | `ghdiff` | a pull request's changes, `gh pr diff`         | GitHub `d`                         |
+| `table`  | a table or a view of a database, as a grid     | Databases ⏎                        |
 
 `load` runs `fetch` and `render` in a `tea.Cmd` (chroma for files,
 `parseDiff`/`renderDiff` for the rest); `onLoad` drops an answer whose `id`
@@ -197,3 +199,95 @@ F12, shift+F12 ─▶ lspGo ─▶ tea.Cmd ─▶ lspPool.get(root, path, lang, 
   headings) without a server.
 - The references peek (`peek.go`) sits under the editor: the selected hit's
   source left, hits grouped by file right.
+
+## Tables
+
+A `table` tab (`table.go`) is a grid over one table: `p.tbl`, which the tab's
+copies share, holds the page, the two boxes and the edits. Every read and
+write is one client process (`internal/db`) fed a script: `sqlite3 -safe`,
+`psql -X -w`, `mariadb --batch --raw`. A row comes back as a JSON array of
+text or null, so NULL, `''` and `'NULL'` stay apart; a Postgres script sets
+`standard_conforming_strings` on first, as `quote` reads a `\`. A read is
+read-only (`-readonly`; the script's `set session characteristics as
+transaction read only`, which a URL's `options=` cannot undo; `set session
+transaction read only`); a password goes in the environment (`PGPASSWORD`,
+`MYSQL_PWD`), one in a URL's query (`password=`) too.
+
+```text
+ ✕ ▦ orders  app.db  1–200 of 450 · 3 pending           ←  →  ⟳  ✓
+ ▏ WHERE total > 90           ▕  ▏ ORDER BY "id" desc         ▕
+     # │ id ↓ │ total │ note           │        the header stays as the rows scroll
+ M   1 │  448 │ 78.03 │ one↵two        │        M: a cell edited, in the modified color
+ D   2 │  441 │ 26.83 │ note 441       │        D: to be deleted
+ A     │ DEFAULT │ …                            A: added, unset cells take DEFAULT
+```
+
+| Part            | Behaviour                                                                                                                                                                                                                                                                |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| page            | `tablePage` (200) rows by `limit` and `offset`, one more row tells whether any follow ; `[` `]`, the header's `←` `→`; no ORDER BY sorts by the key                                                                                                                      |
+| count           | `count(*)`, but a server table over `bigTable` (100 000) rows by its estimate (`reltuples`, `table_rows`) shown unfiltered: `~N`, which Count Rows counts                                                                                                                |
+| stop            | a read runs under a context: `esc` interrupts its client, which stops the query on the server, the page on screen stays; a new page stops the one running, Count Rows is refused while one runs                                                                          |
+| status bar      | the cursor's column: its name, type, primary key or generated                                                                                                                                                                                                            |
+| WHERE, ORDER BY | your SQL put into the query as typed, as the console runs it: read-only stops a slip, not a `;` that ends the query on purpose; an error keeps the rows on screen                                                                                                        |
+| sort            | `s` or a header click writes `"col"` (MariaDB: `` `col` ``), `"col" desc`, then nothing into ORDER BY                                                                                                                                                                    |
+| cells           | as wide as the page needs, at most `cellMax` (40); `↵` for a line break without the indentation after it, a tab as a space, no `\r`, other control characters `�`; NULL and DEFAULT in italics                                                                           |
+| sideways        | the gutter stays; `←` `→` move by column, shift+wheel and the bar under the rows by cells, as the editor's long lines                                                                                                                                                    |
+| edit            | ⏎: a prompt over the cell that keeps spaces (`modal.raw`); a control character (a tab, a line break) or over 200 bytes opens an untitled editor: unchanged the value goes back as it was, changed it keeps its last line break, and `\r\n` when all its line breaks were |
+| rows            | `o` add, `ctrl+d` duplicate without the primary key, `d` delete, `u` revert the cell, else the row's deletion or the added row                                                                                                                                           |
+| select          | `shift+↑` `↓` (`pgup` `pgdn`), shift+click: the rows from the cursor; `d`, `u`, Set NULL and `y` (TSV under the column names) take them; `esc` or a move without shift drops them                                                                                        |
+| submit          | `ctrl+s`: every edit in one transaction (`db.Table.Apply`), all or nothing; one submit at a time                                                                                                                                                                         |
+| read only       | a view, a virtual table, a generated column, a blob, a MariaDB BIT or geometry (shown as bytes)                                                                                                                                                                          |
+
+- A row is found again by its key columns (`db.Table.Keys`), read as a JSON
+  array of text: SQLite's rowid, but a WITHOUT ROWID table's primary key;
+  the primary key elsewhere (a MariaDB binary one as hex, `keyHex`: as text
+  its bytes that are not UTF-8 turn into `?`), else Postgres's tableoid,
+  ctid and xmin (a partition's ctid repeats another's, a vacuumed slot
+  takes a new row, xmin tells them apart); a MariaDB table without one is
+  read only.
+- Each statement must touch one row: `changes()`, `row_count()` (a MariaDB
+  update counts the rows it finds first, `select count(*) into @n … for
+  update`: `row_count()` leaves out a row set to what it held) or a
+  `returning` CTE's count goes into a temporary table whose
+  `CHECK (n = 1)` fails otherwise. An update also matches the old
+  values of the columns it sets, so a row changed or gone meanwhile fails the
+  submit as a conflict, named by its row (`select '#i'` markers); `u` drops
+  the edit, `r` then shows the row as it is now. A deletion finds its row by key alone. MariaDB's MyISAM
+  and Aria tables have no transactions: a failed submit keeps what went
+  before it.
+- While a submit is on its way the edits stay as they are: once through it
+  drops the ones it sent, and a later change to one of them would go with it.
+- Open Console (the menu, `t` in the view) runs the client in a shell of the
+  Terminal panel. Its password goes through a file in the runtime directory
+  that `sh` reads and removes before it execs the client: a session's
+  command and environment are kept in state.json. Started again by a
+  restarted daemon, the client asks for it (mariadb told to by `-p`).
+  Windows' client always asks.
+- MariaDB sessions run in UTC (`set time_zone`): a TIMESTAMP shows, and is
+  typed, in UTC, where no hour repeats; the client talks utf8mb4 whatever
+  the locale, in `--binary-mode`, which keeps a value's `\r\n` and NUL and
+  runs no client command; a FLOAT key reads at double precision.
+- sqlite3 reads its script by lines: it drops the `\r` of a `\r\n`, in a
+  string too, and ends a line at a NUL. A text holding either goes as
+  `cast(x'…' as text)`, and a text key is read so (`quote()` cuts at a NUL).
+  A REAL reads to the 17 digits it takes to read back as itself when 15 do
+  not. A Postgres script sets `client_encoding` to UTF8 and
+  `extra_float_digits` to 3, whatever `PGCLIENTENCODING`, the database or
+  the URL say: below 1, 0.1 + 0.2 prints as 0.3.
+- A long value's editor bases its edit on the value as read, or on the one
+  it showed when a submit since wrote it: if the row holds another when it
+  is put back (another hand's, or a row that took the key), the submit fails
+  as a conflict.
+- After a submit the page is from before it until read again (`stale`): a
+  row it deleted may have given its key to one it added, so it takes no
+  edit until then.
+- A reload that finds the columns changed under edits made while it read
+  keeps the columns the edits name, and says so.
+- A long value's editor (`preview.cell`) keeps no draft and is not restored:
+  `ctrl+s` puts the text back as an edit and shows the table again.
+- Edits follow the row's key through pages, filters and sorts. A table
+  edited in the preview tab keeps it, as an edited file does. Closing the
+  tab asks to submit or discard them; closing pando (`q`, `ctrl+c`) says
+  they are lost; switching workspaces keeps the tab, and a value's editor
+  typed in, until the workspace shows again (`waiting`). Table tabs are not
+  restored after a restart.

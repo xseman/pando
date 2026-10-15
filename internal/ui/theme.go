@@ -400,13 +400,16 @@ var (
 	icResume     = glyph{"comment-discussion", "\ueac7", "↺", ""}
 	icPin        = glyph{"pin", "\ueb2b", "⊙", ""}    // a Spaces session's pin button
 	icPinned     = glyph{"pinned", "\ueba0", "⊙", ""} // a pinned session's
+	icDatabase   = glyph{"database", "\ueace", "Databases", "💾"}
+	icTable      = glyph{"table", "\uebb7", "▦", ""}
+	icView       = glyph{"eye", "\uea70", "◫", ""} // a view of a database: rows read, never written
 	allGlyphs    = []glyph{
 		icFiles, icGit, icSpaces, icAgents, icGear, icNewFile, icNewDir, icRefresh, icCollapse, icTree, icList,
 		icAdd, icRemove, icDiscard, icWorktree, icSparkle, icCheck, icChevron, icClose, icMax, icRestore, icBranch, icPublish, icSync, icSplit, icInline, icUnfold, icFold,
 		icSearch, icCase, icWord, icRegex, icEllipsis, icClearAll, icOptions, icPreview, icSource,
 		icPrevRev, icNextRev, icUp, icDown, icHistory, icTag, icDetach, icReplace, icPreserve, icReplaceAll, icTerminal, icDot,
 		icMainWt, icLinkedWt, icTabs, icResume, icPin, icPinned, icWrap, icGitHub, icPR, icPRDraft, icPRNew, icIssue, icBell, icCheckAll,
-		icMerge, icCompare, icComment, icPRClosed, icReopen,
+		icMerge, icCompare, icComment, icPRClosed, icReopen, icDatabase, icTable, icView,
 	}
 )
 
@@ -431,7 +434,7 @@ var (
 // viewIcon is a view's tab and rail icon. Spaces gets the windows glyph, the
 // docked session the robot: one is where the work lives, the other an agent.
 func viewIcon(v view) glyph {
-	return []glyph{icFiles, icGit, icSpaces, icSearch, icTerminal, icAgents, icGitHub}[v]
+	return []glyph{icFiles, icGit, icSpaces, icSearch, icTerminal, icAgents, icGitHub, icDatabase}[v]
 }
 
 // Doctor lists every UI glyph with its codepoint and the installed font that

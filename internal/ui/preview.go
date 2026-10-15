@@ -25,6 +25,7 @@ import (
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/alecthomas/chroma/v2/styles"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/xseman/pando/internal/db"
 	"github.com/xseman/pando/internal/git"
 	"github.com/xseman/pando/internal/proto"
 )
@@ -67,6 +68,10 @@ type preview struct {
 	entry  git.Entry
 	rev    string
 	gh     *ghDoc // pvGH: the page's state, which its bar and buttons follow; nil until loaded
+	tbl    *table // pvTable: the grid, which the tab's copies share; nil until loaded
+	// cell is the table cell an untitled editor holds the value of: ^s puts
+	// it back there as an edit, and no draft keeps it.
+	cell *cellRef
 	// pvGH: what a click on each row of the page does, the key of the hits the
 	// pointer lights, the comments folded, and the box at the end of it, which
 	// has the keyboard while composing.
@@ -145,7 +150,16 @@ type previewMsg struct {
 }
 
 func (p *preview) id() string {
-	return fmt.Sprintf("%s|%s|%s|%s|%v|%s", p.kind, p.root, p.path, p.name, p.entry.Staged, p.rev)
+	id := fmt.Sprintf("%s|%s|%s|%s|%v|%s", p.kind, p.root, p.path, p.name, p.entry.Staged, p.rev)
+
+	switch c := p.cell; {
+	case p.tbl != nil: // a table is its server's: an edited connection or .env names another since
+		id += "|" + p.tbl.db.Target
+	case c != nil: // a cell's value: its server, table, row and column, whatever row number it shows
+		id += fmt.Sprintf("|%s|%s.%s|%s|%p|%s", c.tb.db.Target, c.tb.schema, c.tb.name, c.key, c.add, c.name)
+	}
+
+	return id
 }
 
 // untitled reports an editor with no file behind it yet: it types and saves
@@ -158,6 +172,18 @@ func (p *preview) fromGH() bool { return p.kind == pvGH || p.kind == pvGHDiff }
 // label is the header's name and dimmed context, VS Code style.
 func (p *preview) label(ws string) (name, context string) {
 	switch p.kind {
+	case pvTable:
+		context = p.path
+		if rel, err := filepath.Rel(ws, p.path); err == nil && !strings.HasPrefix(rel, "..") {
+			context = rel
+		}
+
+		if p.tbl != nil {
+			context += "  " + p.tbl.status()
+		}
+
+		return p.name, context
+
 	case pvFile:
 		if p.untitled() {
 			return p.name, ""
@@ -244,7 +270,7 @@ func sameFile(a, b preview) bool {
 func (p *preview) snapshot() preview {
 	return preview{
 		kind: p.kind, path: p.path, name: p.name, draft: p.draft, draftM: p.draftM,
-		root: p.root, entry: p.entry, rev: p.rev, gh: p.gh, folded: p.folded, compose: p.compose,
+		root: p.root, entry: p.entry, rev: p.rev, gh: p.gh, folded: p.folded, compose: p.compose, tbl: p.tbl, cell: p.cell,
 		repo: p.repo, revs: p.revs, revIdx: p.revIdx, md: p.md,
 		cur: p.cur, top: p.top, left: p.left, buf: p.buf, trunc: p.trunc, used: p.used,
 		transient: p.transient,
@@ -260,7 +286,12 @@ func (m *Model) setPreview(p preview) tea.Cmd {
 	p.used = m.edUsed
 
 	i := slices.IndexFunc(m.editors, func(e preview) bool { return e.id() == p.id() })
+
 	t := slices.IndexFunc(m.editors, func(e preview) bool { return e.transient })
+	if t >= 0 && m.editors[t].dirty() { // a table edited in the preview tab stays, as an edit pins a file
+		m.editors[t].transient = false
+		t = -1
+	}
 
 	switch {
 	case i >= 0:
@@ -269,6 +300,10 @@ func (m *Model) setPreview(p preview) tea.Cmd {
 		if !p.reveal && p.cur == (pos{}) { // reopening: back to where the cursor was
 			e := m.editors[i]
 			p.cur, p.top, p.left, p.md = e.cur, e.top, e.left, e.md
+		}
+
+		if e := m.editors[i]; e.tbl != nil { // the table it has open: its page and its edits
+			p.tbl = e.tbl
 		}
 
 		m.editors[i], m.edIdx = p.snapshot(), i
@@ -363,8 +398,13 @@ func (m *Model) pin() {
 // openFile opens path; transient opens it in the preview tab, as a click in
 // Explorer, Search or Source Control does.
 func (m *Model) openFile(path string, transient bool) tea.Cmd {
-	if st, err := os.Stat(path); err != nil || st.IsDir() {
+	st, err := os.Stat(path)
+	if err != nil || st.IsDir() {
 		return flash("cannot preview "+path, true)
+	}
+
+	if m.hasDB && st.Mode().IsRegular() && db.Has(db.SQLite) && db.IsSQLite(path) { // its tables, in the Databases view; a FIFO would block reading its header
+		return m.revealDB(path)
 	}
 
 	return m.setPreview(preview{kind: pvFile, path: path, transient: transient})
@@ -396,7 +436,7 @@ func (m *Model) editorsSpec() proto.Editors {
 	var e proto.Editors
 
 	for i, p := range m.editors {
-		if p.kind != pvFile && p.kind != pvRev {
+		if p.kind != pvFile && p.kind != pvRev || p.cell != nil { // a table cell's value goes with its table
 			continue
 		}
 
@@ -534,21 +574,63 @@ func (m *Model) cycleEditor(d int) tea.Cmd {
 }
 
 // closeEditor closes tab i; its neighbour takes over, or the preview closes.
+// A dialog's choice finds the tab again: a submit closing another meanwhile
+// moves it.
 func (m *Model) closeEditor(i int) tea.Cmd {
-	if i >= 0 && i < len(m.editors) && m.editors[i].dirty() {
+	if i < 0 || i >= len(m.editors) {
+		return m.dropEditor(i)
+	}
+
+	id := m.editors[i].id()
+	again := func(m *Model, then func(i int) tea.Cmd) tea.Cmd {
+		if i < len(m.editors) && m.editors[i].id() == id { // where it was: Save As can open a file twice
+			return then(i)
+		}
+
+		if i := slices.IndexFunc(m.editors, func(e preview) bool { return e.id() == id }); i >= 0 {
+			return then(i)
+		}
+
+		return nil
+	}
+
+	if m.editors[i].dirty() && m.editors[i].tbl != nil {
+		tb := m.editors[i].tbl
+		if tb.sending { // its edits are being written: nothing left to discard
+			return flash(onItsWay, true)
+		}
+
+		m.modal = newDialog(fmt.Sprintf("Close %s with %s not submitted?", tb.name, plural(len(tb.edits), "change")),
+			item{label: "Submit and close", run: func(*Model) tea.Cmd { return tb.submit(true) }},
+			item{label: "Discard and close", run: func(m *Model) tea.Cmd { // Go Back may bring the tab back: its edits go
+				tb.discard()
+				return again(m, m.dropEditor)
+			}},
+			cancelItem())
+		m.modal.area = m.editorArea()
+
+		return nil
+	}
+
+	if m.editors[i].dirty() {
 		name, _ := m.editors[i].label(m.ws)
 		m.modal = newDialog("Close "+name+" without saving?",
 			item{label: "Save and close", run: func(m *Model) tea.Cmd {
-				// An untitled buffer has nowhere to go yet: ask where, and
-				// drop the tab only once that save went through.
-				if m.editors[i].untitled() {
-					return m.saveAsPrompt(i, func(m *Model) tea.Cmd { return m.dropEditor(i) })
-				}
+				return again(m, func(i int) tea.Cmd {
+					// An untitled buffer has nowhere to go yet: ask where, and
+					// drop the tab only once that save went through.
+					switch {
+					case m.editors[i].cell != nil: // putCell closes it itself
+						return m.saveEditor(i)
+					case m.editors[i].untitled(): // saved, it has another id
+						return m.saveAsPrompt(i, func(m *Model) tea.Cmd { return m.dropEditor(i) })
+					}
 
-				return tea.Batch(m.saveEditor(i), m.dropEditor(i))
+					return tea.Batch(m.saveEditor(i), m.dropEditor(i))
+				})
 			}},
 			item{label: "Close anyway", run: func(m *Model) tea.Cmd {
-				return tea.Batch(m.forgetDraft(m.editors[i]), m.dropEditor(i))
+				return again(m, func(i int) tea.Cmd { return tea.Batch(m.forgetDraft(m.editors[i]), m.dropEditor(i)) })
 			}},
 			cancelItem())
 
@@ -570,6 +652,10 @@ func (m *Model) saveEditor(i int) tea.Cmd {
 	}
 
 	e := &m.editors[i]
+	if e.cell != nil {
+		return m.putCell(e)
+	}
+
 	if err := e.buf.save(e.path, false); err != nil {
 		return flash(err.Error(), true)
 	}
@@ -795,7 +881,11 @@ func (m *Model) editorTabs(w int) []edTab {
 	names, icons, width, total := make([]string, len(m.editors)), make([]seg, len(m.editors)), make([]int, len(m.editors)), 0
 	for i, e := range m.editors {
 		names[i], _ = e.label(m.ws)
-		if e.kind != pvShow && !e.fromGH() {
+
+		switch {
+		case e.kind == pvTable:
+			icons[i] = sg(icTable.s()+" ", dim)
+		case e.kind != pvShow && !e.fromGH():
 			icons[i] = iconSeg(names[i], false, false)
 		}
 
@@ -967,7 +1057,12 @@ func (m *Model) openShow(root, rev string) tea.Cmd {
 }
 
 func (p *preview) load(m *Model) tea.Cmd {
-	if p.kind == "" {
+	switch {
+	case p.kind == "":
+		return nil
+	case p.kind == pvTable && p.tbl != nil && p.tbl.gen == 0: // read once: a tab shown again keeps its page and edits
+		return p.tbl.load(0, false)
+	case p.kind == pvTable:
 		return nil
 	}
 	// An untitled buffer has nothing on disk: it is its own source, so the
@@ -977,7 +1072,7 @@ func (p *preview) load(m *Model) tea.Cmd {
 	if p.untitled() {
 		if p.buf == nil {
 			p.buf = newBuffer(p.draft, p.draftM)
-			p.buf.dirty = p.draft != ""
+			p.buf.dirty = p.draft != "" && p.cell == nil // a cell's value is what it holds, not an edit
 		}
 
 		p.draft, p.err, p.ready = "", "", true
@@ -1074,7 +1169,12 @@ func (p *preview) reloadIfLive(m *Model) tea.Cmd {
 }
 
 // dirty reports unsaved edits in this editor.
-func (p *preview) dirty() bool { return p.buf != nil && p.buf.dirty }
+func (p *preview) dirty() bool {
+	return p.buf != nil && p.buf.dirty || p.tbl != nil && len(p.tbl.edits) > 0
+}
+
+// tableBox reports a table whose WHERE or ORDER BY box has the keyboard.
+func (p *preview) tableBox() bool { return p.kind == pvTable && p.tbl != nil && p.tbl.box > 0 }
 
 // editable reports a file that can be typed into: not a diff, a revision, a
 // rendering or a file too big to hold whole.
@@ -2382,6 +2482,23 @@ func (p *preview) buttons(m *Model, w int) []rowAction {
 		acts = append(acts, rowAction{g: g, tip: tip + "  " + k.Text, run: func(m *Model) tea.Cmd { return m.pv.key(m, k) }})
 	}
 
+	if p.kind == pvTable && p.tbl != nil {
+		if p.tbl.total > tablePage {
+			add(icPrevRev, "Previous Page", tea.KeyPressMsg{Code: '[', Text: "["})
+			add(icNextRev, "Next Page", tea.KeyPressMsg{Code: ']', Text: "]"})
+		}
+
+		add(icRefresh, "Reload", tea.KeyPressMsg{Code: 'r', Text: "r"})
+
+		if len(p.tbl.edits) > 0 {
+			acts = append(acts, rowAction{g: icCheck, tip: "Submit Changes  ^s", on: true, run: func(m *Model) tea.Cmd { return m.pv.save(m, false) }})
+		}
+
+		layoutRight(acts, w, 2)
+
+		return acts
+	}
+
 	if p.kind == pvFile && isMarkdown(p.path) { // direct: in a file a letter is text
 		acts = append(acts,
 			rowAction{g: ifElse(p.md == 1, icSource, icPreview), tip: ifElse(p.md == 1, "Show Source", "Open Preview") + "  ^⇧v", run: func(m *Model) tea.Cmd { return m.toggleRendered() }},
@@ -2420,6 +2537,8 @@ func (p *preview) buttons(m *Model, w int) []rowAction {
 
 func (p *preview) hints(m *Model) string {
 	switch {
+	case p.kind == pvTable && p.tbl != nil:
+		return p.tbl.hints()
 	case m.pk != nil:
 		return " ↑↓ move  ←→ fold  ⏎ open  o open and stay  esc close"
 	case p.split(m) && p.kind != pvDiff: // a commit's or a pull request's: nothing to stage
@@ -2531,7 +2650,11 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 	case p.pathHeader(): // breadcrumbs off: the buttons only
 	default:
 		left = []seg{sg(" "+icClose.s()+" ", dim)}
-		if p.kind != pvShow && !p.fromGH() {
+
+		switch {
+		case p.kind == pvTable:
+			left = append(left, sg(icTable.s()+" ", dim))
+		case p.kind != pvShow && !p.fromGH():
 			left = append(left, iconSeg(name, false, false))
 		}
 
@@ -2573,6 +2696,10 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 	header = row(w, nil, left, right...)
 
 	footer = row(w, nil, []seg{sg(p.hints(m), dim)})
+	if p.kind == pvTable && p.tbl != nil {
+		return header, p.tbl.body(m, w, h), footer
+	}
+
 	if p.err != "" {
 		return header, []string{"", dim.Render("  " + p.err)}, footer
 	}
@@ -3308,6 +3435,10 @@ func (p *preview) openHere(m *Model) tea.Cmd {
 // items are the preview's commands. Diffs of tracked files stage, unstage
 // or revert the selected lines, like VS Code's Stage Selected Ranges.
 func (p *preview) items(m *Model) []item {
+	if p.kind == pvTable && p.tbl != nil {
+		return p.tbl.items()
+	}
+
 	key := func(k rune) func(*Model) tea.Cmd {
 		return func(m *Model) tea.Cmd { return m.pv.key(m, tea.KeyPressMsg{Code: k, Text: string(k)}) }
 	}
@@ -3383,6 +3514,10 @@ func (p *preview) items(m *Model) []item {
 // keyItems are the editor's commands for the palette and [keys] alone, most
 // with keys of their own: the context menu would only grow long with them.
 func (p *preview) keyItems(_ *Model) []item {
+	if p.kind == pvTable { // its items hold its keys
+		return nil
+	}
+
 	chord := func(code rune, mod tea.KeyMod) func(*Model) tea.Cmd {
 		return func(m *Model) tea.Cmd {
 			m.focus = onMain
@@ -3651,8 +3786,11 @@ func (p *preview) closeNow(m *Model) tea.Cmd {
 }
 
 func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
-	if p.kind == "" {
+	switch {
+	case p.kind == "":
 		return nil
+	case p.kind == pvTable && p.tbl != nil:
+		return p.tbl.key(m, k)
 	}
 
 	if p.composing {
@@ -3912,6 +4050,10 @@ func (p *preview) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 				return a.run(m)
 			}
 		}
+	}
+
+	if p.kind == pvTable && p.tbl != nil && y >= 0 {
+		return p.tbl.mouse(m, msg, x, y)
 	}
 
 	if !p.ready || p.err != "" || len(p.plain) == 0 {

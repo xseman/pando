@@ -14,14 +14,20 @@ import (
 
 // TestMain keeps the tests off the desktop's clipboard: a copy a test makes
 // would otherwise land where the person running them pastes. It also takes
-// gh away, CI's runners have it: every layout would grow a GitHub view on a
-// machine with gh and not without; the GitHub tests put it back.
+// gh and sqlite3 away, CI's runners have them: every layout would grow a
+// GitHub and a Databases view on a machine with them and not without; their
+// own tests put them back.
 func TestMain(m *testing.M) {
 	for _, k := range []string{"WAYLAND_DISPLAY", "DISPLAY"} {
 		_ = os.Unsetenv(k) // unset on a machine without them already
 	}
 
 	hasGH = func() bool { return false }
+	hasDB = func() bool { return false }
+	hasKeyring = func() bool { return false } // never the desktop's keyring
+	keyringLoad = func(string) string { return "" }
+	keyringSave = func(string, string) error { return nil }
+	keyringForget = func(string) {}
 
 	os.Exit(m.Run())
 }

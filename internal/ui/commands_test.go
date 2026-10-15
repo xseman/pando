@@ -2442,7 +2442,7 @@ func TestKeyCommands(t *testing.T) {
 	}
 
 	var help []string
-	for _, it := range helpModal(false).items {
+	for _, it := range helpModal(false, false).items {
 		help = append(help, ansi.Strip(it.label))
 	}
 

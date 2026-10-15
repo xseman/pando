@@ -92,6 +92,10 @@ func (m *Model) startUpdate() tea.Cmd {
 func (m *Model) finishUpdate() tea.Cmd {
 	m.modal = newDialog("pando v"+m.upd.Latest+" is installed",
 		item{label: "Quit pando", hint: "start it again to run v" + m.upd.Latest, run: func(m *Model) tea.Cmd {
+			if m.tableEdits() > 0 { // no draft keeps them: say so first
+				return m.confirmQuit()
+			}
+
 			return tea.Sequence(m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts(), tea.Quit)
 		}},
 		cancelItem())

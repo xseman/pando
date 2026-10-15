@@ -58,13 +58,14 @@ T: also in a terminal; the rest are the shell's there.
 - `⏎` `space`, `→` `l`, `←` `h`: activate, unfold, fold or go to the parent
 - `m`, right click: context menu
 - `ctrl+f`: filter (`⏎` keeps it, `esc` clears)
-- `1` `2` `3` `4` `6`: Explorer, Source Control, Spaces, Search, GitHub
+- `1` `2` `3` `4` `6` `7`: Explorer, Source Control, Spaces, Search, GitHub, Databases
 - `tab`: focus main
 - `[` `]`: previous, next tab of the session
 - `b`, `<` `>`: hide this column, narrow or widen it
 - `,`, `?`: settings, help
 - `q`, `esc`: close pando, asking first (sessions keep running)
-- `ctrl+c`: close pando at once (in Explorer: copy)
+- `ctrl+c`: close pando at once, asking first with table edits not
+  submitted (in Explorer: copy)
 
 ## Views
 
@@ -75,6 +76,7 @@ T: also in a terminal; the rest are the shell's there.
 | Spaces         | `⏎` `l` switch, `alt+↑` `alt+↓` reorder, `n` session, `w` worktree, `a` add project, `R` rename, `p` pin, `x` `d` `del` kill, delete, close, `o` view options, `r` refresh                                                                                                                                  |
 | Search         | `ctrl+f` `/` `i` query, `ctrl+h` replace, `ctrl+i` include, `⏎` `o` open, `r` `R` replace in file, all, `alt+c` `alt+w` `alt+r` `alt+p` case, word, regex, preserve case, `t` tree, `ctrl+r` rerun, `x` clear, `C` collapse                                                                                 |
 | GitHub         | `⏎` open, `d` pull request diff, `w` worktree (issue: start one), `o` github.com, `y` copy link, `x` mark done, `ctrl+r` refresh, `C` collapse; on an opened page `c` comment, `x` close, `M` merge, `R` ready                                                                                              |
+| Databases      | `⏎` `l` open a table, unfold a source, `t` console, `n` new connection, `e` `D` edit, remove one, `c` `y` copy name, path, `r` `ctrl+r` refresh, `C` collapse; in its form `tab` `↑` `↓` move, `←` `→` change Type and Save, `ctrl+t` test, `⏎` save                                                        |
 
 Commit message: `⏎` commits, `shift+⏎` `alt+⏎` new line, `esc` `tab` leave,
 `ctrl+a` all, `home` line start, `ctrl+c` `ctrl+x` copy, cut, `↑` on the top
@@ -132,6 +134,26 @@ diffed file at the cursor, `H` pick a revision (header `←` `→` step), `e`
 Find box: `⏎` `↓` next, `shift+⏎` `↑` previous, `tab` to replace, where `⏎`
 replaces and goes on; `ctrl+shift+1` one, `ctrl+alt+⏎` all; `alt+c` `alt+w`
 `alt+r` `alt+p` case, word, regex, preserve case; `esc` closes.
+
+## In a table
+
+A table from the Databases view ([04-preview.md](04-preview.md#tables)):
+
+| Key                                                         | Action                                                                             |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| arrows, `hjkl`, `0` `$`                                     | move a cell; first, last column                                                    |
+| `shift+↑` `shift+↓`, `shift+pgup` `shift+pgdn`, shift+click | select rows: `d` `u` `y` and Set NULL take them                                    |
+| `g` `G`, `pgup` `pgdn` `b` `f`                              | first, last row; a screen                                                          |
+| `[` `]`                                                     | previous, next page                                                                |
+| `ctrl+f`, `tab`                                             | the WHERE box, then ORDER BY: `⏎` applies, `esc` puts them back                    |
+| `s`, a header click                                         | sort by the column: up, down, off                                                  |
+| `⏎`, double click                                           | edit the cell                                                                      |
+| `o`, `ctrl+d`, `d` `del`                                    | add, duplicate, delete the row                                                     |
+| `u` `ctrl+z`                                                | revert the cell's edit, else the row's deletion or the added row                   |
+| `ctrl+s`                                                    | submit the edits                                                                   |
+| `y` `ctrl+c`, `r`                                           | copy the value (selected rows: as TSV), reload                                     |
+| `m`, right click                                            | menu: Set NULL, Revert All, Show Pending SQL, Count Rows, Open Console             |
+| `q` `esc`, `ctrl+w`                                         | close, asking with edits pending; `esc` stops a read, then drops a selection first |
 
 ## Vim mode
 

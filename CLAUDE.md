@@ -31,6 +31,7 @@ libgit2: git is shelled out.
 | `internal/proto`  | wire types, client calls, socket paths, daemon autostart  |
 | `internal/daemon` | state, config.toml, sessions, PTY, event fan-out          |
 | `internal/git`    | every `git -C root …` and `gh` call, parsed once          |
+| `internal/db`     | databases through sqlite3, psql, mariadb: pages, edits    |
 | `internal/lsp`    | language server client                                    |
 | `internal/update` | release check, verified download, self-update             |
 | `internal/ui`     | Bubble Tea model (`app.go`), views, preview/editor, theme |

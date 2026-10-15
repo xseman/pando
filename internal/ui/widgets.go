@@ -103,6 +103,24 @@ func fit(s string, w int) string {
 
 func blank(w int) string { return strings.Repeat(" ", max(w, 0)) }
 
+// framedBox is a text box w cells wide in one thin frame, VS Code's input
+// with input.border, in the accent while it has the keyboard: three rows.
+func framedBox(in *textinput.Model, w int, focused, dark bool) []string {
+	edge := fg(pal.inputBorder)
+	if focused {
+		edge = fg(pal.accent)
+	}
+
+	box, side, field := lipgloss.NewStyle().Background(pal.inputBg), edge.Background(pal.inputBg), max(w-6, 1)
+
+	in.SetStyles(inputStyles(dark))
+	in.SetWidth(field)
+	text := ansi.Truncate(realCaret(in.View()), field, "")
+	text += box.Render(blank(field - ansi.StringWidth(text)))
+
+	return []string{frameLine(w, 1, "▁", edge), " " + side.Render("▏") + box.Render(" "+text+" ") + side.Render("▕") + " ", frameLine(w, 1, "▔", edge)}
+}
+
 // frameLine is the row above (▁) or below (▔) an input box whose ▏ edge
 // sits at column x and whose ▕ one cell before the row's end: with the edges
 // it frames the box in one thin line, as VS Code's input.border does.
@@ -601,6 +619,7 @@ type modal struct {
 	filter    bool
 	lineQuery bool // a trailing ":12:5" is a position, not part of the match
 	submit    func(m *Model, value string) tea.Cmd
+	raw       bool // submit gets the value as typed, spaces kept: a table cell's
 	keep      bool
 	tree      bool // group picker results under their directory
 	// prefix starts every query of a picker that lists one kind of thing, "@"
@@ -616,14 +635,20 @@ type modal struct {
 	hover    int                              // a dialog's button under the pointer, -1 for none
 	pattern  string                           // the query as the labels show it matched
 	l        list
-	x, y     int // anchor; x < 0 centers
+	x, y     int       // anchor; x < 0 centers
+	form     *connForm // the New or Edit Connection form, which the box is instead of a list
+	// area is the screen columns [from, to) the box stays in: a table's keep
+	// to the editor area, off a session docked beside it. Zero is the screen.
+	area [2]int
 }
 
 // inputStyles paints a text input on the input box background.
 func inputStyles(dark bool) textinput.Styles {
 	st := textinput.DefaultStyles(dark)
+	// The prompt and the placeholder in VS Code's input.placeholderForeground:
+	// bubbles' ANSI 7 and 240 vanish, or pass for typed text, on a light theme.
 	for _, ss := range []*textinput.StyleState{&st.Focused, &st.Blurred} {
-		ss.Text, ss.Placeholder, ss.Prompt = ss.Text.Background(pal.inputBg), ss.Placeholder.Background(pal.inputBg), ss.Prompt.Background(pal.inputBg)
+		ss.Text, ss.Placeholder, ss.Prompt = ss.Text.Background(pal.inputBg), fg(pal.descFg).Background(pal.inputBg), fg(pal.descFg).Background(pal.inputBg)
 	}
 
 	st.Blurred.Text = st.Focused.Text // VS Code's input keeps its text's color without focus, bubbles' greys it
@@ -1051,6 +1076,16 @@ func (md *modal) hasInput() bool { return md.filter || md.submit != nil }
 
 // rect returns the box position and size, and how many item rows fit.
 func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
+	x0, x1 := 0, m.w
+	if md.area[1] > 0 {
+		x0, x1 = md.area[0], md.area[1]
+	}
+
+	if md.form != nil { // its top stays put as the kind turns: placed as if PostgreSQL's, the tallest
+		w, h = min(72, x1-x0-2), md.form.height()
+		return x0 + (x1-x0-w)/2, max((m.h-(&connForm{}).height())/3, 0), w, h, 0
+	}
+
 	if md.dialog {
 		_, labels, _ := md.buttonRow(1 << 16)
 		row := 2 * (len(labels) - 1)
@@ -1064,11 +1099,11 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 			w = max(w, ansi.StringWidth(it.hint))
 		}
 
-		w = min(max(min(w+4, 64), row+3), m.w-2)
+		w = min(max(min(w+4, 64), row+3), x1-x0-2)
 		msg, _, hintH := md.dialogBody(w - 2)
 		h = len(msg) + hintH + 4
 		// ponytail: taller than the terminal clips the bottom, buttons and all; scroll the message if one ever does.
-		return max((m.w-w)/2, 0), max((m.h-h)/3, 0), w, h, 0
+		return max(x0+(x1-x0-w)/2, x0), max((m.h-h)/3, 0), w, h, 0
 	}
 
 	w = ansi.StringWidth(md.title) + 6
@@ -1083,7 +1118,7 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 		}
 	}
 
-	w = min(w, m.w-2)
+	w = min(w, x1-x0-2)
 	maxRows := max(m.h-6, 1)
 
 	rows = min(len(md.disp), maxRows)
@@ -1107,12 +1142,12 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 			top = maxRows + 3
 		}
 
-		x, y = (m.w-w)/2, max((m.h-top)/3, 0)
+		x, y = x0+(x1-x0-w)/2, max((m.h-top)/3, 0)
 	} else {
-		x, y = min(md.x, m.w-w), min(md.y, m.h-h)
+		x, y = min(md.x, x1-w), min(md.y, m.h-h)
 	}
 
-	return max(x, 0), max(y, 0), w, h, rows
+	return max(x, x0), max(y, 0), w, h, rows
 }
 
 // toggle is the list/tree switch drawn at the right end of the title row.
@@ -1132,6 +1167,10 @@ func (md *modal) toggle() (label string, width int) {
 func (md *modal) view(m *Model) (string, int, int) {
 	x, y, w, _, rows := md.rect(m)
 	iw := w - 2
+
+	if md.form != nil {
+		return strings.Join(md.form.lines(w), "\n"), x, y
+	}
 
 	if md.dialog {
 		return md.dialogView(iw), x, y
@@ -1287,7 +1326,10 @@ func (md *modal) toggleTree(m *Model) tea.Cmd {
 }
 
 func (md *modal) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
-	if md.dialog {
+	switch {
+	case md.form != nil:
+		return md.form.key(m, k)
+	case md.dialog:
 		return md.dialogKey(m, k)
 	}
 
@@ -1341,6 +1383,10 @@ func (md *modal) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	case "enter":
 		if md.submit != nil {
 			m.modal = nil
+			if md.raw {
+				return md.submit(m, md.input.Value())
+			}
+
 			return md.submit(m, strings.TrimSpace(md.input.Value()))
 		}
 
@@ -1440,6 +1486,16 @@ func (md *modal) mouse(m *Model, msg tea.MouseMsg) tea.Cmd {
 	mo := msg.Mouse()
 	x, y, w, h, rows := md.rect(m)
 	inside := mo.X >= x && mo.X < x+w && mo.Y >= y && mo.Y < y+h
+
+	if _, click := msg.(tea.MouseClickMsg); md.form != nil && click { // outside closes it, a row takes the keyboard
+		if r := mo.Y - y - 1; !inside {
+			md.dismiss(m)
+		} else if r >= 0 && r < len(md.form.rows()) {
+			return md.form.click(r, mo.X-x-1)
+		}
+
+		return nil
+	}
 
 	if md.dialog { // a click runs a button or, outside, cancels; hover lights a button and leaves the focus, as VS Code's
 		md.hover = -1

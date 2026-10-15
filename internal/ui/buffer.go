@@ -233,7 +233,7 @@ func (p *preview) dispPos(c pos) pos {
 
 // unsaved is the editor's text when it differs from the file, "" otherwise.
 func (p *preview) unsaved() string {
-	if !p.dirty() {
+	if !p.dirty() || p.buf == nil { // a table's edits are not text
 		return ""
 	}
 
@@ -637,8 +637,13 @@ func (p *preview) toggleComment(m *Model) tea.Cmd {
 // save writes the file; a foreign write in the meantime asks first, and a
 // buffer with no file yet asks where it goes.
 func (p *preview) save(m *Model, force bool) tea.Cmd {
-	if p.composing { // ⌃s in the box at the end of a page of GitHub sends it
+	switch {
+	case p.composing: // ⌃s in the box at the end of a page of GitHub sends it
 		return p.ghSend(m, "")
+	case p.kind == pvTable && p.tbl != nil: // a table submits its edits
+		return p.tbl.submit(false)
+	case p.cell != nil && p.buf != nil: // a table cell's value goes back to it
+		return m.putCell(p)
 	}
 
 	if p.buf == nil {

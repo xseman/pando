@@ -9,6 +9,7 @@ The user guide. Settings: [06-config.md](06-config.md); keys:
 - [Resume](#resume)
 - [Review and commit](#review-and-commit)
 - [GitHub](#github)
+- [Databases](#databases)
 - [Editor](#editor)
 - [Settings, keys, updates](#settings-keys-updates)
 - [CLI](#cli)
@@ -241,6 +242,54 @@ behind it, and so is a list older than five minutes; `ctrl+r` or any action
 fetches at once. A page shown from memory says how old it is beside Refresh.
 
 ![pull requests with their checks, one opened as its rendered description and as a diff, then checked out in a worktree of its own](demo/github.gif)
+
+## Databases
+
+Shown when `sqlite3`, `psql` or `mariadb` (or `mysql`) is on the `PATH`
+(`7`): the SQLite files of the worktree, ignored ones too, the server its
+`.env`'s `DATABASE_URL` names, and the servers you name in config.toml, each
+unfolding to its tables and views. Opening a `.db` in Explorer or quick open
+shows it there.
+
+```toml
+[databases]
+local = "postgres://app@localhost:5432/app"
+shop  = "mariadb://root@127.0.0.1:3306/shop"
+```
+
+`n` (or `+` in the view's header) adds one in a form, as DataGrip's Data
+Source: type, host, port, user, password, database and options
+(`sslmode=require`); `ctrl+t` tests it, `⏎` saves it to `[databases]`. `e`
+edits one, `D` removes it. Save: Forever keeps the password in the system
+keyring (GNOME Keyring, KWallet, macOS Keychain), Until restart only while
+pando runs; the form never writes one into config.toml, and one you wrote
+into a URL yourself stays there. Without one, a password in `~/.pgpass` or
+`~/.my.cnf` works too, and pando asks when the server wants one. `t` opens
+the client itself (`psql`, `mariadb`, `sqlite3`) in the Terminal panel, for
+any other SQL.
+
+A table opens in an editor tab as a grid, 200 rows a page, `[` `]` for the
+next ones. Type SQL into WHERE (`ctrl+f`) and ORDER BY (`tab`) and press `⏎`;
+`s` or a click on a column's header sorts by it. A server table of more than
+100 000 rows shows the server's estimate, `~N`, until Count Rows counts them;
+`esc` stops a slow read. The status bar names the cursor's column and type.
+MariaDB timestamps show in UTC.
+
+| Key              | Does                                                      |
+| ---------------- | --------------------------------------------------------- |
+| `⏎`              | edits the cell; a long or multi-line one in an editor tab |
+| `o` `ctrl+d` `d` | adds, duplicates, deletes a row                           |
+| `u`              | reverts the cell, else a deletion or an added row         |
+| `ctrl+s`         | submits every edit in one transaction                     |
+| `m`              | Set NULL, Revert All, Show Pending SQL, Open Console      |
+
+`shift+↑` `shift+↓` select rows: `d`, `u`, `y` (as TSV) and Set NULL then take them all.
+
+Edits wait, marked `M`, `A` or `D`, until `ctrl+s` writes them all or none.
+A cell someone changed since the page was read stops the submit (a Postgres
+table without a primary key: any change to its row), and so does a row gone;
+`u` reverts the edit and `r` reads the row as it is now. A view, a generated
+column and a blob are read only.
 
 ## Editor
 

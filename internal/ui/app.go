@@ -37,14 +37,15 @@ const (
 	viewTerm
 	viewSession // the agent session, docked beside the editor instead of over it
 	viewGitHub  // pull requests, issues and notifications through gh, where it is installed
+	viewDB      // the worktree's SQLite files and the servers it names, through their clients, where one is installed
 )
 
 var (
-	viewTitles = []string{"Explorer", "Source Control", "Spaces", "Search", "Terminal", "Session", "GitHub"}
-	viewKeys   = []string{"files", "git", "agents", "search", "terminal", "session", "github"} // values of settings.left and settings.right
+	viewTitles = []string{"Explorer", "Source Control", "Spaces", "Search", "Terminal", "Session", "GitHub", "Databases"}
+	viewKeys   = []string{"files", "git", "agents", "search", "terminal", "session", "github", "databases"} // values of settings.left and settings.right
 	// showKeys show each view from anywhere where there is such a key, else
 	// from a sidebar: the Terminal's toggles the panel, the session's is none.
-	showKeys = []string{"^⇧e", "^⇧g", "3", "^⇧f", "^`", "", "6"}
+	showKeys = []string{"^⇧e", "^⇧g", "3", "^⇧f", "^`", "", "6", "7"}
 )
 
 // hasGH reports gh on the PATH, which the GitHub view needs; tests turn it off.
@@ -140,14 +141,15 @@ type Model struct {
 	wss         []proto.Workspace
 	sessions    []proto.Session
 	ws, sess    string
-	focus       int               // a column index or onMain
-	recent      []int             // per view: when it was last shown; a column shows its most recent tab
-	savedWs     string            // the workspace the daemon was last told about
-	savedEds    proto.Editors     // the open editors the daemon was last told about
-	savedTerm   proto.Terminal    // the workspace's Terminal panel, as this TUI last told the daemon
-	savedSess   proto.SessionView // the workspace's session place and width, as this TUI last told the daemon
-	savedDrafts map[string]string // per draft key: the unsaved text the daemon was last told about
-	branchSeen  string            // the open worktree's branch the worktree list was last reloaded for
+	focus       int                  // a column index or onMain
+	recent      []int                // per view: when it was last shown; a column shows its most recent tab
+	savedWs     string               // the workspace the daemon was last told about
+	savedEds    proto.Editors        // the open editors the daemon was last told about
+	waiting     map[string][]preview // table tabs with edits, and cell editors typed in, left in a workspace: no draft keeps them
+	savedTerm   proto.Terminal       // the workspace's Terminal panel, as this TUI last told the daemon
+	savedSess   proto.SessionView    // the workspace's session place and width, as this TUI last told the daemon
+	savedDrafts map[string]string    // per draft key: the unsaved text the daemon was last told about
+	branchSeen  string               // the open worktree's branch the worktree list was last reloaded for
 	ticks       int
 	clock       int      // counter behind recent
 	files       []string // files opened, most recent first, for quick open
@@ -176,17 +178,19 @@ type Model struct {
 	// have opened the terminal panel. saidCtrlJ keeps the hint to once.
 	ambiguous bool
 	saidCtrlJ bool
-	tv        termPanel              // the Terminal panel's shell
-	termMax   bool                   // the panel fills the editor area (⌃⇧↑)
-	maxed     bool                   // the docked session or the file fills the editor area (the strip's button): preview says which; saved with the session view
-	fileLast  bool                   // of the file and the session, the file had the keyboard last: it shows when they share the editor area for room
-	filters   [viewGitHub + 1]filter // per view
+	tv        termPanel          // the Terminal panel's shell
+	termMax   bool               // the panel fills the editor area (⌃⇧↑)
+	maxed     bool               // the docked session or the file fills the editor area (the strip's button): preview says which; saved with the session view
+	fileLast  bool               // of the file and the session, the file had the keyboard last: it shows when they share the editor area for room
+	filters   [viewDB + 1]filter // per view
 	gh        ghView
 	ghPages   map[string]ghCached        // the pages of pull requests and issues seen, shown again while they are fetched
 	ghDrafts  map[string]*textarea.Model // each page's comment box, kept with what was typed in it when the page closes
 	ghUser    string                     // who gh is signed in as: the comments that tag them are marked
 	hasGH     bool                       // gh is installed: the GitHub view shows
-	mouseX    int                        // last mouse position (content rows) for hover
+	db        dbView
+	hasDB     bool // a database client is installed: the Databases view shows
+	mouseX    int  // last mouse position (content rows) for hover
 	mouseY    int
 	overBar   barPoint  // the scrollbar cell under the mouse: its slider hovers
 	overTab   string    // the tab under the mouse, in any strip: its chip hovers
@@ -414,6 +418,7 @@ func New(st proto.State, wss []proto.Workspace, ss []proto.Session, ws string, e
 		inputs: make(chan proto.InputParams, 512), mouseY: -1, edIdx: -1, navAt: -1, sashAt: noSash,
 		ambiguous: true, // until the terminal answers that it disambiguates keys
 		hasGH:     hasGH(),
+		hasDB:     hasDB(),
 	}
 	for i := range m.filters {
 		m.filters[i] = newFilter()
@@ -680,8 +685,12 @@ func (m *Model) allCols() []col {
 		out = removeView(out, viewGitHub)
 	}
 
+	if !m.hasDB {
+		out = removeView(out, viewDB)
+	}
+
 	for v, ok := range seen {
-		if view(v) == viewGitHub && !m.hasGH {
+		if view(v) == viewGitHub && !m.hasGH || view(v) == viewDB && !m.hasDB {
 			continue
 		}
 
@@ -1282,6 +1291,8 @@ func (m *Model) listBar(v view, y int) (listBar, bool) {
 	switch v {
 	case viewFiles:
 		b = listBar{geo: func() vbar { return vbar{len(m.ex.nodes), m.bodyH(viewFiles), m.ex.l.top} }, to: func(top int) tea.Cmd { m.ex.l.top = top; return nil }}
+	case viewDB:
+		b = listBar{geo: func() vbar { return vbar{len(m.db.rows(m)), m.bodyH(viewDB), m.db.l.top} }, to: func(top int) tea.Cmd { m.db.l.top = top; return nil }}
 	case viewAgents:
 		return m.ag.bar(m, y)
 	case viewGitHub:
@@ -1393,6 +1404,8 @@ func (m *Model) showView(v view) tea.Cmd {
 		return tea.Batch(m.scm.loadDrawers(m), m.fetchScreen())
 	case viewGitHub:
 		return tea.Batch(m.gh.ensure(m), m.fetchScreen())
+	case viewDB:
+		return tea.Batch(m.db.ensure(m), m.fetchScreen())
 	default:
 		return m.fetchScreen()
 	}
@@ -2024,10 +2037,10 @@ func (m *Model) terminalItems() []item {
 }
 
 // dirtyEditors counts the open editors with unsaved text.
-func (m *Model) dirtyEditors() int {
-	n := b2i(m.pv.dirty())
+func (m *Model) dirtyEditors() int { // a table's edits and a cell's value are tableEdits
+	n := b2i(m.pv.dirty() && m.pv.tbl == nil && m.pv.cell == nil)
 	for _, e := range m.editors {
-		if e.dirty() && e.id() != m.pv.id() {
+		if e.dirty() && e.tbl == nil && e.cell == nil && e.id() != m.pv.id() {
 			n++
 		}
 	}
@@ -2039,12 +2052,12 @@ func (m *Model) dirtyEditors() int {
 // Untitled buffers are skipped — a bulk save cannot stop to ask where each
 // one goes — and stay safe as drafts.
 func (m *Model) saveAll() {
-	if m.pv.dirty() && !m.pv.untitled() {
+	if m.pv.dirty() && !m.pv.untitled() && m.pv.buf != nil {
 		_ = m.pv.buf.save(m.pv.path, false) // best effort on the way out
 	}
 
 	for _, e := range m.editors {
-		if e.dirty() && !e.untitled() {
+		if e.dirty() && !e.untitled() && e.buf != nil { // a table's edits are submitted, not saved
 			_ = e.buf.save(e.path, false) // best effort on the way out
 		}
 	}
@@ -2223,6 +2236,11 @@ func (m *Model) headerActions(s int, v view, w int) []titleAction {
 		add(icRefresh, "Refresh  ^r", m.gh.refresh)
 		add(icCollapse, "Collapse All  C", func(m *Model) tea.Cmd { m.gh.collapseAll(); return nil })
 
+	case viewDB:
+		add(icAdd, "New Connection…  n", m.db.newConn)
+		add(icRefresh, "Refresh  r", m.db.refresh)
+		add(icCollapse, "Collapse All  C", func(m *Model) tea.Cmd { m.db.collapseAll(); return nil })
+
 	case viewAgents:
 		add(icAdd, "New Session…  n", func(m *Model) tea.Cmd { return m.ag.newSession(m, m.ag.selected(m)) })
 		add(icResume, "Resume Session…", func(m *Model) tea.Cmd { return m.ag.resume(m, m.ag.selected(m)) })
@@ -2306,6 +2324,12 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 	saved := tea.Batch(unfolded, m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts()) // the maximized one and the panel's too
 	m.savedDrafts = nil
 	open := m.termOpen()
+
+	if m.waiting == nil {
+		m.waiting = map[string][]preview{}
+	}
+
+	m.waiting[m.ws] = slices.DeleteFunc(slices.Clone(m.editors), func(e preview) bool { return !unsent(e) }) // until it shows again
 	m.scm.cmps[m.ws] = m.scm.cmp
 	m.ws = path
 	m.ex.setRoot(m, path)
@@ -2332,6 +2356,14 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 	}
 
 	restored := m.restoreEditors()
+	if back := m.waiting[path]; len(back) > 0 { // the tables and values it left unsent, after its files
+		delete(m.waiting, path)
+		m.editors = append(m.editors, back...)
+
+		if m.edIdx < 0 {
+			restored = m.restore(back[0])
+		}
+	}
 	// As the workspace was left, a restart too: the session or a file
 	// maximized, which the restored tabs do not undo; else a session over
 	// the editor is what shows, the tabs waiting in the strip.
@@ -2353,7 +2385,7 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 		m.fixFocus()
 	}
 
-	return tea.Batch(saved, restored, m.loadDrafts(), m.ensureTerm(), hub)
+	return tea.Batch(saved, restored, m.loadDrafts(), m.ensureTerm(), hub, m.db.shown(m))
 }
 
 // nextTab is the session a closed tab hands its focus to: the tab left of it,
@@ -2554,7 +2586,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		m.ex.rebuild(m)
 		m.scm.fit(m) // the box learns its width when drawn: a resize rewraps it
-		cmds := []tea.Cmd{tick(), m.blink(), m.refreshGit(), m.pv.reloadIfLive(m), m.scm.saveDraft(m), m.scm.loadDrawers(m), m.gh.shown(m), m.saveWorkspace(), m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts()}
+		cmds := []tea.Cmd{tick(), m.blink(), m.refreshGit(), m.pv.reloadIfLive(m), m.scm.saveDraft(m), m.scm.loadDrawers(m), m.gh.shown(m), m.db.shown(m), m.saveWorkspace(), m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts()}
 		// ponytail: other projects' branches come back every 30 s, one git call
 		// per project; watch their HEADs if that lags.
 		m.ticks++
@@ -2697,6 +2729,39 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ghMsg:
 		m.gh.onMsg(m, msg)
 		return m, nil
+
+	case dbFilesMsg:
+		m.db.onFiles(m, msg)
+		return m, nil
+
+	case dbObjsMsg:
+		return m, m.db.onObjs(m, msg)
+
+	case tableMsg:
+		return m, m.onTableLoad(msg)
+	case connTestMsg:
+		msg.f.onTest(msg)
+		return m, nil
+
+	case tableDoneMsg:
+		return m, m.onTableDone(msg)
+
+	case dbPasswordMsg:
+		m.db.sync(m)
+
+		if msg.pw != "" {
+			m.db.passwords[msg.id] = msg.pw
+		}
+
+		cmd := m.db.read(m, msg.id)
+		if msg.err != nil {
+			cmd = tea.Batch(cmd, flash("keyring: "+errLine(msg.err.Error()), true))
+		}
+
+		return m, cmd
+
+	case consoleMsg:
+		return m, tea.Batch(m.showTerminal(), m.spawn(m.ws, termAgent, m.rootOf(m.sess), msg.argv, "", nil))
 
 	case ghDoneMsg:
 		return m, m.gh.onDone(m, msg)
@@ -2844,6 +2909,8 @@ func (m *Model) paste(msg tea.PasteMsg) tea.Cmd {
 	t, id := m.focusedTerm()
 
 	switch {
+	case m.modal != nil && m.modal.form != nil:
+		cmd = m.modal.form.paste(msg)
 	case m.modal != nil && m.modal.hasInput():
 		m.modal.input, cmd = m.modal.input.Update(msg)
 		if m.modal.filter {
@@ -2861,6 +2928,10 @@ func (m *Model) paste(msg tea.PasteMsg) tea.Cmd {
 	case m.pv.composing && m.focus == onMain:
 		*m.pv.compose, cmd = m.pv.compose.Update(msg)
 		m.pv.relayout(m)
+
+	case m.pv.tableBox() && m.focus == onMain:
+		in := m.pv.tbl.input()
+		*in, cmd = in.Update(msg)
 
 	case m.pv.find.editing && m.pv.repl.Focused():
 		m.pv.repl, cmd = m.pv.repl.Update(msg)
@@ -3044,11 +3115,14 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 	case "q":
 		return m.confirmQuit()
 	case "ctrl+c":
-		if v == viewFiles { // Explorer's Copy, as VS Code's; q and esc still quit
+		switch {
+		case v == viewFiles: // Explorer's Copy, as VS Code's; q and esc still quit
 			break
+		case m.tableEdits() > 0: // no draft keeps them: ask, as q does
+			return m.confirmQuit()
+		default:
+			return tea.Sequence(m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts(), tea.Quit)
 		}
-
-		return tea.Sequence(m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts(), tea.Quit)
 
 	case "1", "2", "3", "4":
 		cmd := m.showView(view(s[0] - '1'))
@@ -3065,6 +3139,13 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 
 		return m.showView(viewGitHub)
 
+	case "7":
+		if !m.hasDB {
+			return nil
+		}
+
+		return m.showView(viewDB)
+
 	case "ctrl+f":
 		if v == viewSearch {
 			return m.sr.focus()
@@ -3079,7 +3160,7 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 		return nil
 
 	case "?":
-		m.modal = helpModal(m.hasGH)
+		m.modal = helpModal(m.hasGH, m.hasDB)
 		return nil
 
 	case "b":
@@ -3125,6 +3206,8 @@ func (m *Model) viewKey(v view, k tea.KeyPressMsg) tea.Cmd {
 		return m.sr.key(m, k)
 	case viewGitHub:
 		return m.gh.key(m, k)
+	case viewDB:
+		return m.db.key(m, k)
 	default: // Agents; the Terminal and the session are handled before here.
 		return m.ag.key(m, k)
 	}
@@ -3166,6 +3249,8 @@ func (m *Model) refilter(v view) {
 
 	case viewGitHub:
 		m.gh.l.top = 0
+	case viewDB:
+		m.db.l.top = 0
 	default:
 		m.ag.l.top = 0
 	}
@@ -3681,6 +3766,8 @@ func (m *Model) viewMouse(v view, msg tea.MouseMsg, x, y int) tea.Cmd {
 
 	case viewGitHub:
 		return m.gh.mouse(m, msg, y)
+	case viewDB:
+		return m.db.mouse(m, msg, y)
 	default: // Agents.
 		return m.ag.mouse(m, msg, x, y)
 	}
@@ -4210,18 +4297,7 @@ func (m *Model) sidebarBody(s, w int) []string {
 	}
 
 	if f := &m.filters[active]; f.on { // a framed box, as Search's
-		edge := fg(pal.inputBorder)
-		if f.editing {
-			edge = fg(pal.accent)
-		}
-
-		box, side, field := lipgloss.NewStyle().Background(pal.inputBg), edge.Background(pal.inputBg), max(w-6, 1)
-
-		f.input.SetStyles(inputStyles(m.dark))
-		f.input.SetWidth(field)
-		text := ansi.Truncate(realCaret(f.input.View()), field, "")
-		text += box.Render(blank(field - ansi.StringWidth(text)))
-		out = append(out, frameLine(w, 1, "▁", edge), " "+side.Render("▏")+box.Render(" "+text+" ")+side.Render("▕")+" ", frameLine(w, 1, "▔", edge))
+		out = append(out, framedBox(&f.input, w, f.editing, m.dark)...)
 	}
 
 	h := m.bodyH(active)
@@ -4238,6 +4314,8 @@ func (m *Model) sidebarBody(s, w int) []string {
 		out = append(out, m.sessionLines(w, h)...)
 	case viewGitHub:
 		out = append(out, m.gh.lines(m, w, h)...)
+	case viewDB:
+		out = append(out, m.db.lines(m, w, h)...)
 	default:
 		out = append(out, m.ag.lines(m, w, h)...)
 	}
@@ -4456,7 +4534,7 @@ func (m *Model) vertTabs(s int) []tab {
 }
 
 func (m *Model) viewHeader(s int, v view, w int) string {
-	title := []string{strings.ToUpper(filepath.Base(m.ws)), "SOURCE CONTROL", "SPACES", "SEARCH", "TERMINAL", "SESSION", "GITHUB"}[v]
+	title := []string{strings.ToUpper(filepath.Base(m.ws)), "SOURCE CONTROL", "SPACES", "SEARCH", "TERMINAL", "SESSION", "GITHUB", "DATABASES"}[v]
 
 	var right []seg
 
@@ -4604,7 +4682,11 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 		add(" "+m.fx.text("results", strconv.Itoa(n))+strings.TrimPrefix(plural(n, "result"), strconv.Itoa(n))+" ", dim, "Show Search  ^⇧f", searchRun)
 	}
 
-	if m.showsPreview() && m.pv.md != 1 && !m.pv.scrollOnly(m) {
+	if m.showsPreview() && m.pv.tbl != nil && m.pv.tbl.column() != "" { // the cursor's column, where a file's cursor is
+		add(" "+m.pv.tbl.column()+" ", dim, "", nil)
+	}
+
+	if m.showsPreview() && m.pv.md != 1 && !m.pv.scrollOnly(m) && m.pv.kind != pvTable {
 		// VS Code's editor items: the cursor, going to a line; a file's
 		// indentation, changing it. A rendering has no cursor to show.
 		c := m.pv.at()
@@ -4896,9 +4978,10 @@ var hotkeys = map[view][][2]string{
 	viewSearch: {{"^f /", "query"}, {"^h", "replace"}, {"r R", "replace file/all"}, {"⏎", "open"}, {"↑↓", "move"}, {"←→", "fold"}, {"M-c", "case"}, {"M-w", "word"}, {"M-r", "regex"}, {"^r", "rerun"}, {"x", "clear"}, {"C", "collapse"}},
 	viewAgents: {{"↑↓", "move"}, {"M-↑↓", "reorder"}, {"⏎", "switch"}, {"n", "session"}, {"w", "worktree"}, {"a", "project"}, {"x", "kill"}, {"o", "view options"}, {"^f", "filter"}},
 	viewGitHub: {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"d", "changes"}, {"o", "on github.com"}, {"y", "copy link"}, {"w", "worktree"}, {"x", "done"}, {"^r", "refresh"}, {"C", "collapse"}, {"^f", "filter"}},
+	viewDB:     {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"n", "new connection"}, {"e D", "edit/remove"}, {"c y", "copy name/path"}, {"r", "refresh"}, {"C", "collapse"}, {"^f", "filter"}},
 }
 
-var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4 6", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"M-t", "agents"}, {"^tab", "editors"}, {"^⇧pgup ^⇧pgdn", "move tab"}, {"^f", "find"}, {"M-, M-.", "back/forward"}, {"[ ]", "sessions"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"esc q", "quit"}}
+var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4 6 7", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"M-t", "agents"}, {"^tab", "editors"}, {"^⇧pgup ^⇧pgdn", "move tab"}, {"^f", "find"}, {"M-, M-.", "back/forward"}, {"[ ]", "sessions"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"esc q", "quit"}}
 
 var previewKeys = [][2]string{{"↑↓", "move"}, {"⇧↑↓", "select"}, {"^a", "all"}, {"y", "copy"}, {"s", "split diff"}, {"m", "stage/revert lines"}, {"w", "wrap"}, {"^f", "find"}, {"^h", "replace"}, {"^g", "go to line"}, {"f12", "definition"}, {"⇧f12", "references"}, {"^.", "code action"}, {"e", "edit"}, {"q", "close"}}
 
@@ -5061,6 +5144,10 @@ func (m *Model) viewItems() []item {
 		items = append(items, item{label: "Show GitHub", hint: "6", run: show(viewGitHub)})
 	}
 
+	if m.hasDB {
+		items = append(items, item{label: "Show Databases", hint: "7", run: show(viewDB)})
+	}
+
 	for _, it := range m.terminalItems() {
 		if it.label != "Close Terminal" {
 			items = append(items, it)
@@ -5087,7 +5174,7 @@ func (m *Model) viewItems() []item {
 		{label: "Focus Sidebar", hint: "^0", run: func(m *Model) tea.Cmd { return m.focusSidebar() }},
 		{label: "Toggle Sidebars", hint: "^b", run: func(m *Model) tea.Cmd { return m.toggleSidebars() }},
 		{label: "Open Settings", hint: "^,", run: func(m *Model) tea.Cmd { m.modal = settingsModal(m); return nil }},
-		{label: "Keyboard Shortcuts", hint: "?", run: func(m *Model) tea.Cmd { m.modal = helpModal(m.hasGH); return nil }},
+		{label: "Keyboard Shortcuts", hint: "?", run: func(m *Model) tea.Cmd { m.modal = helpModal(m.hasGH, m.hasDB); return nil }},
 		{label: "Quit", hint: "q", run: func(m *Model) tea.Cmd { return m.confirmQuit() }},
 	}...)
 	if m.pv.kind != "" || m.sess != "" {
@@ -5141,6 +5228,10 @@ func (m *Model) commands() []item {
 
 	if m.hasGH {
 		add("GitHub", m.gh.items(m))
+	}
+
+	if m.hasDB {
+		add("Databases", m.db.items(m))
 	}
 
 	if m.showsPreview() {
@@ -5210,7 +5301,7 @@ func (m *Model) runKey(key string) (tea.Cmd, bool) {
 
 // typing reports a focused text input, where keys are text, not commands.
 func (m *Model) typing() bool {
-	return m.scm.input.Focused() || m.sr.editing() || m.pv.find.editing || m.pv.composing && m.focus == onMain ||
+	return m.scm.input.Focused() || m.sr.editing() || m.pv.find.editing || m.pv.composing && m.focus == onMain || m.pv.tableBox() && m.focus == onMain ||
 		slices.ContainsFunc(m.filters[:], func(f filter) bool { return f.editing })
 }
 
@@ -5240,22 +5331,31 @@ func CommandIDs(w io.Writer, cwd string) {
 }
 
 // confirmQuit is the popup esc and q go through, so neither closes pando by
-// accident. ⌃c still quits at once.
+// accident. ⌃c quits at once, unless table edits, which no draft keeps,
+// would go with it.
 func (m *Model) confirmQuit() tea.Cmd {
-	title := "Close pando?"
+	title, kept := "Close pando?", "unsaved text is kept"
 	if n := m.dirtyEditors(); n > 0 { // unsaved text would go with it
 		title = fmt.Sprintf("Close pando? %s unsaved", plural(n, "file"))
 	}
 
+	if n := m.tableEdits(); n > 0 { // and table edits are lost: no draft keeps them
+		title, kept = fmt.Sprintf("%s · %s not submitted", title, plural(n, "table change")), ifElse(m.dirtyEditors() > 0, kept+", table changes are lost", "table changes are lost")
+	}
+
 	m.modal = newDialog(title,
-		item{label: "Close", hint: "unsaved text is kept", run: func(m *Model) tea.Cmd {
+		item{label: "Close", hint: kept, run: func(m *Model) tea.Cmd {
 			return tea.Sequence(m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts(), tea.Quit)
 		}},
-		item{label: "Save all and close", hint: "", run: func(m *Model) tea.Cmd {
+		item{label: "Save all and close", hint: ifElse(m.tableEdits() > 0, "files saved, table changes lost: submit them first", ""), run: func(m *Model) tea.Cmd { // a submit is no save: it can fail
 			m.saveAll()
 			return tea.Sequence(m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts(), tea.Quit)
 		}},
 		cancelItem())
+
+	if m.tableEdits() > 0 { // a hasty ⏎ keeps them: Cancel has the keyboard
+		m.modal.l.sel = len(m.modal.items) - 1
+	}
 
 	return nil
 }
@@ -5300,13 +5400,17 @@ func staleModal(sessions int) *modal {
 }
 
 // helpModal is the keys of every view; the GitHub view's where gh is
-// installed.
-func helpModal(gh bool) *modal {
+// installed, the Databases view's where a database client is.
+func helpModal(gh, dbs bool) *modal {
 	items := []item{heading("Everywhere")}
 
 	views := []view{viewFiles, viewGit, viewSearch, viewAgents}
 	if gh {
 		views = append(views, viewGitHub)
+	}
+
+	if dbs {
+		views = append(views, viewDB)
 	}
 
 	items = append(items, keyRows(globalKeys)...)
@@ -5317,6 +5421,12 @@ func helpModal(gh bool) *modal {
 
 	items = append(items, item{}, heading("Preview"))
 	items = append(items, keyRows(previewKeys)...)
+
+	if dbs {
+		items = append(items, item{}, heading("Table"))
+		items = append(items, keyRows(tableKeys)...)
+	}
+
 	items = append(items, item{}, item{label: dim.Render("drag a tab or a title to either side to dock it · right click it for more · drag │ to resize"), styled: true})
 
 	return newMenu("Keys", -1, 0, items...)

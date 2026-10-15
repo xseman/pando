@@ -40,9 +40,10 @@ Linux and macOS. The script verifies the binary against `CHECKSUMS.txt` and
 installs it to `~/.local/bin` (`PANDO_VERSION` pins a release,
 `PANDO_INSTALL_DIR` moves it). From source: `make install` (Go 1.26).
 
-Needs git. Optional: `gh` for GitHub, `rg` for search, language servers
-(`gopls`, …), the `claude` CLI for commit messages, and a Nerd Font for
-`icons = "nerd"` (_Symbols Nerd Font Mono_ as a fallback font is enough).
+Needs git. Optional: `gh` for GitHub, `rg` for search, `sqlite3` (3.37+),
+`psql` and `mariadb` (or `mysql`) for databases, language servers (`gopls`,
+…), the `claude` CLI for commit messages, and a Nerd Font for `icons =
+"nerd"` (_Symbols Nerd Font Mono_ as a fallback font is enough).
 
 ![the editor beside its file tree: gopls's references to Total in a peek under the code, the one in main.go picked and shown](docs/demo/lsp.png)
 
@@ -62,6 +63,11 @@ Needs git. Optional: `gh` for GitHub, `rg` for search, language servers
 - **GitHub**: with `gh` installed, pull requests, issues and notifications as
   VS Code's GitHub Pull Requests view lists them; a pull request opens in the
   editor or checks out in a worktree of its own.
+- **Databases**: the worktree's SQLite files, the server its `.env` names and
+  connections added in a form (Postgres, MariaDB, MySQL, SQLite; passwords in
+  the system keyring), their tables in a grid: filter, sort and page, then
+  edit cells and rows and submit them in one transaction, or open the client
+  in the terminal for the rest.
 - **Layout**: a terminal panel, draggable views and columns, VS Code's 2026
   themes, remappable keys.
 - **CLI and API**: JSON over a unix socket; self-update on Linux and macOS.

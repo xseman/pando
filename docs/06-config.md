@@ -44,6 +44,8 @@ config.toml edited ───────────┘  └─ "state" event �
   keys in it are logged.
 - A file that does not parse is kept; the last good values (at startup the
   defaults) stay and saving is refused until it is fixed.
+- A save keeps the file's mode: `chmod 600` it to keep a password written
+  into a `[databases]` URL private.
 
 ## Settings
 
@@ -100,18 +102,19 @@ rewrites the file: no line, never saved), a `settingsItems` toggle if any.
 
 ## Tables
 
-| Table          | Maps, and built-in defaults                                                         |
-| -------------- | ----------------------------------------------------------------------------------- |
-| `[keys]`       | key to command id, `""` unbinds                                                     |
-| `[colors]`     | palette key to `#rrggbb` or ANSI 0–255                                              |
-| `[lsp]`        | extension or language id to server; go, typescript, javascript built in             |
-| `[format]`     | extension or language id to formatter; go: `gofmt` built in                         |
-| `[profiles]`   | per preset, profile name to the `KEY=VALUE` a new session of it can run with        |
-| `[agents]`     | preset to a new session's command: claude, codex, gemini, opencode, shell, terminal |
-| `[resume]`     | program to its "continue last": claude, codex, opencode                             |
-| `[resume_id]`  | program to its "continue `{id}`": claude                                            |
-| `[resume_job]` | program to its "re-attach job `{id}`": claude                                       |
-| `[resume_env]` | program to the variables naming its config: `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, …    |
+| Table          | Maps, and built-in defaults                                                                                            |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `[keys]`       | key to command id, `""` unbinds                                                                                        |
+| `[colors]`     | palette key to `#rrggbb` or ANSI 0–255                                                                                 |
+| `[lsp]`        | extension or language id to server; go, typescript, javascript built in                                                |
+| `[format]`     | extension or language id to formatter; go: `gofmt` built in                                                            |
+| `[profiles]`   | per preset, profile name to the `KEY=VALUE` a new session of it can run with                                           |
+| `[databases]`  | name to a `postgres://`, `mariadb://`, `mysql://` or `sqlite:///path` URL the Databases view lists; its form writes it |
+| `[agents]`     | preset to a new session's command: claude, codex, gemini, opencode, shell, terminal                                    |
+| `[resume]`     | program to its "continue last": claude, codex, opencode                                                                |
+| `[resume_id]`  | program to its "continue `{id}`": claude                                                                               |
+| `[resume_job]` | program to its "re-attach job `{id}`": claude                                                                          |
+| `[resume_env]` | program to the variables naming its config: `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, …                                       |
 
 The last five replace the built-ins (an `[agents]` without `codex` drops it);
 the rest add. Resume: [01-architecture.md](01-architecture.md).
@@ -132,8 +135,8 @@ right = []
 ```
 
 Columns run from the screen edge toward main. Views: `files`, `git`, `agents`,
-`search`, `session`. A flat list is one column; an unlisted view joins the left
-column next to main.
+`search`, `session`, `github`, `databases`, `terminal`. A flat list is one
+column; an unlisted view joins the left column next to main.
 
 ## Keys
 

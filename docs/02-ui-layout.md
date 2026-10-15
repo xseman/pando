@@ -263,8 +263,11 @@ Editors, session tabs and Terminal shells share `strip.go`.
 
 ## Modals
 
-One at a time (`Model.modal`): menu, picker (fuzzy), prompt, or dialog
-(`newDialog`).
+One at a time (`Model.modal`): menu, picker (fuzzy), prompt, dialog
+(`newDialog`), or the Databases view's connection form (`modal.form`). Centered on the screen, or anchored (`x`, `y`) where the
+thing it acts on is, as rename over a symbol and a table's prompt over its
+cell; `area` keeps a box to some columns, a table's to the editor area, off a
+session docked beside it.
 
 ```text
 ╭ Select a branch or tag to checkout ─────────╮
