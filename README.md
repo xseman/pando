@@ -112,6 +112,10 @@ Every GIF below is pando itself, recorded by `make demo`.
 <td width="50%" valign="top"><img src="docs/demo/markdown.gif" alt="a README as source, rendered in place, then both side by side scrolling together" width="100%"><p align="center"><sub><b>Markdown.</b> Source, rendered, or both side by side scrolling together.</sub></p></td>
 <td width="50%" valign="top"><img src="docs/demo/cli.gif" alt="the CLI: a worktree, claude started in it, a prompt that blocks until the turn is over, and the diff it left" width="100%"><p align="center"><sub><b>CLI.</b> Everything a session does is a command, so a script or another agent can run one and wait for its turn to end. <a href="docs/usage.md#cli">More</a></sub></p></td>
 </tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/demo/databases.gif" alt="a SQLite table sorted, filtered and edited in a grid, the pending SQL submitted in one transaction, then sqlite3 in the terminal and the form that adds a server" width="100%"><p align="center"><sub><b>Databases.</b> SQLite, Postgres and MariaDB tables in a grid: filter, sort, edit, submit in one transaction. <a href="docs/usage.md#databases">More</a></sub></p></td>
+<td width="50%" valign="top"></td>
+</tr>
 </table>
 
 ## How it works

@@ -291,6 +291,8 @@ table without a primary key: any change to its row), and so does a row gone;
 `u` reverts the edit and `r` reads the row as it is now. A view, a generated
 column and a blob are read only.
 
+![a SQLite table sorted, filtered and edited in a grid, the pending SQL submitted in one transaction, then sqlite3 in the terminal and the form that adds a server](demo/databases.gif)
+
 ## Editor
 
 - Undo, find & replace, quick open (`ctrl+p`, recent files first,

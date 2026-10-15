@@ -110,11 +110,11 @@ tmux capture-pane -p -t gv                          # -e keeps colors
 Each GIF in `docs/demo` is its `*.tape` run by
 [VHS](https://github.com/charmbracelet/vhs) v0.10 or v0.11 (v0.12 writes no
 GIF, [vhs#787](https://github.com/charmbracelet/vhs/issues/787)). Also needs
-`ttyd`, `ffmpeg`, Chrome, `jq`, `gopls`, `claude`.
+`ttyd`, `ffmpeg`, Chrome, `jq`, `gopls`, `claude`, `sqlite3`.
 
 ```text
 make demo ─▶ make install          overwrites $(PREFIX)/bin/pando
-   ├─ PAR_TAPES, JOBS=4 at once    markdown lsp vim
+   ├─ PAR_TAPES, JOBS=4 at once    markdown lsp vim databases
    │    own /tmp/pando-<tape>/ repo and daemon
    └─ SEQ_TAPES, one at a time     cli diff edit github tui resume
         share /tmp/pando-demo (claude trusts it; its path is on screen)
@@ -130,6 +130,7 @@ make demo ─▶ make install          overwrites $(PREFIX)/bin/pando
 | `setup.tape`    | hidden start: clean env, fresh repo, `source cfg.sh`        |
 | `cfg.sh`        | `cfg <width> [preset…] [key=command…]`; `mode=light`        |
 | `gh/gh`         | fake gh for `github.tape`                                   |
+| `shop.sql`      | the made-up SQLite database of `databases.tape`             |
 
 Tape rules:
 

@@ -11,7 +11,7 @@ GOLANGCI ?= go run $(GOLANGCI_PKG)
 # at once. A serial tape cannot: it either runs claude, and a second directory
 # would be a second one to trust by hand, or it shows the repository's path on
 # screen, where /tmp/pando-demo is what belongs in the GIF.
-PAR_TAPES ?= markdown lsp vim
+PAR_TAPES ?= markdown lsp vim databases
 SEQ_TAPES ?= cli diff edit github tui resume
 JOBS ?= 4
 
@@ -38,7 +38,7 @@ fmt:
 	$(GOFUMPT) -w .
 
 # Needs vhs v0.10 or v0.11 (v0.12 records but writes no GIF: vhs#787),
-# ttyd, ffmpeg, a Chrome, jq, gopls and claude. One tape: make demo-lsp.
+# ttyd, ffmpeg, a Chrome, jq, gopls, claude and sqlite3. One tape: make demo-lsp.
 demo: install docs/demo/bg.png
 	$(MAKE) -j$(JOBS) $(addprefix demo-,$(PAR_TAPES))
 	$(MAKE) $(addprefix demo-,$(SEQ_TAPES))
