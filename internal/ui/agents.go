@@ -64,7 +64,7 @@ func (a *agents) rows(m *Model) []agRow {
 	// Pinned is a pane of its own over the tree, its border the gap.
 	pins := a.pinnedRows(m, sessions, q)
 	if q == "" {
-		return append(pins, a.pinFolded(m, a.withGaps(out), a.pane(m, pins, m.bodyH(viewAgents)).lines)...)
+		return append(pins, a.pinFolded(m, a.withGaps(out), a.pane(pins, m.bodyH(viewAgents)).lines)...)
 	}
 
 	return append(matching(q, pins), a.withGaps(matching(q, out))...)
@@ -443,16 +443,15 @@ func (m *Model) togglePin(id string) tea.Cmd {
 	return do("state.set", map[string]any{"spaces_pinned": pins})
 }
 
-// pinPane is the Pinned pane over the tree, framed as VS Code's panel is: a
-// strip, a rule under it, the sessions, and the border it is resized by. n
-// is the rows it holds (the heading, then the worktrees and sessions), h
-// those in view, lines the view lines it takes. Zero without pins.
+// pinPane is the Pinned pane over the tree: a strip, the sessions, and a
+// heavy border under them, set apart from the tree's rules. n is the rows it holds (the heading, then the worktrees and
+// sessions), h those in view, lines the view lines it takes. Zero without
+// pins.
 type pinPane struct{ n, h, lines int }
 
 // pane is the Pinned pane of rows in a view h lines high: as tall as its
-// sessions, at most spaces_pinned_height (unset, a third of the view), and
-// leaving the tree a line.
-func (a *agents) pane(m *Model, rows []agRow, h int) pinPane {
+// rows, at most a third of the view, past that it scrolls.
+func (a *agents) pane(rows []agRow, h int) pinPane {
 	if len(rows) == 0 || rows[0].kind != agTime || rows[0].when != pinnedHead {
 		return pinPane{}
 	}
@@ -462,9 +461,8 @@ func (a *agents) pane(m *Model, rows []agRow, h int) pinPane {
 		p.n++
 	}
 
-	if p.h = max(min(p.n-1, cmp.Or(max(m.st.Settings.SpPinH, 0), h/3), h-4), 0); p.h > 0 {
-		p.lines += 1 + p.h // the rule and the sessions
-	}
+	p.h = max(min(p.n-1, h/3), 0)
+	p.lines += p.h // the sessions
 
 	return p
 }
@@ -472,7 +470,7 @@ func (a *agents) pane(m *Model, rows []agRow, h int) pinPane {
 // rowAt is the row of rows on line y of the view, -1 on none: the rule, the
 // border, past the end.
 func (a *agents) rowAt(m *Model, rows []agRow, y int) int {
-	p := a.pane(m, rows, m.bodyH(viewAgents))
+	p := a.pane(rows, m.bodyH(viewAgents))
 
 	switch {
 	case y < 0:
@@ -480,7 +478,7 @@ func (a *agents) rowAt(m *Model, rows []agRow, y int) int {
 	case y == 0 && p.n > 0:
 		return 0
 	case y < p.lines:
-		if i := y - 1 + a.ptop; y >= 2 && y < 2+p.h && i < p.n {
+		if i := y + a.ptop; y >= 1 && y < 1+p.h && i < p.n {
 			return i
 		}
 
@@ -497,7 +495,7 @@ func (a *agents) rowAt(m *Model, rows []agRow, y int) int {
 // snap scrolls the selection into view: the Pinned pane's or the tree's.
 func (a *agents) snap(m *Model) {
 	rows, h := a.rows(m), m.bodyH(viewAgents)
-	p := a.pane(m, rows, h)
+	p := a.pane(rows, h)
 
 	switch {
 	case a.l.sel < 0:
@@ -519,7 +517,7 @@ func (a *agents) bar(m *Model, y int) (listBar, bool) {
 	geo := func() (pinPane, int) {
 		rows := a.rows(m)
 
-		return a.pane(m, rows, h), len(rows)
+		return a.pane(rows, h), len(rows)
 	}
 
 	p, _ := geo()
@@ -529,8 +527,8 @@ func (a *agents) bar(m *Model, y int) (listBar, bool) {
 		return vbar{n - p.n, h - p.lines, a.l.top}
 	}, to: func(top int) tea.Cmd { a.l.top = top; return nil }}
 
-	if y >= 2 && y < 2+p.h {
-		b = listBar{id: "list:agents:pinned", row: y - 2, geo: func() vbar {
+	if y >= 1 && y < 1+p.h {
+		b = listBar{id: "list:agents:pinned", row: y - 1, geo: func() vbar {
 			p, _ := geo()
 
 			return vbar{p.n - 1, p.h, a.ptop}
@@ -540,26 +538,6 @@ func (a *agents) bar(m *Model, y int) (listBar, bool) {
 	g := b.geo()
 
 	return b, g.on() && b.row >= 0 && b.row < g.h
-}
-
-// dragPane moves the Pinned pane's border, VS Code's sash under a pane: the
-// height it reaches is the most the pane takes, saved on release.
-func (a *agents) dragPane(m *Model, d *drag, y int, release bool) tea.Cmd {
-	if release {
-		m.drag = nil
-
-		if !d.moved {
-			return nil
-		}
-
-		return m.setSettings(map[string]any{"spaces_pinned_height": m.st.Settings.SpPinH})
-	}
-
-	if d.moved = d.moved || y != d.y0; d.moved {
-		m.st.Settings.SpPinH = max(d.h0+y-d.y0, 1) // pane keeps it inside the view
-	}
-
-	return nil
 }
 
 // pinLabel is the menu item that pins session id, or unpins it.
@@ -837,7 +815,7 @@ func groupGlyph(ss []proto.Session) (string, color.Color) {
 
 func (a *agents) lines(m *Model, w, h int) []string {
 	rows := a.rows(m)
-	p := a.pane(m, rows, h)
+	p := a.pane(rows, h)
 
 	slot, mark, band := a.dropSlot(m, rows) // the drop mark takes rows of its own, in the tree
 	n := len(rows) - p.n + mark             // the tree's, under the Pinned pane
@@ -1034,16 +1012,10 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			body.clamp(p.n-1, p.h)
 			a.ptop = body.top
 
-			out = append(out, ruleRow(w, nil))
-			out = append(out, body.render(w, p.h, p.n-1, func(i, rw int) string { return draw(1+i, 2+i-body.top, rw) })...)
+			out = append(out, body.render(w, p.h, p.n-1, func(i, rw int) string { return draw(1+i, 1+i-body.top, rw) })...)
 		}
 
-		border := ruleRow(w, nil)
-		if st, ok := m.sashStyle(paneSash(viewAgents, pinnedHead)); ok {
-			border = ruleRow(w, nil, st)
-		}
-
-		out = append(out, border)
+		out = append(out, ruleRow(w, nil, fg(pal.tabBorder))) // its border: heavy, a shade over the tree's rules
 	}
 
 	if slot >= 0 {
@@ -1908,11 +1880,11 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 	rows := a.rows(m)
 	h := m.bodyH(viewAgents)
 
-	p := a.pane(m, rows, h)
+	p := a.pane(rows, h)
 
 	switch msg.(type) {
 	case tea.MouseWheelMsg:
-		if y >= 2 && y < 2+p.h { // over the pinned sessions
+		if y >= 1 && y < 1+p.h { // over the pinned sessions
 			l := list{top: a.ptop}
 			l.wheel(wheelDelta(mo), p.n-1, p.h)
 			a.ptop = l.top
@@ -1921,11 +1893,6 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 		}
 
 	case tea.MouseClickMsg:
-		if p.n > 0 && y == p.lines-1 && mo.Button == tea.MouseLeft { // the border: a drag resizes Pinned
-			m.drag = &drag{kind: dragPane, v: viewAgents, pane: pinnedHead, y0: mo.Y, h0: p.h}
-			return nil
-		}
-
 		i := a.rowAt(m, rows, y)
 		if i < 0 || rows[i].kind == agGap {
 			return nil
@@ -2020,7 +1987,7 @@ func (a *agents) dragRowTo(m *Model, d *drag, y int, release bool) tea.Cmd {
 func (a *agents) dropOn(m *Model, d *drag) string {
 	rows, y := a.rows(m), m.hoverRow(viewAgents)
 
-	p := a.pane(m, rows, m.bodyH(viewAgents))
+	p := a.pane(rows, m.bodyH(viewAgents))
 	if y >= 0 && y < p.lines { // nothing drops into Pinned
 		return ""
 	}

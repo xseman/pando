@@ -77,7 +77,6 @@ config.toml edited ───────────┘  └─ "state" event �
 | `spaces_sort`          | `created`   | `created`, `updated` (last output)                                             |
 | `spaces_group`         | `workspace` | `workspace`, `time` (Today, Yesterday, …)                                      |
 | `spaces_project_sort`  | `manual`    | `manual` (drag, `alt+↑↓`), `updated` (sessions' last output)                   |
-| `spaces_pinned_height` | `0`         | the most rows Spaces' Pinned pane grows to (drag its border); `0` a third      |
 | `spaces_hide`          | `[]`        | states left out: `blocked` `running` `done` `idle` `exited`                    |
 | `sounds`               | `true`      | sound for a session out of view                                                |
 | `sound_done`           | desktop     | file on finish; `""`: bell                                                     |

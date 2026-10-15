@@ -84,11 +84,10 @@ type Settings struct {
 	Tips      bool                `json:"tooltips" toml:"tooltips"`                   // an icon button the pointer rests on names itself and its key in a box
 	SoundDone string              `json:"sound_done" toml:"sound_done"`               // the files played, "" for the terminal bell
 	SoundReq  string              `json:"sound_request" toml:"sound_request"`
-	SpSort    string              `json:"spaces_sort" toml:"spaces_sort"`                   // Spaces sessions by "created" or "updated"
-	SpGroup   string              `json:"spaces_group" toml:"spaces_group"`                 // Spaces rows: "workspace" (the project tree) or "time" (Today, Yesterday, …)
-	SpProj    string              `json:"spaces_project_sort" toml:"spaces_project_sort"`   // Spaces projects in their "manual" order or by "updated" (their sessions' last output)
-	SpPinH    int                 `json:"spaces_pinned_height" toml:"spaces_pinned_height"` // the most rows Spaces' Pinned pane takes; 0 a third of the view
-	SpHide    []string            `json:"spaces_hide" toml:"spaces_hide"`                   // session states Spaces leaves out: blocked, running, done, idle, exited
+	SpSort    string              `json:"spaces_sort" toml:"spaces_sort"`                 // Spaces sessions by "created" or "updated"
+	SpGroup   string              `json:"spaces_group" toml:"spaces_group"`               // Spaces rows: "workspace" (the project tree) or "time" (Today, Yesterday, …)
+	SpProj    string              `json:"spaces_project_sort" toml:"spaces_project_sort"` // Spaces projects in their "manual" order or by "updated" (their sessions' last output)
+	SpHide    []string            `json:"spaces_hide" toml:"spaces_hide"`                 // session states Spaces leaves out: blocked, running, done, idle, exited
 	// Profiles is per agent preset what a new session of it can run with:
 	// profile name to KEY=VALUE, such as CLAUDE_CONFIG_DIR=~/.claude-work.
 	Profiles map[string]map[string][]string `json:"profiles" toml:"profiles"`

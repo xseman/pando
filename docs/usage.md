@@ -98,7 +98,7 @@ checkout.
 - Drag over a terminal to select and copy; `ctrl+f` finds in its scrollback.
 - `p` in Spaces, the `⊙` left of a session's row or its right-click menu
   pins it: Spaces lists it in the Pinned pane on top, and in its tree as
-  before. Drag the pane's lower border to set how tall it grows.
+  before.
 
 | Mark | State     | Means                                                     |
 | ---- | --------- | --------------------------------------------------------- |

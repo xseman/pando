@@ -180,7 +180,6 @@ maximized. The session's column keeps its width in the settings meanwhile
 | ----------------------------------------- | ------------------------------------------ |
 | column divider                            | width, saved on release                    |
 | terminal rule and strip's empty part      | `terminal_height`                          |
-| Spaces' border under Pinned               | `spaces_pinned_height`, the pane's cap     |
 | Source Control drawer, GitHub pane header | the pane's top edge                        |
 | tab onto a bar, or the half facing main   | slot between chips (`slotAt`, `placeView`) |
 | tab below a bar, toward the screen edge   | a new column                               |

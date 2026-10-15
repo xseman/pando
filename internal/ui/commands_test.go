@@ -4246,34 +4246,38 @@ func TestSpacesPin(t *testing.T) {
 		t.Fatalf("the selection stays on the tree's s2: %+v", r)
 	}
 
-	// The strip, its rule, s2's worktree with its branch and project, s2, the
-	// border, then the tree.
+	// The strip, s2's worktree with its branch and project, s2, the border,
+	// then the tree.
 	lines := m.ag.lines(m, 40, m.bodyH(viewAgents))
-	if l := strings.TrimRight(ansi.Strip(lines[2]), " "); !strings.HasPrefix(l, "   ⌂ main") || !strings.HasSuffix(l, filepath.Base(m.ws)) {
+	if l := strings.TrimRight(ansi.Strip(lines[1]), " "); !strings.HasPrefix(l, "   ⌂ main") || !strings.HasSuffix(l, filepath.Base(m.ws)) {
 		t.Fatalf("the pinned worktree: its branch, its project: %q", l)
 	}
 
-	if l := strings.TrimRight(ansi.Strip(lines[3]), " "); !strings.HasPrefix(l, " ⊙ └─ ") || strings.Contains(l, "main") {
+	if l := strings.TrimRight(ansi.Strip(lines[2]), " "); !strings.HasPrefix(l, " ⊙ └─ ") || strings.Contains(l, "main") {
 		t.Fatalf("the pinned row: its pin, no branch: %q", l)
+	}
+
+	if l := ansi.Strip(lines[3]); strings.Trim(l, "━") != "" {
+		t.Fatalf("a heavy border under Pinned, no rule over its rows: %q", l)
 	}
 
 	m.ag.l.sel = 5 // s1, selected while Spaces has the keyboard
 
-	if l := ansi.Strip(m.ag.lines(m, 40, m.bodyH(viewAgents))[7]); !strings.HasPrefix(l, "   ├─ ") {
+	if l := ansi.Strip(m.ag.lines(m, 40, m.bodyH(viewAgents))[6]); !strings.HasPrefix(l, "   ├─ ") {
 		t.Fatalf("an unpinned row keeps its gutter blank, selected too: %q", l)
 	}
 
 	m.ag.l.sel = 6
 
-	if l := ansi.Strip(lines[8]); !strings.HasPrefix(l, " ⊙ └─ ") {
+	if l := ansi.Strip(lines[7]); !strings.HasPrefix(l, " ⊙ └─ ") {
 		t.Fatalf("the tree's copy shows its pin: %q", l)
 	}
 	// The gutter of s1's row pins it, after s2; its tip wins over a cut name's.
 	m.sessions[0].Name = strings.Repeat("long", 10)
-	x, y := m.colRect(m.colOf(viewAgents)).x+1, m.bodyTop(viewAgents)+7
+	x, y := m.colRect(m.colOf(viewAgents)).x+1, m.bodyTop(viewAgents)+6
 	m.Update(tea.MouseMotionMsg{X: x, Y: y})
 
-	if l := ansi.Strip(m.ag.lines(m, 40, m.bodyH(viewAgents))[7]); !strings.HasPrefix(l, " ⊙ ├─ ") || m.tip != "Pin Session  p" {
+	if l := ansi.Strip(m.ag.lines(m, 40, m.bodyH(viewAgents))[6]); !strings.HasPrefix(l, " ⊙ ├─ ") || m.tip != "Pin Session  p" {
 		t.Fatalf("the hovered row shows the pin button, its tip under the pointer: %q, tip %q", l, m.tip)
 	}
 
@@ -4377,14 +4381,16 @@ func TestSpacesPin(t *testing.T) {
 	checkWidths(t, m)
 }
 
-// TestSpacesPinnedPane frames Pinned as a pane over the tree: its strip, a
-// rule, its sessions and a border whose drag sets spaces_pinned_height, the
-// most it takes; past that it scrolls on its own.
+// TestSpacesPinnedPane frames Pinned as a pane over the tree: its strip, its
+// sessions and a heavy border under them; as tall as its rows, at most a
+// third of the view, past that it scrolls on its own.
 func TestSpacesPinnedPane(t *testing.T) {
 	m := testModel(t)
 
 	var ss []proto.Session
-	for _, id := range []string{"s1", "s2", "s3", "s4"} {
+
+	for i := range 8 {
+		id := fmt.Sprintf("s%d", i+1)
 		ss = append(ss, proto.Session{SessionSpec: proto.SessionSpec{ID: id, Workspace: m.ws, Agent: "shell", Name: id}, Status: "idle"})
 	}
 
@@ -4400,32 +4406,37 @@ func TestSpacesPinnedPane(t *testing.T) {
 
 		return out
 	}
-	rule := func(l string) bool { return l != "" && strings.Trim(l, "─") == "" }
+	border := func(l string) bool { return l != "" && strings.Trim(l, "━") == "" }
 
-	p := m.ag.pane(m, m.ag.rows(m), h) // the worktree, then its three sessions
-	if l := lines(); p.h != 4 || !strings.HasPrefix(l[0], " ▾ ○ PINNED ") || !strings.HasSuffix(l[0], " 3") || !rule(l[1]) || !rule(l[6]) || !strings.HasPrefix(l[7], " ▾ ○ "+filepath.Base(m.ws)) {
+	p := m.ag.pane(m.ag.rows(m), h) // the strip, the worktree and its three sessions, the border
+	if l := lines(); p.h != 4 || !strings.HasPrefix(l[0], " ▾ ○ PINNED ") || !strings.HasSuffix(l[0], " 3") || !strings.HasPrefix(l[1], "   ⌂ main") || !border(l[5]) || !strings.HasPrefix(l[6], " ▾ ○ "+filepath.Base(m.ws)) {
 		t.Fatalf("the pane, %+v in %d lines: %q", p, h, l)
 	}
-	// Its border dragged up to one row, the pane scrolls its sessions.
-	x, top := m.colRect(m.colOf(viewAgents)).x+4, m.bodyTop(viewAgents)
-	m.Update(tea.MouseClickMsg{X: x, Y: top + 6, Button: tea.MouseLeft})
-	m.Update(tea.MouseMotionMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
-	m.Update(tea.MouseReleaseMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
-
-	if p = m.ag.pane(m, m.ag.rows(m), h); m.st.Settings.SpPinH != 1 || p.h != 1 || p.lines != 4 || m.drag != nil {
-		t.Fatalf("the border dragged up three rows: spaces_pinned_height %d, %+v", m.st.Settings.SpPinH, p)
-	}
-
-	m.ag.l.sel = 4 // s3 under Pinned
+	// Seven pinned outgrow a third of the view: the pane scrolls to the
+	// selection, the tree stays; its border resizes nothing.
+	m.st.Pinned = []string{"s1", "s2", "s3", "s4", "s5", "s6", "s7"}
+	m.ag.l.sel = 8 // s7 under Pinned
 	m.ag.snap(m)
 
-	if l := lines(); m.ag.ptop != 3 || m.ag.l.top != 0 || !strings.Contains(l[2], "s3") || !rule(l[3]) {
-		t.Fatalf("the pane scrolls to s3, the tree stays: ptop %d top %d %q", m.ag.ptop, m.ag.l.top, l)
+	if p = m.ag.pane(m.ag.rows(m), h); p.h != h/3 || p.lines != h/3+2 {
+		t.Fatalf("a third of the view: %+v in %d lines", p, h)
 	}
 
-	if i := m.ag.rowAt(m, m.ag.rows(m), 2); i != 4 || m.ag.rowAt(m, m.ag.rows(m), 3) != -1 {
-		t.Fatalf("line 2 is s3, line 3 the border: %d", i)
+	if l := lines(); m.ag.ptop != 8-p.h || m.ag.l.top != 0 || !strings.Contains(l[p.h], "s7") || !border(l[p.h+1]) {
+		t.Fatalf("the pane scrolls to s7, the tree stays: ptop %d top %d %q", m.ag.ptop, m.ag.l.top, l)
 	}
 
+	if i := m.ag.rowAt(m, m.ag.rows(m), p.h); i != 8 || m.ag.rowAt(m, m.ag.rows(m), p.h+1) != -1 {
+		t.Fatalf("line %d is s7, the next the border: %d", p.h, i)
+	}
+
+	x, top := m.colRect(m.colOf(viewAgents)).x+4, m.bodyTop(viewAgents)
+	m.Update(tea.MouseClickMsg{X: x, Y: top + p.h + 1, Button: tea.MouseLeft})
+
+	if m.drag != nil {
+		t.Fatalf("a press on the border drags nothing: %+v", m.drag)
+	}
+
+	m.Update(tea.MouseReleaseMsg{X: x, Y: top + p.h + 1, Button: tea.MouseLeft})
 	checkWidths(t, m)
 }
