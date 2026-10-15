@@ -391,4 +391,32 @@ func TestExplorerIndentGuides(t *testing.T) {
 			t.Errorf("%s: %q, want guides %q", name, got, want)
 		}
 	}
+	// The active guide is lit, VS Code's: the selected open folder's, else
+	// the selection's parent's, on the rows under that folder.
+	index := func(name string) int {
+		return slices.IndexFunc(m.ex.nodes, func(n exNode) bool { return n.name == name })
+	}
+	lit := func(name string) int { // the level of the lit guide on name's row, -1 for none
+		before, _, ok := strings.Cut(m.ex.lines(m, 40, len(m.ex.nodes))[index(name)], fgParams(pal.indentGuide))
+		if !ok {
+			return -1
+		}
+
+		return strings.Count(ansi.Strip(before), "│")
+	}
+
+	for sel, want := range map[string]map[string]int{
+		"x.go":      {"deep": -1, "x.go": 1, "y.go": -1},
+		"deep":      {"deep": -1, "x.go": 1, "y.go": -1},
+		"y.go":      {"src": -1, "deep": 0, "x.go": 0, "y.go": 0},
+		"README.md": {"deep": -1, "x.go": -1, "y.go": -1},
+	} {
+		m.ex.l.sel = index(sel)
+
+		for name, level := range want {
+			if got := lit(name); got != level {
+				t.Errorf("%s selected: %s lights level %d, want %d", sel, name, got, level)
+			}
+		}
+	}
 }

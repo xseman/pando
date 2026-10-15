@@ -174,7 +174,7 @@ sel_bg = "8"           # an ANSI color number
 Overrides survive a theme switch; invalid ones are skipped. Keys (`colorKeys`):
 
 - git: `modified` `untracked` `added` `renamed` `deleted` `conflict` `ignored`
-- lists: `sel_bg` `sel_unfocused_bg` `sel_fg` `hover_bg` `section_bg` `description`
+- lists: `sel_bg` `sel_unfocused_bg` `sel_fg` `hover_bg` `section_bg` `description` `indent_guide`
 - accent: `accent` `header_accent` `sash_hover`
 - buttons: `button_bg` `button_fg` `button_hover_bg` `button_sep` `muted_button_bg` `muted_button_fg`
 - inputs: `input_border` `input_bg` `badge_bg` `badge_fg` `keycap_bg` `keycap_fg`

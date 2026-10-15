@@ -40,7 +40,8 @@ type palette struct {
 	sliderBg, sliderHoverBg, sliderActiveBg, rulerBorder                                                       color.Color // VS Code's scrollbarSlider at rest, hovered and held over the editor, and editorOverviewRuler.border, the same as activityBar.border
 	tabBorder                                                                                                  color.Color // tab.border, a shade stronger for a terminal
 	sashHover                                                                                                  color.Color // VS Code's sash.hoverBorder: a divider under a resting pointer, a shade off the accent it drags in; also the focused commit message box's frame and a GitHub comment's
-	whitespace                                                                                                 color.Color // VS Code's editorWhitespace.foreground: the · and → of render_whitespace; the Explorer's indent guides too, tree.inactiveIndentGuidesStroke's shade
+	whitespace                                                                                                 color.Color // VS Code's editorWhitespace.foreground: the · and → of render_whitespace; the Explorer's inactive indent guides too, tree.inactiveIndentGuidesStroke's shade
+	indentGuide                                                                                                color.Color // VS Code's tree.indentGuidesStroke: the Explorer's active indent guide, the one around the selection
 	mdCode, mdCodeBg                                                                                           color.Color // code in rendered Markdown: inline code's text, glow's salmon, and the background of it and of code blocks
 	lineNumber, lineNumberActive                                                                               color.Color // a file's line numbers and the cursor's, Dark and Light Modern's (subtler than 2026's); nil is the terminal's text color
 	descFg                                                                                                     color.Color // VS Code's descriptionForeground: a picker's dates, details and group labels, where Faint is not drawn by every terminal
@@ -73,7 +74,7 @@ var (
 		blockedSoftBg: hex("#35272a"), doneSoftBg: hex("#2b2733"),
 		sliderBg: hex("#606162"), sliderHoverBg: hex("#676869"), sliderActiveBg: hex("#6e6f70"), rulerBorder: hex("#2a2b2c"),
 		tabBorder: hex("#3c3d40"),
-		sashHover: hex("#2c7092"), whitespace: hex("#3e3f40"), mdCode: hex("#ff7b72"), mdCodeBg: hex("#242526"),
+		sashHover: hex("#2c7092"), whitespace: hex("#3e3f40"), indentGuide: hex("#585858"), mdCode: hex("#ff7b72"), mdCodeBg: hex("#242526"),
 		lineNumber: hex("#6e7681"), lineNumberActive: hex("#cccccc"), descFg: hex("#9d9d9d"),
 	}
 	vscodeLight = palette{
@@ -98,7 +99,7 @@ var (
 		blockedSoftBg: hex("#f6e8e8"), doneSoftBg: hex("#efeaf3"),
 		sliderBg: hex("#8a8a8a"), sliderHoverBg: hex("#818181"), sliderActiveBg: hex("#777777"), rulerBorder: hex("#f0f1f2"),
 		tabBorder: hex("#d0d0d6"),
-		sashHover: hex("#5c9fe0"), whitespace: hex("#d0d0d4"), mdCode: hex("#c4314b"), mdCodeBg: hex("#ededf0"),
+		sashHover: hex("#5c9fe0"), whitespace: hex("#d0d0d4"), indentGuide: hex("#a9a9a9"), mdCode: hex("#c4314b"), mdCodeBg: hex("#ededf0"),
 		lineNumber: hex("#6e7681"), lineNumberActive: hex("#171184"), descFg: hex("#6f6f73"),
 	}
 	// terminalPal inherits the terminal profile's ANSI colors. Diff tints stay
@@ -125,7 +126,7 @@ var (
 		blockedSoftBg: vscodeDark.blockedSoftBg, doneSoftBg: vscodeDark.doneSoftBg,
 		sliderBg: ansi16(8), sliderHoverBg: ansi16(7), sliderActiveBg: ansi16(7), rulerBorder: ansi16(8),
 		tabBorder: ansi16(8),
-		sashHover: ansi16(12), whitespace: ansi16(8), mdCode: ansi16(9), mdCodeBg: ansi16(0),
+		sashHover: ansi16(12), whitespace: ansi16(8), indentGuide: ansi16(7), mdCode: ansi16(9), mdCodeBg: ansi16(0),
 		lineNumber: ansi16(8),
 	}
 
@@ -173,7 +174,7 @@ func (p *palette) colorKeys() map[string]*color.Color {
 		"ok": &p.ok, "warn": &p.warn, "error": &p.errc, "attention": &p.attention,
 		"blocked_bg": &p.blockedBg, "done_bg": &p.doneBg, "blocked_soft_bg": &p.blockedSoftBg, "done_soft_bg": &p.doneSoftBg,
 		"scrollbar_slider": &p.sliderBg, "scrollbar_slider_hover": &p.sliderHoverBg, "scrollbar_slider_active": &p.sliderActiveBg, "overview_ruler_border": &p.rulerBorder,
-		"tab_border": &p.tabBorder, "sash_hover": &p.sashHover, "whitespace": &p.whitespace,
+		"tab_border": &p.tabBorder, "sash_hover": &p.sashHover, "whitespace": &p.whitespace, "indent_guide": &p.indentGuide,
 		"md_code": &p.mdCode, "md_code_bg": &p.mdCodeBg,
 		"line_number": &p.lineNumber, "line_number_active": &p.lineNumberActive, "description": &p.descFg,
 	}
