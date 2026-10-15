@@ -132,9 +132,10 @@ to Editor Area_ waits for a file.
   area to the session or to the file, the other one waiting; pressed again it
   docks them side by side. A maximized session restores from the right end of
   its tab strip, the first row (`maxed`: `cols` drops the column, `preview`
-  says who shows). Each worktree keeps its own with its session view, a
-  restart too (`session_views`' `max`: `session` or `file`); opening a file
-  over a maximized session restores.
+  says who shows). Each session keeps its own, a restart too
+  (`sessions_maxed`, `maxSession`): going back to one shows it as it was
+  left. A maximized file is its worktree's (`session_views`' `max`: `file`);
+  opening a file over a maximized session restores.
 
 ## Terminal panel
 

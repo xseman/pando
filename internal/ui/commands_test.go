@@ -3012,6 +3012,47 @@ func TestSessionMaxPerWorkspace(t *testing.T) {
 	}
 }
 
+// TestSessionMaxPerSession: in one worktree each session keeps its own
+// maximized state, so going back to the one left maximized shows it so
+// again, and the other as it was.
+func TestSessionMaxPerSession(t *testing.T) {
+	m := testModelSized(t, 140, 30)
+	m.sessions = []proto.Session{
+		{SessionSpec: proto.SessionSpec{ID: "s1", Workspace: m.ws, Agent: "claude", Cmd: []string{"claude"}}, Status: "idle"},
+		{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: m.ws, Agent: "claude", Cmd: []string{"claude"}}, Status: "idle"},
+	}
+	f := filepath.Join(m.ws, "a.txt")
+	mustWrite(t, f, "a\n")
+	fire(m, m.openFile(f, false))
+	m.switchSession("s1")
+	m.splitTo(viewSession, 1)
+	m.toggleMax(false)
+
+	if !m.maxed || !slices.Equal(m.st.Maxed, []string{"s1"}) {
+		t.Fatalf("s1 maximized: maxed %v, saved %v", m.maxed, m.st.Maxed)
+	}
+
+	m.switchSession("s2")
+
+	if m.maxed || !m.sessDocked() {
+		t.Fatalf("s2 as it was, beside the file: maxed %v, docked %v", m.maxed, m.sessDocked())
+	}
+
+	m.switchSession("s1")
+
+	if !m.maxed || !m.showsSession() || m.sessDocked() {
+		t.Fatalf("back on s1, maximized again: maxed %v, docked %v", m.maxed, m.sessDocked())
+	}
+
+	m.toggleMax(false)
+	m.switchSession("s2")
+	m.switchSession("s1")
+
+	if m.maxed || len(m.st.Maxed) != 0 {
+		t.Fatalf("restored, s1 stays restored: maxed %v, saved %v", m.maxed, m.st.Maxed)
+	}
+}
+
 // TestMaxSurvivesRestart: a maximized session, a maximized file and a
 // maximized Terminal panel come back so in a pando started again, as a
 // worktree's session view and panel are saved.

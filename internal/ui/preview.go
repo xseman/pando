@@ -304,12 +304,16 @@ func (m *Model) setPreview(p preview) tea.Cmd {
 		m.focus = focus // docking does not move the keyboard off what opened the file
 	}
 
-	m.maxed = m.maxed && m.preview // a file opened over a maximized session sits beside it again
+	var unmax tea.Cmd
+	if m.maxed && !m.preview { // a file opened over a maximized session sits beside it again
+		m.maxed, unmax = false, m.maxSession(false)
+	}
+
 	m.preview = true
 	cmd := m.pv.load(m)
 	m.saveSpot() // an untitled buffer loads in place: the tab takes it now
 
-	return tea.Batch(dock, cmd)
+	return tea.Batch(dock, unmax, cmd)
 }
 
 // edLimits are the values Settings cycles editor_limit through; 0 is none.

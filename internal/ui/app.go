@@ -1058,8 +1058,8 @@ func (m *Model) sessView() proto.SessionView {
 	}
 
 	v.Position, v.Max = m.sessPos(), ""
-	if m.maxed {
-		v.Max = ifElse(m.preview, "file", "session")
+	if m.maxed && m.preview { // a session's own is State.Maxed
+		v.Max = "file"
 	}
 
 	return v
@@ -1754,7 +1754,7 @@ func soloCol(c col) bool {
 func (m *Model) splitTo(v view, to int) tea.Cmd {
 	if v == viewSession {
 		m.maxed = false
-		return m.dock(m.sessionSplit(to), v)
+		return tea.Batch(m.dock(m.sessionSplit(to), v), m.maxSession(false))
 	}
 
 	if v == viewTerm && m.termPos() != []string{"left", "right"}[to] {
@@ -1836,7 +1836,30 @@ func (m *Model) toggleMax(file bool) tea.Cmd {
 
 	m.fixFocus()
 
-	return m.fetchScreen()
+	return tea.Batch(m.fetchScreen(), m.maxSession(m.maxed && !file))
+}
+
+// maxSession records the shown session maximized or not, saved in
+// state.json: each session keeps its own, so going back to one, or a
+// restart, shows it as it was left. Sessions gone since drop out.
+func (m *Model) maxSession(on bool) tea.Cmd {
+	id := m.rootOf(m.sess)
+	if id == "" {
+		return nil
+	}
+
+	ids := slices.DeleteFunc(append([]string{}, m.st.Maxed...), func(s string) bool { return s == id || m.session(s) == nil }) // not nil: null would keep the list saved before
+	if on {
+		ids = append(ids, id)
+	}
+
+	if slices.Equal(ids, m.st.Maxed) {
+		return nil
+	}
+
+	m.st.Maxed = ids
+
+	return do("state.set", map[string]any{"sessions_maxed": ids})
 }
 
 // undockSession puts the docked session back over the whole editor area. Its
@@ -2316,7 +2339,7 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 	case was == "file" && m.edIdx >= 0:
 		m.maxed, m.preview = true, true
 	default:
-		m.maxed = was == "session"
+		m.maxed = slices.Contains(m.st.Maxed, m.rootOf(m.sess))
 		m.preview = m.preview && (m.sess == "" || m.sessDocked())
 	}
 	// The panel as this workspace left it: open or shut, maximized or not,
@@ -2385,6 +2408,9 @@ func (m *Model) switchSession(id string) tea.Cmd {
 	}
 
 	switched := m.switchWorkspace(s.Workspace)
+	if !m.preview { // not a file its worktree left maximized: the session as it was left
+		m.maxed = slices.Contains(m.st.Maxed, m.rootOf(id))
+	}
 
 	return tea.Batch(switched, m.ensureTerm(), m.fetchScreen(), m.refreshGit())
 }

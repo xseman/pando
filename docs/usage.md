@@ -78,7 +78,7 @@ checkout.
   maximizes it.
 - A session beside a file: the button at the right end of either's tab strip
   maximizes it over the whole editor area, and restores the pair. Each
-  worktree keeps it while you are in another.
+  session keeps it while you are in another, a restart too.
 - Drag a view's tab to move it, a divider to resize. A second click on the
   open view's icon hides its sidebar; `ctrl+b` hides both.
 - Rest the pointer on an icon button for its name and key, or on a session

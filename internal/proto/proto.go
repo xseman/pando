@@ -174,6 +174,9 @@ type State struct {
 	// Pinned is the session ids Spaces shows under Pinned, in the order
 	// they were pinned.
 	Pinned []string `json:"spaces_pinned,omitempty"`
+	// Maxed is the sessions maximized over the editor area: each keeps its
+	// own, so going back to one shows it as it was left.
+	Maxed []string `json:"sessions_maxed,omitempty"`
 	// Seen is per program the [resume_env] variables pando saw it run with,
 	// KEY=VALUE: a new session of it offers them after its Profiles.
 	Seen map[string][][]string `json:"seen_env,omitempty"`
@@ -204,7 +207,7 @@ type Terminal struct {
 type SessionView struct {
 	Position string `json:"position"`        // "left" | "right" | "editor"
 	Width    int    `json:"width,omitempty"` // the column's cells; 0 = half the editor area
-	Max      string `json:"max,omitempty"`   // what filled the editor area, the other waiting: "session", "file" or ""
+	Max      string `json:"max,omitempty"`   // "file": the file filled the editor area, the session waiting; a session's own is State.Maxed
 }
 
 // Editor is one open file with its cursor (0-based) and scroll. An untitled
