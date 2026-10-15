@@ -1892,7 +1892,7 @@ func (m *Model) sessionTitleMenu() tea.Cmd {
 
 	var place []item // where the session's view sits, then its name, then the ways to end it
 
-	if m.sessDocked() {
+	if m.sessDocked() && len(m.editors) > 0 { // over an empty editor it would dock again (dockBare)
 		place = append(place, item{label: "Move to Editor Area", run: func(m *Model) tea.Cmd { return m.undockSession() }})
 	}
 
@@ -2433,6 +2433,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	_, cmd := m.update(msg)
 	m.maxed = m.maxed && m.sess != "" && m.sessPos() != "editor" // nothing left to share the editor area with
+	cmd = tea.Batch(cmd, m.dockBare())
 
 	if m.cramped() != cramped {
 		m.followCramp(focus, v, inSess)
@@ -2441,6 +2442,22 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.noteFx()
 
 	return m, tea.Batch(cmd, m.animate(), m.spinLater())
+}
+
+// dockBare docks a session over an empty editor area to its side: with no
+// editor open it has nothing to cover, and the empty editor shows beside it.
+// The keyboard stays where it was; a session with no room beside the editor
+// stays over it.
+func (m *Model) dockBare() tea.Cmd {
+	if m.sess == "" || len(m.editors) > 0 || m.sessPos() != "editor" || m.drag != nil || m.crampedBy(m.sessionSplit(m.sessSide())) {
+		return nil
+	}
+
+	focus := m.focus
+	cmd := m.splitTo(viewSession, m.sessSide())
+	m.focus = focus
+
+	return cmd
 }
 
 // followCramp follows the session in or out of the editor area for room: in
@@ -5043,7 +5060,7 @@ func (m *Model) viewItems() []item {
 		}
 
 		items = append(items, item{label: "Close Session View", run: func(m *Model) tea.Cmd { return m.hideSession() }})
-		if m.sessDocked() {
+		if m.sessDocked() && len(m.editors) > 0 {
 			items = append(items, item{label: "Move Session to Editor Area", run: func(m *Model) tea.Cmd { return m.undockSession() }})
 		}
 

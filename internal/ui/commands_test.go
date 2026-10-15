@@ -3242,6 +3242,38 @@ func TestSessionOpensDocked(t *testing.T) {
 	}
 }
 
+// TestSessionDocksOverBareEditor: a session placed over the editor area docks
+// to its side while no editor is open, the empty editor beside it, so it
+// never stands maximized over nothing; with a file open it may cover it, and
+// closing the last file docks it again.
+func TestSessionDocksOverBareEditor(t *testing.T) {
+	m := testModelSized(t, 140, 30) // session_position "editor", no file open
+	m.Update(focusSessionMsg("s1"))
+
+	if !m.sessDocked() || m.showsSession() || m.st.Settings.SessPos != "right" || m.st.SessionViews[m.ws].Position != "right" {
+		t.Fatalf("no file: docked %v, over main %v, position %q", m.sessDocked(), m.showsSession(), m.st.Settings.SessPos)
+	}
+
+	if out := checkWidths(t, m); !strings.Contains(out, "No editor open") {
+		t.Fatalf("the empty editor shows beside the session:\n%s", out)
+	}
+
+	fire(m, m.openFile(filepath.Join(m.ws, "README.md"), false))
+	m.undockSession()
+	m.Update(focusSessionMsg("s1"))
+
+	if m.sessDocked() || !m.showsSession() {
+		t.Fatalf("over a file it stays: docked %v", m.sessDocked())
+	}
+
+	m.closeEditor(m.edIdx)
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 30})
+
+	if len(m.editors) != 0 || !m.sessDocked() {
+		t.Fatalf("the last file closed, it docks: %d editors, docked %v", len(m.editors), m.sessDocked())
+	}
+}
+
 // The maximize button, in the file's header and the session's, gives the
 // whole editor area to one and restores the pair.
 func TestMaximizeSessionAndFile(t *testing.T) {
@@ -3637,6 +3669,7 @@ func TestTerminalDragSelectsAndCopies(t *testing.T) {
 func TestSessionDragSelects(t *testing.T) {
 	m := testModelSized(t, 120, 30)
 	drainInputs(m)
+	fire(m, m.openFile(filepath.Join(m.ws, "README.md"), false)) // a file for the session to stand over
 	m.Update(focusSessionMsg("s1"))
 
 	m.term.id, m.term.scr = "s1", proto.Screen{Lines: []string{"agent says hi"}}
@@ -3661,6 +3694,7 @@ func TestSessionDragSelects(t *testing.T) {
 func TestSessionSelectionScrolls(t *testing.T) {
 	m := testModelSized(t, 120, 30)
 	drainInputs(m)
+	fire(m, m.openFile(filepath.Join(m.ws, "README.md"), false)) // a file for the session to stand over
 	m.Update(focusSessionMsg("s1"))
 
 	screen := func(top, h int) []string { // lines top.. of a transcript "line N"

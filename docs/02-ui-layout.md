@@ -110,7 +110,9 @@ side: vertBar, actW wide, one actH-row block per chip, ⚙ at the bottom
 
 The agent session is `viewSession`. `session_position` is `right` (default),
 `left` (a column; unsized, half the editor area) or `editor` (over the editor
-area; opening a file docks it back, `sessSide`).
+area; opening a file docks it back, `sessSide`). With no editor open it is
+never over the editor: it docks beside the empty one (`dockBare`), and _Move
+to Editor Area_ waits for a file.
 
 - Dropped mid-editor it takes the editor area. Widened past `minEditor` (40)
   cells of editor it is maximized (`toggleMax`): restoring docks its column
