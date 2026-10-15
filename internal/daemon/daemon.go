@@ -126,7 +126,7 @@ func New(configDir, stateDir, dataDir string) (*Daemon, error) {
 
 	c, err := loadConfig(d.cfgPath)
 
-	d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID, d.state.ResumeJob, d.state.ResumeEnv = c.Settings, c.Agents, c.Resume, c.ResumeID, c.ResumeJob, c.ResumeEnv
+	d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID, d.state.ResumeJob, d.state.ResumeEnv, d.state.Databases = c.Settings, c.Agents, c.Resume, c.ResumeID, c.ResumeJob, c.ResumeEnv, c.Databases
 	if errors.Is(err, os.ErrNotExist) {
 		if err := d.saveConfig(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -789,7 +789,7 @@ func (d *Daemon) saveConfig() error {
 		return fmt.Errorf("not saved, fix it first: %w", d.cfgErr)
 	}
 
-	c := config{d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID, d.state.ResumeJob, d.state.ResumeEnv}
+	c := config{d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID, d.state.ResumeJob, d.state.ResumeEnv, d.state.Databases}
 	if err := writeFile(d.cfgPath, c.encode()); err != nil {
 		return err
 	}
@@ -818,7 +818,7 @@ func (d *Daemon) reloadConfig() {
 		return
 	}
 
-	d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID, d.state.ResumeJob, d.state.ResumeEnv = c.Settings, c.Agents, c.Resume, c.ResumeID, c.ResumeJob, c.ResumeEnv
+	d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID, d.state.ResumeJob, d.state.ResumeEnv, d.state.Databases = c.Settings, c.Agents, c.Resume, c.ResumeID, c.ResumeJob, c.ResumeEnv, c.Databases
 	d.mu.Unlock()
 	d.broadcast(proto.Event{Kind: "state"})
 }
@@ -836,8 +836,19 @@ func writeFile(path string, b []byte) error {
 		return err
 	}
 
+	// A file made private stays so: config.toml may hold a password written
+	// into a [databases] URL by hand.
+	perm := os.FileMode(0o644)
+	if st, err := os.Stat(path); err == nil {
+		perm = st.Mode().Perm()
+	}
+
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+	if err := os.WriteFile(tmp, b, perm); err != nil {
+		return err
+	}
+
+	if err := os.Chmod(tmp, perm); err != nil { // a .tmp left behind keeps its old mode, and the umask trims a new one
 		return err
 	}
 
@@ -848,6 +859,7 @@ func (d *Daemon) setState(raw json.RawMessage) (any, error) {
 	var p struct {
 		Settings  json.RawMessage               `json:"settings"`
 		Agents    map[string][]string           `json:"agents"`
+		Databases map[string]string             `json:"databases"` // "" drops one
 		Drafts    map[string]string             `json:"drafts"`
 		Editors   map[string]*proto.Editors     `json:"editors"`       // null or no open files forgets the workspace
 		Terminals map[string]*proto.Terminal    `json:"terminals"`     // null forgets the workspace
@@ -899,6 +911,18 @@ func (d *Daemon) setState(raw json.RawMessage) (any, error) {
 		}
 	}
 
+	if d.state.Databases == nil {
+		d.state.Databases = map[string]string{}
+	}
+
+	for k, v := range p.Databases {
+		if v == "" {
+			delete(d.state.Databases, k)
+		} else {
+			d.state.Databases[k] = v
+		}
+	}
+
 	for k, v := range p.Drafts {
 		if v == "" {
 			delete(d.state.Drafts, k)
@@ -931,7 +955,7 @@ func (d *Daemon) setState(raw json.RawMessage) (any, error) {
 		}
 	}
 
-	if p.Settings != nil || p.Agents != nil {
+	if p.Settings != nil || p.Agents != nil || p.Databases != nil {
 		err = d.saveConfig()
 	}
 

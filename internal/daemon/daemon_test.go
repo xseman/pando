@@ -541,6 +541,46 @@ func TestInstanceState(t *testing.T) {
 	}
 }
 
+// TestDatabasesConfig adds, renames and drops a [databases] entry through
+// state.set, as the Databases view's connection form does.
+func TestDatabasesConfig(t *testing.T) {
+	cfg := t.TempDir()
+	path := filepath.Join(cfg, "config.toml")
+
+	d, err := New(cfg, cfg, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, patch := range []string{
+		`{"databases":{"local":"postgres://app@localhost:5432/app"}}`,
+		`{"databases":{"local":"","shop":"mariadb://root@127.0.0.1:3306/shop"}}`,
+	} {
+		if _, err := d.setState(json.RawMessage(patch)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	b := mustRead(t, path)
+	if !strings.Contains(b, "[databases]\nshop = \"mariadb://root@127.0.0.1:3306/shop\"") || strings.Contains(b, "local") || len(d.state.Databases) != 1 {
+		t.Fatalf("config.toml:\n%s\nstate %v", b, d.state.Databases)
+	}
+
+	// Made private, as a password written into a URL by hand wants, it
+	// stays private through a save.
+	if err := os.Chmod(path, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := d.setState(json.RawMessage(`{"databases":{"prod":"postgres://app:secret@db/app"}}`)); err != nil {
+		t.Fatal(err)
+	}
+
+	if st, err := os.Stat(path); err != nil || st.Mode().Perm() != 0o600 {
+		t.Fatalf("mode after a save: %v %v", st.Mode(), err)
+	}
+}
+
 func TestConfig(t *testing.T) {
 	cfg := t.TempDir()
 	path := filepath.Join(cfg, "config.toml")
@@ -601,6 +641,7 @@ func TestConfig(t *testing.T) {
 		ResumeID:  map[string][]string{"my agent": {"x", "--resume", "{id}"}},
 		ResumeJob: map[string][]string{"my agent": {"x", "attach", "{id}"}},
 		ResumeEnv: map[string][]string{"my agent": {"MY_AGENT_HOME"}},
+		Databases: map[string]string{"my db": "postgres://app@localhost:5432/app?sslmode=disable"},
 	}
 	round := filepath.Join(t.TempDir(), "config.toml")
 	mustWrite(t, round, string(c.encode()))

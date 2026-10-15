@@ -26,6 +26,10 @@ type config struct {
 	// its config and conversations: they go before the command that
 	// continues it, so it looks where it was started to.
 	ResumeEnv map[string][]string `toml:"resume_env"`
+	// Databases are the databases the Databases view lists besides the
+	// worktree's, by name: postgres://user@host/db, mariadb://user@host/db,
+	// sqlite:///path.
+	Databases map[string]string `toml:"databases"`
 }
 
 func defaultConfig() config {
@@ -270,6 +274,11 @@ func (c *config) encode() []byte {
 		"# e.g. CLAUDE_CONFIG_DIR: set on the program when pando saw it, they go before the\n" +
 		"# command that continues it, so it resumes from the same place.\n[resume_env]\n")
 	table(&b, c.ResumeEnv)
+	b.WriteString("\n# Databases the Databases view lists besides the worktree's SQLite files and its\n" +
+		"# .env DATABASE_URL, by name: \"postgres://user@host:5432/db\", \"mariadb://user@host:3306/db\"\n" +
+		"# or \"sqlite:///path/app.db\". The form writes no password here: the system keyring, ~/.pgpass\n" +
+		"# or ~/.my.cnf keeps it, else pando asks once a run.\n[databases]\n")
+	table(&b, c.Databases)
 
 	return []byte(b.String())
 }

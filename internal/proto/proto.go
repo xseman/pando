@@ -152,6 +152,7 @@ type State struct {
 	ResumeID  map[string][]string `json:"resume_id"`  // agent to the command that continues conversation {id}
 	ResumeJob map[string][]string `json:"resume_job"` // agent to the command that attaches to background job {id}
 	ResumeEnv map[string][]string `json:"resume_env"` // agent to the variables that pick its config, carried into the command that continues it
+	Databases map[string]string   `json:"databases"`  // name to the URL of a database the Databases view lists: a server's, or sqlite:///path
 	Drafts    map[string]string   `json:"drafts"`
 	Editors   map[string]Editors  `json:"editors"` // per workspace: what its tab strip had open
 	// Terminals is per workspace: whether its Terminal panel was open, and
