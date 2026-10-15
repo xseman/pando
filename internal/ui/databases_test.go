@@ -611,7 +611,8 @@ func TestTableColumnsChangeUnderEdits(t *testing.T) {
 	}
 
 	// Nor a key that changed under them: the edits find rows by the one read before.
-	sqlite(t, path, "create table o2(id integer, note text primary key, total real) without rowid; insert into o2 select id, coalesce(note, id), total from orders; drop table orders; alter table o2 rename to orders")
+	// The view goes first: SQLite 3.45 refuses the rename while one reads a dropped table.
+	sqlite(t, path, "drop view big; create table o2(id integer, note text primary key, total real) without rowid; insert into o2 select id, coalesce(note, id), total from orders; drop table orders; alter table o2 rename to orders")
 
 	tb.err = ""
 	_, reload = m.Update(keyMsg("r"))
