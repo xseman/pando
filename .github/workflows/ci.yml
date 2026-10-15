@@ -11,6 +11,27 @@ permissions:
 jobs:
     test:
         runs-on: ubuntu-latest
+        # Servers for internal/db and the Databases view, which reach them
+        # through the runner's psql and mysql.
+        services:
+            postgres:
+                image: postgres:17
+                env:
+                    POSTGRES_PASSWORD: pw
+                ports: ["5432:5432"]
+                options: >-
+                    --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 5s --health-retries 30
+            mariadb:
+                image: mariadb:11
+                env:
+                    MARIADB_ROOT_PASSWORD: pw
+                    MARIADB_DATABASE: test
+                ports: ["3306:3306"]
+                options: >-
+                    --health-cmd "healthcheck.sh --connect --innodb_initialized" --health-interval 2s --health-timeout 5s --health-retries 30
+        env:
+            PANDO_TEST_PG: postgres://postgres:pw@127.0.0.1:5432/postgres?sslmode=disable
+            PANDO_TEST_MARIADB: mariadb://root:pw@127.0.0.1:3306/test
         steps:
             - uses: actions/checkout@v5
             - uses: actions/setup-go@v6
