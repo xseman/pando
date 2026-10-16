@@ -502,14 +502,9 @@ func (p *preview) vimPaste(m *Model, after bool, n int) tea.Cmd {
 	return cmd
 }
 
-// vimSel is what visual mode has selected: the cursor's rune counts, and
-// V takes whole lines.
+// vimSel is what v has selected: the cursor's rune counts.
 func (p *preview) vimSel() (a, z pos) {
 	a, z, _ = p.selection()
-	if p.vim.mode == vimLine {
-		return pos{a.line, 0}, pos{z.line, p.lineLen(z.line)}
-	}
-
 	z, _ = p.fwd(z)
 
 	return a, z
@@ -551,13 +546,15 @@ func (p *preview) vimVisual(m *Model, n int, key string) tea.Cmd {
 			op = key
 		}
 
-		a, z := p.vimSel()
-		lineWise := p.vim.mode == vimLine
+		if p.vim.mode == vimLine {
+			a, z := min(p.anchor.line, p.cur.line), max(p.anchor.line, p.cur.line)
+			p.vim.mode, p.anchor = vimNormal, nil
 
-		p.vim.mode, p.anchor = vimNormal, nil
-		if lineWise {
-			return p.vimLineOp(m, op, a.line, z.line-a.line+1)
+			return p.vimLineOp(m, op, a, z-a+1)
 		}
+
+		a, z := p.vimSel()
+		p.vim.mode, p.anchor = vimNormal, nil
 
 		m.vimReg, m.vimRegLine = p.textIn(a, z), false
 		if op == "y" {

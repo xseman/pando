@@ -37,7 +37,10 @@ editable, and `editable` also refuses a truncated file and a rendering.
 `parseDiff`/`renderDiff` for the rest); `onLoad` drops an answer whose `id`
 no longer matches. A file over 1 MiB or 5000 lines loads truncated and
 read-only. Every 2 s tick, `reloadIfLive` reloads a clean `file` or `diff`;
-unsaved text wins over the disk. A file with a NUL in its first 8000 bytes
+unsaved text wins over the disk. A `diff` left empty while the other side
+(index or working tree) has changes follows them there (`previewMsg.flipped`),
+its tab with it: Stage All keeps the open diff's changes on screen. A file
+with a NUL in its first 8000 bytes
 is a card instead (`binaryCard`, shown as an error is): its name, an image's
 format and size (`image.DecodeConfig`: PNG, JPEG, GIF) or the type
 `http.DetectContentType` sniffs, and its size on disk.
@@ -228,8 +231,11 @@ inline                                side by side (diff_view = "split")
 always renders. goldmark parses CommonMark + GFM, `markdown.go` renders in
 glow's layout: `mdMargin` air (dropped under 26 cells), wrapping table cells,
 chroma code blocks on `md_code_bg`, images as `[image: alt]`, HTML as source.
-`markdown_width` caps the width (`mdWidth`); side by side uses its whole half
-so lines stay level. The rendering is cached per width.
+`markdown_width` caps the width (`mdWidth`); side by side uses its whole half,
+and both halves scroll by the same rows (`sideBody`), so what the rendering
+drops, a code block's fences, puts it a little ahead of the source. The
+rendering is cached per width; it is read, not
+edited, so it shows no cursor (`cursor`), as the status bar shows no Ln/Col.
 
 ## Folding
 
@@ -270,8 +276,10 @@ editor. No ex commands, macros, marks, named registers, `.` or text objects.
 ## Untitled buffers and drafts
 
 `draft.go`. `ctrl+n` opens a `file` with no path (`untitled`), built from its
-buffer instead of fetched. `ctrl+s` opens Save As (`saveAsPrompt`), then re-points
-the tab and reloads it so chroma lexes it.
+buffer instead of fetched. `ctrl+s` opens Save As (`saveAsPrompt`), which
+suggests a path only once typed or asked by tab, then re-points
+the tab and reloads it so chroma lexes it; until then it is plain text (no
+`lexers.Analyse` guess).
 
 Every dirty editor is a draft: `saveDrafts` sends it on the tick, on quit and
 before a workspace switch, diffing against `savedDrafts` so two TUIs do not
@@ -283,15 +291,17 @@ text asks; Close All Editors and `editor_limit` skip dirty tabs.
 
 `conflict.go` decorates `<<<<<<<` / `|||||||` / `=======` / `>>>>>>>` blocks
 from the text alone, using VS Code's rules (`parseConflicts`, on every
-`rehit`). `conflictSuffix` puts Accept Current / Incoming / Both on the header
-line; an accept builds `resolved` and applies it with `setText`, one undo step.
+`rehit`); a marker line is drawn in one color, not lexed. `conflictSuffix` puts Accept Current / Incoming / Both on the header
+line, short labels without the `(Current Change)` note when the full ones do
+not fit; an accept builds `resolved` and applies it with `setText`, one undo step.
 
 ## Suggestions and formatting
 
 `complete.go` is not a modal: `compKey` takes arrows, `⏎`/`tab`, `esc`, and
 `afterEdit` refilters. It lists `fileWords` at once and, after an 80 ms tick,
 the server's completions (stale `seq` dropped). `autoSuggest` opens it while
-typing in files with a language; `ctrl+space` anywhere.
+typing in files with a language, not after a line comment's token
+(`inComment`); `ctrl+space` anywhere.
 
 `format.go` pipes the text through the `[format]` tool (stdin to stdout, 10 s
 timeout, on the update loop); `setText` swaps only differing lines. A failing
@@ -356,7 +366,8 @@ F12, shift+F12 ─▶ lspGo ─▶ tea.Cmd ─▶ lspPool.get(root, path, lang, 
 - The References (`peek.go`, `m.refs`) open inline, under the cursor's line
   (`peekRow`, `withPeek`), `peekH` rows over the text that goes on past
   them, the editor scrolled to make room: the selected hit's source left
-  (three fifths), hits grouped by file right. They have the keys while open;
+  (three fifths), hits grouped by file right, a hit too long for its row cut
+  at its start so the match shows. They have the keys while open;
   ⏎ goes there and closes them, `o` keeps them, `esc` or ✕ closes.
 - A server's stderr, its `window/logMessage` and `showMessage` and why it
   stopped go to the panel's Output (`lsp.Logger`, the pool's `log`, the

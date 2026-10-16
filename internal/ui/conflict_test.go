@@ -38,12 +38,32 @@ func TestParseConflicts(t *testing.T) {
 	}
 }
 
+// TestMergeConflictNarrow: an editor too narrow for the three full actions
+// shows short ones, all of them, and a click on the last still runs it.
+func TestMergeConflictNarrow(t *testing.T) {
+	m, _ := editorModel(t, "a.go", "<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> feat\n")
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	p := &m.pv
+	if out := checkWidths(t, m); !strings.Contains(out, "Accept Current | Incoming | Both") || strings.Contains(out, "Accept Current Change") {
+		t.Fatalf("short actions at %d cells:\n%s", m.pvW(), out)
+	}
+
+	_, _, acts := p.conflictSuffix(0, m.pvW()-1-p.gutter())
+	click(m, m.mainX()+p.gutter()+acts[acceptBoth].x+1, 1+m.stripH()+p.lineRow[0]-p.top, tea.MouseLeft)
+
+	if got := p.buf.text(); got != "ours\ntheirs" {
+		t.Fatalf("after accept both:\n%s", got)
+	}
+}
+
 // TestMergeConflictEditor is the merge-conflict extension in the editor:
 // tinted blocks, the actions on the header, accept by click and by command,
 // one undo step, and next / previous.
 func TestMergeConflictEditor(t *testing.T) {
 	text := "top\n<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> feat\nmid\n<<<<<<< HEAD\n\n=======\nt2\n>>>>>>> feat\nend\n"
 	m, _ := editorModel(t, "a.go", text)
+	m.Update(tea.WindowSizeMsg{Width: 160, Height: 30}) // room for the full actions
 
 	p := &m.pv
 	if len(p.conf) != 2 || p.conf[0].start != 1 || p.conf[1].end != 11 {
@@ -68,7 +88,7 @@ func TestMergeConflictEditor(t *testing.T) {
 	}
 
 	// A click on Accept Incoming Change resolves the first block only.
-	_, _, acts := p.conflictSuffix(1)
+	_, _, acts := p.conflictSuffix(1, m.pvW()-1-p.gutter())
 	row := p.lineRow[1] - p.top
 	click(m, m.mainX()+p.gutter()+acts[acceptIncoming].x+1, 1+m.stripH()+row, tea.MouseLeft)
 

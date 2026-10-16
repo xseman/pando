@@ -201,6 +201,7 @@ type previewMsg struct {
 	revs         []git.Revision
 	gh           *ghDoc
 	cached       bool     // from Model.ghPages, not fetched
+	flipped      bool     // a diff's changes moved to or from the index: the tab follows them
 	fixed        bool     // too long to unfold, or a merge's combined diff: git's three lines of context
 	disk         []string // a working-tree diff's file, for its problems' columns
 	base, head   []string // a file's staged text and, when it differs, its committed text
@@ -1446,6 +1447,15 @@ func (p *preview) load(m *Model) tea.Cmd {
 			raw, err = cp.fetch(full)
 		}
 
+		if cp.kind == pvDiff && raw == "(no changes)" && cp.entry.Letter != 'U' && cp.entry.Letter != '!' {
+			e := cp.entry
+			e.Staged = !e.Staged
+
+			if out, oerr := git.Diff(cp.root, e, full); oerr == nil && out != "" {
+				raw, msg.flipped = out, true
+			}
+		}
+
 		msg.raw, msg.err = raw, err
 
 		if cp.kind == pvFile {
@@ -1596,8 +1606,10 @@ func render(kind, path, raw string, dark bool) (styled, plainLines []string, met
 
 	styled = slices.Clone(plainLines)
 
+	// An untitled buffer stays plain until it is saved: edits render a line at
+	// a time, and a guess per line would colour each its own way.
 	lexer := matchLexer(filepath.Base(path))
-	if lexer == nil {
+	if lexer == nil && path != "" {
 		lexer = lexers.Analyse(raw)
 	}
 
@@ -1622,6 +1634,18 @@ func (p *preview) onLoad(m *Model, msg previewMsg) {
 
 	if msg.revs != nil {
 		p.revs, p.repo = msg.revs, msg.repo
+	}
+
+	if msg.flipped { // and so do the tab and the history that hold it
+		for _, l := range [][]preview{m.editors, m.nav} {
+			for i := range l {
+				if l[i].id() == p.id() {
+					l[i].entry.Staged = !l[i].entry.Staged
+				}
+			}
+		}
+
+		p.entry.Staged = !p.entry.Staged
 	}
 
 	if msg.err != nil {
@@ -1974,7 +1998,7 @@ func (p *preview) follow(w, h int) {
 
 // cursor is the terminal cursor position inside the preview body.
 func (p *preview) cursor(w, h int) (x, y int, ok bool) {
-	if !p.ready || p.err != "" || len(p.plain) == 0 {
+	if !p.ready || p.err != "" || len(p.plain) == 0 || p.md == 1 { // a rendering is read, not edited: no cursor
 		return 0, 0, false
 	}
 
@@ -2016,6 +2040,7 @@ func (p *preview) posAt(w, x, y int) pos {
 }
 
 // selection returns the ordered, clamped selection; ok is false when empty.
+// Vim's V selects whole lines with their line breaks, what its y and d take.
 func (p *preview) selection() (a, b pos, ok bool) {
 	if p.anchor == nil {
 		return pos{}, pos{}, false
@@ -2024,6 +2049,13 @@ func (p *preview) selection() (a, b pos, ok bool) {
 	a, b = pos{p.anchor.line, min(p.anchor.col, p.lineLen(p.anchor.line))}, p.at()
 	if b.line < a.line || (b.line == a.line && b.col < a.col) {
 		a, b = b, a
+	}
+
+	if p.vim.mode == vimLine {
+		a, b = pos{a.line, 0}, pos{b.line + 1, 0}
+		if b.line > p.lastLine() { // the last line has no break to take
+			b = pos{p.lastLine(), p.lineLen(p.lastLine())}
+		}
 	}
 
 	return a, b, a != b
@@ -2630,7 +2662,7 @@ func (p *preview) renderRow(vr vrow, w int) string {
 	if outside && vr.to == len(line) && len(p.conf) > 0 {
 		// A conflict marker's note and actions follow its text, VS Code's
 		// decoration after-text and CodeLens in one row.
-		if extra, extraStyled, _ := p.conflictSuffix(vr.line); extra != nil {
+		if extra, extraStyled, _ := p.conflictSuffix(vr.line, tw); extra != nil {
 			line = append(line[:len(line):len(line)], extra...)
 			styled += extraStyled
 

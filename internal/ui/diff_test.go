@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"cmp"
 	"fmt"
 	"image/color"
 	"path/filepath"
@@ -281,5 +282,51 @@ func TestDiffFullToggle(t *testing.T) {
 
 	if !m.st.Settings.DiffFull || slices.ContainsFunc(m.pv.buttons(m, 80), func(a rowAction) bool { return a.g == icFold }) {
 		t.Fatal("a commit's diff has no whole-file mode")
+	}
+}
+
+// TestDiffStatusLine: on a diff the status bar counts the file's lines, the
+// new side's or a deleted row's old one, not the diff's rows.
+func TestDiffStatusLine(t *testing.T) {
+	m := diffModel(t, 100, 20)
+
+	for i, mt := range m.pv.meta {
+		m.pv.cur = pos{i, 0}
+		out := checkWidths(t, m)
+
+		want := cmp.Or(mt.b, mt.a)
+		if got := strings.Contains(out, fmt.Sprintf(" Ln %d, Col 1 ", want)); got != (want > 0) || want == 0 && strings.Contains(out, " Ln ") {
+			t.Fatalf("row %d (%+v): status bar\n%s", i, mt, strings.Split(out, "\n")[m.h-1])
+		}
+	}
+}
+
+// TestDiffFollowsStaging:a working-tree diff whose changes were all staged
+// shows them as the index diff, its tab with it, not an empty page.
+func TestDiffFollowsStaging(t *testing.T) {
+	m := testModel(t)
+	for _, a := range [][]string{
+		{"init", "-q", "-b", "main"},
+		{"config", "user.email", "t@t"},
+		{"config", "user.name", "t"},
+	} {
+		mustGit(t, m.ws, a...)
+	}
+
+	mustWrite(t, filepath.Join(m.ws, "a.go"), "one\n")
+	mustGit(t, m.ws, "add", "a.go")
+	mustGit(t, m.ws, "commit", "-qm", "a")
+	mustWrite(t, filepath.Join(m.ws, "a.go"), "two\n")
+
+	fire(m, m.openDiff(m.ws, git.Entry{Path: "a.go", Letter: 'M'}, false))
+	mustGit(t, m.ws, "add", "a.go")
+	fire(m, m.pv.reloadIfLive(m))
+
+	if !m.pv.entry.Staged || !strings.Contains(m.pv.raw, "+two") {
+		t.Fatalf("the diff follows its changes to the index: staged %v\n%s", m.pv.entry.Staged, m.pv.raw)
+	}
+
+	if len(m.editors) != 1 || m.editors[0].id() != m.pv.id() {
+		t.Fatalf("the tab follows too: %d tabs", len(m.editors))
 	}
 }

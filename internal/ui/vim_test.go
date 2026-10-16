@@ -242,6 +242,21 @@ func TestVimVisual(t *testing.T) {
 	}
 }
 
+// TestVimLineSelection: V draws its line selected at once and the status
+// bar counts what y would take, the line and its break.
+func TestVimLineSelection(t *testing.T) {
+	m := vimModel(t, "abcdef\nsecond\n")
+	press(m, "l", "l", "V")
+
+	if !strings.Contains(m.View().Content, bgParams(pal.textSelBg)) {
+		t.Fatal("V selects the cursor's line")
+	}
+
+	if out := checkWidths(t, m); !strings.Contains(out, "(7 selected)") {
+		t.Fatalf("the status bar counts the line and its break:\n%s", out)
+	}
+}
+
 // TestVimKeepsEditorKeys: the editor's own keys work in either mode, and a
 // read-only preview is untouched by the setting.
 func TestVimKeepsEditorKeys(t *testing.T) {

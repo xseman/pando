@@ -4855,24 +4855,9 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 	if m.showsPreview() && m.pv.md != 1 && !m.pv.side(m) && m.pv.kind != pvTable && m.pv.kind != pvSettings { // a side-by-side diff keeps its cursor line
 		// VS Code's editor items: the cursor, going to a line; a file's
 		// indentation, changing it. A rendering has no cursor to show.
-		c := m.pv.at()
-		ln := m.pv.lineNo(c.line) // a diff's: the file's line, not the row's
-
-		pos := fmt.Sprintf(" Ln %d, Col %d ", ln, c.col+1)
-		if m.pv.split(m) { // its cursor is a whole line
-			pos = fmt.Sprintf(" Ln %d ", ln)
+		if pos, ln := m.cursorPos(); ln > 0 { // a hunk gap or a commit message has no line of the file
+			add(pos, dim, "Go to Line…  ^g", func(m *Model) tea.Cmd { return m.gotoLineQuery(":") })
 		}
-
-		n := m.pv.selCount()
-		if m.pv.split(m) {
-			n = utf8.RuneCountInString(m.pv.halfText())
-		}
-
-		if n > 0 {
-			pos = fmt.Sprintf(" Ln %d, Col %d (%d selected) ", ln, c.col+1, n)
-		}
-
-		add(pos, dim, "Go to Line…  ^g", func(m *Model) tea.Cmd { return m.gotoLineQuery(":") })
 
 		if m.pv.kind == pvFile || m.pv.kind == pvRev {
 			add(" "+m.indentLabel()+" ", dim, "Change Indentation…", func(m *Model) tea.Cmd { return m.indentPicker() })
@@ -4988,11 +4973,35 @@ func (m *Model) attentionCount() int {
 	return n
 }
 
-// pvH is the preview body height: the main area minus the editor strip, the
-// header, the footer and the references widget.
+// cursorPos is the status bar's cursor item, Ln and Col, the selection's
+// size too, and the file's line it names: a diff's, not the row's; a split
+// diff's cursor is a whole line.
+func (m *Model) cursorPos() (pos string, ln int) {
+	c := m.pv.at()
+	ln = m.pv.lineNo(c.line)
+
+	pos = fmt.Sprintf(" Ln %d, Col %d ", ln, c.col+1)
+	if m.pv.split(m) {
+		pos = fmt.Sprintf(" Ln %d ", ln)
+	}
+
+	n := m.pv.selCount()
+	if m.pv.split(m) {
+		n = utf8.RuneCountInString(m.pv.halfText())
+	}
+
+	if n > 0 {
+		pos = fmt.Sprintf(" Ln %d, Col %d (%d selected) ", ln, c.col+1, n)
+	}
+
+	return pos, ln
+}
+
 // pvW is the editor's text width: the main area less the scrollbar's column.
 func (m *Model) pvW() int { return max(m.mainW()-1, 1) }
 
+// pvH is the preview body height: the main area less the editor strip, the
+// header, the footer and the horizontal scrollbar's row.
 func (m *Model) pvH() int {
 	return max(m.mainH()-1-m.headH()-m.stripH()-m.hbarH(), 1)
 }

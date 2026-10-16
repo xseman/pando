@@ -91,6 +91,21 @@ func TestUntitledTypesAndSaves(t *testing.T) {
 	}
 }
 
+// TestUntitledIsPlain: chroma would guess a language per edited line, so
+// "package" and "func" lit and the rest not; until it is saved, an untitled
+// buffer has no colours at all.
+func TestUntitledIsPlain(t *testing.T) {
+	m := untitledModel(t, "package main")
+	press(m, "enter")
+	press(m, strings.Split("func Cents(euros int) int { return euros*100 }", "")...)
+
+	for i, l := range m.pv.lines {
+		if l != string(m.pv.plain[i]) {
+			t.Fatalf("line %d is coloured: %q", i, l)
+		}
+	}
+}
+
 func TestUntitledSaveAsOverwrite(t *testing.T) {
 	m := untitledModel(t, "new")
 	press(m, "ctrl+s")

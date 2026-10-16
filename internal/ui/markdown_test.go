@@ -123,6 +123,10 @@ func TestMarkdownPreview(t *testing.T) {
 		t.Fatalf("rendered:\n%s", strings.Join(out, "\n"))
 	}
 
+	if c := m.View().Cursor; c != nil { // it would blink in the margin, on no text
+		t.Fatalf("a rendering shows no cursor: %+v", c)
+	}
+
 	press(m, "ctrl+shift+v", "alt+v") // back to source, then side by side
 	out = strings.Split(checkWidths(t, m), "\n")
 

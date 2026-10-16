@@ -41,8 +41,9 @@ const (
 )
 
 var (
-	acceptLabels    = [...]string{"Accept Current Change", "Accept Incoming Change", "Accept Both Changes"}
-	acceptAllLabels = [...]string{"Accept All Current", "Accept All Incoming", "Accept All Both"}
+	acceptLabels      = [...]string{"Accept Current Change", "Accept Incoming Change", "Accept Both Changes"}
+	acceptShortLabels = [...]string{"Accept Current", "Incoming", "Both"} // a narrow editor's
+	acceptAllLabels   = [...]string{"Accept All Current", "Accept All Incoming", "Accept All Both"}
 )
 
 func startsWith(l []rune, marker string) bool {
@@ -131,8 +132,9 @@ func (p *preview) conflictBg(line int) color.Color {
 
 // conflictSuffix is what a marker line shows after its text: "(Current
 // Change)" and the three actions on <<<<<<<, "(Incoming Change)" on >>>>>>>.
-// x positions in acts count cells from the line's start.
-func (p *preview) conflictSuffix(line int) (plain []rune, styled string, acts []rowAction) {
+// Where the line and all that do not fit in tw cells, the short labels go
+// without the note. x positions in acts count cells from the line's start.
+func (p *preview) conflictSuffix(line, tw int) (plain []rune, styled string, acts []rowAction) {
 	c, ok := p.conflictAt(line)
 	if !ok || (line != c.start && line != c.end) {
 		return nil, "", nil
@@ -143,7 +145,10 @@ func (p *preview) conflictSuffix(line int) (plain []rune, styled string, acts []
 		return []rune(s), dim.Render(s), nil
 	}
 
-	note := " (Current Change)  "
+	note, labels := " (Current Change)  ", acceptLabels
+	if cellsOf(p.plain[line])+ansi.StringWidth(note+strings.Join(labels[:], " | ")) > tw {
+		note, labels = "  ", acceptShortLabels
+	}
 
 	var b, sb strings.Builder
 	b.WriteString(note)
@@ -152,7 +157,7 @@ func (p *preview) conflictSuffix(line int) (plain []rune, styled string, acts []
 	link := fg(pal.headerAccent)
 	x := cellsOf(p.plain[line]) + ansi.StringWidth(note)
 
-	for i, label := range acceptLabels {
+	for i, label := range labels {
 		if i > 0 {
 			b.WriteString(" | ")
 			sb.WriteString(dim.Render(" | "))
@@ -186,7 +191,7 @@ func (p *preview) conflictClick(m *Model, w, x, y int) (tea.Cmd, bool) {
 		return nil, false
 	}
 
-	_, _, acts := p.conflictSuffix(vr.line)
+	_, _, acts := p.conflictSuffix(vr.line, w-1-p.gutter()) // as drawn: the scrollbar has the last column
 	if acts == nil || vr.to != len(p.plain[vr.line]) {
 		return nil, false
 	}
