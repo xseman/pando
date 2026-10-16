@@ -331,12 +331,14 @@ func (pk *peek) source(m *Model, w, h int) []string {
 			break
 		}
 
-		text := ansi.Cut(pk.src[n], 0, max(w-numW-1, 1))
+		tw := max(w-numPad-numW-1, 1)
+
+		text := ansi.Cut(pk.src[n], 0, tw)
 		if n == loc.loc.Line {
-			text = highlight(pk.src[n], loc.a+loc.trim, loc.b+loc.trim, max(w-numW-1, 1))
+			text = highlight(pk.src[n], loc.a+loc.trim, loc.b+loc.trim, tw)
 		}
 
-		out[i] = dim.Render(fmt.Sprintf("%*d ", numW, n+1)) + text
+		out[i] = blank(numPad) + dim.Render(fmt.Sprintf("%*d ", numW, n+1)) + text
 	}
 
 	return out
@@ -355,6 +357,10 @@ func highlight(styled string, a, b, w int) string {
 
 	return ansi.Cut(styled, 0, a) + "\x1b[m" + hl.Render(string(plain[a:b])) + ansi.Cut(styled, b, w)
 }
+
+// peekCtx is the text a reference row keeps before its match when the
+// line's start is cut.
+const peekCtx = 8
 
 // renderRow draws row i, a hit behind its indent guides; hovered lights it.
 func (pk *peek) renderRow(m *Model, i, w int, hovered bool, guides []seg) string {
@@ -383,16 +389,23 @@ func (pk *peek) renderRow(m *Model, i, w int, hovered bool, guides []seg) string
 
 	text := []rune(l.text)
 	a, b := max(min(l.a, len(text)), 0), max(min(l.b, len(text)), 0)
+	num := fmt.Sprintf(" %d ", l.loc.Line+1)
+
+	// A line too long for the row loses its start, as in VS Code, so the
+	// match and a little context before it show.
+	if d := min(a-peekCtx, len(text)-(w-4-len(num))+1); d > 1 {
+		text, a, b = append([]rune("…"), text[d:]...), a-d+1, b-d+1
+	}
 
 	segs := lead
 	if a < b {
 		segs = append(segs, sg(string(text[:a]), base),
 			sgOwn(string(text[a:b]), matchStyle(base)), sg(string(text[b:]), base))
 	} else {
-		segs = append(segs, sg(l.text, base))
+		segs = append(segs, sg(string(text), base))
 	}
 
-	return row(w, bg, segs, sg(fmt.Sprintf(" %d ", l.loc.Line+1), dim))
+	return row(w, bg, segs, sg(num, dim))
 }
 
 // rel is path inside the workspace, or the path itself when outside it.

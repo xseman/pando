@@ -639,3 +639,44 @@ func TestReplaceReadOnly(t *testing.T) {
 		t.Fatal("Editor: Replace offered on a read-only file")
 	}
 }
+
+func TestPeekLongLine(t *testing.T) {
+	m := testModelSized(t, 120, 30)
+	code := filepath.Join(m.ws, "store.go")
+	mustWrite(t, code, "package main\n\nfunc (s *Store) TotalWithTaxes() int { return 0 }\n")
+	m.pv, m.preview, m.focus = preview{kind: pvFile, path: code}, true, onMain
+	m.openPeek("References", []lsp.Location{{Path: code, Line: 2, Col: 16, EndLine: 2, EndCol: 30}})
+
+	hl := matchStyle(lipgloss.NewStyle()).Render("TotalWithTaxes")
+
+	row := m.refs.renderRow(m, 1, 34, false, nil)
+	if plain := ansi.Strip(row); !strings.HasPrefix(plain, "  …*Store) TotalWithTaxes") || !strings.Contains(row, hl) {
+		t.Fatalf("a long line keeps its match whole: %q", plain)
+	}
+
+	if plain := ansi.Strip(m.refs.renderRow(m, 1, 80, false, nil)); !strings.HasPrefix(plain, "  func (s *Store) TotalWithTaxes") {
+		t.Fatalf("a line that fits is not cut: %q", plain)
+	}
+}
+
+func TestPeekKeepsCursor(t *testing.T) {
+	m := testModelSized(t, 120, 30)
+	code := filepath.Join(m.ws, "long.go")
+	mustWrite(t, code, strings.Repeat("x := 1\n", 80))
+	fire(m, m.openFileAt(code, 40, 0, 0, false))
+	m.openPeek("References", []lsp.Location{{Path: code, Line: 40, Col: 0, EndLine: 40, EndCol: 1}})
+
+	if k := m.pv.cursorRow(m.pvW()) - m.pv.top; k < 0 || k != m.peekRow() {
+		t.Fatalf("the peek opens right under the cursor's line: row %d, peek under %d", k, m.peekRow())
+	}
+
+	// The source pane's line numbers line up with the editor's above it.
+	out := strings.Split(checkWidths(t, m), "\n")
+	top := slices.IndexFunc(out, func(l string) bool { return strings.Contains(l, "References (1)") })
+	src, _, _ := strings.Cut(ansi.Strip(ansi.Cut(out[top+1], m.mainX(), m.w)), "│")
+	ed := ansi.Strip(ansi.Cut(out[top-1], m.mainX(), m.w))
+
+	if lead := func(s string) int { return len(s) - len(strings.TrimLeft(s, " ")) }; lead(src) != lead(ed) {
+		t.Fatalf("source pane %q, editor %q", src, ed)
+	}
+}
