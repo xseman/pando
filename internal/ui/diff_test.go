@@ -331,6 +331,64 @@ func TestDiffFollowsStaging(t *testing.T) {
 	}
 }
 
+// TestDiffHeaderNoWordHighlight lights no word on a diff's header and hunk
+// rows, where a freshly opened diff's cursor sits: they name no code.
+func TestDiffHeaderNoWordHighlight(t *testing.T) {
+	const d = "diff --git a/search.ts b/search.ts\nindex 111..222 100644\n--- a/search.ts\n+++ b/search.ts\n" +
+		"@@ -1,2 +1,2 @@\n import { search } from \"./search\";\n-search(1);\n+search(2);\n" +
+		"diff --git a/search/b.ts b/search/b.ts\nindex 333..444 100644\n--- a/search/b.ts\n+++ b/search/b.ts\n@@ -1 +1 @@\n-x\n+y\n"
+
+	m := testModelSized(t, 100, 20)
+	m.pv = preview{kind: pvDiff, root: m.ws, path: "search.ts", entry: git.Entry{Path: "search.ts", Letter: 'M'}}
+	m.preview, m.focus = true, onMain
+	lines, plain, meta, numW := render(pvDiff, "search.ts", d, true)
+	m.pv.onLoad(m, previewMsg{key: m.pv.id(), raw: d, lines: lines, plain: plain, meta: meta, numW: numW})
+
+	for i, mt := range m.pv.meta {
+		if mt.a != 0 || mt.b != 0 {
+			continue
+		}
+
+		for col := range m.pv.plain[i] {
+			m.pv.cur = pos{i, col}
+			if w := m.pv.hlWord(); w != nil {
+				t.Fatalf("row %d %q, col %d lights %q", i, string(m.pv.plain[i]), col, string(w))
+			}
+		}
+	}
+}
+
+// TestDiffEmpty offers only close on a diff with no changes, and draws no
+// cursor into its "(no changes)".
+func TestDiffEmpty(t *testing.T) {
+	m := testModelSized(t, 100, 20)
+	m.pv = preview{kind: pvDiff, root: m.ws, path: "a.go", entry: git.Entry{Path: "a.go", Letter: 'M', Staged: true}}
+	m.preview, m.focus = true, onMain
+	lines, plain, meta, numW := render(pvDiff, "a.go", "(no changes)", true)
+	m.pv.onLoad(m, previewMsg{key: m.pv.id(), raw: "(no changes)", lines: lines, plain: plain, meta: meta, numW: numW})
+	m.pv.cur = pos{0, 1}
+
+	if h := m.pv.hints(m); h != " q close" {
+		t.Fatalf("hints: %q", h)
+	}
+
+	if _, _, ok := m.pv.cursor(m.pvW(), m.pvH()); ok {
+		t.Fatal("a cursor in (no changes)")
+	}
+}
+
+// TestDiffRevertAsksUnderLine opens the revert question under the cursor's
+// row, as the menu that asked, not centred over the line it is about.
+func TestDiffRevertAsksUnderLine(t *testing.T) {
+	m := diffModel(t, 80, 30)
+	_, below := m.lightbulb(0)
+	m.pv.confirmRevert(m)
+
+	if _, y, _, _, _ := m.modal.rect(m); y != below {
+		t.Fatalf("dialog at row %d, the cursor's next row is %d", y, below)
+	}
+}
+
 // TestDiffHintStaged names what m does: an index diff's menu only unstages.
 func TestDiffHintStaged(t *testing.T) {
 	m := diffModel(t, 160, 20)

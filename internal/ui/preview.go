@@ -1998,7 +1998,7 @@ func (p *preview) follow(w, h int) {
 
 // cursor is the terminal cursor position inside the preview body.
 func (p *preview) cursor(w, h int) (x, y int, ok bool) {
-	if !p.ready || p.err != "" || len(p.plain) == 0 || p.md == 1 { // a rendering is read, not edited: no cursor
+	if !p.ready || p.err != "" || len(p.plain) == 0 || p.md == 1 || p.empty() { // a rendering is read, not edited: no cursor
 		return 0, 0, false
 	}
 
@@ -2266,6 +2266,9 @@ func (p *preview) hlWord() []rune {
 	}
 
 	c := p.at()
+	if c.line < len(p.meta) && p.meta[c.line].a == 0 && p.meta[c.line].b == 0 { // a diff's header or hunk row names no code
+		return nil
+	}
 
 	a, b := wordRange(p.plain[c.line], c.col)
 	if b-a < 2 { // a single letter matches half the file; VS Code is no keener
@@ -2629,7 +2632,12 @@ func (p *preview) renderRow(vr vrow, w int) string {
 	}
 
 	tw := max(w-p.gutter(), 1)
+
 	line, styled := p.plain[vr.line], p.lines[vr.line]
+	if p.marker(vr.line) { // one color, not the lexer's guess at << and ==
+		styled = string(line)
+	}
+
 	marks := p.guideRoom(vr, p.blankMarks(vr.line, line))
 	styled = markBlanks(styled, line, marks, fg(pal.whitespace))
 	start := cellsOf(line[:vr.from])
@@ -3246,6 +3254,8 @@ func (p *preview) hints(m *Model) string {
 		return settingsHints()
 	case m.peekH() > 0: // the References inline have the keys
 		return " ↑↓ move  ←→ fold  ⏎ open  o open and stay  esc close"
+	case p.empty():
+		return " q close"
 	case p.split(m) && p.kind == pvRev: // one file's history: nothing to stage, no other file
 		return " ↑↓ move  ] [ change  ⇧ select  s inline  q close"
 	case p.split(m) && p.kind != pvDiff: // a commit's or a pull request's: nothing to stage
@@ -3294,6 +3304,9 @@ func (p *preview) hints(m *Model) string {
 
 	return " ↑↓ move  ⇧ select  y copy  w wrap  M-← history  q close"
 }
+
+// empty reports a diff with nothing in it: no row to move to or act on.
+func (p *preview) empty() bool { return p.kind == pvDiff && p.raw == "(no changes)" }
 
 // stageHint is what m does on a diff: a staged one's menu only unstages.
 func (p *preview) stageHint() string {
@@ -4591,6 +4604,7 @@ func (p *preview) confirmRevert(m *Model) tea.Cmd {
 	m.modal = newDialog("Revert the selected changes in "+p.path+"?",
 		item{label: "Revert", run: func(m *Model) tea.Cmd { return m.pv.applyLines(m, git.RevertLines) }},
 		cancelItem())
+	m.modal.x, m.modal.y = p.menuAt(m) // off the lines it asks about, where the menu that asked was
 
 	return nil
 }

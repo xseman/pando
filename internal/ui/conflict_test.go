@@ -1,11 +1,14 @@
 package ui
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func runes(lines ...string) [][]rune {
@@ -54,6 +57,26 @@ func TestMergeConflictNarrow(t *testing.T) {
 
 	if got := p.buf.text(); got != "ours\ntheirs" {
 		t.Fatalf("after accept both:\n%s", got)
+	}
+}
+
+// TestMergeConflictMarkersPlain draws a marker in one color: a lexer reads
+// <<<<<<< as << pairs and paints them apart.
+func TestMergeConflictMarkersPlain(t *testing.T) {
+	m, _ := editorModel(t, "a.go", "package a\n<<<<<<< HEAD\nvar x = 1\n=======\nvar x = 2\n>>>>>>> feat\n")
+	m.Update(tea.WindowSizeMsg{Width: 160, Height: 30})
+
+	for _, l := range []int{1, 3, 5} {
+		row := m.pv.renderRow(vrow{line: l, from: 0, to: len(m.pv.plain[l])}, m.pvW())
+		buf := uv.NewScreenBuffer(ansi.StringWidth(row), 1)
+		uv.NewStyledString(row).Draw(buf, buf.Bounds())
+
+		g := m.pv.gutter()
+		for x := g + 1; x < g+7; x++ {
+			if a, b := buf.CellAt(g, 0), buf.CellAt(x, 0); fmt.Sprint(a.Style.Fg) != fmt.Sprint(b.Style.Fg) {
+				t.Fatalf("line %d: cell %d %v, cell %d %v in %q", l, g, a.Style.Fg, x, b.Style.Fg, ansi.Strip(row))
+			}
+		}
 	}
 }
 

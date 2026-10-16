@@ -392,6 +392,18 @@ func treeLead(t *testing.T, lines []string, name string) (string, int) {
 
 // TestExplorerIndentGuides draws VS Code's indent guides: a rule under each
 // open folder's chevron down its children, none at the root.
+// TestExplorerShowsAppliedFile lists a file a code action created as soon as
+// the edit is applied, not at the next tick.
+func TestExplorerShowsAppliedFile(t *testing.T) {
+	m := testModel(t)
+	mustWrite(t, filepath.Join(m.ws, "made_test.go"), "package a\n")
+	m.onApplied(appliedMsg{title: "Add test"})
+
+	if !slices.ContainsFunc(m.ex.nodes, func(n exNode) bool { return n.name == "made_test.go" }) {
+		t.Fatal("the new file is not in the tree")
+	}
+}
+
 func TestExplorerIndentGuides(t *testing.T) {
 	m := testModel(t)
 	mustWrite(t, filepath.Join(m.ws, "src", "y.go"), "")

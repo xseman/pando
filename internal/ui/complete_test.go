@@ -92,6 +92,25 @@ func TestSuggestProse(t *testing.T) {
 	}
 }
 
+// TestSuggestNotInComments keeps quiet after a line's comment token, as VS
+// Code does, and suggests in the code before it.
+func TestSuggestNotInComments(t *testing.T) {
+	m, _ := editorModel(t, "a.py", "total = 1\n\nx = 1 # \n")
+	m.pv.setCursor(m, pos{2, 8})
+	press(m, "t")
+
+	if m.pv.comp.on {
+		t.Fatal("typing in a comment opened suggestions")
+	}
+
+	m.pv.setCursor(m, pos{1, 0})
+	press(m, "t")
+
+	if !m.pv.comp.on {
+		t.Fatal("typing code opened nothing")
+	}
+}
+
 // TestSuggestServer takes a server's answer over the words, drops a stale one,
 // and lets the server's range decide what is replaced.
 func TestSuggestServer(t *testing.T) {
@@ -156,10 +175,10 @@ func TestSuggestBoxFits(t *testing.T) {
 	}
 }
 
-// TestSuggestEmptyEsc lets esc through an empty list: "." in a comment opens
-// a member list nothing fills, which shows nothing and must not cost an esc.
+// TestSuggestEmptyEsc lets esc through an empty list: "." opens a member list
+// no server has filled, which shows nothing and must not cost an esc.
 func TestSuggestEmptyEsc(t *testing.T) {
-	m, _ := editorModel(t, "a.go", "package a\n\n// note\n")
+	m, _ := editorModel(t, "a.go", "package a\n\nvar n = x\n")
 	m.st.Settings.Vim = true
 	m.pv.setCursor(m, pos{2, 0})
 	press(m, "A", ".")

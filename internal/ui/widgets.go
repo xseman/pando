@@ -1523,7 +1523,16 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 		msg, _, hintH := md.dialogBody(w - 2)
 		h = len(msg) + hintH + 4
 		// ponytail: taller than the terminal clips the bottom, buttons and all; scroll the message if one ever does.
-		return max(x0+(x1-x0-w)/2, x0), max((m.h-h)/3, 0), w, h, 0
+		if md.x < 0 {
+			return max(x0+(x1-x0-w)/2, x0), max((m.h-h)/3, 0), w, h, 0
+		}
+
+		y = md.y // anchored as a menu: under its line, else above it
+		if y+h > m.h {
+			y = md.y - 1 - h
+		}
+
+		return max(min(md.x, x1-w), x0), max(y, 0), w, h, 0
 	}
 
 	w = ansi.StringWidth(md.title) + 6
@@ -1559,6 +1568,9 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 	x = min(md.x, x1-w)
 
 	switch {
+	case md.x < 0 && md.area[1] > 0 && !md.dialog: // as the form: lower, it would cut the grid's boxes
+		x, y = x0+(x1-x0-w)/2, m.headH()+m.stripH()
+
 	case md.x < 0:
 		// A picker's top edge stays put while results change: it is placed as if full.
 		top := h
@@ -1780,7 +1792,7 @@ func (md *modal) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 			if sug := md.input.CurrentSuggestion(); sug != "" && sug != md.input.Value() {
 				md.input.SetValue(sug)
 				md.input.CursorEnd()
-				md.input.SetSuggestions(md.complete(sug))
+				md.input.SetSuggestions(nil) // the next waits for typing or tab too
 
 				return nil
 			}

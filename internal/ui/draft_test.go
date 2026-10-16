@@ -521,19 +521,27 @@ func TestEditorLimit(t *testing.T) {
 }
 
 // TestSaveAsSuggestsOnceAsked opens Save as without a grey completion, which
-// would read as the file about to be written; tab brings one.
+// would read as the file about to be written, nor shows one inside a folder
+// tab just completed; tab brings one.
 func TestSaveAsSuggestsOnceAsked(t *testing.T) {
 	m := untitledModel(t, "x")
 	mustWrite(t, filepath.Join(m.ws, "README.md"), "# r\n")
+	mustWrite(t, filepath.Join(m.ws, "src", "a.go"), "package a\n")
 	press(m, "ctrl+s")
 
 	if m.modal == nil || len(m.modal.input.AvailableSuggestions()) > 0 {
 		t.Fatalf("Save as opens suggesting: %+v", m.modal)
 	}
 
+	press(m, "s", "tab")
+
+	if v := m.modal.input.Value(); !strings.HasSuffix(v, "src/") || len(m.modal.input.AvailableSuggestions()) > 0 {
+		t.Fatalf("after s tab: %q, suggesting %v", v, m.modal.input.AvailableSuggestions())
+	}
+
 	press(m, "tab")
 
-	if v := m.modal.input.Value(); !strings.HasSuffix(v, "README.md") {
+	if v := m.modal.input.Value(); !strings.HasSuffix(v, "src/a.go") {
 		t.Fatalf("tab did not complete: %q", v)
 	}
 }

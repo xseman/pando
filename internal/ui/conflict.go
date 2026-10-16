@@ -104,6 +104,13 @@ func (p *preview) conflictAt(line int) (conflict, bool) {
 	return conflict{}, false
 }
 
+// marker reports line a conflict's marker: <<<<<<<, |||||||, ======= or
+// >>>>>>>.
+func (p *preview) marker(line int) bool {
+	c, ok := p.conflictAt(line)
+	return ok && (line == c.start || line == c.split || line == c.end || slices.Contains(c.ancestors, line))
+}
+
 // conflictBg is VS Code's merge decoration for line: header and content of
 // the current, common ancestor and incoming blocks; the splitter has none.
 func (p *preview) conflictBg(line int) color.Color {

@@ -594,6 +594,8 @@ func (m *Model) onApplied(msg appliedMsg) tea.Cmd {
 		return flash(msg.err.Error(), true)
 	}
 
+	m.ex.rebuild(m) // a file the edit created shows at once, not at the next tick
+
 	return tea.Batch(m.pv.load(m), m.refreshGit(), flash(msg.title, false))
 }
 

@@ -64,6 +64,17 @@ func (m *Model) autoSuggest(path string) bool {
 	return len(argv) > 0 || lsp.LanguageOf(path) != ""
 }
 
+// inComment reports the cursor after its line's comment token: prose, where
+// typing, a sentence's "." too, opens nothing by itself.
+// ponytail: a token inside a string ("http://") counts too; ask the lexer if
+// that ever silences code.
+func (p *preview) inComment() bool {
+	r := p.rawPos(p.at())
+	bl := p.buf.line(r.line)
+
+	return strings.Contains(string(bl[:min(r.col, len(bl))]), commentOf(p.path))
+}
+
 func (p *preview) closeComp() { p.comp = completion{seq: p.comp.seq} }
 
 // suggest opens or refreshes the list for the word at the cursor. trigger is
@@ -332,12 +343,12 @@ func (p *preview) afterEdit(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	case k.Text == ".":
 		p.closeComp()
 
-		if _, argv := m.lspCommand(p.path); len(argv) > 0 {
+		if _, argv := m.lspCommand(p.path); len(argv) > 0 && !p.inComment() {
 			return p.suggest(m, ".", true)
 		}
 
 	case len(rs) == 1 && isWordRune(rs[0]):
-		if p.comp.on || m.autoSuggest(p.path) {
+		if p.comp.on || m.autoSuggest(p.path) && !p.inComment() {
 			return p.suggest(m, p.comp.trigger, false)
 		}
 

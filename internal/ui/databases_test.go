@@ -1728,6 +1728,18 @@ func TestTablePendingSQLWraps(t *testing.T) {
 	}
 }
 
+// TestTablePendingSQLAtTop opens Pending SQL at the top of the editor area, as
+// the connection form: lower, its title cut the WHERE and ORDER BY boxes.
+func TestTablePendingSQLAtTop(t *testing.T) {
+	m, _, tb := openOrders(t)
+	tb.add(0)
+	dbDo(m, tb.showSQL(m))
+
+	if _, y, _, _, _ := m.modal.rect(m); y != m.headH()+m.stripH() {
+		t.Fatalf("Pending SQL at row %d, the area's body starts at %d", y, m.headH()+m.stripH())
+	}
+}
+
 func TestTableBoxesPlaceholders(t *testing.T) {
 	m, _, tb := openOrders(t)
 
