@@ -117,8 +117,9 @@ inline                                side by side (diff_view = "split")
   whole file (`--unified=1000000000`). `z`, the header's unfold/fold button
   and Toggle Collapse Unchanged Regions flip it (`toggleDiffFull`).
 - `changes` are the runs of `a` and `d` rows, a deletion and its additions
-  one change. `]` `[` (`gotoChange`) put the cursor on a change's first
-  line, mid view, around the ends as VS Code. `}` `{`
+  one change. `]` `[` (`gotoChange`) and a click on a scrollbar mark
+  (`markAt`; again on the same cell, its next change) put the cursor on a
+  change's first line, mid view, around the ends as VS Code. `}` `{`
   (`stepFile`) go to the next file of a commit's or pull request's diff, its
   name on the top row and the cursor on its first change, or open the next
   file of Source Control (of the Compare drawer for `cmp`) and select it.
@@ -128,6 +129,15 @@ inline                                side by side (diff_view = "split")
   (`findPlace`: the same row, else the next one shown), unless the cursor
   moved meanwhile. The status bar's Ln and Go to Line count the file's lines
   (`lineNo`).
+- The scrollbar marks changes (`barChanges`, `vbar.marked`): a cell is two
+  halves (`▀` `▄`), row r of the wrapped or side-by-side rows lands on half
+  r·2h/n, so none is too short. A change is a deletion (`diff_del_mark`), an
+  addition (`diff_add_mark`) or both, a line changed (`diff_mod_mark`, blue
+  as VS Code's gutter); in a shared half the rarer kind wins, deletion over
+  addition over both. On the slider a mark takes the right half (`▐`), so
+  the slider shows through, its color moved 3:1 apart from the slider's
+  (`legible`). A row in view is marked on the slider, one out of view off
+  it (`halfOf`): `thumb` scales apart.
 - A file's diff opens on its first change (`onLoad`, mid view when the
   whole file hides it); a reload, a tab coming back and a commit keep theirs.
 - The cursor is a whole diff line in both views. `m` (or `shift+F10`) opens the

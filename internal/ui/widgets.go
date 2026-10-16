@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image/color"
 	"maps"
+	"math"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -333,6 +334,131 @@ func (b vbar) cells(s barState) []string {
 	return out
 }
 
+// marked are the bar's cells with a diff's changes on them, as VS Code's
+// overview ruler draws them. kinds holds each of the b.n rows' change bits
+// (1 a deletion, 2 an addition); a change, a run of such rows, is a
+// deletion (red), an addition (green) or both, a line changed (blue, as
+// VS Code's gutter marks one). Each cell is two marks, its upper and lower
+// half, and row r lands on half r*2h/n, so no change is too short to show. Where changes share a half the
+// rarer kind shows: a deletion over an addition over a modification. On the
+// slider a mark is the cell's right half (▐), the rarer kind of the two, so
+// the slider shows through on the left as VS Code's translucent one does, at
+// rest, hovered and dragged.
+func (b vbar) marked(s barState, kinds []byte) []string {
+	out := b.cells(s)
+	if !b.on() || len(kinds) != b.n {
+		return out
+	}
+
+	rank := []int{0, 3, 2, 1} // by kind: none, deletion, addition, both
+
+	half := make([]byte, 2*b.h)
+
+	for r := 0; r < len(kinds); {
+		if kinds[r] == 0 {
+			r++
+			continue
+		}
+
+		from, k := r, byte(0)
+		for ; r < len(kinds) && kinds[r] != 0; r++ {
+			k |= kinds[r]
+		}
+
+		for i := from; i < r; i++ {
+			if at := &half[b.halfOf(i)]; rank[k] > rank[*at] {
+				*at = k
+			}
+		}
+	}
+
+	ty, sh := b.thumb()
+	col := func(k byte) color.Color {
+		return []color.Color{nil, pal.diffDelMark, pal.diffAddMark, pal.diffModMark}[k]
+	}
+
+	for i := range b.h {
+		top, bot := half[2*i], half[2*i+1]
+
+		onSlider := i >= ty && i < ty+sh
+
+		switch {
+		case top == 0 && bot == 0:
+			continue
+		case onSlider:
+			sl := s.slider(b)
+			out[i] = fg(legible(col(ifElse(rank[top] > rank[bot], top, bot)), sl)).Background(sl).Render("▐")
+
+		case top == bot:
+			out[i] = fg(col(top)).Render("█")
+		case bot == 0:
+			out[i] = fg(col(top)).Render("▀")
+		case top == 0:
+			out[i] = fg(col(bot)).Render("▄")
+		default:
+			out[i] = fg(col(top)).Background(col(bot)).Render("▀")
+		}
+	}
+
+	return out
+}
+
+// halfOf is the half cell row r of the content is marked on: r*2h/n, kept
+// on the slider while r is in view and off it while not, as thumb scales the
+// slider so its ends meet the track's.
+func (b vbar) halfOf(r int) int {
+	i := r * 2 * b.h / b.n
+	ty, sh := b.thumb()
+	lo, hi := 2*ty, 2*(ty+sh)-1
+
+	switch {
+	case r >= b.top && r < b.top+b.h:
+		return max(min(i, hi), lo)
+	case r < b.top:
+		return max(min(i, lo-1), 0)
+	}
+
+	return min(max(i, hi+1), 2*b.h-1)
+}
+
+// legible is c moved away from bg until the two are 3:1 apart, WCAG's
+// contrast for a graphic: a mark on the slider, whose colors no theme pairs.
+func legible(c, bg color.Color) color.Color {
+	lighter := luminance(c) > luminance(bg) || luminance(c) == luminance(bg) && luminance(bg) < 0.5
+
+	for range 10 {
+		if contrast(c, bg) >= 3 {
+			break
+		}
+
+		c = ifElse(lighter, lipgloss.Lighten(c, 0.1), lipgloss.Darken(c, 0.2))
+	}
+
+	return c
+}
+
+// luminance is c's relative luminance, 0 for black to 1 for white.
+func luminance(c color.Color) float64 {
+	r, g, b, _ := c.RGBA()
+	lin := func(v uint32) float64 {
+		f := float64(v) / 0xffff
+		if f <= 0.04045 {
+			return f / 12.92
+		}
+
+		return math.Pow((f+0.055)/1.055, 2.4)
+	}
+
+	return 0.2126*lin(r) + 0.7152*lin(g) + 0.0722*lin(b)
+}
+
+// contrast is WCAG's contrast ratio of a and b, 1 to 21.
+func contrast(a, b color.Color) float64 {
+	la, lb := luminance(a), luminance(b)
+
+	return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+}
+
 // hcells is the bar laid along a row, b.h cells: blanks underlined, the
 // slider's color over the columns in view and the track's border elsewhere.
 // A block glyph per cell (▀) seams at fractional scaling in VTE and a
@@ -355,7 +481,11 @@ func (b vbar) hcells(s barState) string {
 
 // withBar fits lines to w-1 columns and puts b's column after them, h rows.
 func withBar(lines []string, w int, b vbar, s barState) []string {
-	cells := b.cells(s)
+	return withCells(lines, w, b.cells(s))
+}
+
+// withCells puts a bar's cells in the last of w columns, beside lines.
+func withCells(lines []string, w int, cells []string) []string {
 	out := make([]string, len(cells))
 
 	for i := range out {

@@ -2745,7 +2745,9 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 	switch {
 	case p.split(m):
 		body = p.splitBody(tw, h)
-		return header, withBar(body, w, vbar{p.scrollRows(m), h, p.top}, vb), footer
+		kinds, _ := p.barChanges(m)
+
+		return header, withCells(body, w, vbar{p.scrollRows(m), h, p.top}.marked(vb, kinds)), footer
 
 	case p.side(m):
 		body = p.sideBody(m, tw, h)
@@ -2773,7 +2775,9 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 		body = append(body, p.renderRow(vis[k], tw))
 	}
 
-	body = withBar(body, w, vbar{len(vis), h, p.top}, vb)
+	kinds, _ := p.barChanges(m)
+
+	body = withCells(body, w, vbar{len(vis), h, p.top}.marked(vb, kinds))
 	if hb.on() { // under the text, the gutter and the vertical bar's corner left blank
 		body = append(body, blank(p.gutter())+hb.hcells(m.barState("editor-h"))+" ")
 	}
@@ -4120,6 +4124,11 @@ func (p *preview) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 		m.overBar = barPoint{"editor", y}
 
 		if click && mo.Button == tea.MouseLeft {
+			if n, ok := p.markAt(m, y); ok {
+				p.showLine(m, n, false)
+				return nil
+			}
+
 			return m.barClick("editor", y, mo.Y-y, func() vbar { return p.bar(m) }, func(top int) tea.Cmd {
 				p.top = top
 				return nil

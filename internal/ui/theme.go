@@ -32,6 +32,7 @@ type palette struct {
 	textSelBg, matchBg, wordHiBg                                                 color.Color
 	rangeHiBg, findMatchBg, findHitBg                                            color.Color // Go to Line's line; find's other and current matches
 	diffDelBg, diffDelWordBg, diffAddBg, diffAddWordBg, diffDelMark, diffAddMark color.Color
+	diffModMark                                                                  color.Color // a line changed, on the scrollbar: VS Code Modern's blue, legible on the slider
 	// merge conflict blocks in an editor: VS Code's merge.*Background over the editor background
 	mergeCurrentHeadBg, mergeCurrentBg, mergeIncomingHeadBg, mergeIncomingBg, mergeCommonHeadBg, mergeCommonBg color.Color
 	ok, warn, errc, attention                                                                                  color.Color
@@ -66,7 +67,7 @@ var (
 		textSelBg: hex("#245c73"), matchBg: hex("#1e4352"), wordHiBg: hex("#192d37"),
 		rangeHiBg: hex("#242526"), findMatchBg: hex("#1d3d4b"), findHitBg: hex("#255f77"),
 		diffDelBg: hex("#401d1d"), diffDelWordBg: hex("#562f2d"), diffAddBg: hex("#1b2d1d"), diffAddWordBg: hex("#274129"),
-		diffDelMark: hex("#f28772"), diffAddMark: hex("#72c892"),
+		diffDelMark: hex("#f28772"), diffAddMark: hex("#72c892"), diffModMark: hex("#4daafc"),
 		mergeCurrentHeadBg: hex("#2f7366"), mergeCurrentBg: hex("#25403b"), mergeIncomingHeadBg: hex("#2f628f"), mergeIncomingBg: hex("#25394b"),
 		mergeCommonHeadBg: hex("#383838"), mergeCommonBg: hex("#282828"),
 		ok: hex("#72c892"), warn: hex("#cca700"), errc: hex("#f48771"), attention: hex("#ad80d7"),
@@ -91,7 +92,7 @@ var (
 		textSelBg: hex("#bfd9f2"), matchBg: hex("#cce2f5"), wordHiBg: hex("#d9e9f7"),
 		rangeHiBg: hex("#eaeaea"), findMatchBg: hex("#e5f0fa"), findHitBg: hex("#a6cbed"),
 		diffDelBg: hex("#f3dada"), diffDelWordBg: hex("#e2a8a8"), diffAddBg: hex("#e6ecdb"), diffAddWordBg: hex("#c5d1aa"),
-		diffDelMark: hex("#ad0707"), diffAddMark: hex("#587c0c"),
+		diffDelMark: hex("#ad0707"), diffAddMark: hex("#587c0c"), diffModMark: hex("#005fb8"),
 		mergeCurrentHeadBg: hex("#a0e4d7"), mergeCurrentBg: hex("#d9f4ef"), mergeIncomingHeadBg: hex("#a0d3ff"), mergeIncomingBg: hex("#d9edff"),
 		mergeCommonHeadBg: hex("#c0c0c0"), mergeCommonBg: hex("#e6e6e6"),
 		ok: hex("#388a34"), warn: hex("#b69500"), errc: hex("#ad0707"), attention: hex("#652d90"),
@@ -117,7 +118,7 @@ var (
 		rangeHiBg: ansi16(0), findMatchBg: ansi16(8), findHitBg: ansi16(3),
 		diffDelBg: vscodeDark.diffDelBg, diffDelWordBg: vscodeDark.diffDelWordBg,
 		diffAddBg: vscodeDark.diffAddBg, diffAddWordBg: vscodeDark.diffAddWordBg,
-		diffDelMark: vscodeDark.diffDelMark, diffAddMark: vscodeDark.diffAddMark,
+		diffDelMark: vscodeDark.diffDelMark, diffAddMark: vscodeDark.diffAddMark, diffModMark: ansi16(12),
 		mergeCurrentHeadBg: vscodeDark.mergeCurrentHeadBg, mergeCurrentBg: vscodeDark.mergeCurrentBg,
 		mergeIncomingHeadBg: vscodeDark.mergeIncomingHeadBg, mergeIncomingBg: vscodeDark.mergeIncomingBg,
 		mergeCommonHeadBg: vscodeDark.mergeCommonHeadBg, mergeCommonBg: vscodeDark.mergeCommonBg,
@@ -167,7 +168,7 @@ func (p *palette) colorKeys() map[string]*color.Color {
 		"keycap_bg": &p.keycapBg, "keycap_fg": &p.keycapFg, "text_sel_bg": &p.textSelBg, "match_bg": &p.matchBg, "word_hi_bg": &p.wordHiBg,
 		"range_hi_bg": &p.rangeHiBg, "find_match_bg": &p.findMatchBg, "find_hit_bg": &p.findHitBg,
 		"diff_del_bg": &p.diffDelBg, "diff_del_word_bg": &p.diffDelWordBg, "diff_add_bg": &p.diffAddBg,
-		"diff_add_word_bg": &p.diffAddWordBg, "diff_del_mark": &p.diffDelMark, "diff_add_mark": &p.diffAddMark,
+		"diff_add_word_bg": &p.diffAddWordBg, "diff_del_mark": &p.diffDelMark, "diff_add_mark": &p.diffAddMark, "diff_mod_mark": &p.diffModMark,
 		"merge_current_head_bg": &p.mergeCurrentHeadBg, "merge_current_bg": &p.mergeCurrentBg,
 		"merge_incoming_head_bg": &p.mergeIncomingHeadBg, "merge_incoming_bg": &p.mergeIncomingBg,
 		"merge_common_head_bg": &p.mergeCommonHeadBg, "merge_common_bg": &p.mergeCommonBg,

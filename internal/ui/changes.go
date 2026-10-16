@@ -269,3 +269,79 @@ func (m *Model) stepFile(d int) tea.Cmd {
 
 	return tea.Batch(s.onSelect(m), s.activate(m, &s.rows[i], true))
 }
+
+// barChanges are the diff's rows as its scrollbar counts them, wrapped or
+// side by side: each row's change bits for vbar.marked and the meta line it
+// shows, the deletion's of a side-by-side pair. Nil for anything but a diff.
+func (p *preview) barChanges(m *Model) (kinds []byte, lines []int) {
+	if p.meta == nil {
+		return nil, nil
+	}
+
+	bit := func(n int) byte {
+		switch {
+		case n < 0:
+			return 0
+		case p.meta[n].kind == 'd':
+			return 1
+		case p.meta[n].kind == 'a':
+			return 2
+		}
+
+		return 0
+	}
+
+	if p.split(m) {
+		for _, sr := range splitRows(p.meta) {
+			kinds = append(kinds, bit(sr.l)|bit(sr.r))
+			lines = append(lines, ifElse(sr.l >= 0, sr.l, sr.r))
+		}
+
+		return kinds, lines
+	}
+
+	for _, vr := range p.rows(m.pvW()) {
+		kinds, lines = append(kinds, bit(vr.line)), append(lines, vr.line)
+	}
+
+	return kinds, lines
+}
+
+// markAt is the first line of a change marked on scrollbar row y, off the
+// slider, which a click goes to as VS Code's overview ruler does. A cell
+// holds every change whose rows land on it: from the cursor on one of them,
+// the click goes to the next, so each is a click away.
+func (p *preview) markAt(m *Model, y int) (int, bool) {
+	b := p.bar(m)
+	if ty, sh := b.thumb(); !b.on() || y >= ty && y < ty+sh {
+		return 0, false
+	}
+
+	kinds, lines := p.barChanges(m)
+	cs := changes(p.meta)
+
+	var starts []int
+
+	for r, k := range kinds {
+		if k == 0 || b.halfOf(r)/2 != y {
+			continue
+		}
+
+		i, ok := slices.BinarySearchFunc(cs, lines[r], func(c [2]int, n int) int {
+			return ifElse(c[1] <= n, -1, ifElse(c[0] > n, 1, 0))
+		})
+		if ok && !slices.Contains(starts, cs[i][0]) {
+			starts = append(starts, cs[i][0])
+		}
+	}
+
+	if len(starts) == 0 {
+		return 0, false
+	}
+
+	if i := slices.Index(starts, p.at().line); i >= 0 {
+		return starts[(i+1)%len(starts)], true
+	}
+
+	return starts[0], true
+}

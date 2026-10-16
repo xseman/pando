@@ -165,7 +165,9 @@ fold button) shows the whole file, for every diff until toggled back. `]` and
 `[` (VS Code's `alt+F5`, `shift+alt+F5`, or the header's `↓` `↑`) go to the
 next and previous change, `}` and `{` to the next and previous file: of a
 commit, or of Source Control from a file's diff; a file's diff opens on its
-first change.
+first change. The scrollbar marks every change: green added, red deleted,
+blue changed lines; a click on a mark goes there, again to the next one in
+the same cell.
 
 | Key       | In Source Control                                          |
 | --------- | ---------------------------------------------------------- |

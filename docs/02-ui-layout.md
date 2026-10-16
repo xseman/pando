@@ -245,6 +245,8 @@ Model.mouse
   `scrollbar_slider_active` over an `overview_ruler_border` track; hover state
   via `overBar` and `barState`.
 - Click grabs the slider or jumps to the track point; `dragScroll` follows.
+  A diff's bar marks its changes (`vbar.marked`), on the slider too; a click
+  on a mark off the slider goes to that change.
 - On the alternate screen (`Screen.AltScreen`) the bar is empty and the wheel
   and `pgup`/`pgdn` go to the app.
 

@@ -2,10 +2,13 @@ package ui
 
 import (
 	"fmt"
+	"image/color"
 	"slices"
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/xseman/pando/internal/git"
 )
 
@@ -206,6 +209,141 @@ func opsDiff(n int, ops map[int]string) string {
 	}
 
 	return b.String()
+}
+
+// TestScrollbarChangeMarks marks a diff's changes on its scrollbar as VS
+// Code's overview ruler does: green, red, or the modified color for both, on
+// the slider too, side by side as well; a click on a mark off the slider
+// goes to that change.
+func TestScrollbarChangeMarks(t *testing.T) {
+	applyLook("vscode", true, "ascii", nil)
+
+	for _, split := range []bool{false, true} {
+		m := testModelSized(t, 160, 30)
+		m.st.Settings.DiffView = ifElse(split, "split", "inline")
+		m.pv = preview{kind: pvDiff, root: m.ws, path: "f.go", entry: git.Entry{Path: "f.go", Letter: 'M'}}
+		m.preview, m.focus = true, onMain
+		loadDiff(m, pvDiff, opsDiff(300, map[int]string{2: "a", 150: "d", 290: "m"}))
+		checkWidths(t, m)
+
+		b, h := m.pv.bar(m), m.pvH()
+		x, y0 := m.mainX()+m.mainW()-1, 1+m.stripH()
+		marked := func(c string) bool { return strings.ContainsAny(ansi.Strip(c), "▀▄█▝▗▐") }
+		cell := func(y int) string { // the bar's cell: its glyph and the last SGR before it, not those the cut carries along
+			c := ansi.Cut(m.editorLines(m.mainW())[m.stripH()+1+y], m.mainW()-1, m.mainW())
+			if g := strings.LastIndex(c, ansi.Strip(c)); g > 0 {
+				c = c[strings.LastIndex(c[:g], "\x1b["):]
+			}
+
+			return c
+		}
+
+		kinds, lines := m.pv.barChanges(m)
+		yOf := func(c byte) int { return slices.Index(kinds, c) * h / b.n }
+
+		add, del := yOf(2), yOf(1)
+		mod := slices.IndexFunc(lines, func(n int) bool { return m.pv.meta[n].kind == 'd' && m.pv.meta[n].a == 291 }) * h / b.n
+
+		for _, c := range []struct {
+			y   int
+			col color.Color
+		}{{add, pal.diffAddMark}, {del, pal.diffDelMark}, {mod, pal.diffModMark}} {
+			if got := cell(c.y); !strings.Contains(got, fgParams(c.col)) && !strings.Contains(got, bgParams(c.col)) || !marked(got) {
+				t.Fatalf("split %v: bar row %d = %q, want a mark in %v", split, c.y, got, c.col)
+			}
+		}
+
+		if ty, _ := b.thumb(); ty != 0 || !strings.Contains(cell(add), bgParams(pal.sliderBg)) {
+			t.Fatalf("split %v: the mark at the top is drawn on the slider: %q", split, cell(add))
+		}
+
+		if got := cell(del + 1); marked(got) {
+			t.Fatalf("split %v: row %d has no change, got %q", split, del+1, got)
+		}
+
+		m.Update(tea.MouseClickMsg{X: x, Y: y0 + del, Button: tea.MouseLeft})
+		m.Update(tea.MouseReleaseMsg{X: x, Y: y0 + del, Button: tea.MouseLeft})
+
+		if l := m.pv.at().line; m.pv.meta[l].kind != 'd' || m.pv.meta[l].a != 151 {
+			t.Fatalf("split %v: a click on the deletion's mark put the cursor on %+v", split, m.pv.meta[l])
+		}
+
+		checkWidths(t, m)
+	}
+}
+
+// TestScrollbarMarksDense keeps a file changed all over legible: a cell is
+// two marks, the rarer kind shows where changes share one, and clicks on a
+// cell go through every change it holds.
+func TestScrollbarMarksDense(t *testing.T) {
+	applyLook("vscode", true, "ascii", nil)
+
+	ops := map[int]string{}
+	for i := 37; i < 2000; i += 37 {
+		ops[i] = "m"
+	}
+
+	for i := 101; i < 2000; i += 101 {
+		ops[i] = "d"
+	}
+
+	m := testModelSized(t, 160, 30)
+	m.pv = preview{kind: pvDiff, root: m.ws, path: "f.go", entry: git.Entry{Path: "f.go", Letter: 'M'}}
+	m.preview, m.focus = true, onMain
+	loadDiff(m, pvDiff, opsDiff(2000, ops))
+
+	h, x, y0 := m.pvH(), m.mainX()+m.mainW()-1, 1+m.stripH()
+	cells := m.pv.bar(m).marked(barState{}, func() []byte { k, _ := m.pv.barChanges(m); return k }())
+
+	var reds int
+
+	for _, c := range cells[:h] {
+		if strings.Contains(c, fgParams(pal.diffDelMark)) || strings.Contains(c, bgParams(pal.diffDelMark)) {
+			reds++
+		}
+	}
+
+	if reds < len(ops)/10 {
+		t.Fatalf("the deletions among the modifications show red: %d cells of %d", reds, h)
+	}
+
+	for _, top := range []int{0, 900} { // the slider shows through the marks, wherever it is
+		m.pv.top = top
+		b := m.pv.bar(m)
+		ty, sh := b.thumb()
+		kinds, _ := m.pv.barChanges(m)
+
+		for i, c := range b.marked(barState{}, kinds)[ty : ty+sh] {
+			if !strings.Contains(c, bgParams(pal.sliderBg)) {
+				t.Fatalf("top %d: slider cell %d hides the slider: %q", top, ty+i, c)
+			}
+		}
+	}
+
+	m.pv.top = 0
+
+	// The last cell's changes, each a click away, then the first again.
+	ty, sh := m.pv.bar(m).thumb()
+
+	y := h - 1
+	if y >= ty && y < ty+sh {
+		t.Fatal("the slider is at the top")
+	}
+
+	var seen []int
+
+	for range 4 {
+		m.Update(tea.MouseClickMsg{X: x, Y: y0 + y, Button: tea.MouseLeft})
+		m.Update(tea.MouseReleaseMsg{X: x, Y: y0 + y, Button: tea.MouseLeft})
+		seen = append(seen, m.pv.at().line)
+		m.pv.top = 0 // back to the top, so the slider is off the cell again
+	}
+
+	if seen[0] == seen[1] || !slices.Contains(seen[2:], seen[0]) {
+		t.Fatalf("clicks on one cell go through its changes and around: %v", seen)
+	}
+
+	checkWidths(t, m)
 }
 
 // compactDiff is the changes-only diff of longDiff(n, at...): three lines of
@@ -409,6 +547,36 @@ func TestDiffEdges(t *testing.T) {
 
 	if got := findPlace(m.pv.meta, lineMeta{a: 99}); got != len(m.pv.meta)-1 {
 		t.Fatalf("a line past the end is the last row: %d", got)
+	}
+}
+
+// TestMarksOnTheSlider: in every theme and slider state a mark on the slider
+// stands 3:1 apart from it, and a change in view is marked on the slider, one
+// out of view off it, however the two scale.
+func TestMarksOnTheSlider(t *testing.T) {
+	defer applyLook("vscode", true, "ascii", nil)
+
+	for _, theme := range []string{"vscode-dark", "vscode-light", "terminal"} {
+		applyLook(theme, true, "ascii", nil)
+
+		for _, st := range []barState{{}, {over: true}, {held: true}} {
+			for _, c := range []color.Color{pal.diffDelMark, pal.diffAddMark, pal.diffModMark} {
+				if bg := st.slider(vbar{100, 10, 0}); contrast(legible(c, bg), bg) < 3 {
+					t.Errorf("%s %+v: a mark %v on the slider %v reads %.2f:1", theme, st, c, bg, contrast(legible(c, bg), bg))
+				}
+			}
+		}
+	}
+
+	for _, b := range []vbar{{2000, 38, 1480}, {2000, 38, 0}, {2000, 38, 1962}, {301, 27, 140}} {
+		ty, sh := b.thumb()
+
+		for r := range b.n {
+			on := b.halfOf(r)/2 >= ty && b.halfOf(r)/2 < ty+sh
+			if in := r >= b.top && r < b.top+b.h; in != on && (in || ty > 0 && ty+sh < b.h) {
+				t.Fatalf("%+v: row %d in view %v, marked on the slider %v (cell %d, slider %d+%d)", b, r, in, on, b.halfOf(r)/2, ty, sh)
+			}
+		}
 	}
 }
 
