@@ -519,6 +519,7 @@ func (s *session) screen(p proto.ScreenParams) proto.Screen {
 		Lines: lines, CursorX: pos.X, CursorY: pos.Y,
 		CursorVisible: s.cursorVisible && scroll == 0 && !s.exited, CursorStyle: s.cursorStyle,
 		Mouse: slices.Contains(slices.Collect(maps.Values(s.mouse)), true), Scrollback: back, AltScreen: alt,
+		Cols: s.emu.Width(), Cwd: s.cwd(),
 	}
 }
 

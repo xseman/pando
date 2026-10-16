@@ -239,3 +239,6 @@ func (t *term) wait() int {
 // group to ask.
 // ponytail: no process tree walk; the screen and output timing decide, as on macOS.
 func (s *session) foreground() (int, string) { return 0, "" }
+
+// cwd is "": Windows has no /proc to say where the program in front is.
+func (s *session) cwd() string { return "" }

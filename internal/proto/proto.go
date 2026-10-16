@@ -333,6 +333,13 @@ type Screen struct {
 	// draws on the alternate screen, which has none and scrolls itself.
 	Scrollback int  `json:"scrollback"`
 	AltScreen  bool `json:"alt_screen,omitempty"` // the app is on the alternate screen, as vim, less and a fullscreen claude are
+	// Cols is the emulator's width: a line as wide as it may run on into the
+	// next one, as soft-wrapped text does.
+	Cols int `json:"cols,omitempty"`
+	// Cwd is the directory the program in front is in, which the relative
+	// paths it prints start from; "" where the system does not say (Linux
+	// tells).
+	Cwd string `json:"cwd,omitempty"`
 }
 
 // Key mirrors uv.Key so the daemon's emulator can encode it for the PTY

@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -377,8 +378,22 @@ func TestDaemon(t *testing.T) {
 	var scr proto.Screen
 	call(t, "session.screen", proto.ScreenParams{ID: s.ID, Cols: 30, Rows: 5}, &scr)
 
-	if len(scr.Lines) != 5 {
-		t.Fatalf("resized screen has %d lines", len(scr.Lines))
+	if len(scr.Lines) != 5 || scr.Cols != 30 {
+		t.Fatalf("resized screen has %d lines of %d columns", len(scr.Lines), scr.Cols)
+	}
+
+	if runtime.GOOS == "linux" { // the shell's directory, for its relative paths: /proc tells
+		sub := filepath.Join(ws.Path, "sub")
+		if err := os.Mkdir(sub, 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		sub, _ = filepath.EvalSymlinks(sub)
+		call(t, "session.input", proto.InputParams{ID: s.ID, Text: "cd " + sub + "\r"}, nil)
+		waitFor(t, "the shell's directory", func() bool {
+			call(t, "session.screen", proto.ScreenParams{ID: s.ID}, &scr)
+			return scr.Cwd == sub
+		})
 	}
 
 	if err := proto.Call("workspace.remove", map[string]string{"path": ws.Path}, nil); err == nil {

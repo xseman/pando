@@ -72,16 +72,8 @@ func (t *term) wait() int {
 // or the shell itself. The pid is 0 when the terminal is gone.
 // ponytail: /proc and one ioctl, no process tree walk.
 func (s *session) foreground() (int, string) {
-	// Through the raw conn, not Fd(): the reader may be closing the pty.
-	rc, err := s.pty.SyscallConn()
-	if err != nil {
-		return 0, ""
-	}
-
-	var pgrp int
-
-	cerr := rc.Control(func(fd uintptr) { pgrp, err = unix.IoctlGetInt(int(fd), unix.TIOCGPGRP) })
-	if cerr != nil || err != nil || pgrp <= 0 {
+	pgrp := s.fgGroup()
+	if pgrp <= 0 {
 		return 0, ""
 	}
 
@@ -93,6 +85,41 @@ func (s *session) foreground() (int, string) {
 	argv := strings.Split(strings.TrimSuffix(string(b), "\x00"), "\x00")
 
 	return pgrp, programOf(argv)
+}
+
+// fgGroup is the process group in front on the session's terminal, 0 when
+// the terminal is gone.
+func (s *session) fgGroup() int {
+	// Through the raw conn, not Fd(): the reader may be closing the pty.
+	rc, err := s.pty.SyscallConn()
+	if err != nil {
+		return 0
+	}
+
+	var pgrp int
+
+	if cerr := rc.Control(func(fd uintptr) { pgrp, err = unix.IoctlGetInt(int(fd), unix.TIOCGPGRP) }); cerr != nil || err != nil {
+		return 0
+	}
+
+	return pgrp
+}
+
+// cwd is the directory of the program in front, which the paths it prints
+// are relative to; "" where /proc does not say.
+func (s *session) cwd() string {
+	if s.exited {
+		return ""
+	}
+
+	pgrp := s.fgGroup()
+	if pgrp <= 0 {
+		return ""
+	}
+
+	dir, _ := os.Readlink(fmt.Sprintf("/proc/%d/cwd", pgrp)) // none: "", the worktree stands in
+
+	return dir
 }
 
 // runtimes run a script whose name is the program the user means.
