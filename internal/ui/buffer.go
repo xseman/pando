@@ -27,6 +27,7 @@ type buffer struct {
 	redos  []edit
 	modAt  time.Time // mtime at load: a newer one means someone else wrote
 	typing bool      // the last change was a plain insert, so the next one coalesces
+	edits  int       // changes so far, undo and redo too: a new count is new text for the language server
 }
 
 // edit undoes one change: put text back over the range [a, z).
@@ -101,6 +102,8 @@ func (b *buffer) textIn(a, z pos) string {
 
 // replace puts text over the range [a, z) and returns where it ends.
 func (b *buffer) replace(a, z pos, text string) pos {
+	b.edits++
+
 	a, z = b.clamp(a), b.clamp(z)
 	if !posLE(a, z) {
 		a, z = z, a

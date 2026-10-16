@@ -295,7 +295,7 @@ func TestScrollbarMarksDense(t *testing.T) {
 	loadDiff(m, pvDiff, opsDiff(2000, ops))
 
 	h, x, y0 := m.pvH(), m.mainX()+m.mainW()-1, 1+m.stripH()
-	cells := m.pv.bar(m).marked(barState{}, func() []byte { k, _ := m.pv.barChanges(m); return k }())
+	cells := m.pv.bar(m).marked(barState{}, func() []byte { k, _ := m.pv.barChanges(m); return k }(), diffMarks())
 
 	var reds int
 
@@ -315,7 +315,7 @@ func TestScrollbarMarksDense(t *testing.T) {
 		ty, sh := b.thumb()
 		kinds, _ := m.pv.barChanges(m)
 
-		for i, c := range b.marked(barState{}, kinds)[ty : ty+sh] {
+		for i, c := range b.marked(barState{}, kinds, diffMarks())[ty : ty+sh] {
 			if !strings.Contains(c, bgParams(pal.sliderBg)) {
 				t.Fatalf("top %d: slider cell %d hides the slider: %q", top, ty+i, c)
 			}

@@ -220,6 +220,14 @@ func (e *explorer) lines(m *Model, w, h int) []string {
 			right = []seg{sg(string(letter)+" ", fg(statusColor(letter)))}
 		}
 
+		if pc, pn := m.probDecoFor(n.path); pc != nil { // VS Code's problems: the name in their color, a file's count
+			name = name.Foreground(pc)
+
+			if pn != "" {
+				right = append([]seg{sg(pn+" ", fg(pc))}, right...)
+			}
+		}
+
 		if e.cut && n.path == e.clip { // faded until it is pasted, as VS Code's
 			name = name.Foreground(pal.ignored)
 		}

@@ -48,6 +48,7 @@ T: also in a terminal; the rest are the shell's there.
 | `ctrl+enter`                                           | commit                                                  |
 | `ctrl+g`, `ctrl+shift+o`                               | go to line, symbol                                      |
 | `alt+F5` `shift+alt+F5`                                | next, previous change of the diff shown                 |
+| `F8` `shift+F8`, `ctrl+shift+m`                        | next, previous problem; the Problems list               |
 | `ctrl+shift+v`, `alt+v` (in a file)                    | rendered Markdown, side by side                         |
 | `ctrl+alt+-` `ctrl+-` `alt+,` `super+←`                | back through visited editors                            |
 | `ctrl+shift+-` `alt+.` `super+→`                       | forward                                                 |

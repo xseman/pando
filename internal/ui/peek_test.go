@@ -106,6 +106,8 @@ func TestLspCommand(t *testing.T) {
 }
 
 func TestLocalServer(t *testing.T) {
+	t.Setenv("PATH", t.TempDir()) // no TypeScript 7 tsc of the machine's to fall back to (TestGlobalTSC)
+
 	m := testModel(t)
 	root := t.TempDir()
 	bin := func(dir string) string {

@@ -93,6 +93,7 @@ config.toml edited ───────────┘  └─ "state" event �
 | `markdown_width`       | `80`        | rendered Markdown width, margins included; `0` fills the panel                 |
 | `editor_limit`         | `0`         | most editor tabs, least recent closing; `0` none                               |
 | `format_on_save`       | `true`      | `ctrl+s` runs the `[format]` tool                                              |
+| `lsp_diagnostics`      | `true`      | a file's `[lsp]` server starts as it opens; its errors and warnings show       |
 
 Desktop: freedesktop `complete.oga`, `dialog-information.oga`.
 

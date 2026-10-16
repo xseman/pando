@@ -66,6 +66,7 @@ type Settings struct {
 	LSP       map[string][]string `json:"lsp" toml:"lsp"`                             // language to server command
 	Format    map[string][]string `json:"format" toml:"format"`                       // language to formatter command, the file on stdin
 	FmtSave   bool                `json:"format_on_save" toml:"format_on_save"`       // run that formatter when a file is saved
+	Diags     bool                `json:"lsp_diagnostics" toml:"lsp_diagnostics"`     // language servers run as files open and report their problems
 	Vim       bool                `json:"vim_mode" toml:"vim_mode"`                   // an editor opens in vim's normal mode
 	Crumbs    bool                `json:"breadcrumbs" toml:"breadcrumbs"`             // a file's path under its tab; click a folder to browse it
 	Wrap      bool                `json:"word_wrap" toml:"word_wrap"`                 // editors wrap long lines instead of scrolling them sideways

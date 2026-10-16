@@ -43,7 +43,7 @@ func defaultConfig() config {
 	return config{
 		Settings: proto.Settings{
 			Hidden: true, Icons: "ascii", Width: 40, WidthR: 32, GitDeco: true, GitTree: true, Crumbs: true,
-			Theme: "vscode", DiffView: "inline", Borders: true, FmtSave: true,
+			Theme: "vscode", DiffView: "inline", Borders: true, FmtSave: true, Diags: true,
 			ActBar: "top", TermPos: "bottom", TermH: 12, SessPos: "right", SessHi: "tint",
 			SpSort: "created", SpGroup: "workspace", SpProj: "manual", ExSort: "name",
 			Sounds: true, SoundDone: done, SoundReq: req, Updates: true, Anim: true, Tips: true, Blanks: "selection", ClaudeBg: true, TabSize: 4, MDWidth: 80,
@@ -189,6 +189,8 @@ func (c *config) encode() []byte {
 	kv("", "width_right", s.WidthR)
 	kv("Activity bar: \"top\" (icons above the view) or \"side\" (down the sidebar's outer edge).", "activity_bar", s.ActBar)
 	kv("Format a file with its [format] tool when it is saved.", "format_on_save", s.FmtSave)
+	kv("Start a file's [lsp] server when it opens, and show the errors and warnings it reports\n"+
+		"in editors, diffs, the status bar, Explorer and Source Control.", "lsp_diagnostics", s.Diags)
 	kv("Editors open in vim's normal mode: i inserts, esc goes back.", "vim_mode", s.Vim)
 	kv("Draw spaces as · and tabs as → in editors, as VS Code's editor.renderWhitespace: \"none\",\n"+
 		"\"boundary\" (all but single spaces between words), \"selection\" (inside the selection),\n"+

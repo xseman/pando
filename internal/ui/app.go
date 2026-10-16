@@ -24,6 +24,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/xseman/pando/internal/git"
+	"github.com/xseman/pando/internal/lsp"
 	"github.com/xseman/pando/internal/proto"
 )
 
@@ -220,6 +221,20 @@ type Model struct {
 	pv          preview
 	pk          *peek // the references widget under the editor
 	lsps        lspPool
+	// lsp_diagnostics: the servers' readers leave diagnostics in diagIn;
+	// diags are each file's, probDeco the colors they give Explorer and
+	// Source Control. diagSeen and diagSeq time the shown editor's sync,
+	// diagBusy is a sync of the changed files running, diagWarned a server
+	// that would not start, said once.
+	diagIn     *diagBox
+	diags      map[string][]lsp.Diagnostic
+	probDeco   map[string]probDeco
+	diagSeen   editSeen
+	diagSeq    int
+	diagBusy   bool
+	diagWarned map[string]bool
+	diagOn     bool                   // lsp_diagnostics as noteDiags last saw it
+	diagFailed map[string]diagFailMsg // a file whose server would not start, which the status bar says
 	// Open editors: the tab strip in main, and where navigation has been.
 	editors   []preview
 	edIdx     int
@@ -420,10 +435,15 @@ func New(st proto.State, wss []proto.Workspace, ss []proto.Session, ws string, e
 	m := &Model{
 		st: st, wss: wss, sessions: ss, recent: make([]int, len(viewKeys)), dark: true, events: events,
 		inputs: make(chan proto.InputParams, 512), mouseY: -1, edIdx: -1, navAt: -1, sashAt: noSash,
-		ambiguous: true, // until the terminal answers that it disambiguates keys
-		hasGH:     hasGH(),
-		hasDB:     hasDB(),
+		ambiguous:  true, // until the terminal answers that it disambiguates keys
+		hasGH:      hasGH(),
+		hasDB:      hasDB(),
+		diagIn:     newDiagBox(),
+		diags:      map[string][]lsp.Diagnostic{},
+		diagFailed: map[string]diagFailMsg{}, diagWarned: map[string]bool{},
 	}
+
+	m.lsps.sink = m.diagIn.put
 	for i := range m.filters {
 		m.filters[i] = newFilter()
 	}
@@ -455,7 +475,7 @@ func (m *Model) look() {
 func (m *Model) Init() tea.Cmd {
 	// m.pv is the editor New restored for the workspace; its content loads here.
 	return tea.Batch(waitEvent(m.events), tick(), tea.RequestBackgroundColor, tea.RequestForegroundColor,
-		m.refreshGit(), m.pv.load(m), m.loadDrafts(), loadUpdate(), m.ensureTerm(), m.gh.shown(m), m.loadGHUser())
+		m.refreshGit(), m.pv.load(m), m.loadDrafts(), loadUpdate(), m.ensureTerm(), m.gh.shown(m), m.loadGHUser(), m.diagIn.waitDiags())
 }
 
 // ghUserMsg is who gh is signed in as, which `gh api user` tells once.
@@ -2343,7 +2363,8 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 	m.pk = nil
 	m.gh.sync(m) // another project's repository: its own lists
 	hub := m.gh.shown(m)
-	m.lsps.close()                                        // the servers belong to the workspace they indexed
+	m.lsps.reset(path) // the servers belong to the workspace they indexed
+	m.dropDiags()
 	m.editors, m.edIdx, m.nav, m.navAt = nil, -1, nil, -1 // editors of another worktree
 	m.pv.close(m)                                         // a preview from another worktree would be misleading
 
@@ -2502,8 +2523,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	m.noteFx()
+	m.noteDiags()
 
-	return m, tea.Batch(cmd, m.animate(), m.spinLater())
+	return m, tea.Batch(cmd, m.noteEdits(), m.animate(), m.spinLater())
 }
 
 // dockBare docks a session over an empty editor area to its side: with no
@@ -2731,7 +2753,43 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		return m, cmd
+		return m, tea.Batch(cmd, m.syncDiags())
+
+	case diagMsg:
+		return m, m.onDiags(msg)
+	case diagTickMsg:
+		return m, m.onDiagTick(int(msg))
+	case diagFailMsg:
+		m.warnDiag(msg)
+		return m, nil
+
+	case diagOKMsg:
+		delete(m.diagFailed, string(msg))
+		return m, nil
+
+	case diagSyncedMsg:
+		return m, m.onDiagSynced(msg)
+
+	case problemsMsg:
+		if msg.live {
+			if m.problemsOpen() {
+				msg.pk.follow(m.pk)
+				m.pk = msg.pk
+			}
+
+			return m, nil
+		}
+
+		var open tea.Cmd
+
+		if !m.showsPreview() && len(msg.pk.files) > 0 { // the list sits under an editor: the first problem's
+			l := msg.pk.files[0].locs[0].loc
+			open = m.openLine(l.Path, l.Line+1, 0)
+		}
+
+		m.showPeek(msg.pk)
+
+		return m, open
 
 	case searchTickMsg:
 		return m, m.sr.onTick(m, int(msg))
@@ -4703,6 +4761,15 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 		add(" "+m.fx.text("results", strconv.Itoa(n))+strings.TrimPrefix(plural(n, "result"), strconv.Itoa(n))+" ", dim, "Show Search  ^⇧f", searchRun)
 	}
 
+	if f, ok := m.diagFailed[m.pv.path]; ok && m.showsPreview() && m.pv.kind == pvFile { // no problems shown is not none
+		add(" ⚠ no diagnostics ", fg(pal.warn), f.server+": "+firstLine(f.err.Error()), nil)
+	}
+
+	if errs, warns := m.diagCounts(); errs+warns > 0 { // VS Code's problems item: a click lists them
+		addSegs("Problems  ^⇧m", (*Model).showProblems,
+			sg(" ✖ "+strconv.Itoa(errs), fg(pal.errc)), sg(" ⚠ "+strconv.Itoa(warns)+" ", fg(pal.warn)))
+	}
+
 	if m.showsPreview() && m.pv.tbl != nil && m.pv.tbl.column() != "" { // the cursor's column, where a file's cursor is
 		add(" "+m.pv.tbl.column()+" ", dim, "", nil)
 	}
@@ -5007,9 +5074,9 @@ var hotkeys = map[view][][2]string{
 	viewDB:     {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"n", "new connection"}, {"e D", "edit/remove"}, {"c y", "copy name/path"}, {"r", "refresh"}, {"C", "collapse"}, {"^f", "filter"}},
 }
 
-var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4 6 7", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"M-t", "agents"}, {"^tab", "editors"}, {"^⇧pgup ^⇧pgdn", "move tab"}, {"^f", "find"}, {"M-, M-.", "back/forward"}, {"[ ]", "sessions"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"esc q", "quit"}}
+var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4 6 7", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"M-t", "agents"}, {"^tab", "editors"}, {"^⇧pgup ^⇧pgdn", "move tab"}, {"^f", "find"}, {"^⇧m", "problems"}, {"M-, M-.", "back/forward"}, {"[ ]", "sessions"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"esc q", "quit"}}
 
-var previewKeys = [][2]string{{"↑↓", "move"}, {"⇧↑↓", "select"}, {"^a", "all"}, {"y", "copy"}, {"s", "split diff"}, {"m", "stage/revert lines"}, {"] [", "next, prev change"}, {"} {", "next, prev file"}, {"w", "wrap"}, {"^f", "find"}, {"^h", "replace"}, {"^g", "go to line"}, {"f12", "definition"}, {"⇧f12", "references"}, {"^.", "code action"}, {"e", "edit"}, {"q", "close"}}
+var previewKeys = [][2]string{{"↑↓", "move"}, {"⇧↑↓", "select"}, {"^a", "all"}, {"y", "copy"}, {"s", "split diff"}, {"m", "stage/revert lines"}, {"] [", "next, prev change"}, {"} {", "next, prev file"}, {"F8 ⇧F8", "next, prev problem"}, {"w", "wrap"}, {"^f", "find"}, {"^h", "replace"}, {"^g", "go to line"}, {"f12", "definition"}, {"⇧f12", "references"}, {"^.", "code action"}, {"e", "edit"}, {"q", "close"}}
 
 // keyRows lays key/description pairs out in two keycap columns.
 func keyRows(pairs [][2]string) []item {
@@ -5098,6 +5165,9 @@ func settingsItems(m *Model) []item {
 		{label: "Format on save", hint: onOff(s.FmtSave), run: func(m *Model) tea.Cmd {
 			return m.setSettings(map[string]any{"format_on_save": !m.st.Settings.FmtSave})
 		}},
+		{label: "Diagnostics", hint: onOff(s.Diags), run: func(m *Model) tea.Cmd {
+			return m.setSettings(map[string]any{"lsp_diagnostics": !m.st.Settings.Diags})
+		}},
 		{label: "Vim mode", hint: onOff(s.Vim), run: func(m *Model) tea.Cmd {
 			return m.setSettings(map[string]any{"vim_mode": !m.st.Settings.Vim})
 		}},
@@ -5160,6 +5230,7 @@ func (m *Model) viewItems() []item {
 	items := []item{
 		{label: "New Untitled File", hint: "^n", run: func(m *Model) tea.Cmd { return m.newUntitled() }},
 		{label: "Quick Open…", hint: "^p", run: func(m *Model) tea.Cmd { return m.loadIndex(true) }},
+		{label: "Show Problems", hint: "^⇧m", run: (*Model).showProblems},
 		{label: "Show Explorer", hint: showKeys[viewFiles], run: show(viewFiles)},
 		{label: "Show Source Control", hint: showKeys[viewGit], run: show(viewGit)},
 		{label: "Show Spaces", hint: showKeys[viewAgents], run: show(viewAgents)},

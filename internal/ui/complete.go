@@ -125,10 +125,9 @@ func (m *Model) onCompTick(msg compTickMsg) tea.Cmd {
 			return compMsg{seq: msg.seq}
 		}
 
-		c.Overlay(path, text)
-		got, err := c.Completion(path, r.line, col, trigger)
-		c.Overlay(path, "")
+		_ = c.Sync(path, text) // a server gone answers the request with why
 
+		got, err := c.Completion(path, r.line, col, trigger)
 		if err != nil {
 			return compMsg{seq: msg.seq}
 		}

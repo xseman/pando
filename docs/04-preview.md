@@ -215,14 +215,15 @@ by extension, language id, then defaults (`gofmt`).
 ## Language servers
 
 `internal/lsp` covers definition, references, rename, documentSymbol,
-completion and codeAction (with resolve and executeCommand); no diagnostics.
+completion, codeAction (with resolve and executeCommand) and diagnostics,
+pushed or pulled (`diagnosticProvider`: TypeScript 7).
 
 ```text
 F12, shift+F12 ─▶ lspGo ─▶ tea.Cmd ─▶ lspPool.get(root, path, lang, argv)
                                     one server per language + binary,
                                     nearest node_modules/.bin, then PATH;
                                     TypeScript 7: tsc --lsp
-                                       │ Overlay(unsaved text), didOpen
+                                       │ Sync(editor text): didOpen, didChange
                                        ▼
                          Definition / References ─▶ lspMsg ─▶ onLSP
         one definition ─▶ openLocation        else ─▶ openPeek
@@ -230,9 +231,36 @@ F12, shift+F12 ─▶ lspGo ─▶ tea.Cmd ─▶ lspPool.get(root, path, lang, 
 
 - Servers start on first use and die with the TUI. Columns convert through
   `UTF16Col`/`RuneCol` and `docCol`/`displayCol`.
-- Code actions and rename write to disk: `saveForServer` saves first, the
-  `WorkspaceEdit` is applied file by file, then preview and git reload. Git is
-  the undo.
+- The client keeps each document's version and text (`Sync`, `SyncFile` by
+  mtime, `Forget`); every request syncs the editor's text first. Diagnostics
+  arrive on the reader into the pool's `sink`, `diagBox`, whose latest list
+  per file `waitDiags` hands to Update (`diag.go`).
+- With `lsp_diagnostics`: `noteEdits` arms a 300 ms sync of the shown
+  editor whenever its buffer's `edits` count moves (load, edit, undo, format,
+  reload); each git refresh `syncDiags` syncs the editors' files and Source
+  Control's changed files under the workspace (`diagFiles`, 50) and forgets
+  the rest. Those syncs use `lspPool.background`, which never restarts a
+  server that died or would not start (a request does) and fails for a
+  workspace switched meanwhile (`reset` sets the pool's root). A server
+  that would not start for a file is `diagFailed`, which the status bar
+  shows while that file does. Turned off (`noteDiags`), the servers go
+  (`reset("")`, so a sync still running starts none) and so does the
+  Problems list; turned on again (`reset(ws)`) they start fresh and report
+  every file again, a broken one nobody opened too. A pulled list for a
+  version since changed is dropped.
+- `probsOf` turns a file's errors and warnings into cells per row, by line
+  number in a diff (its file read from disk, `disk`); one past the last line
+  (a truncated file's) moves to the last line's end (`inText`), a point at a
+  line's end onto its last character; `paintProbs` squiggles
+  them (SGR 4:3 and 58, re-emitted after each SGR inside), `probAtCursor`
+  feeds the footer, `probTip` the pointer's tip, `barProbs` the scrollbar
+  (`probMarks`), `decorateDiags` Explorer and Source Control; `gotoProblem`
+  is F8, `showProblems` the Problems peek built in a command, built again
+  (`problems(true)`, `peek.follow`) on each change while it is open.
+- Code actions carry the server's own diagnostics under the range (`near`,
+  from `seen`), which its quick fixes need. They and rename write to disk:
+  `saveForServer` saves first, the `WorkspaceEdit` is applied file by file,
+  then preview and git reload. Git is the undo.
 - Go to Symbol flattens the symbol tree; Markdown uses `mdSymbols` (ATX
   headings) without a server.
 - The references peek (`peek.go`) sits under the editor: the selected hit's

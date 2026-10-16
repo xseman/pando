@@ -1436,6 +1436,11 @@ func (s *scmView) renderRow(m *Model, i, w int, hovered bool) string {
 			right = s.actionSegs(m, r, w)
 		}
 
+		if pc, pn := m.probDecoFor(filepath.Join(r.root, r.entry.Path)); pc != nil && pn != "" { // its problems, as Explorer shows them
+			nameSt = nameSt.Foreground(pc)
+			right = append(right, sg(" "+pn, base.Foreground(pc)))
+		}
+
 		right = append(right, sg(" "+string(r.entry.Letter)+" ", base.Foreground(c)))
 
 		return row(w, bg, []seg{sg("   "+indent, plain), iconSeg(name, false, false), sg(name, nameSt), sg(" "+dir, dim)}, right...)

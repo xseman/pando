@@ -373,23 +373,38 @@ func (b vbar) cells(s barState) []string {
 	return out
 }
 
-// marked are the bar's cells with a diff's changes on them, as VS Code's
-// overview ruler draws them. kinds holds each of the b.n rows' change bits
-// (1 a deletion, 2 an addition); a change, a run of such rows, is a
-// deletion (red), an addition (green) or both, a line changed (blue, as
-// VS Code's gutter marks one). Each cell is two marks, its upper and lower
-// half, and row r lands on half r*2h/n, so no change is too short to show. Where changes share a half the
-// rarer kind shows: a deletion over an addition over a modification. On the
-// slider a mark is the cell's right half (▐), the rarer kind of the two, so
-// the slider shows through on the left as VS Code's translucent one does, at
-// rest, hovered and dragged.
-func (b vbar) marked(s barState, kinds []byte) []string {
+// markSet is how marked draws a kind of row, 1, 2 or both: its color, and
+// its rank where kinds share a half.
+type markSet struct {
+	cols [4]color.Color
+	rank [4]int
+}
+
+// diffMarks are a diff's: red deletions over green additions over blue
+// changed lines. probMarks are a file's problems: red errors over yellow
+// warnings.
+func diffMarks() markSet {
+	return markSet{[4]color.Color{nil, pal.diffDelMark, pal.diffAddMark, pal.diffModMark}, [4]int{0, 3, 2, 1}}
+}
+
+func probMarks() markSet {
+	return markSet{[4]color.Color{nil, pal.errc, pal.warn, pal.errc}, [4]int{0, 3, 1, 3}}
+}
+
+// marked are the bar's cells with marks on them, as VS Code's overview
+// ruler draws a diff's changes (diffMarks) or a file's problems
+// (probMarks). kinds holds each of the b.n rows' bits; a run of marked rows
+// is one mark of the kinds in it. Each cell is two marks, its upper and
+// lower half, and row r lands on half r*2h/n (halfOf), so no mark is too
+// short to show. Where marks share a half the higher rank shows. On the
+// slider a mark is the cell's right half (▐), so the slider shows through
+// on the left as VS Code's translucent one does, at rest, hovered and
+// dragged.
+func (b vbar) marked(s barState, kinds []byte, set markSet) []string {
 	out := b.cells(s)
 	if !b.on() || len(kinds) != b.n {
 		return out
 	}
-
-	rank := []int{0, 3, 2, 1} // by kind: none, deletion, addition, both
 
 	half := make([]byte, 2*b.h)
 
@@ -405,16 +420,13 @@ func (b vbar) marked(s barState, kinds []byte) []string {
 		}
 
 		for i := from; i < r; i++ {
-			if at := &half[b.halfOf(i)]; rank[k] > rank[*at] {
+			if at := &half[b.halfOf(i)]; set.rank[k] > set.rank[*at] {
 				*at = k
 			}
 		}
 	}
 
 	ty, sh := b.thumb()
-	col := func(k byte) color.Color {
-		return []color.Color{nil, pal.diffDelMark, pal.diffAddMark, pal.diffModMark}[k]
-	}
 
 	for i := range b.h {
 		top, bot := half[2*i], half[2*i+1]
@@ -426,16 +438,16 @@ func (b vbar) marked(s barState, kinds []byte) []string {
 			continue
 		case onSlider:
 			sl := s.slider(b)
-			out[i] = fg(legible(col(ifElse(rank[top] > rank[bot], top, bot)), sl)).Background(sl).Render("▐")
+			out[i] = fg(legible(set.cols[ifElse(set.rank[top] > set.rank[bot], top, bot)], sl)).Background(sl).Render("▐")
 
 		case top == bot:
-			out[i] = fg(col(top)).Render("█")
+			out[i] = fg(set.cols[top]).Render("█")
 		case bot == 0:
-			out[i] = fg(col(top)).Render("▀")
+			out[i] = fg(set.cols[top]).Render("▀")
 		case top == 0:
-			out[i] = fg(col(bot)).Render("▄")
+			out[i] = fg(set.cols[bot]).Render("▄")
 		default:
-			out[i] = fg(col(top)).Background(col(bot)).Render("▀")
+			out[i] = fg(set.cols[top]).Background(set.cols[bot]).Render("▀")
 		}
 	}
 

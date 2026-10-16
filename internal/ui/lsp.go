@@ -2,7 +2,9 @@ package ui
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,41 +27,93 @@ var defaultServers = map[string][]string{
 
 // lspPool keeps one language server per language and binary for the open
 // workspace: packages with their own node_modules get their own server.
-// Servers start on the first jump and die with the TUI.
+// Servers start on the first jump, or with lsp_diagnostics when a file of
+// theirs opens or changes, and die with the TUI. sink gets every server's
+// diagnostics; failed is why a server would not start, which only a request
+// tries again.
 type lspPool struct {
 	mu      sync.Mutex
 	root    string
 	servers map[string]*lsp.Client
+	failed  map[string]error
+	sink    lsp.Sink
 }
 
+var errOtherRoot = errors.New("the workspace changed")
+
+// get is the server for a request: a dead one starts again.
 func (p *lspPool) get(root, path, lang string, argv []string) (*lsp.Client, error) {
+	return p.server(root, path, lang, argv, true)
+}
+
+// background is the server for a sync nobody asked for, as diagnostics
+// keep files in step: it never starts again one that died or would not
+// start, which would respawn a crashing server every 2 s, and a workspace
+// switched meanwhile keeps its servers.
+func (p *lspPool) background(root, path, lang string, argv []string) (*lsp.Client, error) {
+	return p.server(root, path, lang, argv, false)
+}
+
+func (p *lspPool) server(root, path, lang string, argv []string, asked bool) (*lsp.Client, error) {
 	opts := serverOptions(path, argv)
 
 	p.mu.Lock()
 	if p.root != root {
+		if !asked {
+			p.mu.Unlock()
+			return nil, errOtherRoot
+		}
+
 		p.closeLocked()
-		p.root = root
+		p.root, p.failed = root, nil
 	}
 
 	key := fmt.Sprint(lang, " ", argv[0], " ", opts) // a TypeScript of its own gets a server of its own
-	c := p.servers[key]
+	c, failed := p.servers[key], p.failed[key]
+
+	switch {
+	case c != nil && c.Err() != nil && asked: // it died: a request starts it again
+		delete(p.servers, key)
+
+		c = nil
+
+	case c != nil && c.Err() != nil:
+		p.mu.Unlock()
+		return nil, c.Err()
+
+	case c == nil && failed != nil && !asked:
+		p.mu.Unlock()
+		return nil, failed
+	}
 	p.mu.Unlock()
 
 	if c != nil {
 		return c, nil
 	}
 
-	c, err := lsp.Start(root, argv, opts) // outside the lock: starting takes seconds
+	c, err := lsp.Start(root, argv, opts, p.sink) // outside the lock: starting takes seconds
 	if err != nil {
 		if _, look := exec.LookPath(argv[0]); look != nil && argv[0] == "typescript-language-server" {
 			err = fmt.Errorf("%w: npm i -g typescript-language-server, or TypeScript 7 in the project", err)
 		}
+
+		p.mu.Lock()
+		if p.root == root {
+			if p.failed == nil {
+				p.failed = map[string]error{}
+			}
+
+			p.failed[key] = err
+		}
+		p.mu.Unlock()
 
 		return nil, err
 	}
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	delete(p.failed, key)
 
 	if old := p.servers[key]; old != nil { // another jump won the race
 		go c.Close()
@@ -75,11 +129,21 @@ func (p *lspPool) get(root, path, lang string, argv []string) (*lsp.Client, erro
 	return c, nil
 }
 
-func (p *lspPool) close() {
+// clients are the servers running now.
+func (p *lspPool) clients() []*lsp.Client {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return slices.Collect(maps.Values(p.servers))
+}
+
+// reset closes every server for workspace root, whose servers start next.
+func (p *lspPool) reset(root string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	p.closeLocked()
+	p.root, p.failed = root, nil
 }
 
 func (p *lspPool) closeLocked() {
@@ -94,7 +158,13 @@ func (p *lspPool) closeLocked() {
 // file's extension or by its language id, then pando's own defaults. Any
 // language needs one line of config, nothing else.
 func (m *Model) lspCommand(path string) (lang string, argv []string) {
-	lang, argv = commandFor(m.st.Settings.LSP, defaultServers, path)
+	return serverFor(m.st.Settings.LSP, path)
+}
+
+// serverFor is lspCommand with [lsp] given, for a tea.Cmd: it stats its way
+// to a project's TypeScript.
+func serverFor(cfg map[string][]string, path string) (lang string, argv []string) {
+	lang, argv = commandFor(cfg, defaultServers, path)
 	if len(argv) > 0 && filepath.Base(argv[0]) == "typescript-language-server" {
 		if tsc := nativeTSC(path); tsc != "" {
 			argv = []string{tsc, "--lsp", "--stdio"}
@@ -111,7 +181,7 @@ func (m *Model) lspCommand(path string) (lang string, argv []string) {
 func nativeTSC(path string) string {
 	ts := nearestTS(path)
 	if ts == "" {
-		return ""
+		return globalTSC()
 	}
 
 	if _, err := os.Stat(filepath.Join(ts, "lib", "tsserver.js")); err == nil {
@@ -123,6 +193,33 @@ func nativeTSC(path string) string {
 	}
 
 	return ""
+}
+
+// globalTSC is a TypeScript 7 tsc on PATH, for a project with none of its
+// own, where typescript-language-server would find no tsserver.js to drive:
+// VS Code falls back to the TypeScript it ships. "" for an older one, which
+// typescript-language-server drives, or none.
+func globalTSC() string {
+	bin, err := exec.LookPath("tsc")
+	if err != nil {
+		return ""
+	}
+
+	target, err := filepath.EvalSymlinks(bin)
+	if err != nil {
+		return ""
+	}
+
+	pkg := filepath.Dir(filepath.Dir(target)) // node_modules/typescript/bin/tsc
+	if _, err := os.Stat(filepath.Join(pkg, "package.json")); err != nil {
+		return ""
+	}
+
+	if _, err := os.Stat(filepath.Join(pkg, "lib", "tsserver.js")); err == nil {
+		return ""
+	}
+
+	return bin
 }
 
 // serverOptions are the initializationOptions a server needs for a file.
@@ -240,8 +337,7 @@ func (m *Model) lspGo(refs bool) tea.Cmd {
 	at := p.at()
 	raw := fileLine(p.path, at.line)
 	col := lsp.UTF16Col(raw, docCol(raw, at.col))
-	path, root, pool := p.path, m.ws, &m.lsps
-	text := p.unsaved()
+	path, root, pool, text := p.path, m.ws, &m.lsps, p.text()
 
 	m.flash("asking "+argv[0]+"…", false)
 
@@ -251,7 +347,7 @@ func (m *Model) lspGo(refs bool) tea.Cmd {
 			return lspMsg{err: err}
 		}
 
-		c.Overlay(path, text)
+		_ = c.Sync(path, text) // a server gone answers the request with why
 
 		var locs []lsp.Location
 		if refs {
@@ -300,7 +396,7 @@ func (m *Model) lspActions() tea.Cmd {
 
 	ra, rb := fileLine(p.path, a.line), fileLine(p.path, b.line)
 	c0, c1 := lsp.UTF16Col(ra, docCol(ra, a.col)), lsp.UTF16Col(rb, docCol(rb, b.col))
-	path, root, pool := p.path, m.ws, &m.lsps
+	path, root, pool, text := p.path, m.ws, &m.lsps, p.text()
 	m.flash("asking "+argv[0]+"…", false)
 
 	return tea.Batch(saved, func() tea.Msg {
@@ -308,6 +404,8 @@ func (m *Model) lspActions() tea.Cmd {
 		if err != nil {
 			return actionsMsg{err: err}
 		}
+
+		_ = c.Sync(path, text) // a server gone answers the request with why
 
 		acts, err := c.Actions(path, a.line, c0, b.line, c1)
 
@@ -336,7 +434,7 @@ func (m *Model) lspRename() tea.Cmd {
 	at := p.at()
 	raw := fileLine(p.path, at.line)
 	col := lsp.UTF16Col(raw, docCol(raw, at.col))
-	path, root, pool := p.path, m.ws, &m.lsps
+	path, root, pool, text := p.path, m.ws, &m.lsps, p.text()
 	a, b := wordRange(p.plain[at.line], at.col)
 	old := string(p.plain[at.line][a:b])
 	m.modal = newPrompt("", old, func(m *Model, name string) tea.Cmd {
@@ -349,6 +447,7 @@ func (m *Model) lspRename() tea.Cmd {
 		return func() tea.Msg {
 			c, err := pool.get(root, path, lang, argv)
 			if err == nil {
+				_ = c.Sync(path, text) // a server gone answers the rename with why
 				err = c.Rename(path, at.line, col, name)
 			}
 

@@ -32,11 +32,14 @@ type peekFile struct {
 	locs []peekLoc
 }
 
-// peekLoc is one location with the line it sits on, the match in runes.
+// peekLoc is one location with the line it sits on, the match in runes; a
+// problem's has its message and severity, which its row shows instead.
 type peekLoc struct {
 	loc  lsp.Location
 	text string
 	a, b int
+	msg  string
+	sev  int
 }
 
 // peekRow is a file header (loc -1) or one of its locations.
@@ -45,24 +48,45 @@ type peekRow struct{ file, loc int }
 // openPeek shows locations under the editor, the first one selected.
 // ponytail: it reads every result file on the update loop, so a reference
 // search over hundreds of files stalls the TUI; move the reads into a
-// tea.Cmd that hands back the built rows if that ever bites.
+// tea.Cmd that hands back the built rows if that ever bites (the problems
+// list does: showProblems).
 func (m *Model) openPeek(title string, locs []lsp.Location) {
-	byPath := map[string][]lsp.Location{}
-	for _, l := range locs {
-		byPath[l.Path] = append(byPath[l.Path], l)
+	m.showPeek(buildPeek(title, locs, nil))
+}
+
+// showPeek opens pk under the editor, focused, its first location selected.
+func (m *Model) showPeek(pk *peek) {
+	pk.build()
+	pk.l.sel = min(1, len(pk.rows)-1)
+	m.pk, m.focus = pk, onMain
+}
+
+// buildPeek groups locations by file with the line each sits on, read from
+// disk; probs, when set, are each location's problem, by index.
+func buildPeek(title string, locs []lsp.Location, probs []lsp.Diagnostic) *peek {
+	byPath := map[string][]int{}
+	for i, l := range locs {
+		byPath[l.Path] = append(byPath[l.Path], i)
 	}
 
 	pk := &peek{title: title, closed: map[string]bool{}}
 
 	for _, path := range slices.Sorted(maps.Keys(byPath)) {
-		ls := byPath[path]
-		slices.SortFunc(ls, func(a, b lsp.Location) int { return cmp.Or(a.Line-b.Line, a.Col-b.Col) })
+		is := byPath[path]
+		slices.SortStableFunc(is, func(i, j int) int {
+			worse := 0 // problems: the worst first, as VS Code's Problems lists them
+			if probs != nil {
+				worse = probs[i].Severity - probs[j].Severity
+			}
+
+			return cmp.Or(worse, locs[i].Line-locs[j].Line, locs[i].Col-locs[j].Col)
+		})
 
 		lines := fileLines(path)
 		f := peekFile{path: path}
 
-		for _, l := range ls {
-			raw := ""
+		for _, i := range is {
+			l, raw := locs[i], ""
 			if l.Line < len(lines) {
 				raw = lines[l.Line]
 			}
@@ -74,15 +98,19 @@ func (m *Model) openPeek(title string, locs []lsp.Location) {
 
 			text := strings.TrimLeft(expandTabs(raw), " ")
 			trim := len([]rune(expandTabs(raw))) - len([]rune(text))
-			f.locs = append(f.locs, peekLoc{loc: l, text: text, a: max(a-trim, 0), b: max(b-trim, 0)})
+			loc := peekLoc{loc: l, text: text, a: max(a-trim, 0), b: max(b-trim, 0)}
+
+			if probs != nil {
+				loc.msg, loc.sev = firstLine(probs[i].Message), probs[i].Severity
+			}
+
+			f.locs = append(f.locs, loc)
 		}
 
 		pk.files = append(pk.files, f)
 	}
 
-	pk.build()
-	pk.l.sel = min(1, len(pk.rows)-1)
-	m.pk, m.focus = pk, onMain
+	return pk
 }
 
 func (pk *peek) build() {
@@ -95,6 +123,22 @@ func (pk *peek) build() {
 			}
 		}
 	}
+}
+
+// follow takes over the open list old, built again from what it lists now:
+// its closed files, its scroll, its selected location, or the row it sat on
+// when that is gone.
+func (pk *peek) follow(old *peek) {
+	pk.closed, pk.l = old.closed, old.l
+	pk.build()
+
+	if at, ok := old.selected(); ok {
+		if k := slices.IndexFunc(pk.rows, func(r peekRow) bool { return r.loc >= 0 && pk.files[r.file].locs[r.loc].loc == at.loc }); k >= 0 {
+			pk.l.sel = k
+		}
+	}
+
+	pk.l.sel = min(pk.l.sel, len(pk.rows)-1)
 }
 
 func (pk *peek) count() int {
@@ -247,6 +291,13 @@ func (pk *peek) renderRow(m *Model, i, w int) string {
 	}
 
 	l := f.locs[r.loc]
+	if l.msg != "" { // a problem: its severity and message, VS Code's Problems row
+		g, st := sevMark(l.sev)
+
+		return row(w, bg, []seg{sg("    ", plain), sg(g+" ", st), sg(l.msg, base)},
+			sg(fmt.Sprintf(" %d:%d ", l.loc.Line+1, l.loc.Col+1), dim))
+	}
+
 	text := []rune(l.text)
 	a, b := max(min(l.a, len(text)), 0), max(min(l.b, len(text)), 0)
 

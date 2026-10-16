@@ -331,10 +331,24 @@ column and a blob are read only.
 ![a README as source, rendered in place, then both side by side scrolling together](demo/markdown.gif)
 
 **Language servers.** `F12` definition, `shift+F12` references, `ctrl+.` code
-actions, `F2` rename, `ctrl+shift+o` symbols, completions; no diagnostics.
-Go and TypeScript work once `gopls` or `typescript-language-server` is on the
-`PATH`; others go in `[lsp]` and `[format]`
+actions, `F2` rename, `ctrl+shift+o` symbols, completions. Go and TypeScript
+work once `gopls` or `typescript-language-server` is on the `PATH`; others go
+in `[lsp]` and `[format]`
 ([06-config.md](06-config.md#language-servers-and-formatters)).
+
+**Problems.** With `lsp_diagnostics` (on by default) a file's server starts as
+the file opens, and its errors and warnings show as VS Code shows them: wavy
+underlines in the editor and in a working-tree diff, the one under the cursor
+in the editor's footer, the one under the pointer in a tip, `✖ 2 ⚠ 5` in the
+status bar, red or yellow names with a count in Explorer and Source Control,
+marks on a file's scrollbar. `F8` / `shift+F8` go to the next and previous
+problem; `ctrl+shift+m` (or a click on the counts) lists them all, worst
+first, information and hints too, and keeps up while open; `ctrl+.` on a
+squiggle offers its server's quick fixes. Source Control's changed files are
+checked without being opened, 50 at most. A file whose server would not start
+says `⚠ no diagnostics` in the status bar (its tip says why); a project with
+no TypeScript of its own uses a TypeScript 7 `tsc` on the `PATH`. A daemon
+started before this setting existed needs `pando stop` to know it.
 
 ![the references peek, a code action, rename and completion, answered by gopls](demo/lsp.gif)
 

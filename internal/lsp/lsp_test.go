@@ -135,9 +135,20 @@ func TestClient(t *testing.T) {
 
 				text, _ := doc["text"].(string)
 				select {
-				case opened <- text:
+				case opened <- "open " + text:
 				default:
 				}
+
+			case "textDocument/didChange":
+				p, _ := msg["params"].(map[string]any)
+				doc, _ := p["textDocument"].(map[string]any)
+				changes, _ := p["contentChanges"].([]any)
+				change, _ := changes[0].(map[string]any)
+
+				opened <- fmt.Sprintf("change %v %v", doc["version"], change["text"])
+
+			case "textDocument/didClose":
+				opened <- "close"
 
 			case nil: // our answer to the server's own request
 				if msg["id"] == "ts1" {
@@ -148,7 +159,7 @@ func TestClient(t *testing.T) {
 		}
 	}()
 
-	c := newClient(cw, cr)
+	c := newClient(cw, cr, nil)
 	if err := c.initialize(dir, map[string]any{"tsserver": map[string]any{"path": "/ts/lib/tsserver.js"}}); err != nil {
 		t.Fatal(err)
 	}
@@ -176,29 +187,28 @@ func TestClient(t *testing.T) {
 	if err != nil || len(locs) != 2 || locs[0].Line != 1 || locs[1].Line != 9 {
 		t.Fatalf("references = %+v (%v)", locs, err)
 	}
-	// An overlay makes the server see the editor's unsaved text.
-	for len(opened) > 0 {
-		<-opened // the didOpens of the calls above
+	// The first request opens the file from disk, once; Sync sends the
+	// editor's text as the next version, and nothing when it is the same.
+	if got := <-opened; got != "open package a\n" || len(opened) > 0 {
+		t.Fatalf("the requests opened %q, then %d more", got, len(opened))
 	}
 
-	c.Overlay(file, "package overlay\n")
-
-	if _, err := c.Definition(file, 0, 0); err != nil {
-		t.Fatal(err)
+	for _, text := range []string{"package overlay\n", "package overlay\n", "package a\n"} {
+		if err := c.Sync(file, text); err != nil {
+			t.Fatal(err)
+		}
 	}
 
-	if got := <-opened; got != "package overlay\n" {
-		t.Fatalf("didOpen sent %q", got)
+	c.Forget(file)
+
+	for _, want := range []string{"change 2 package overlay\n", "change 3 package a\n", "close"} {
+		if got := <-opened; got != want {
+			t.Fatalf("sent %q, want %q", got, want)
+		}
 	}
 
-	c.Overlay(file, "")
-
-	if _, err := c.Definition(file, 0, 0); err != nil {
-		t.Fatal(err)
-	}
-
-	if got := <-opened; got != "package a\n" {
-		t.Fatalf("without an overlay the file is read from disk, got %q", got)
+	if _, err := c.Definition(file, 0, 0); err != nil || <-opened != "open package a\n" {
+		t.Fatalf("a forgotten file opens again from disk (%v)", err)
 	}
 
 	if err := c.Rename(file, 0, 8, "b"); err != nil {
@@ -405,5 +415,108 @@ func TestParseSymbols(t *testing.T) {
 
 	if KindName(12) != "functions" || KindName(23) != "structs" || KindName(99) != "properties" {
 		t.Fatalf("kind names: %s %s %s", KindName(12), KindName(23), KindName(99))
+	}
+}
+
+// TestDiagnostics hands the sink what a server publishes on its own, and
+// what a server that pulls answers after each sync, its severity 0 an error.
+func TestDiagnostics(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "a.ts")
+	mustWrite(t, file, "let x\n")
+
+	for _, pull := range []bool{false, true} {
+		cr, sw := io.Pipe()
+		sr, cw := io.Pipe()
+
+		sent := make(chan []any, 1)
+		diag := []any{
+			map[string]any{
+				"range":    map[string]any{"start": map[string]any{"line": 0, "character": 4}, "end": map[string]any{"line": 0, "character": 5}},
+				"severity": 2, "message": "unused x", "source": "ts",
+			},
+			map[string]any{
+				"range":   map[string]any{"start": map[string]any{"line": 0, "character": 0}, "end": map[string]any{"line": 0, "character": 0}},
+				"message": "no severity",
+			},
+		}
+
+		go func() {
+			r := bufio.NewReader(sr)
+			for {
+				msg := readMsg(t, r)
+				if msg == nil {
+					return
+				}
+
+				switch msg["method"] {
+				case "initialize":
+					caps := map[string]any{}
+					if pull {
+						caps["diagnosticProvider"] = map[string]any{"interFileDependencies": false}
+					}
+
+					writeMsg(sw, map[string]any{"jsonrpc": "2.0", "id": msg["id"], "result": map[string]any{"capabilities": caps}})
+
+				case "textDocument/didOpen":
+					if !pull {
+						writeMsg(sw, map[string]any{
+							"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics",
+							"params": map[string]any{"uri": uri(file), "diagnostics": diag},
+						})
+					}
+
+				case "textDocument/diagnostic":
+					writeMsg(sw, map[string]any{"jsonrpc": "2.0", "id": msg["id"], "result": map[string]any{"kind": "full", "items": diag}})
+
+				case "textDocument/codeAction":
+					ctx, _ := msg["params"].(map[string]any)["context"].(map[string]any)
+					ds, _ := ctx["diagnostics"].([]any)
+
+					sent <- ds
+
+					writeMsg(sw, map[string]any{"jsonrpc": "2.0", "id": msg["id"], "result": []any{}})
+				}
+			}
+		}()
+
+		got := make(chan []Diagnostic, 1)
+		c := newClient(cw, cr, func(path string, ds []Diagnostic) {
+			if path == file {
+				got <- ds
+			}
+		})
+
+		if err := c.initialize(dir, nil); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := c.Sync(file, "let x\n"); err != nil {
+			t.Fatal(err)
+		}
+
+		select {
+		case ds := <-got:
+			want := []Diagnostic{{0, 4, 0, 5, 2, "unused x", "ts"}, {0, 0, 0, 0, 1, "no severity", ""}}
+			if !slices.Equal(ds, want) {
+				t.Fatalf("pull %v: diagnostics %+v, want %+v", pull, ds, want)
+			}
+
+		case <-time.After(5 * time.Second):
+			t.Fatalf("pull %v: no diagnostics", pull)
+		}
+
+		// A code action request carries the diagnostics under its range, as
+		// the server wrote them, for their quick fixes.
+		if _, err := c.Actions(file, 0, 4, 0, 4); err != nil {
+			t.Fatal(err)
+		}
+
+		if ds := <-sent; len(ds) != 1 || fmt.Sprint(ds[0]) != fmt.Sprint(diag[0]) {
+			t.Fatalf("pull %v: the code action's diagnostics %v", pull, ds)
+		}
+
+		_ = cw.Close()
+		_ = sw.Close()
 	}
 }

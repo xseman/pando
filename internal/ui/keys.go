@@ -147,6 +147,12 @@ var keybindings = []keybinding{
 	{keys: []string{"5"}, when: ctxList | ctxEditor, run: func(m *Model, _ string) tea.Cmd { return m.toggleTerminal() }},
 	{keys: []string{"ctrl+p"}, when: ctxPanels, run: func(m *Model, _ string) tea.Cmd { return m.loadIndex(true) }},
 	{keys: []string{"ctrl+g"}, when: ctxPanels, cond: (*Model).showsPreview, run: func(m *Model, _ string) tea.Cmd { return m.gotoLineQuery(":") }},
+	// VS Code's Go to Next and Previous Problem in the shown file or diff, and
+	// its Problems list.
+	{keys: []string{"f8", "shift+f8"}, when: ctxPanels, cond: (*Model).showsPreview, run: func(m *Model, k string) tea.Cmd {
+		return m.gotoProblem(ifElse(k == "f8", 1, -1))
+	}},
+	{keys: []string{"ctrl+shift+m"}, when: ctxNotTerm, run: func(m *Model, _ string) tea.Cmd { return m.showProblems() }},
 	// VS Code's Go to Next and Previous Change, wherever the keyboard is while
 	// a diff shows: a file opened from Source Control leaves it in the list.
 	{keys: []string{"alt+f5", "alt+shift+f5"}, when: ctxPanels, cond: func(m *Model) bool { return m.showsPreview() && m.pv.meta != nil }, run: func(m *Model, k string) tea.Cmd {

@@ -92,22 +92,29 @@ type preview struct {
 	// the rows of all hidden behind each gap row shown. fixed is a diff git
 	// gave three lines of context: too long to unfold, or a merge's combined
 	// diff.
-	all    diffRows
-	open   []gapLines
-	gaps   map[int]shownRow
-	fixed  bool
-	numW   int // digits of the line-number gutter
-	ready  bool
-	wrap   bool
-	blanks string // render_whitespace, put on as the editor draws
-	top    int    // first visible screen row
-	hl     []rune // the word under the cursor, painted wherever else it stands
-	comp   completion
-	left   int // horizontal scroll in cells when not wrapping
-	wide   int // cells of the widest line, measured with the rows while not wrapping
-	cur    pos
-	anchor *pos // selection start; nil = no selection
-	reveal bool // center the cursor once the content loads
+	all   diffRows
+	open  []gapLines
+	gaps  map[int]shownRow
+	fixed bool
+	// probs are the errors and warnings on each row, set as view draws; disk
+	// is a working-tree diff's file as on disk, which their columns count in.
+	probs map[int][]probSpan
+	disk  []string
+	// probTip is the problem under the pointer, its tip shown while the
+	// pointer stays on the screen cell where it found it.
+	probTip *tipAt
+	numW    int // digits of the line-number gutter
+	ready   bool
+	wrap    bool
+	blanks  string // render_whitespace, put on as the editor draws
+	top     int    // first visible screen row
+	hl      []rune // the word under the cursor, painted wherever else it stands
+	comp    completion
+	left    int // horizontal scroll in cells when not wrapping
+	wide    int // cells of the widest line, measured with the rows while not wrapping
+	cur     pos
+	anchor  *pos // selection start; nil = no selection
+	reveal  bool // center the cursor once the content loads
 	// transient is VS Code's preview editor, its tab in italics: the next
 	// editor opened transient takes its tab over, until pin keeps it.
 	transient bool
@@ -156,8 +163,9 @@ type previewMsg struct {
 	repo         string
 	revs         []git.Revision
 	gh           *ghDoc
-	cached       bool // from Model.ghPages, not fetched
-	fixed        bool // too long to unfold, or a merge's combined diff: git's three lines of context
+	cached       bool     // from Model.ghPages, not fetched
+	fixed        bool     // too long to unfold, or a merge's combined diff: git's three lines of context
+	disk         []string // a working-tree diff's file, for its problems' columns
 }
 
 // diffRows are a rendered diff's rows, every one of them.
@@ -1178,6 +1186,10 @@ func (p *preview) load(m *Model) tea.Cmd {
 
 		if err == nil && raw != cp.raw {
 			msg.lines, msg.plain, msg.meta, msg.numW = render(cp.kind, cp.path, raw, dark)
+
+			if cp.kind == pvDiff && cp.diagPath() != "" {
+				msg.disk = fileLines(cp.diagPath())
+			}
 		}
 
 		return msg
@@ -1370,6 +1382,8 @@ func (p *preview) onLoad(m *Model, msg previewMsg) {
 	for i, l := range msg.plain {
 		p.plain[i] = []rune(l)
 	}
+
+	p.disk = msg.disk
 
 	if p.fixed = p.fixed || msg.fixed; p.unfolds() && msg.meta != nil {
 		p.all = diffRows{msg.lines, msg.plain, msg.meta}
@@ -2171,7 +2185,7 @@ func (p *preview) renderRow(vr vrow, w int) string {
 		}
 	}
 
-	body := b.String()
+	body := paintProbs(b.String(), p.probs[vr.line], start)
 	if vr.line == p.rangeHi-1 { // the line Go to Line is about to go to, the whole width
 		body = underBg(body+blank(max(tw-ansi.StringWidth(body), 0)), pal.rangeHiBg)
 	} else if bg := p.conflictBg(vr.line); bg != nil { // a conflict block is tinted under its text
@@ -2373,7 +2387,13 @@ func (p *preview) splitHalf(i int, old bool, w int) string {
 
 	tw := max(w-p.numW-3, 0)
 
-	body := ansi.Cut(p.lines[i], p.left, p.left+tw) + "\x1b[m"
+	body := ansi.Cut(p.lines[i], p.left, p.left+tw)
+	if !old { // the new side is the file, its problems squiggled
+		body = paintProbs(body, p.probs[i], p.left)
+	}
+
+	body += "\x1b[m"
+
 	if sel { // selected text drops its own colors, as it does inline
 		body = lipgloss.NewStyle().Background(bg).Render(ansi.Strip(ansi.Cut(p.lines[i], p.left, p.left+tw)))
 	}
@@ -2782,7 +2802,17 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 
 	header = row(w, nil, left, right...)
 
+	p.probs = m.probsOf(p)
+	if t := p.probTip; t != nil && m.mouseX == t.x && m.mouseY == t.y { // VS Code's hover over a squiggle
+		m.tip = t.text
+	}
+
 	footer = row(w, nil, []seg{sg(p.hints(m), dim)})
+	if pr := p.probAtCursor(); pr != nil { // VS Code's hover, where the keyboard is: the problem under the cursor
+		g, st := sevMark(pr.sev)
+		footer = row(w, nil, []seg{sg(" "+g+" ", st), sg(pr.msg, dim)})
+	}
+
 	if p.kind == pvTable && p.tbl != nil {
 		return header, p.tbl.body(m, w, h), footer
 	}
@@ -2803,7 +2833,7 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 		body = p.splitBody(tw, h)
 		kinds, _ := p.barChanges(m)
 
-		return header, withCells(body, w, vbar{p.scrollRows(m), h, p.top}.marked(vb, kinds)), footer
+		return header, withCells(body, w, vbar{p.scrollRows(m), h, p.top}.marked(vb, kinds, diffMarks())), footer
 
 	case p.side(m):
 		body = p.sideBody(m, tw, h)
@@ -2831,9 +2861,13 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 		body = append(body, p.renderRow(vis[k], tw))
 	}
 
-	kinds, _ := p.barChanges(m)
+	kinds, set := p.barProbs(vis), probMarks() // a file's problems; a diff's changes
+	if p.meta != nil {
+		kinds, _ = p.barChanges(m)
+		set = diffMarks()
+	}
 
-	body = withCells(body, w, vbar{len(vis), h, p.top}.marked(vb, kinds))
+	body = withCells(body, w, vbar{len(vis), h, p.top}.marked(vb, kinds, set))
 	if hb.on() { // under the text, the gutter and the vertical bar's corner left blank
 		body = append(body, blank(p.gutter())+hb.hcells(m.barState("editor-h"))+" ")
 	}
@@ -3734,6 +3768,12 @@ func (p *preview) keyItems(_ *Model) []item {
 		{label: "Expand Selection", hint: "M-⇧→", run: chord(tea.KeyRight, tea.ModAlt|tea.ModShift)},
 		{label: "Shrink Selection", hint: "M-⇧←", run: chord(tea.KeyLeft, tea.ModAlt|tea.ModShift)},
 	}
+	if p.diagPath() != "" {
+		items = append(items,
+			item{label: "Go to Next Problem", hint: "F8", run: func(m *Model) tea.Cmd { return m.gotoProblem(1) }},
+			item{label: "Go to Previous Problem", hint: "⇧F8", run: func(m *Model) tea.Cmd { return m.gotoProblem(-1) }})
+	}
+
 	if p.meta != nil { // the palette's, as VS Code keeps them off the diff's context menu
 		items = append(items,
 			item{label: "Go to Next Change", hint: "]", run: chord(']', 0)},
@@ -4295,8 +4335,7 @@ func (p *preview) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 		m.overBar = barPoint{"editor", y}
 
 		if click && mo.Button == tea.MouseLeft {
-			if n, ok := p.markAt(m, y); ok {
-				p.showLine(m, n, false)
+			if p.markClick(m, y) {
 				return nil
 			}
 
@@ -4316,6 +4355,17 @@ func (p *preview) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 				p.left = left
 				return nil
 			})
+		}
+	}
+
+	if _, move := msg.(tea.MouseMotionMsg); move && mo.Button == tea.MouseNone && len(p.probs) > 0 && !p.scrollOnly(m) {
+		p.probTip = nil
+
+		if np := p.posAt(w, x, y); y >= 0 && y < h && x >= p.gutter() && np.line < len(p.plain) {
+			if pr := p.probAt(np.line, np.col); pr != nil {
+				g, _ := sevMark(pr.sev)
+				p.probTip = &tipAt{g + " " + pr.msg, mo.X, mo.Y}
+			}
 		}
 	}
 

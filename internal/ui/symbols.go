@@ -36,7 +36,7 @@ func (m *Model) gotoSymbol(query string) tea.Cmd {
 		return flash(noServer(p.path), true)
 	}
 
-	path, root, pool, text := p.path, m.ws, &m.lsps, p.unsaved()
+	path, root, pool, text := p.path, m.ws, &m.lsps, p.text()
 	m.flash("asking "+argv[0]+"…", false)
 
 	return func() tea.Msg {
@@ -45,7 +45,7 @@ func (m *Model) gotoSymbol(query string) tea.Cmd {
 			return symbolsMsg{path: path, query: query, err: err}
 		}
 
-		c.Overlay(path, text)
+		_ = c.Sync(path, text) // a server gone answers the request with why
 		syms, err := c.Symbols(path)
 
 		return symbolsMsg{path, query, syms, err}

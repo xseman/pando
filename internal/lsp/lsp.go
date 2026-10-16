@@ -1,7 +1,7 @@
 // Package lsp speaks just enough of the Language Server Protocol over stdio
-// for definitions, references, rename, symbols, completion and code actions:
-// initialize, didOpen and a handful of requests. No dependencies, no
-// diagnostics.
+// for definitions, references, rename, symbols, completion, code actions and
+// diagnostics: initialize, the documents kept in sync, and a handful of
+// requests. No dependencies.
 package lsp
 
 import (
@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/url"
 	"os"
 	"os/exec"
@@ -40,10 +41,37 @@ type Client struct {
 	mu     sync.Mutex
 	nextID int
 	pend   map[int]chan result
-	opened map[string]bool
-	over   map[string]string // unsaved editor text, by path
+	uris   map[string]string          // a synced document's URI to its path, as the reader names files
+	seen   map[string]json.RawMessage // each file's last diagnostics as the server wrote them, for its quick fixes
 	dead   error
+	sink   Sink // the server's diagnostics go here; nil drops them
+	pull   bool // the server answers textDocument/diagnostic: asked after each sync
+	// dmu guards docs: a version bump and the didChange that carries it go
+	// out together. The reader never takes it, so a server blocked writing
+	// to us cannot hold up a sync.
+	dmu  sync.Mutex
+	docs map[string]*doc
 }
+
+// doc is a document the server has open: the text it has, its version, and
+// for a file synced from disk the modification time it was read at.
+type doc struct {
+	text    string
+	version int
+	mod     time.Time
+}
+
+// Diagnostic is a problem a server reports in a file. Columns are UTF-16
+// code units, as a Location's.
+type Diagnostic struct {
+	Line, Col, EndLine, EndCol int
+	Severity                   int // 1 error, 2 warning, 3 information, 4 hint; a server's 0 reads as an error
+	Message, Source            string
+}
+
+// Sink takes a file's diagnostics, all of them, each time the server sends
+// them. It runs on the client's reader and must not block.
+type Sink func(path string, ds []Diagnostic)
 
 type result struct {
 	body json.RawMessage
@@ -51,8 +79,8 @@ type result struct {
 }
 
 // Start runs a language server in root and initializes it. opts are its
-// initializationOptions, nil for none.
-func Start(root string, argv []string, opts map[string]any) (*Client, error) {
+// initializationOptions, nil for none; sink gets its diagnostics.
+func Start(root string, argv []string, opts map[string]any, sink Sink) (*Client, error) {
 	if len(argv) == 0 {
 		return nil, errors.New("no language server configured")
 	}
@@ -79,7 +107,7 @@ func Start(root string, argv []string, opts map[string]any) (*Client, error) {
 		return nil, err
 	}
 
-	c := newClient(in, out)
+	c := newClient(in, out, sink)
 
 	c.cmd = cmd
 	if err := c.initialize(root, opts); err != nil {
@@ -91,26 +119,28 @@ func Start(root string, argv []string, opts map[string]any) (*Client, error) {
 }
 
 // newClient wires a client to a server's pipes; tests use it directly.
-func newClient(in io.WriteCloser, out io.Reader) *Client {
-	c := &Client{in: in, pend: map[int]chan result{}, opened: map[string]bool{}, over: map[string]string{}}
+func newClient(in io.WriteCloser, out io.Reader, sink Sink) *Client {
+	c := &Client{in: in, pend: map[int]chan result{}, uris: map[string]string{}, seen: map[string]json.RawMessage{}, docs: map[string]*doc{}, sink: sink}
 	go c.read(out)
 
 	return c
 }
 
 func (c *Client) initialize(root string, opts map[string]any) error {
-	_, err := c.call("initialize", map[string]any{
+	res, err := c.call("initialize", map[string]any{
 		"initializationOptions": opts,
 		"processId":             os.Getpid(),
 		"rootUri":               uri(root),
 		"workspaceFolders":      []any{map[string]any{"uri": uri(root), "name": filepath.Base(root)}},
 		"capabilities": map[string]any{
 			"textDocument": map[string]any{
-				"synchronization": map[string]any{},
-				"definition":      map[string]any{"linkSupport": true},
-				"references":      map[string]any{},
-				"rename":          map[string]any{},
-				"documentSymbol":  map[string]any{"hierarchicalDocumentSymbolSupport": true},
+				"synchronization":    map[string]any{},
+				"publishDiagnostics": map[string]any{},
+				"diagnostic":         map[string]any{},
+				"definition":         map[string]any{"linkSupport": true},
+				"references":         map[string]any{},
+				"rename":             map[string]any{},
+				"documentSymbol":     map[string]any{"hierarchicalDocumentSymbolSupport": true},
 				"completion": map[string]any{
 					"completionItem": map[string]any{"snippetSupport": true, "insertReplaceSupport": true},
 					"contextSupport": true,
@@ -134,7 +164,24 @@ func (c *Client) initialize(root string, opts map[string]any) error {
 		return err
 	}
 
+	var caps struct {
+		Capabilities struct {
+			DiagnosticProvider json.RawMessage `json:"diagnosticProvider"`
+		} `json:"capabilities"`
+	}
+
+	_ = json.Unmarshal(res, &caps) // what it leaves out, it does not do
+	c.pull = len(caps.Capabilities.DiagnosticProvider) > 0 && string(caps.Capabilities.DiagnosticProvider) != "null"
+
 	return c.notify("initialized", map[string]any{})
+}
+
+// Err is why the server stopped, nil while it runs.
+func (c *Client) Err() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.dead
 }
 
 // Close shuts the server down; a server that ignores it is killed.
@@ -194,13 +241,36 @@ func (c *Client) Actions(path string, line, col, endLine, endCol int) ([]Action,
 			"start": map[string]any{"line": line, "character": col},
 			"end":   map[string]any{"line": endLine, "character": endCol},
 		},
-		"context": map[string]any{"diagnostics": []any{}},
+		"context": map[string]any{"diagnostics": c.near(path, line, col, endLine, endCol)},
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	return parseActions(raw), nil
+}
+
+// near are path's diagnostics touching the range, as the server wrote them:
+// a server's quick fixes are for the ones a code action request carries.
+func (c *Client) near(path string, line, col, endLine, endCol int) []json.RawMessage {
+	c.mu.Lock()
+	raw := c.seen[path]
+	c.mu.Unlock()
+
+	var all []json.RawMessage
+
+	_ = json.Unmarshal(raw, &all) // none read, none sent
+	before := func(l1, c1, l2, c2 int) bool { return l1 < l2 || l1 == l2 && c1 <= c2 }
+
+	out := []json.RawMessage{}
+
+	for k, d := range parseDiagnostics(raw) {
+		if k < len(all) && before(d.Line, d.Col, endLine, endCol) && before(line, col, d.EndLine, d.EndCol) {
+			out = append(out, all[k])
+		}
+	}
+
+	return out
 }
 
 // Rename gives the symbol at line:col a new name everywhere the server knows
@@ -590,53 +660,207 @@ func parseCompletion(raw json.RawMessage) []Item {
 	return out
 }
 
-// Overlay hands the server the editor's unsaved text for a file, so answers
-// match what is on screen; "" goes back to what is on disk.
-func (c *Client) Overlay(path, text string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if text == "" {
-		delete(c.over, path)
-		return
-	}
-
-	c.over[path] = text
+// Sync gives the server text as file path's content: a didOpen the first
+// time, a didChange with the next version when it differs from what the
+// server has, nothing when it does not. A server that pulls diagnostics is
+// asked for them after.
+func (c *Client) Sync(path, text string) error {
+	return c.sync(path, text, time.Time{})
 }
 
-// open tells the server about a file, re-sending it when it is already open.
-func (c *Client) open(path string) error {
+// SyncFile gives the server file path as it is on disk, read again only when
+// its modification time moved since the last time.
+func (c *Client) SyncFile(path string) error {
+	st, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+
+	c.dmu.Lock()
+	d := c.docs[path]
+	same := d != nil && d.mod.Equal(st.ModTime())
+	c.dmu.Unlock()
+
+	if same {
+		return nil
+	}
+
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
 
-	c.mu.Lock()
-	if text, ok := c.over[path]; ok {
-		b = []byte(text)
+	return c.sync(path, string(b), st.ModTime())
+}
+
+func (c *Client) sync(path, text string, mod time.Time) error {
+	c.dmu.Lock()
+	defer c.dmu.Unlock()
+
+	u := uri(path)
+
+	var err error
+
+	switch d := c.docs[path]; {
+	case d == nil:
+		lang := LanguageOf(path)
+		if lang == "" { // an unknown extension stands in for its language id
+			lang = strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
+		}
+
+		c.docs[path] = &doc{text: text, version: 1, mod: mod}
+
+		c.mu.Lock()
+		c.uris[u] = path
+		c.mu.Unlock()
+
+		err = c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
+			"uri": u, "languageId": lang, "version": 1, "text": text,
+		}})
+
+	case d.text != text:
+		d.text, d.version, d.mod = text, d.version+1, mod
+		err = c.notify("textDocument/didChange", map[string]any{
+			"textDocument":   map[string]any{"uri": u, "version": d.version},
+			"contentChanges": []any{map[string]any{"text": text}},
+		})
+
+	default:
+		d.mod = mod
+
+		return nil
 	}
+
+	if err == nil && c.pull {
+		go c.pullDiagnostics(path, u, c.docs[path].version)
+	}
+
+	return err
+}
+
+// Forget closes path's document: the server no longer reports on it.
+func (c *Client) Forget(path string) {
+	c.dmu.Lock()
+	defer c.dmu.Unlock()
+
+	if c.docs[path] == nil {
+		return
+	}
+
+	delete(c.docs, path)
+
+	c.mu.Lock()
+	delete(c.uris, uri(path))
+	delete(c.seen, path)
 	c.mu.Unlock()
 
-	doc := map[string]any{"uri": uri(path)}
+	_ = c.notify("textDocument/didClose", map[string]any{"textDocument": map[string]any{"uri": uri(path)}}) // a server gone has closed it
+}
+
+// Synced are the paths of the documents the server has open.
+func (c *Client) Synced() []string {
+	c.dmu.Lock()
+	defer c.dmu.Unlock()
+
+	return slices.Sorted(maps.Keys(c.docs))
+}
+
+// open makes sure the server has file path before a request about it: read
+// from disk the first time. The editor keeps an open file in sync.
+func (c *Client) open(path string) error {
+	c.dmu.Lock()
+	known := c.docs[path] != nil
+	c.dmu.Unlock()
+
+	if known {
+		return nil
+	}
+
+	return c.SyncFile(path)
+}
+
+// pullDiagnostics asks a server that pulls (TypeScript 7's) for a document's
+// diagnostics at version v, as it gives none of its own accord: an answer
+// for a version since changed, or a document closed, is dropped.
+func (c *Client) pullDiagnostics(path, u string, v int) {
+	raw, err := c.call("textDocument/diagnostic", map[string]any{"textDocument": map[string]any{"uri": u}})
+	if err != nil {
+		return
+	}
+
+	var rep struct {
+		Kind  string          `json:"kind"`
+		Items json.RawMessage `json:"items"`
+	}
+
+	c.dmu.Lock()
+	defer c.dmu.Unlock()
+
+	if d := c.docs[path]; d != nil && d.version == v && json.Unmarshal(raw, &rep) == nil && rep.Kind == "full" {
+		c.keep(path, rep.Items)
+	}
+}
+
+// publish is the server's textDocument/publishDiagnostics: a file's whole
+// list, which replaces the last one.
+func (c *Client) publish(params json.RawMessage) {
+	var p struct {
+		URI         string          `json:"uri"`
+		Diagnostics json.RawMessage `json:"diagnostics"`
+	}
+
+	if json.Unmarshal(params, &p) != nil {
+		return
+	}
 
 	c.mu.Lock()
-	was := c.opened[path]
-	c.opened[path] = true
+	path, ok := c.uris[p.URI]
 	c.mu.Unlock()
 
-	if was {
-		// Best effort: if the pipe is gone, the didOpen below says so.
-		_ = c.notify("textDocument/didClose", map[string]any{"textDocument": doc})
+	if !ok { // a file the server looked at on its own
+		var err error
+		if path, err = fromURI(p.URI); err != nil {
+			return
+		}
 	}
 
-	lang := LanguageOf(path)
-	if lang == "" { // an unknown extension stands in for its language id
-		lang = strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
+	c.keep(path, p.Diagnostics)
+}
+
+// keep takes a file's diagnostics, for its quick fixes and the sink.
+func (c *Client) keep(path string, raw json.RawMessage) {
+	c.mu.Lock()
+	c.seen[path] = raw
+	c.mu.Unlock()
+
+	if c.sink != nil {
+		c.sink(path, parseDiagnostics(raw))
+	}
+}
+
+// parseDiagnostics reads LSP Diagnostics; what it cannot read it leaves out.
+func parseDiagnostics(raw json.RawMessage) []Diagnostic {
+	var ds []struct {
+		Range struct {
+			Start struct{ Line, Character int } `json:"start"`
+			End   struct{ Line, Character int } `json:"end"`
+		} `json:"range"`
+		Severity int    `json:"severity"`
+		Message  string `json:"message"`
+		Source   string `json:"source"`
 	}
 
-	return c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
-		"uri": uri(path), "languageId": lang, "version": 1, "text": string(b),
-	}})
+	_ = json.Unmarshal(raw, &ds) // a list it cannot read is no problems
+
+	out := make([]Diagnostic, 0, len(ds))
+	for _, d := range ds {
+		out = append(out, Diagnostic{
+			Line: d.Range.Start.Line, Col: d.Range.Start.Character, EndLine: d.Range.End.Line, EndCol: d.Range.End.Character,
+			Severity: cmp.Or(d.Severity, 1), Message: d.Message, Source: d.Source,
+		})
+	}
+
+	return out
 }
 
 func (c *Client) call(method string, params any) (json.RawMessage, error) {
@@ -737,7 +961,11 @@ func (c *Client) read(out io.Reader) {
 			} `json:"error"`
 		}
 		if json.Unmarshal(buf, &msg) != nil || len(msg.ID) == 0 || string(msg.ID) == "null" {
-			continue // a notification: diagnostics, progress, logs
+			if msg.Method == "textDocument/publishDiagnostics" {
+				c.publish(msg.Params)
+			}
+
+			continue // the other notifications: progress, logs
 		}
 
 		if msg.Method != "" { // a request from the server
@@ -1014,12 +1242,14 @@ func UTF16Col(line string, runeCol int) int {
 
 // RuneCol is UTF16Col backwards.
 func RuneCol(line string, u16 int) int {
-	rs := []rune(line)
-	for i := range rs {
-		if len(utf16.Encode(rs[:i])) >= u16 {
+	i, n := 0, 0
+	for _, r := range line {
+		if n >= u16 {
 			return i
 		}
+
+		i, n = i+1, n+utf16.RuneLen(r)
 	}
 
-	return len(rs)
+	return i
 }

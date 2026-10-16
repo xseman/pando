@@ -21,7 +21,7 @@ items(m) ──▶ context menu + command palette
 
 | View           | Key | File           | Rows                                                                         |
 | -------------- | --- | -------------- | ---------------------------------------------------------------------------- |
-| Explorer       | `1` | `explorer.go`  | directory tree, git decorations                                              |
+| Explorer       | `1` | `explorer.go`  | directory tree, git decorations, problems (`probDecoFor`)                    |
 | Source Control | `2` | `scm.go`       | message box, action button, sections, drawers                                |
 | Spaces         | `3` | `agents.go`    | project → worktree → session tree                                            |
 | Search         | `4` | `search.go`    | query boxes, matches by file                                                 |
