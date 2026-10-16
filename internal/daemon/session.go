@@ -494,7 +494,8 @@ func (s *session) screen(p proto.ScreenParams) proto.Screen {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.lastViewed, s.attention = time.Now(), false
+	// tick clears attention from lastViewed, and reports it so clients hear.
+	s.lastViewed = time.Now()
 	if p.Cols > 0 && p.Rows > 0 && (p.Cols != s.emu.Width() || p.Rows != s.emu.Height()) {
 		s.drain(func() { s.emu.Resize(p.Cols, p.Rows) })
 		s.resized = time.Now()

@@ -479,6 +479,47 @@ func TestUpdatedSkipsRedraw(t *testing.T) {
 	}
 }
 
+// TestViewingClearsAttentionForClients guards a stale "✓": session.screen
+// cleared attention behind tick's back, so no "sessions" event went out and
+// an attached TUI kept showing the session as unseen.
+func TestViewingClearsAttentionForClients(t *testing.T) {
+	d := start(t)()
+	defer d.Close()
+
+	var s proto.Session
+	call(t, "session.new", map[string]any{"workspace": t.TempDir(), "cmd": []string{"sh", "-c", "exit 3"}}, &s)
+	waitFor(t, "an unseen exit to need attention", func() bool {
+		var ss []proto.Session
+		call(t, "session.list", nil, &ss)
+
+		return len(ss) == 1 && ss[0].Status == "exited" && ss[0].Attention
+	})
+
+	events := subscribed(t)
+	call(t, "session.screen", proto.ScreenParams{ID: s.ID}, nil)
+
+	for timeout := time.After(5 * time.Second); ; {
+		select {
+		case ev := <-events:
+			if ev.Kind != "sessions" {
+				continue
+			}
+
+			var ss []proto.Session
+			call(t, "session.list", nil, &ss)
+
+			if ss[0].Attention {
+				t.Fatalf("after a sessions event, a viewed session still needs attention: %+v", ss[0])
+			}
+
+			return
+
+		case <-timeout:
+			t.Fatal("viewing the session sent no sessions event")
+		}
+	}
+}
+
 func TestSessionClosesOnCleanExit(t *testing.T) {
 	d := start(t)()
 	defer d.Close()
