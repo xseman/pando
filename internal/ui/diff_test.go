@@ -27,7 +27,8 @@ const sampleDiff = "diff --git a/src/app.ts b/src/app.ts\n" +
 	" search(\"hello\");\n"
 
 // diffModel is a w×h model showing sampleDiff as the working-tree diff of
-// src/app.ts, focused on it.
+// src/app.ts, focused on it, the cursor on its first row (it opens on the
+// first change: TestDiffOpensOnFirstChange).
 func diffModel(t *testing.T, w, h int) *Model {
 	t.Helper()
 	m := testModelSized(t, w, h)
@@ -35,6 +36,7 @@ func diffModel(t *testing.T, w, h int) *Model {
 	m.preview, m.focus = true, onMain
 	lines, plain, meta, numW := render(pvDiff, "src/app.ts", sampleDiff, true)
 	m.pv.onLoad(m, previewMsg{key: m.pv.id(), raw: sampleDiff, lines: lines, plain: plain, meta: meta, numW: numW})
+	m.pv.cur, m.pv.top = pos{}, 0
 
 	return m
 }

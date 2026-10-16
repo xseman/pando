@@ -116,11 +116,26 @@ inline                                side by side (diff_view = "split")
   the changes with git's three lines of context, or with `diff_full` the
   whole file (`--unified=1000000000`). `z`, the header's unfold/fold button
   and Toggle Collapse Unchanged Regions flip it (`toggleDiffFull`).
+- `changes` are the runs of `a` and `d` rows, a deletion and its additions
+  one change. `]` `[` (`gotoChange`) put the cursor on a change's first
+  line, mid view, around the ends as VS Code. `}` `{`
+  (`stepFile`) go to the next file of a commit's or pull request's diff, its
+  name on the top row and the cursor on its first change, or open the next
+  file of Source Control (of the Compare drawer for `cmp`) and select it.
+- `s` keeps the cursor's line on its screen row (`scrollTo`). `z` and the
+  2 s reload of a live diff note the cursor's and the selection's line
+  numbers and screen row (`keepPlace`); `onLoad` finds them again
+  (`findPlace`: the same row, else the next one shown), unless the cursor
+  moved meanwhile. The status bar's Ln and Go to Line count the file's lines
+  (`lineNo`).
+- A file's diff opens on its first change (`onLoad`, mid view when the
+  whole file hides it); a reload, a tab coming back and a commit keep theirs.
 - The cursor is a whole diff line in both views. `m` (or `shift+F10`) opens the
   context menu; a diff of a tracked file (not `U` or `!`) adds Stage Selected
   Ranges and Revert Selected Ranges… (asks first, `confirmRevert`), a staged
   diff Unstage Selected Ranges. `changedLines` picks the lines (a selection
-  ending at column 0 drops that line; none means the cursor line), then
+  ending at column 0 drops that line; none means the change under the
+  cursor, its deletion with its additions, as VS Code's), then
   `git.ApplyLines` ([05-git.md](05-git.md)).
 - `←`/`→` in the header walk the file's history, `H` picks a revision. Each
   step is a `rev` diff, entry 0 the uncommitted change.

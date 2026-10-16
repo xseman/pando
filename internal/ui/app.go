@@ -2636,7 +2636,9 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.fixFocus()
 
 		var reload tea.Cmd
+
 		if m.st.Settings.DiffFull != full && m.pv.fileDiff() { // diff_full set elsewhere
+			m.pv.keepPlace(m)
 			reload = m.pv.load(m)
 		}
 
@@ -4692,14 +4694,19 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 		add(" "+m.pv.tbl.column()+" ", dim, "", nil)
 	}
 
-	if m.showsPreview() && m.pv.md != 1 && !m.pv.scrollOnly(m) && m.pv.kind != pvTable {
+	if m.showsPreview() && m.pv.md != 1 && !m.pv.side(m) && m.pv.kind != pvTable { // a side-by-side diff keeps its cursor line
 		// VS Code's editor items: the cursor, going to a line; a file's
 		// indentation, changing it. A rendering has no cursor to show.
 		c := m.pv.at()
+		ln := m.pv.lineNo(c.line) // a diff's: the file's line, not the row's
 
-		pos := fmt.Sprintf(" Ln %d, Col %d ", c.line+1, c.col+1)
+		pos := fmt.Sprintf(" Ln %d, Col %d ", ln, c.col+1)
+		if m.pv.split(m) { // its cursor is a whole line
+			pos = fmt.Sprintf(" Ln %d ", ln)
+		}
+
 		if n := m.pv.selCount(); n > 0 {
-			pos = fmt.Sprintf(" Ln %d, Col %d (%d selected) ", c.line+1, c.col+1, n)
+			pos = fmt.Sprintf(" Ln %d, Col %d (%d selected) ", ln, c.col+1, n)
 		}
 
 		add(pos, dim, "Go to Line…  ^g", func(m *Model) tea.Cmd { return m.gotoLineQuery(":") })
@@ -4989,7 +4996,7 @@ var hotkeys = map[view][][2]string{
 
 var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4 6 7", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"M-t", "agents"}, {"^tab", "editors"}, {"^⇧pgup ^⇧pgdn", "move tab"}, {"^f", "find"}, {"M-, M-.", "back/forward"}, {"[ ]", "sessions"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"esc q", "quit"}}
 
-var previewKeys = [][2]string{{"↑↓", "move"}, {"⇧↑↓", "select"}, {"^a", "all"}, {"y", "copy"}, {"s", "split diff"}, {"m", "stage/revert lines"}, {"w", "wrap"}, {"^f", "find"}, {"^h", "replace"}, {"^g", "go to line"}, {"f12", "definition"}, {"⇧f12", "references"}, {"^.", "code action"}, {"e", "edit"}, {"q", "close"}}
+var previewKeys = [][2]string{{"↑↓", "move"}, {"⇧↑↓", "select"}, {"^a", "all"}, {"y", "copy"}, {"s", "split diff"}, {"m", "stage/revert lines"}, {"] [", "next, prev change"}, {"} {", "next, prev file"}, {"w", "wrap"}, {"^f", "find"}, {"^h", "replace"}, {"^g", "go to line"}, {"f12", "definition"}, {"⇧f12", "references"}, {"^.", "code action"}, {"e", "edit"}, {"q", "close"}}
 
 // keyRows lays key/description pairs out in two keycap columns.
 func keyRows(pairs [][2]string) []item {
@@ -5384,9 +5391,11 @@ func (m *Model) toggleDiffView() tea.Cmd {
 		next = "inline"
 	}
 
-	m.pv.top = 0
+	off := m.pv.row(m) - m.pv.top // the cursor's line keeps its place on screen
+	cmd := m.setSettings(map[string]any{"diff_view": next})
+	m.pv.scrollTo(m, off)
 
-	return m.setSettings(map[string]any{"diff_view": next})
+	return cmd
 }
 
 func staleModal(sessions int) *modal {

@@ -47,6 +47,7 @@ T: also in a terminal; the rest are the shell's there.
 | `ctrl+n`, `ctrl+s`                                     | new untitled file, save                                 |
 | `ctrl+enter`                                           | commit                                                  |
 | `ctrl+g`, `ctrl+shift+o`                               | go to line, symbol                                      |
+| `alt+F5` `shift+alt+F5`                                | next, previous change of the diff shown                 |
 | `ctrl+shift+v`, `alt+v` (in a file)                    | rendered Markdown, side by side                         |
 | `ctrl+alt+-` `ctrl+-` `alt+,` `super+←`                | back through visited editors                            |
 | `ctrl+shift+-` `alt+.` `super+→`                       | forward                                                 |
@@ -130,7 +131,8 @@ Read-only views add letters: `hjkl` `0` `$` move, `b` `f` `space` page, `g`
 or split diff (Markdown: side by side), `z` whole file or only the changes in a
 file's diff, `p` rendered Markdown, `O` open the
 diffed file at the cursor, `H` pick a revision (header `←` `→` step), `e`
-`$EDITOR`, `o` system app, `m` menu, `q` close.
+`$EDITOR`, `o` system app, `m` menu, `q` close. In a diff `]` `[` (`alt+F5`
+`shift+alt+F5`) next, previous change; `}` `{` next, previous file.
 
 Find box: `⏎` `↓` next, `shift+⏎` `↑` previous, `tab` to replace, where `⏎`
 replaces and goes on; `ctrl+shift+1` one, `ctrl+alt+⏎` all; `alt+c` `alt+w`

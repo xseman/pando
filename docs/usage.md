@@ -161,7 +161,11 @@ the same for the pull request. The ✕ on the drawer's header clears it. Each
 project keeps its own comparison.
 
 A diff shows the changes with three lines around them; `z` (or the header's
-fold button) shows the whole file, for every diff until toggled back.
+fold button) shows the whole file, for every diff until toggled back. `]` and
+`[` (VS Code's `alt+F5`, `shift+alt+F5`, or the header's `↓` `↑`) go to the
+next and previous change, `}` and `{` to the next and previous file: of a
+commit, or of Source Control from a file's diff; a file's diff opens on its
+first change.
 
 | Key       | In Source Control                                          |
 | --------- | ---------------------------------------------------------- |

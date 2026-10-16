@@ -136,13 +136,25 @@ func (m *Model) gotoLineQuery(query string) tea.Cmd {
 
 	cur, top, left, anchor := p.cur, p.top, p.left, p.anchor
 	back := func(m *Model) { m.pv.cur, m.pv.top, m.pv.left, m.pv.anchor, m.pv.rangeHi = cur, top, left, anchor, 0 }
-	last := p.lastLine() + 1
+	last, side := p.lastLine()+1, func(l int) lineMeta { return lineMeta{b: l} }
+
+	if p.meta != nil { // a diff goes by the file's lines, as its status bar counts; a deleted file's by its old ones
+		newest, oldest := 0, 0
+		for _, l := range p.meta {
+			newest, oldest = max(newest, l.b), max(oldest, l.a)
+		}
+
+		if last = newest; newest == 0 {
+			last, side = oldest, func(l int) lineMeta { return lineMeta{a: l} }
+		}
+	}
+
 	md := newPicker("Go to Line", nil)
 	row := func(v string) item {
 		line, col := parseLineCol(strings.ReplaceAll(strings.TrimPrefix(v, ":"), ",", ":"))
 		if line <= 0 {
 			return item{always: true, label: fmt.Sprintf("Current line %d, character %d · type a line from 1 to %d",
-				cur.line+1, m.pv.charCol(cur)+1, last)}
+				m.pv.lineNo(cur.line), m.pv.charCol(cur)+1, last)}
 		}
 
 		line = min(line, last)
@@ -153,10 +165,15 @@ func (m *Model) gotoLineQuery(query string) tea.Cmd {
 		}
 
 		return item{always: true, label: label, run: func(m *Model) tea.Cmd {
-			m.pv.gotoLine(m, line-1, m.pv.screenCol(line-1, max(col-1, 0)))
+			n := line - 1
+			if m.pv.meta != nil {
+				n = findPlace(m.pv.meta, side(line)) // the row of that line, or the next shown
+			}
 
-			m.pv.rangeHi = line // highlighted while it is only shown, as VS Code does
-			if m.modal == nil { // chosen
+			m.pv.gotoLine(m, n, m.pv.screenCol(n, max(col-1, 0)))
+
+			m.pv.rangeHi = n + 1 // highlighted while it is only shown, as VS Code does
+			if m.modal == nil {  // chosen
 				m.focus, m.pv.rangeHi = onMain, 0
 			}
 

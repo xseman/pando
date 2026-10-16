@@ -86,6 +86,7 @@ type preview struct {
 	lines     []string   // styled, one per source line
 	plain     [][]rune   // the same lines without styles
 	meta      []lineMeta // diff rows: line numbers and change kind
+	keep      *place     // the cursor's place while a diff reloads, to find again (keepPlace)
 	numW      int        // digits of the line-number gutter
 	ready     bool
 	wrap      bool
@@ -1161,6 +1162,10 @@ func (p *preview) reloadIfLive(m *Model) tea.Cmd {
 		return nil
 	}
 
+	if p.kind == pvDiff && p.ready { // an agent's edit above the cursor moves the rows under it
+		p.keepPlace(m)
+	}
+
 	if p.kind == pvFile || p.kind == pvDiff {
 		return p.load(m)
 	}
@@ -1296,7 +1301,7 @@ func (p *preview) onLoad(m *Model, msg previewMsg) {
 	}
 
 	if msg.err != nil {
-		p.err, p.raw = msg.err.Error(), ""
+		p.err, p.raw, p.keep = msg.err.Error(), "", nil
 		return
 	}
 
@@ -1314,11 +1319,18 @@ func (p *preview) onLoad(m *Model, msg previewMsg) {
 		m.ghPages[p.id()] = ghCached{raw: msg.raw, doc: msg.gh, at: time.Now()}
 	}
 
-	if msg.lines == nil {
-		p.revealCursor(m) // the content is unchanged, the cursor may not be
+	if msg.lines == nil { // the content is unchanged: nothing moved, the cursor may have
+		p.keep = nil
+		p.revealCursor(m)
+
 		return
 	}
 
+	if p.keep != nil && p.cur != p.keep.was { // moved while it loaded: the cursor stays where it went
+		p.keep = nil
+	}
+
+	opened := !p.ready && p.cur == (pos{}) && p.top == 0 // not a reload, nor a tab coming back to where it was
 	p.raw, p.lines, p.meta, p.numW, p.ready, p.vis = msg.raw, msg.lines, msg.meta, msg.numW, true, nil
 
 	p.plain = make([][]rune, len(msg.plain))
@@ -1348,6 +1360,18 @@ func (p *preview) onLoad(m *Model, msg previewMsg) {
 	p.syncMarkdown(m)
 	p.cur.line = min(p.cur.line, p.lastLine())
 	p.revealCursor(m)
+
+	switch cs := changes(p.meta); {
+	case p.keep != nil && p.meta != nil: // the rows moved: the same lines, on the same screen row
+		p.findAgain(m)
+
+	case opened && p.fileDiff() && len(cs) > 0: // VS Code opens a diff on its first change
+		p.setLine(m, cs[0][0])
+
+		if p.row(m) >= m.pvH() {
+			p.scrollTo(m, m.pvH()/2)
+		}
+	}
 
 	if p.anchor != nil {
 		a := pos{min(p.anchor.line, p.lastLine()), p.anchor.col}
@@ -2505,6 +2529,11 @@ func (p *preview) buttons(m *Model, w int) []rowAction {
 			rowAction{g: ifElse(p.md == 2, icInline, icSplit), tip: ifElse(p.md == 2, "Close Preview", "Open Preview to the Side") + "  M-v", run: func(m *Model) tea.Cmd { return m.pv.toggleMarkdown(m, 2) }})
 	}
 
+	if p.meta != nil { // VS Code's diff editor starts its actions with these
+		add(icUp, "Previous Change", tea.KeyPressMsg{Code: '[', Text: "["})
+		add(icDown, "Next Change", tea.KeyPressMsg{Code: ']', Text: "]"})
+	}
+
 	if p.fileDiff() { // the whole file or the changes
 		full := m.st.Settings.DiffFull
 		add(ifElse(full, icFold, icUnfold), ifElse(full, "Show Only the Changes", "Show the Whole File"), tea.KeyPressMsg{Code: 'z', Text: "z"})
@@ -2541,10 +2570,12 @@ func (p *preview) hints(m *Model) string {
 		return p.tbl.hints()
 	case m.pk != nil:
 		return " ↑↓ move  ←→ fold  ⏎ open  o open and stay  esc close"
+	case p.split(m) && p.kind == pvRev: // one file's history: nothing to stage, no other file
+		return " ↑↓ move  ] [ change  ⇧ select  s inline  q close"
 	case p.split(m) && p.kind != pvDiff: // a commit's or a pull request's: nothing to stage
-		return " ↑↓ move  ⇧ select  s inline  q close"
+		return " ↑↓ move  ] [ change  } { file  ⇧ select  s inline  q close"
 	case p.split(m):
-		return " ↑↓ move  ⇧ select  m stage/revert lines  O file  s inline  q close"
+		return " ↑↓ move  ] [ change  } { file  ⇧ select  m stage/revert lines  O file  s inline  q close"
 	case p.side(m):
 		return " ↑↓ scroll  p rendered  s source only  q close"
 	case p.composing:
@@ -2576,11 +2607,11 @@ func (p *preview) hints(m *Model) string {
 	case p.kind == pvFile:
 		return " ↑↓ move  ^f find  F12 def  ⇧F12 refs  ^. fix  F2 rename  q close"
 	case p.kind == pvRev:
-		return " ↑↓ move  H history  s split  ⇧ select  y copy  q close"
+		return " ↑↓ move  ] [ change  H history  s split  ⇧ select  y copy  q close"
 	case p.kind == pvDiff:
-		return " ↑↓ move  ⇧ select  m stage/revert lines  O file  s split  q close"
+		return " ↑↓ move  ] [ change  } { file  ⇧ select  m stage/revert lines  O file  s split  q close"
 	case p.meta != nil:
-		return " ↑↓ move  ⇧ select  s split  y copy  q close"
+		return " ↑↓ move  ] [ change  } { file  ⇧ select  s split  y copy  q close"
 	case isMarkdown(p.path):
 		return " ↑↓ move  ⇧ select  p rendered  s side by side  M-← history  q close"
 	}
@@ -2774,7 +2805,7 @@ func (p *preview) fileDiff() bool {
 // toggleDiffFull is VS Code's Toggle Collapse Unchanged Regions: a file's
 // diff shows the whole file, or the changes with three lines around them.
 func (m *Model) toggleDiffFull() tea.Cmd {
-	m.pv.top, m.pv.cur, m.pv.anchor = 0, pos{}, nil // the lines move under the cursor
+	m.pv.keepPlace(m) // the rows change under the cursor; its line is found again
 
 	return tea.Batch(m.setSettings(map[string]any{"diff_full": !m.st.Settings.DiffFull}), m.pv.load(m))
 }
@@ -3533,6 +3564,18 @@ func (p *preview) keyItems(_ *Model) []item {
 		{label: "Expand Selection", hint: "M-⇧→", run: chord(tea.KeyRight, tea.ModAlt|tea.ModShift)},
 		{label: "Shrink Selection", hint: "M-⇧←", run: chord(tea.KeyLeft, tea.ModAlt|tea.ModShift)},
 	}
+	if p.meta != nil { // the palette's, as VS Code keeps them off the diff's context menu
+		items = append(items,
+			item{label: "Go to Next Change", hint: "]", run: chord(']', 0)},
+			item{label: "Go to Previous Change", hint: "[", run: chord('[', 0)})
+	}
+
+	if p.kind == pvDiff || p.kind == pvCmp || p.kind == pvShow || p.kind == pvGHDiff {
+		items = append(items,
+			item{label: "Go to Next File", hint: "}", run: chord('}', 0)},
+			item{label: "Go to Previous File", hint: "{", run: chord('{', 0)})
+	}
+
 	if p.editable() {
 		items = append(items,
 			item{label: "Replace", hint: "^h", run: chord('h', tea.ModCtrl)},
@@ -3561,13 +3604,19 @@ func (p *preview) menu(m *Model, x, y int) tea.Cmd { return m.menuOf(p.items(m),
 
 // changedLines are the selected diff changes: deletions by old line number,
 // additions by new line number. A selection ending at column 0 leaves that
-// line out; without a selection the cursor line counts.
+// line out; without a selection the change under the cursor counts, its
+// deletion with its additions, so staging one never splits a line's edit.
 func (p *preview) changedLines() (dels, adds map[int]bool) {
 	dels, adds = map[int]bool{}, map[int]bool{}
 
 	a, b, ok := p.selection()
-	if !ok {
+	if !ok { // the change under the cursor, its deletion with its additions, as VS Code's
 		a, b = p.at(), p.at()
+
+		cs := changes(p.meta)
+		if i := slices.IndexFunc(cs, func(c [2]int) bool { return a.line >= c[0] && a.line < c[1] }); i >= 0 {
+			a.line, b.line = cs[i][0], cs[i][1]-1
+		}
 	} else if b.col == 0 && b.line > a.line {
 		b.line--
 	}
@@ -3942,6 +3991,13 @@ func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 
 	case "O":
 		return p.openHere(m)
+	case "]", "[": // and VS Code's ⌥F5 ⇧⌥F5, everywhere (keybindings)
+		if p.meta != nil {
+			return p.gotoChange(m, ifElse(s == "]", 1, -1))
+		}
+
+	case "}", "{":
+		return m.stepFile(ifElse(s == "}", 1, -1))
 	case "z":
 		if p.fileDiff() {
 			return m.toggleDiffFull()
