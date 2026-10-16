@@ -7,6 +7,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/xseman/pando/internal/git"
 	"github.com/xseman/pando/internal/proto"
@@ -285,6 +286,21 @@ func TestKillDissolves(t *testing.T) {
 	m.fx.frame += morphDur(a.from, "")
 	if got := m.fx.text("sess:s1", sessionName(s)); strings.TrimSpace(got) != "" {
 		t.Fatalf("dissolved, the name holds blank: %q", got)
+	}
+}
+
+// TestCommitDissolvesPlaceholder dissolves git's own message, which the box
+// showed as its placeholder, in the placeholder's color, not text's.
+func TestCommitDissolvesPlaceholder(t *testing.T) {
+	m := gitModel(t)
+	m.st.Settings.Anim = true
+	m.Update(nil)
+
+	checkWidths(t, m)
+	m.Update(scmMsg{root: m.ws, text: "merge continued", clear: true}) // nothing typed: the placeholder goes
+
+	if out := m.scm.boxFx(m, m.ws, 0, nil, lipgloss.NewStyle()); !strings.Contains(out, fgParams(pal.descFg)) {
+		t.Fatalf("dissolving in %q", out)
 	}
 }
 

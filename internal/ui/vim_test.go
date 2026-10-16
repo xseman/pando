@@ -257,6 +257,21 @@ func TestVimLineSelection(t *testing.T) {
 	}
 }
 
+// TestVimVisualHints offers what visual mode takes, not normal mode's i and yy.
+func TestVimVisualHints(t *testing.T) {
+	m := vimModel(t, "abcdef\nsecond\n")
+
+	for _, k := range []string{"v", "V"} {
+		press(m, k)
+
+		if h := m.pv.hints(m); !strings.Contains(h, "y yank") || strings.Contains(h, "i insert") {
+			t.Fatalf("%s: %q", k, h)
+		}
+
+		press(m, "esc")
+	}
+}
+
 // TestVimKeepsEditorKeys: the editor's own keys work in either mode, and a
 // read-only preview is untouched by the setting.
 func TestVimKeepsEditorKeys(t *testing.T) {

@@ -68,6 +68,7 @@ type scmView struct {
 	status   map[string]git.Status
 	repo     int // active repository: the message box input and drawers belong to it
 	input    textarea.Model
+	faint    bool            // the box dissolving held its placeholder, git's own message: it dissolves in that color
 	draft    string          // last draft sent to the daemon for the active repo
 	closed   map[string]bool // collapsed repos, sections ("root|Changes") and tree dirs
 	drawers  map[string][]string
@@ -1261,6 +1262,7 @@ func (s *scmView) onMsg(m *Model, msg tea.Msg) tea.Cmd {
 			first, _, _ := strings.Cut(s.input.View(), "\n") // what the box showed
 			box = anim{kind: fxMorph, from: strings.TrimRight(ansi.Strip(first), " ")}
 			box.dur = morphDur(box.from, "")
+			s.faint = s.input.Value() == ""
 
 			s.input.Reset()
 			s.last, s.lastMsg = nil, ""
@@ -1678,6 +1680,11 @@ func (s *scmView) boxFx(m *Model, root string, line int, lines []string, box lip
 		to, t = strings.TrimRight(ansi.Strip(lines[line]), " "), t-2*line
 	case a.to == "" && line == 0:
 		from = a.from
+
+		if s.faint {
+			box = box.Foreground(pal.descFg) // the placeholder's, as inputStyles paints it
+		}
+
 	default:
 		return ""
 	}

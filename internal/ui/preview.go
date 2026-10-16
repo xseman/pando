@@ -3271,6 +3271,8 @@ func (p *preview) hints(m *Model) string {
 
 	case p.md == 1:
 		return " ↑↓ move  ⇧ select  y copy  p source  s side by side  q close"
+	case p.vimOn(m) && (p.vim.mode == vimChar || p.vim.mode == vimLine): // what vimVisual takes
+		return " y yank  d delete  c change  o other end  esc normal  ^w close"
 	case p.vimOn(m) && p.vim.mode != vimInsert:
 		return " i insert  v visual  w b e  dd yy p  u undo  / find  : line  ^s save  ^w close"
 	case p.vimOn(m):
