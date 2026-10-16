@@ -519,3 +519,21 @@ func TestEditorLimit(t *testing.T) {
 		t.Fatalf("a state event with limit 1: %v", got)
 	}
 }
+
+// TestSaveAsSuggestsOnceAsked opens Save as without a grey completion, which
+// would read as the file about to be written; tab brings one.
+func TestSaveAsSuggestsOnceAsked(t *testing.T) {
+	m := untitledModel(t, "x")
+	mustWrite(t, filepath.Join(m.ws, "README.md"), "# r\n")
+	press(m, "ctrl+s")
+
+	if m.modal == nil || len(m.modal.input.AvailableSuggestions()) > 0 {
+		t.Fatalf("Save as opens suggesting: %+v", m.modal)
+	}
+
+	press(m, "tab")
+
+	if v := m.modal.input.Value(); !strings.HasSuffix(v, "README.md") {
+		t.Fatalf("tab did not complete: %q", v)
+	}
+}

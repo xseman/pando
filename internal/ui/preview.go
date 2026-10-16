@@ -3251,7 +3251,7 @@ func (p *preview) hints(m *Model) string {
 	case p.split(m) && p.kind != pvDiff: // a commit's or a pull request's: nothing to stage
 		return " ↑↓ move  ] [ change  } { file  ⇧ select  s inline  q close"
 	case p.split(m):
-		return " ↑↓ move  ] [ change  } { file  ⇧ select  m stage/revert lines  O file  s inline  q close"
+		return " ↑↓ move  ] [ change  } { file  ⇧ select  " + p.stageHint() + "  O file  s inline  q close"
 	case p.side(m):
 		return " ↑↓ scroll  p rendered  s source only  q close"
 	case p.composing:
@@ -3285,7 +3285,7 @@ func (p *preview) hints(m *Model) string {
 	case p.kind == pvRev:
 		return " ↑↓ move  ] [ change  H history  s split  ⇧ select  y copy  q close"
 	case p.kind == pvDiff:
-		return " ↑↓ move  ] [ change  } { file  ⇧ select  m stage/revert lines  O file  s split  q close"
+		return " ↑↓ move  ] [ change  } { file  ⇧ select  " + p.stageHint() + "  O file  s split  q close"
 	case p.meta != nil:
 		return " ↑↓ move  ] [ change  } { file  ⇧ select  s split  y copy  q close"
 	case isMarkdown(p.path):
@@ -3293,6 +3293,27 @@ func (p *preview) hints(m *Model) string {
 	}
 
 	return " ↑↓ move  ⇧ select  y copy  w wrap  M-← history  q close"
+}
+
+// stageHint is what m does on a diff: a staged one's menu only unstages.
+func (p *preview) stageHint() string {
+	return ifElse(p.entry.Staged, "m unstage lines", "m stage/revert lines")
+}
+
+// fitHints drops whole hints, two spaces apart, until hints fits w cells,
+// rather than cut one: from the end, but the closing one stays last.
+func fitHints(hints string, w int) string {
+	hs := strings.Split(hints, "  ")
+	for len(hs) > 1 && ansi.StringWidth(strings.Join(hs, "  ")) > w {
+		i := len(hs) - 1
+		if strings.HasSuffix(hs[i], " close") && i > 1 {
+			i--
+		}
+
+		hs = slices.Delete(hs, i, i+1)
+	}
+
+	return strings.Join(hs, "  ")
 }
 
 // stepRev walks the open file's history like GitLens: d = 1 opens the
@@ -3409,7 +3430,7 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 		m.tip = t.text
 	}
 
-	footer = row(w, nil, []seg{sg(p.hints(m), dim)})
+	footer = row(w, nil, []seg{sg(fitHints(p.hints(m), w), dim)})
 	if pr := p.probAtCursor(); pr != nil { // VS Code's hover, where the keyboard is: the problem under the cursor
 		g, st := sevMark(pr.sev)
 		footer = row(w, nil, []seg{sg(" "+g+" ", st), sg(pr.msg, dim)})
@@ -4484,6 +4505,21 @@ func (p *preview) keyItems(_ *Model) []item {
 // menu opens the preview's context menu at x, y.
 func (p *preview) menu(m *Model, x, y int) tea.Cmd { return m.menuOf(p.items(m), x, y) }
 
+// menuAt is where a menu opened by key goes: under the cursor's row, as VS
+// Code opens its context menu at the caret (rect flips it above when it does
+// not fit); centred while no cursor shows.
+func (p *preview) menuAt(m *Model) (x, y int) {
+	if p.split(m) {
+		if i := splitIndex(splitRows(p.meta), p.at().line) - p.top; i >= 0 && i < m.pvH() {
+			return m.mainX(), m.headH() + m.stripH() + i + 1
+		}
+	} else if _, _, ok := p.cursor(m.pvW(), m.pvH()); ok {
+		return m.lightbulb(0)
+	}
+
+	return -1, 0
+}
+
 // changedLines are the selected diff changes: deletions by old line number,
 // additions by new line number. A selection ending at column 0 leaves that
 // line out; side by side, a selection is its rows, both halves of them;
@@ -4860,7 +4896,10 @@ func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	case "q":
 		return m.closeEditor(m.edIdx)
 	case "m", "shift+f10": // ⇧F10 is the context menu key an editor leaves free
-		return p.menu(m, -1, 0)
+		x, y := p.menuAt(m)
+
+		return p.menu(m, x, y)
+
 	case "alt+shift+right": // VS Code's Expand Selection; ctrl+shift+→ selects a word
 		return p.expandSel(m, 1)
 	case "alt+shift+left":

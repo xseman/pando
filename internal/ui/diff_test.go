@@ -330,3 +330,32 @@ func TestDiffFollowsStaging(t *testing.T) {
 		t.Fatalf("the tab follows too: %d tabs", len(m.editors))
 	}
 }
+
+// TestDiffHintStaged names what m does: an index diff's menu only unstages.
+func TestDiffHintStaged(t *testing.T) {
+	m := diffModel(t, 160, 20)
+	if h := m.pv.hints(m); !strings.Contains(h, "m stage/revert lines") {
+		t.Fatalf("working-tree diff: %q", h)
+	}
+
+	m.pv.entry.Staged = true
+	if h := m.pv.hints(m); !strings.Contains(h, "m unstage lines") {
+		t.Fatalf("index diff: %q", h)
+	}
+}
+
+// TestDiffMenuAtCursor opens m's menu under the cursor's row, as VS Code's
+// context-menu key does, rather than centred over the line it acts on.
+func TestDiffMenuAtCursor(t *testing.T) {
+	m := diffModel(t, 80, 30)
+	_, below := m.lightbulb(0)
+	press(m, "m")
+
+	if m.modal == nil {
+		t.Fatal("no menu")
+	}
+
+	if _, y, _, _, _ := m.modal.rect(m); y != below {
+		t.Fatalf("menu at row %d, the cursor's next row is %d", y, below)
+	}
+}

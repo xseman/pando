@@ -1570,3 +1570,32 @@ func TestGitHubMentions(t *testing.T) {
 		t.Errorf("mentions marked more than once:\n%s", page)
 	}
 }
+
+// TestGitHubCommentCodeBlock: a code block in a comment keeps the box's right
+// border on each of its rows, its plain line as wide as its styled one.
+func TestGitHubCommentCodeBlock(t *testing.T) {
+	m, _ := ghPage(t, ghOpenPR)
+	m.pv.gh.Timeline = append(m.pv.gh.Timeline,
+		ghEntry{kind: "comment", id: "IC_9", author: "eve", text: "Try:\n\n```go\ns.Discount(10) // 495 of 550 cents\n```\n"})
+	m.pv.mdLines, m.pv.mdShown = nil, 0
+	m.pv.syncMarkdown(m)
+
+	found := false
+
+	for i, l := range m.pv.plain {
+		if !strings.Contains(string(l), "s.Discount(10)") {
+			continue
+		}
+
+		found = true
+		styled := ansi.Strip(m.pv.lines[i])
+
+		if !strings.HasSuffix(styled, "│") || ansi.StringWidth(styled) != ansi.StringWidth(string(l)) {
+			t.Errorf("code row styled %q (%d cells), plain %q (%d cells)", styled, ansi.StringWidth(styled), string(l), ansi.StringWidth(string(l)))
+		}
+	}
+
+	if !found {
+		t.Fatalf("no code row in\n%s", ghPlainPage(m))
+	}
+}

@@ -1054,7 +1054,8 @@ func (tb *table) rowLine(m *Model, lay tableLayout, i int) string {
 	case i >= len(tb.rows):
 		base, letter = fg(pal.added), sg("A", fg(pal.added))
 	case e != nil && e.del:
-		base, letter = fg(pal.deleted).Strikethrough(true), sg("D", fg(pal.deleted))
+		// The values struck, not the padding around them: that reads as dashes.
+		base, letter = fg(pal.deleted).Strikethrough(true).StrikethroughSpaces(false), sg("D", fg(pal.deleted))
 	case e != nil:
 		letter = sg("M", fg(pal.modified))
 	}

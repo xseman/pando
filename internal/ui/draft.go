@@ -213,10 +213,8 @@ func (m *Model) saveAsPrompt(i int, then func(m *Model) tea.Cmd) tea.Cmd {
 		start = p.path
 	}
 
-	defer func() {
-		md := m.modal
-		md.complete, md.input.ShowSuggestions = completePath, true
-		md.input.SetSuggestions(completePath(md.input.Value()))
+	defer func() { // no suggestion until something is typed or tab asks: a grey path reads as the target
+		m.modal.complete, m.modal.input.ShowSuggestions = completePath, true
 	}()
 
 	m.modal = newPrompt("Save as", start, func(m *Model, v string) tea.Cmd {

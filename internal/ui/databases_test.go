@@ -14,6 +14,7 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/xseman/pando/internal/db"
@@ -626,6 +627,36 @@ func TestTableColumnsChangeUnderEdits(t *testing.T) {
 
 	if !strings.Contains(tb.err, "columns changed") || !slices.Equal(tb.t.Keys, []string{"rowid"}) {
 		t.Fatalf("keys adopted: %q %q", tb.err, tb.t.Keys)
+	}
+}
+
+// TestTableDeletedStrikesValues strikes a row marked for deletion through its
+// values only: struck padding reads as dashes around them.
+func TestTableDeletedStrikesValues(t *testing.T) {
+	m, _, tb := openOrders(t)
+	press(m, "d")
+
+	line := tb.rowLine(m, tb.layout(m.pvW()), 0)
+	buf := uv.NewScreenBuffer(ansi.StringWidth(line), 1)
+	uv.NewStyledString(line).Draw(buf, buf.Bounds())
+
+	struck := 0
+
+	for x := range ansi.StringWidth(line) {
+		c := buf.CellAt(x, 0)
+		if c == nil || c.Style.Attrs&uv.AttrStrikethrough == 0 {
+			continue
+		}
+
+		if c.Content == " " {
+			t.Fatalf("a space struck at %d: %q", x, ansi.Strip(line))
+		}
+
+		struck++
+	}
+
+	if struck == 0 {
+		t.Fatalf("nothing struck: %q", ansi.Strip(line))
 	}
 }
 
@@ -1703,5 +1734,20 @@ func TestTableBoxesPlaceholders(t *testing.T) {
 	out := ansi.Strip(strings.Join(tb.body(m, 68, 30), "\n")) // the demo's editor area
 	if !strings.Contains(out, tb.where.Placeholder) || !strings.Contains(out, tb.order.Placeholder) {
 		t.Fatalf("placeholders cut:\n%s", out)
+	}
+}
+
+// TestConnFormAtAreaTop puts the connection form at the top of the editor
+// area's body: a third of the way down it cut the grid's boxes in half.
+func TestConnFormAtAreaTop(t *testing.T) {
+	m, _ := connModel(t)
+	press(m, "n")
+
+	if m.modal == nil || m.modal.form == nil {
+		t.Fatalf("no form: %+v", m.modal)
+	}
+
+	if _, y, _, _, _ := m.modal.rect(m); y != m.headH()+m.stripH() {
+		t.Fatalf("form at row %d, the body starts at %d", y, m.headH()+m.stripH())
 	}
 }

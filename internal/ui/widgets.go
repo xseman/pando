@@ -1499,11 +1499,11 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 		return w
 	}
 
-	if md.form != nil { // its top stays put as it grows: placed as if at its tallest
-		fw, fh, placed := md.form.size()
+	if md.form != nil { // at the top of the area's body, as tall as it is: no widget above is cut
+		fw, fh, _ := md.form.size()
 		w, h = cover(min(fw, x1-x0-2)), fh
 
-		return x0 + (x1-x0-w)/2, max((m.h-placed)/3, 0), w, h, 0
+		return x0 + (x1-x0-w)/2, m.headH() + m.stripH(), w, h, 0
 	}
 
 	if md.dialog {
@@ -1519,7 +1519,7 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 			w = max(w, ansi.StringWidth(it.hint))
 		}
 
-		w = cover(min(max(min(w+4, 64), row+3), x1-x0-2))
+		w = cover(min(max(min(w+4, 64), row+4), x1-x0-2)) // a cell's gap each side of the buttons
 		msg, _, hintH := md.dialogBody(w - 2)
 		h = len(msg) + hintH + 4
 		// ponytail: taller than the terminal clips the bottom, buttons and all; scroll the message if one ever does.
@@ -1773,6 +1773,10 @@ func (md *modal) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	if md.complete != nil {
 		switch s := k.String(); {
 		case s == "tab" || s == "right" && md.input.Position() == len([]rune(md.input.Value())):
+			if s == "tab" && len(md.input.AvailableSuggestions()) == 0 { // none shown until typed or asked for
+				md.input.SetSuggestions(md.complete(md.input.Value()))
+			}
+
 			if sug := md.input.CurrentSuggestion(); sug != "" && sug != md.input.Value() {
 				md.input.SetValue(sug)
 				md.input.CursorEnd()

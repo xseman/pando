@@ -118,3 +118,49 @@ func TestModalCoversArea(t *testing.T) {
 		}
 	}
 }
+
+// TestFitHints drops whole hints until a hint row fits, the closing one
+// staying last, rather than cut one through.
+func TestFitHints(t *testing.T) {
+	h := " ↑↓ move  ⇧ select  m stage/revert lines  O file  s split  q close"
+	if got := fitHints(h, 200); got != h {
+		t.Fatalf("a row that fits changed: %q", got)
+	}
+
+	got := fitHints(h, 40)
+	if ansi.StringWidth(got) > 40 || !strings.HasSuffix(got, "  q close") {
+		t.Fatalf("cut: %q", got)
+	}
+
+	for part := range strings.SplitSeq(got, "  ") {
+		if !strings.Contains(h, part+"  ") && !strings.HasSuffix(h, part) {
+			t.Fatalf("a hint cut through: %q in %q", part, got)
+		}
+	}
+}
+
+// TestDialogButtonsGap leaves the same air between a dialog's border and its
+// buttons on both sides when the buttons set its width.
+func TestDialogButtonsGap(t *testing.T) {
+	m := testModel(t)
+	m.confirmQuit()
+
+	for l := range strings.SplitSeq(ansi.Strip(checkWidths(t, m)), "\n") {
+		first := strings.Index(l, "Save all and close")
+		if first < 0 {
+			continue
+		}
+
+		left, right, last := strings.Index(l, "│"), strings.LastIndex(l, "│"), strings.LastIndex(l, "Close")+len("Close")
+		before := ansi.StringWidth(l[:first]) - ansi.StringWidth(l[:left]) - 1
+		after := ansi.StringWidth(l[:right]) - ansi.StringWidth(l[:last])
+
+		if before != after {
+			t.Fatalf("%d cells before the buttons, %d after: %q", before, after, l)
+		}
+
+		return
+	}
+
+	t.Fatalf("no button row:\n%s", checkWidths(t, m))
+}

@@ -543,9 +543,7 @@ func (p *preview) ghBox(m *Model, e ghEntry, w, hang int, faint lipgloss.Style) 
 		}
 
 		for i := range plainLines {
-			line := mdText{styled[i], plainLines[i]}
-			line = line.add(mdText{blank(bw - 4 - ansi.StringWidth(plainLines[i])), blank(bw - 4 - ansi.StringWidth(plainLines[i]))})
-			rows = append(rows, ghLine{mdText: side.add(mdt("│ ", border)).add(line).add(mdt(" │", border))})
+			rows = append(rows, ghLine{mdText: side.add(mdt("│ ", border)).add(ghPad(mdText{styled[i], plainLines[i]}, bw-4)).add(mdt(" │", border))})
 		}
 	}
 
@@ -572,8 +570,7 @@ func (p *preview) ghThread(m *Model, t ghThread, w int, faint lipgloss.Style) []
 	rows := []ghLine{{mdText: side.add(mdt("╭─ ", border)).add(mdt(title, faint)).add(mdt(" "+strings.Repeat("─", max(bw-5-ansi.StringWidth(title), 1))+"╮", border))}}
 
 	body := func(line mdText) {
-		pad := mdText{blank(bw - 4 - ansi.StringWidth(line.p)), blank(bw - 4 - ansi.StringWidth(line.p))}
-		rows = append(rows, ghLine{mdText: side.add(mdt("│ ", border)).add(line).add(pad).add(mdt(" │", border))})
+		rows = append(rows, ghLine{mdText: side.add(mdt("│ ", border)).add(ghPad(line, bw-4)).add(mdt(" │", border))})
 	}
 
 	for i, c := range t.comments {
@@ -594,6 +591,12 @@ func (p *preview) ghThread(m *Model, t ghThread, w int, faint lipgloss.Style) []
 	}
 
 	return append(rows, ghLine{mdText: side.add(mdt("╰"+strings.Repeat("─", bw-2)+"╯", border))})
+}
+
+// ghPad pads line out to w cells, its styled and plain text each by its
+// own width: a code block's styled line is already padded, its plain one not.
+func ghPad(line mdText, w int) mdText {
+	return mdText{line.s + blank(w-ansi.StringWidth(line.s)), line.p + blank(w-ansi.StringWidth(line.p))}
 }
 
 // ghMentions reports whether text tags login: @login, whole, as GitHub reads
