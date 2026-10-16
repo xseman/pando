@@ -140,7 +140,7 @@ re-roots Explorer and Source Control to its worktree.
  ⊙ └─ ◐ claude · fix   running   pinned sessions in the order pinned, copies: each stays in the tree too
 ━━━━━━━━━━━━━━━━━━━━━━━━━━  its border, heavy in tab_border
 ▾ ◐ repo +⎇ New Worktree  project: most demanding session's glyph (· none), button (hover)
-   ⌂ main + New Session  ↺ Resume 2  the project's own checkout, buttons (hover), session count
+   ⌂ main + New Session  ↺ Resume 2  the project's own checkout, buttons (hover; one that does not fit before the count is left out), session count
  ⊙ ├─ ◐ claude · fix   ⧉ 2 · running   tab count, with more than its own; ⊙ pinned
    └─ ○ shell          idle
    ⑂ feat/x         1   linked worktree (dimmed)

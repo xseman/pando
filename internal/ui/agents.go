@@ -842,7 +842,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 
 		pointed := y == hover || i == a.l.sel && m.focused(viewAgents)
 		if pointed && r.kind != agSession { // a session's is its pin, in the gutter
-			plus = drawActions(a.actions(m, r), mx)
+			plus = drawActions(a.actions(m, r, rw), mx)
 		}
 
 		switch r.kind {
@@ -910,21 +910,9 @@ func (a *agents) lines(m *Model, w, h int) []string {
 				nameSt = base.Foreground(pal.headerAccent).Bold(true)
 			}
 
-			var right []seg
-
-			switch n := m.sessionCount(r.ws.Path); {
-			case r.pinned: // its project, where the branch leaves room: a branch is in more than one
-				if p := filepath.Base(r.project) + " "; r.project != "" && 6+ansi.StringWidth(wsName(r.ws)+p) <= rw {
-					right = append(right, sg(p, dim))
-				}
-
-			case n > 0:
-				right = append(right, sg(m.fx.text("wsn:"+r.ws.Path, strconv.Itoa(n))+" ", dim))
-			}
-
 			left := append([]seg{sg("   ", plain), sg(wtGlyph(r.ws).s()+" ", glyphSt)}, m.fx.segs("ws:"+r.ws.Path, wsName(r.ws), nameSt)...)
 
-			return row(rw, bg, append(left, plus...), right...)
+			return row(rw, bg, append(left, plus...), sg(wsRight(m, r, rw), dim))
 		}
 		// herdr's tree: sessions hang off their branch, the last one on └─.
 		conn := "├─ "
@@ -934,7 +922,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		// The gutter before it holds the pin: lit on a pinned session, dim
 		// on the row under the pointer (not the selection), raised with its
 		// tip under the pointer.
-		pin := a.actions(m, r)[0]
+		pin := a.actions(m, r, rw)[0]
 		_, onPin := hit([]rowAction{pin}, mx)
 		onPin = onPin && y == hover
 
@@ -1655,10 +1643,30 @@ func removeLabel(r *agRow) string {
 	return ""
 }
 
+// wsRight is worktree row r's right end, rw cells wide: its session count,
+// or on a pinned row its project, where the branch leaves room: a branch is
+// in more than one.
+func wsRight(m *Model, r agRow, rw int) string {
+	if r.pinned {
+		if p := filepath.Base(r.project) + " "; r.project != "" && 6+ansi.StringWidth(wsName(r.ws)+p) <= rw {
+			return p
+		}
+
+		return ""
+	}
+
+	if n := m.sessionCount(r.ws.Path); n > 0 {
+		return m.fx.text("wsn:"+r.ws.Path, strconv.Itoa(n)) + " "
+	}
+
+	return ""
+}
+
 // actions are row r's hover buttons, right after its name: a project's New
 // Worktree (then its harness), a worktree's New Session and Resume; a
-// session's is its pin, in the gutter before it.
-func (a *agents) actions(m *Model, r agRow) []rowAction {
+// session's is its pin, in the gutter before it. On a row w cells wide a
+// button that would run into the row's right end is left out, whole.
+func (a *agents) actions(m *Model, r agRow, w int) []rowAction {
 	if r.kind == agSession {
 		pin := rowAction{g: icPin, tip: m.pinLabel(r.s.ID) + "  p", on: slices.Contains(m.st.Pinned, r.s.ID), w: 3, run: func(m *Model) tea.Cmd { return m.togglePin(r.s.ID) }}
 		if pin.on {
@@ -1689,10 +1697,16 @@ func (a *agents) actions(m *Model, r agRow) []rowAction {
 		return nil
 	}
 
+	if r.kind == agWorkspace {
+		w -= ansi.StringWidth(wsRight(m, r, w))
+	}
+
 	x := ansi.StringWidth(head)
 	for i := range acts {
 		acts[i].x, acts[i].w = x, ansi.StringWidth(acts[i].label())
-		x += acts[i].w
+		if x += acts[i].w; x > w {
+			return acts[:i]
+		}
 	}
 
 	return acts
@@ -1912,7 +1926,7 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 			return a.menu(m, mo.X, mo.Y)
 		}
 
-		if act, ok := hit(a.actions(m, rows[i]), x); ok && mo.Button == tea.MouseLeft {
+		if act, ok := hit(a.actions(m, rows[i], m.bodyW(viewAgents)), x); ok && mo.Button == tea.MouseLeft {
 			return act.run(m)
 		}
 		// A project row drags up and down the list; a press that never leaves

@@ -214,13 +214,19 @@ func (s *scmView) root() string {
 	return ""
 }
 
-// summary names the repository and branch for the view header.
-func (s *scmView) summary(m *Model) string {
+// summary names the repository and branch for the view header, in w cells: a
+// branch that does not fit goes with its separator, then the name is cut.
+func (s *scmView) summary(m *Model, w int) string {
 	if len(s.repos) != 1 {
 		return ""
 	}
 
-	return filepath.Base(s.repos[0]) + " · " + m.headLabel(s.repos[0], s.status[s.repos[0]])
+	repo := filepath.Base(s.repos[0])
+	if sum := repo + " · " + m.headLabel(s.repos[0], s.status[s.repos[0]]); ansi.StringWidth(sum) <= w {
+		return sum
+	}
+
+	return ansi.Truncate(repo, w, "…")
 }
 
 // headLabel is headLabel with the branch morphing while it switches.
@@ -366,6 +372,11 @@ func (s *scmView) build(m *Model) {
 	q := m.query(viewGit)
 	multi := len(s.repos) > 1
 
+	was, prev := s.sel, scmRow{kind: -1}
+	if was >= 0 && was < len(s.rows) {
+		prev = s.rows[was]
+	}
+
 	s.rows, s.heads = s.rows[:0], s.heads[:0]
 	for _, root := range s.repos {
 		st := s.status[root]
@@ -429,9 +440,40 @@ func (s *scmView) build(m *Model) {
 		}
 	}
 
+	if prev.kind >= 0 {
+		s.sel = s.follow(prev, was)
+	}
+
 	if s.sel >= len(s.rows) || (s.sel >= 0 && s.rows[s.sel].widget()) {
 		s.sel = -1
 	}
+}
+
+// follow is where the selection goes once the rows changed under it, row
+// prev at index was before: onto the same row, the same line of a reloaded
+// drawer, else the file nearest was, else none, the message box first in
+// line. A row number alone would land on whatever took its place, a drawer's
+// header after a commit.
+func (s *scmView) follow(prev scmRow, was int) int {
+	if i := slices.IndexFunc(s.rows, func(r scmRow) bool {
+		return r.kind == prev.kind && r.root == prev.root && r.title == prev.title && r.entry.Path == prev.entry.Path &&
+			r.path == prev.path && (r.kind != rowLine || r.text == prev.text)
+	}); i >= 0 {
+		return i
+	}
+
+	if was < len(s.rows) && prev.kind == rowLine && s.rows[was].kind == rowLine && s.rows[was].title == prev.title { // a drawer reloaded under it
+		return was
+	}
+
+	near := -1
+	for i, r := range s.rows {
+		if r.kind == rowFile && (near < 0 || abs(i-was) < abs(near-was)) {
+			near = i
+		}
+	}
+
+	return near
 }
 
 // compare fills the Compare drawer with the range spec works out in the

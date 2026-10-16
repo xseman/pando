@@ -705,6 +705,22 @@ func ghButton(t *testing.T, m *Model, tip string) rowAction {
 // TestGitHubPageHeader: a pull request's page has its state and buttons at
 // the right end of the header row, no rows of its own; a button is a click,
 // a key and a menu entry, and what the state forbids is not offered.
+// TestGitHubPageNoHBar: the page is laid out to the panel's width, the
+// cursor's cell past a row's end included, so it never pans and shows no
+// horizontal scrollbar, narrow or beside its sidebar.
+func TestGitHubPageNoHBar(t *testing.T) {
+	m, _ := ghPage(t, ghOpenPR)
+
+	for _, w := range []int{100, 200} {
+		m.Update(tea.WindowSizeMsg{Width: w, Height: 40})
+		m.pv.syncMarkdown(m)
+
+		if m.pv.hbar(m, m.pvW()).on() || m.hbarH() != 0 {
+			t.Fatalf("width %d: a horizontal scrollbar over rows %d wide in %d", w, m.pv.wide, m.pvW())
+		}
+	}
+}
+
 func TestGitHubPageHeader(t *testing.T) {
 	m, f := ghPage(t, ghOpenPR)
 

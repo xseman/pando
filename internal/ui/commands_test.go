@@ -487,7 +487,7 @@ func TestAgentsTreeGaps(t *testing.T) {
 		}
 	}
 
-	if acts := m.ag.actions(m, folded[len(folded)-1]); acts != nil {
+	if acts := m.ag.actions(m, folded[len(folded)-1], m.bodyW(viewAgents)); acts != nil {
 		t.Fatalf("a folded project shows no buttons: %+v", acts)
 	}
 	// ↑ and home off the bottom walk the padding back to a project.
@@ -1096,6 +1096,31 @@ func TestSpacesSelectionFollowsSort(t *testing.T) {
 // TestSpacesNewSession starts a session from a row's +: a worktree's asks
 // for the harness, a project's for the worktree first, a new one included.
 // Only installed harnesses are offered, and a terminal.
+//
+// TestSpacesActionsFit: a worktree's buttons that do not fit before its
+// session count are left out whole, never cut into it, nor clickable.
+func TestSpacesActionsFit(t *testing.T) {
+	m := testModel(t)
+	m.sessions = []proto.Session{{SessionSpec: proto.SessionSpec{ID: "s1", Workspace: m.ws, Agent: "claude", Cmd: []string{"claude"}}, Status: "idle"}}
+	press(m, "3")
+
+	rows := m.ag.rows(m)
+	main := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agWorkspace && r.ws.Path == m.ws })
+	m.ag.l.sel = main
+
+	for _, w := range []int{30, 34, 60} {
+		line := ansi.Strip(m.ag.lines(m, w, len(rows))[main])
+		if strings.Contains(line, "…") || !strings.HasSuffix(line, " 1 ") || !strings.Contains(line, "New Session ") ||
+			strings.Contains(line, "Resume") != (w == 60) {
+			t.Fatalf("width %d: %q", w, line)
+		}
+
+		if acts := m.ag.actions(m, rows[main], w); len(acts) != 1+b2i(w == 60) {
+			t.Fatalf("width %d: buttons %+v", w, acts)
+		}
+	}
+}
+
 func TestSpacesNewSession(t *testing.T) {
 	m := testModel(t)
 	root, wt := m.ws, t.TempDir()
@@ -1119,7 +1144,7 @@ func TestSpacesNewSession(t *testing.T) {
 	// The project row's New Worktree under the pointer asks for the branch, not a drag.
 	cs, _ := m.layout()
 	i := m.colOf(viewAgents)
-	acts := m.ag.actions(m, rows[0])
+	acts := m.ag.actions(m, rows[0], m.bodyW(viewAgents))
 	x, y := cs[i].x+m.barW(i)+acts[0].x+1, m.bodyTop(viewAgents)
 	m.Update(tea.MouseMotionMsg{X: x, Y: y})
 
@@ -1133,7 +1158,7 @@ func TestSpacesNewSession(t *testing.T) {
 		t.Fatalf("the project's button asks for the branch: drag %+v, %+v", m.drag, m.modal)
 	}
 
-	if acts := m.ag.actions(m, rows[feat]); len(acts) != 2 || acts[0].text != "New Session" || acts[1].text != "Resume" || acts[1].x != acts[0].x+acts[0].w {
+	if acts := m.ag.actions(m, rows[feat], 80); len(acts) != 2 || acts[0].text != "New Session" || acts[1].text != "Resume" || acts[1].x != acts[0].x+acts[0].w {
 		t.Fatalf("a worktree's buttons start a session and, right after, resume one: %+v", acts)
 	}
 
@@ -1227,7 +1252,7 @@ func TestSpacesResume(t *testing.T) {
 	press(m, "3")
 
 	rows := m.ag.rows(m) // the project, its checkout, s1
-	resume := m.ag.actions(m, rows[1])[1].run
+	resume := m.ag.actions(m, rows[1], 80)[1].run
 	hints := func() []string {
 		var out []string
 		for _, it := range m.modal.disp {
@@ -3073,6 +3098,34 @@ func TestActivityBarAir(t *testing.T) {
 	}
 }
 
+// TestActivityBarNarrowest keeps every view's chip before the gear down to the
+// narrowest sidebar, the open one underlined under its own icon.
+func TestActivityBarNarrowest(t *testing.T) {
+	m := testModelSized(t, 120, 30)
+	m.hasGH, m.hasDB = true, true
+
+	applyLook("vscode", true, "nerd", nil)
+	defer applyLook("vscode", true, "ascii", nil)
+
+	m.showView(viewDB)
+
+	for _, w := range []int{20, 26, 34} {
+		m.setColWidth(0, w)
+		rc := m.colRect(0)
+
+		tabs := m.tabs(0)
+		if last := tabs[len(tabs)-1]; len(tabs) != 6 || last.v != viewDB || last.x+last.w > rc.w-ansi.StringWidth(gearLabel()) {
+			t.Fatalf("width %d: chips %+v", rc.w, tabs)
+		}
+
+		bar, last := m.activityBar(0, rc.w), tabs[len(tabs)-1]
+		if !strings.Contains(ansi.Strip(bar[0]), icDatabase.s()) || strings.Contains(ansi.Strip(bar[0]), "…") ||
+			!strings.Contains(ansi.Cut(bar[1], last.x, last.x+last.chipW), fgParams(pal.headerAccent)) {
+			t.Fatalf("width %d: bar %q", rc.w, bar)
+		}
+	}
+}
+
 // TestSessionMaxPerWorkspace: a session maximized in one worktree is still
 // maximized after a session of another worktree was shown, which keeps the
 // layout of its own.
@@ -3667,6 +3720,21 @@ func TestSessionViewPerWorkspace(t *testing.T) {
 
 	if m.side(m.colOf(viewSession)) != 1 {
 		t.Fatal("docking one workspace's session moved another's")
+	}
+}
+
+// TestWelcomeHeaderPath cuts a long worktree path from its start, keeping the
+// end that names the worktree.
+func TestWelcomeHeaderPath(t *testing.T) {
+	m := testModelSized(t, 140, 30)
+	m.st.Settings.SessPos, m.sess = "", ""
+	m.ws = "/tmp/pando-state/data/worktrees/" + strings.Repeat("deep/", 20) + "pando-demo/work-branch"
+
+	for _, w := range []int{40, 200} {
+		got := ansi.Strip(m.editorLines(w)[0])
+		if want := " pando  " + m.ws; w == 200 && !strings.HasPrefix(got, want) || w == 40 && (!strings.HasPrefix(got, " pando  …") || !strings.HasSuffix(got, "/pando-demo/work-branch") || ansi.StringWidth(got) != w) {
+			t.Fatalf("width %d: header %q", w, got)
+		}
 	}
 }
 

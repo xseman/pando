@@ -778,6 +778,41 @@ func gitModel(t *testing.T) *Model {
 	return m
 }
 
+// TestGitSelectionFollows: the cursor stays on its file as rows come and go
+// above it, and once its file is committed moves to the nearest one, not to
+// whatever row took its number.
+func TestGitSelectionFollows(t *testing.T) {
+	m := testModelSized(t, 100, 40)
+	root := m.ws
+	status := func(st git.Status) {
+		st.Branch = "main"
+		m.scm.onGit(m, gitMsg{ws: root, repos: []string{root}, status: map[string]git.Status{root: st}})
+	}
+	sel := func() string {
+		if r := m.scm.selected(); r != nil && r.kind == rowFile {
+			return r.entry.Path
+		}
+
+		return fmt.Sprintf("%+v", m.scm.selected())
+	}
+
+	status(git.Status{Staged: []git.Entry{{Path: "store.go", Letter: 'M'}}, Changes: []git.Entry{{Path: "b.go", Letter: 'M'}}})
+	press(m, "2")
+	m.scm.sel = slices.IndexFunc(m.scm.rows, func(r scmRow) bool { return r.entry.Path == "store.go" })
+
+	status(git.Status{Staged: []git.Entry{{Path: "a.go", Letter: 'A'}, {Path: "store.go", Letter: 'M'}}, Changes: []git.Entry{{Path: "b.go", Letter: 'M'}}})
+
+	if got := sel(); got != "store.go" {
+		t.Fatalf("a row above: selected %s", got)
+	}
+
+	status(git.Status{Changes: []git.Entry{{Path: "b.go", Letter: 'M'}}}) // committed
+
+	if got := sel(); got != "b.go" {
+		t.Fatalf("after the commit: selected %s in %v", got, rowTexts(&m.scm))
+	}
+}
+
 func rowTexts(s *scmView) []string {
 	var out []string
 
@@ -834,6 +869,22 @@ func TestGitTreeColoursOnlyLettersAndDots(t *testing.T) {
 	rows := treeRows("r", "Changes", []git.Entry{{Path: "c/index.tsx", Letter: 'M'}, {Path: "c/build.tsx", Letter: 'A'}, {Path: "c/d/e.go", Letter: 'D'}}, nil)
 	if rows[0].kind != rowDir || rows[0].entry.Letter != 'A' || rows[1].kind != rowDir || rows[1].entry.Letter != 'D' {
 		t.Fatalf("dir letters %+v", rows[:2])
+	}
+}
+
+// TestGitHeaderBranch: a branch that does not fit in the header goes with its
+// separator, the repository named whole.
+func TestGitHeaderBranch(t *testing.T) {
+	m := gitModel(t)
+	repo := filepath.Base(m.scm.repos[0])
+	w := ansi.StringWidth(" SOURCE CONTROL") + 3 + ansi.StringWidth(repo) + 3
+
+	if got := ansi.Strip(m.viewHeader(m.colOf(viewGit), viewGit, w)); !strings.HasSuffix(got, " "+repo+" ") {
+		t.Fatalf("header %q", got)
+	}
+
+	if got := ansi.Strip(m.viewHeader(m.colOf(viewGit), viewGit, 80)); !strings.Contains(got, repo+" · ") {
+		t.Fatalf("wide header %q", got)
 	}
 }
 

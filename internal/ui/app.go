@@ -2194,15 +2194,10 @@ func barPad() string {
 func gearLabel() string { return barPad() + icGear.s() + barPad() }
 
 func (m *Model) tabs(s int) []tab {
-	build := func(short bool) []tab {
+	build := func(short bool, pad string, gap int) []tab {
 		var out []tab
 
 		x := 1
-
-		pad := barPad()
-		if short {
-			pad = " "
-		}
 
 		for _, v := range m.colViews(s) {
 			label := viewIcon(v).s()
@@ -2217,17 +2212,26 @@ func (m *Model) tabs(s int) []tab {
 
 			t.chipW = ansi.StringWidth(t.label)
 			t.w = t.chipW + ansi.StringWidth(t.badge)
-			x += t.w + 1
+			x += t.w + gap
 			out = append(out, t)
 		}
 
 		return out
 	}
-	// Chips tighten to one cell of air, and text labels shrink to their
-	// initials, when they would run into the gear.
-	out := build(false)
-	if n := len(out); n > 0 && out[n-1].x+out[n-1].w > m.colRect(s).w-ansi.StringWidth(gearLabel()) {
-		out = build(true)
+	// Chips tighten, one cell of air, then none between them, then none
+	// around the icon, and text labels shrink to their initials, rather than
+	// run into the gear: every view keeps its chip down to the narrowest
+	// sidebar.
+	var out []tab
+
+	for i, l := range []struct {
+		pad string
+		gap int
+	}{{barPad(), 1}, {" ", 1}, {" ", 0}, {"", 1}} {
+		out = build(i > 0, l.pad, l.gap)
+		if n := len(out); n == 0 || out[n-1].x+out[n-1].w <= m.colRect(s).w-ansi.StringWidth(gearLabel()) {
+			break
+		}
 	}
 
 	return out
@@ -4696,8 +4700,8 @@ func (m *Model) viewHeader(s int, v view, w int) string {
 
 			right = append(right, sg(a.label, st))
 		}
-	} else if sum := m.scm.summary(m); v == viewGit && sum != "" {
-		right = []seg{sg(ansi.Truncate(sum, max(w-ansi.StringWidth(title)-3, 0), "…")+" ", dim)}
+	} else if sum := m.scm.summary(m, max(w-ansi.StringWidth(title)-3, 0)); v == viewGit && sum != "" {
+		right = []seg{sg(sum+" ", dim)}
 	}
 
 	return row(w, nil, []seg{sg(" "+title, accent)}, right...)
@@ -5087,7 +5091,12 @@ func (m *Model) editorLines(w int) []string {
 		h += m.hbarH() // the horizontal bar's row, which view puts under the text
 
 	default:
-		header = row(w, nil, []seg{sg(" pando", accent), sg("  "+m.ws, dim)})
+		ws := m.ws // cut from its start, as the breadcrumbs are: the end names the worktree
+		if over := ansi.StringWidth(ws) - (w - 8); over > 0 {
+			ws = "…" + ansi.TruncateLeft(ws, over+1, "")
+		}
+
+		header = row(w, nil, []seg{sg(" pando", accent), sg("  "+ws, dim)})
 		body = welcome(w, h, m.sess != "")
 	}
 

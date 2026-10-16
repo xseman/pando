@@ -61,8 +61,11 @@ func (r ghLine) padTo(w int) ghLine {
 }
 
 // ghLayout lays the loaded page out w cells wide, and keeps what a click on
-// each row does in p.ghHits.
+// each row does in p.ghHits. The last cell stays free for the cursor past a
+// row's end: a row to the edge would pan the page and show the horizontal
+// scrollbar (hbar).
 func (p *preview) ghLayout(m *Model, w int) (styled, plain []string) {
+	w = max(w-1, 1)
 	d := p.gh
 	kind, ns, _ := strings.Cut(p.rev, "/")
 	faint := fg(pal.descFg) // Faint is not drawn by every terminal
