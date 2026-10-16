@@ -1740,6 +1740,17 @@ func TestTablePendingSQLAtTop(t *testing.T) {
 	}
 }
 
+// TestTableRuleCloses ends the rule under the header in the last column's own
+// border, not a joint with nothing on its right.
+func TestTableRuleCloses(t *testing.T) {
+	m, _, tb := openOrders(t)
+	_ = m
+
+	if rule := strings.TrimRight(ansi.Strip(tb.rule(tb.layout(200))), " "); !strings.HasSuffix(rule, "┤") {
+		t.Fatalf("rule ends %q", rule[max(len(rule)-12, 0):])
+	}
+}
+
 func TestTableBoxesPlaceholders(t *testing.T) {
 	m, _, tb := openOrders(t)
 

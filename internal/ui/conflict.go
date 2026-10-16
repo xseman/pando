@@ -277,7 +277,7 @@ func (p *preview) acceptConflict(m *Model, c conflict, which int) tea.Cmd {
 
 	p.applyResolved(m, []conflict{c}, which)
 
-	return flash(strings.ToLower(acceptLabels[which]), false)
+	return flash("accepted "+strings.ToLower(strings.TrimPrefix(acceptLabels[which], "Accept ")), false) // done, as the other flashes say
 }
 
 // acceptAtCursor is VS Code's Accept Current / Incoming / Both command.

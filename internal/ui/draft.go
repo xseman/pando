@@ -283,6 +283,7 @@ func (m *Model) saveAs(i int, path string, then func(m *Model) tea.Cmd) tea.Cmd 
 		flash("saved "+filepath.Base(path)+note, note != ""),
 	}
 	if onScreen {
+		p.refreshAll(m) // lexed whole by its name now: format re-lexed only the lines it changed
 		m.ex.reveal(m, path)
 		cmds = append(cmds, p.load(m))
 	}

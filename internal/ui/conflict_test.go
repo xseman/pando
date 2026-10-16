@@ -60,6 +60,17 @@ func TestMergeConflictNarrow(t *testing.T) {
 	}
 }
 
+// TestMergeConflictAcceptSays reports an accept done, as the other flashes do,
+// not in its button's imperative.
+func TestMergeConflictAcceptSays(t *testing.T) {
+	m, _ := editorModel(t, "a.go", "<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> feat\n")
+	c, _ := m.pv.conflictAt(0)
+
+	if msg, _ := m.pv.acceptConflict(m, c, acceptIncoming)().(flashMsg); msg.text != "accepted incoming change" {
+		t.Fatalf("flash %q", msg.text)
+	}
+}
+
 // TestMergeConflictMarkersPlain draws a marker in one color: a lexer reads
 // <<<<<<< as << pairs and paints them apart.
 func TestMergeConflictMarkersPlain(t *testing.T) {

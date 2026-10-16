@@ -4804,7 +4804,11 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 		}
 
 		left = append(left, sg(" ", st))
-		left = append(left, m.fx.segs("flash", m.msg, st)...)
+		if strings.HasPrefix(m.msg, "asking ") { // the answer clears it sooner than a decode settles: noise
+			left = append(left, sg(m.msg, st))
+		} else {
+			left = append(left, m.fx.segs("flash", m.msg, st)...)
+		}
 	}
 	// Each right-hand item carries the action its click runs and its tip; they
 	// are laid out from the edge inwards once the list is complete.
@@ -4856,9 +4860,10 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 		add(text, dim, tip, run)
 	}
 
-	if m.showsPreview() && m.pv.md != 1 && !m.pv.side(m) && m.pv.kind != pvTable && m.pv.kind != pvSettings { // a side-by-side diff keeps its cursor line
+	if m.showsPreview() && m.pv.ready && m.pv.md != 1 && !m.pv.side(m) && m.pv.kind != pvTable && m.pv.kind != pvSettings { // a side-by-side diff keeps its cursor line
 		// VS Code's editor items: the cursor, going to a line; a file's
-		// indentation, changing it. A rendering has no cursor to show.
+		// indentation, changing it. A rendering has no cursor to show, nor a
+		// tab still loading.
 		if pos, ln := m.cursorPos(); ln > 0 { // a hunk gap or a commit message has no line of the file
 			add(pos, dim, "Go to Line…  ^g", func(m *Model) tea.Cmd { return m.gotoLineQuery(":") })
 		}

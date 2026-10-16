@@ -83,7 +83,7 @@ var (
 	}
 	vscodeLight = palette{
 		light:    true,
-		modified: hex("#667309"), untracked: hex("#587c0c"), added: hex("#587c0c"), renamed: hex("#587c0c"),
+		modified: hex("#895503"), untracked: hex("#587c0c"), added: hex("#587c0c"), renamed: hex("#587c0c"), // VS Code Light's gitDecoration colors: modified apart from added
 		deleted: hex("#ad0707"), conflict: hex("#ad0707"), ignored: hex("#8e8e90"),
 		selBg: hex("#d6d6d8"), selUnfocusedBg: hex("#e7e7e8"), hoverBg: hex("#e6e6e9"), selFg: hex("#202020"),
 		accent: hex("#0069cc"), headerAccent: hex("#0069cc"),

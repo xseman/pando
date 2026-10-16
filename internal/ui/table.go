@@ -1035,7 +1035,12 @@ func (tb *table) rule(lay tableLayout) string {
 	var b strings.Builder
 
 	for c := range lay.ws {
-		b.WriteString(strings.Repeat("─", lay.ws[c]+2) + joint)
+		j := joint
+		if c == len(lay.ws)-1 { // the last column's border closes the rule
+			j = ifElse(tb.count() == 0, "┘", "┤")
+		}
+
+		b.WriteString(strings.Repeat("─", lay.ws[c]+2) + j)
 	}
 
 	b.WriteString(blank(lay.left + lay.view - lay.total)) // scrolled past the last column

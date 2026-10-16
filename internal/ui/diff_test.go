@@ -389,6 +389,50 @@ func TestDiffRevertAsksUnderLine(t *testing.T) {
 	}
 }
 
+// TestPreviewLoadingQuiet offers only close, and no cursor position, while a
+// tab is still loading: a plain file's hints and Ln 1 were the empty buffer's.
+func TestPreviewLoadingQuiet(t *testing.T) {
+	m := testModelSized(t, 100, 20)
+	m.pv = preview{kind: pvRev, root: m.ws, path: "a.go", rev: "abc"}
+	m.preview, m.focus = true, onMain
+
+	if h := m.pv.hints(m); h != " q close" {
+		t.Fatalf("hints while loading: %q", h)
+	}
+
+	if status := strings.Split(checkWidths(t, m), "\n")[m.h-1]; strings.Contains(status, " Ln ") {
+		t.Fatalf("a position while loading: %q", status)
+	}
+}
+
+// TestAskingShowsPlain shows "asking gopls…" as text from its first frame:
+// the answer clears it before a decode would settle, leaving only noise.
+func TestAskingShowsPlain(t *testing.T) {
+	m := testModelSized(t, 100, 20)
+	m.st.Settings.Anim = true
+	m.noteFx() // the first look, after which a new flash decodes in
+	m.flash("asking gopls…", false)
+	m.noteFx()
+
+	if status := strings.Split(checkWidths(t, m), "\n")[m.h-1]; !strings.Contains(status, "asking gopls…") {
+		t.Fatalf("status %q", status)
+	}
+}
+
+// TestEditorHintsByServer offers a server's keys only where one is set up,
+// and Markdown's views in a Markdown file.
+func TestEditorHintsByServer(t *testing.T) {
+	m, _ := editorModel(t, "notes.md", "# a\n")
+	if h := m.pv.hints(m); strings.Contains(h, "F12") || !strings.Contains(h, "^⇧v rendered") {
+		t.Fatalf("Markdown: %q", h)
+	}
+
+	m, _ = editorModel(t, "a.go", "package a\n")
+	if h := m.pv.hints(m); !strings.Contains(h, "F12 def") || strings.Contains(h, "rendered") {
+		t.Fatalf("Go: %q", h)
+	}
+}
+
 // TestDiffHintStaged names what m does: an index diff's menu only unstages.
 func TestDiffHintStaged(t *testing.T) {
 	m := diffModel(t, 160, 20)

@@ -3254,7 +3254,7 @@ func (p *preview) hints(m *Model) string {
 		return settingsHints()
 	case m.peekH() > 0: // the References inline have the keys
 		return " ↑↓ move  ←→ fold  ⏎ open  o open and stay  esc close"
-	case p.empty():
+	case p.empty(), !p.ready && p.kind != pvTable: // nothing yet to move to or act on
 		return " q close"
 	case p.split(m) && p.kind == pvRev: // one file's history: nothing to stage, no other file
 		return " ↑↓ move  ] [ change  ⇧ select  s inline  q close"
@@ -3288,7 +3288,16 @@ func (p *preview) hints(m *Model) string {
 			return h + save + "  ^w close"
 		}
 
-		return " ^f find  ^h replace  F12 def  ⇧F12 refs  ^. fix  F2 rename" + save + "  ^w close"
+		keys := "  F12 def  ⇧F12 refs  ^. fix  F2 rename"
+		if _, argv := m.lspCommand(p.path); len(argv) == 0 { // no server would answer them
+			keys = ""
+		}
+
+		if isMarkdown(p.path) {
+			keys += "  ^⇧v rendered  M-v side by side"
+		}
+
+		return " ^f find  ^h replace" + keys + save + "  ^w close"
 
 	case p.kind == pvFile:
 		return " ↑↓ move  ^f find  F12 def  ⇧F12 refs  ^. fix  F2 rename  q close"

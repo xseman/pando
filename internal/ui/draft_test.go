@@ -520,6 +520,21 @@ func TestEditorLimit(t *testing.T) {
 	}
 }
 
+// TestSaveAsLexesAtOnce colours every line by the new name as the save
+// returns, not only those the formatter rewrote.
+func TestSaveAsLexesAtOnce(t *testing.T) {
+	m := untitledModel(t, "package a")
+	press(m, "enter")
+	press(m, strings.Split("func A() int { return 1 }", "")...)
+	press(m, "ctrl+s")
+	m.modal.input.SetValue(filepath.Join(m.ws, "a.go"))
+	m.modal.key(m, keyMsg("enter")) // the command it returns, the reload, is not run
+
+	if m.pv.lines[0] == "package a" {
+		t.Fatalf("line 1 still plain: %q", m.pv.lines[0])
+	}
+}
+
 // TestSaveAsSuggestsOnceAsked opens Save as without a grey completion, which
 // would read as the file about to be written, nor shows one inside a folder
 // tab just completed; tab brings one.
