@@ -445,6 +445,17 @@ func TestDaemon(t *testing.T) {
 	d.Close()
 }
 
+// TestSessionBusyUntilOutput keeps a session that has printed nothing running:
+// idle on the first tick told session new --wait it was ready before it drew.
+func TestSessionBusyUntilOutput(t *testing.T) {
+	s := &session{status: "running"}
+	s.tick(time.Now())
+
+	if s.status != "running" {
+		t.Fatalf("no output yet: %q", s.status)
+	}
+}
+
 func TestAttentionAfterUnseenBurst(t *testing.T) {
 	now := time.Now()
 

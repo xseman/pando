@@ -387,7 +387,9 @@ func (s *session) tick(now time.Time) bool {
 			s.attention = true
 		}
 
-	case s.seen == "running", s.command, s.seen != "idle" && now.Sub(s.lastOutput) < busyWindow && s.lastOutput.Sub(s.resized) > redrawWindow:
+	// A program that has printed nothing yet has not drawn its prompt: it
+	// starts busy, so session new --wait waits for it.
+	case s.seen == "running", s.command, s.seen == "" && s.lastOutput.IsZero(), s.seen != "idle" && now.Sub(s.lastOutput) < busyWindow && s.lastOutput.Sub(s.resized) > redrawWindow:
 		s.status = "running"
 	default:
 		s.status = "idle"
