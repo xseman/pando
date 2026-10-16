@@ -55,9 +55,9 @@ Needs git. Optional: `gh` for GitHub, `rg` for search, `sqlite3` (3.37+),
 - **Source Control**: VS Code's view — line-level staging, Commit & Sync,
   Publish, AI commit messages, history drawers, GitLens-style commit and pull
   request comparisons.
-- **Diffs**: inline or side by side, word-level highlights, changes marked
-  on the scrollbar and stepped through (`]` `[`), a file's revisions stepped
-  through like GitLens.
+- **Diffs**: inline or side by side, word-level highlights, hidden lines
+  unfolded in place, changes marked on the scrollbar and stepped through
+  (`]` `[`), a file's revisions stepped through like GitLens.
 - **Editor**: undo, find & replace, suggestions, format on save, vim mode,
   unsaved drafts that survive a restart, language servers.
 - **Explorer and Search**: git decorations, VS Code's context menu, quick

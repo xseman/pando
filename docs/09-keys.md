@@ -132,7 +132,8 @@ or split diff (Markdown: side by side), `z` whole file or only the changes in a
 file's diff, `p` rendered Markdown, `O` open the
 diffed file at the cursor, `H` pick a revision (header `←` `→` step), `e`
 `$EDITOR`, `o` system app, `m` menu, `q` close. In a diff `]` `[` (`alt+F5`
-`shift+alt+F5`) next, previous change; `}` `{` next, previous file.
+`shift+alt+F5`) next, previous change; `}` `{` next, previous file; `⏎` on
+`N hidden lines` shows them.
 
 Find box: `⏎` `↓` next, `shift+⏎` `↑` previous, `tab` to replace, where `⏎`
 replaces and goes on; `ctrl+shift+1` one, `ctrl+alt+⏎` all; `alt+c` `alt+w`

@@ -400,3 +400,61 @@ func diffBg(kind byte) color.Color {
 
 	return nil
 }
+
+// ctxRows are the unchanged rows a diff shows around each change, git's -U3.
+const ctxRows = 3
+
+// gapLines are the old lines [a, z] a gap unfolded hid in its file, the
+// count of file names above it: old lines, which an edit to the working
+// tree does not move, so a change the agent makes inside them leaves the
+// rest unfolded, as VS Code keeps what was revealed.
+type gapLines struct{ file, a, z int }
+
+// shownRow is a row of a full-context diff to show: row i of it, or with n
+// set the gap of n rows that starts there.
+type shownRow struct{ i, n int }
+
+// shownRows are the rows of a full-context diff a view shows, VS Code's
+// Collapse Unchanged Regions: within each file, a run of unchanged rows
+// keeps ctxRows next to the changes around it, and the rest is one gap,
+// unless open has it. A gap of one row shows the row instead. all shows
+// every row, the whole file.
+func shownRows(meta []lineMeta, open []gapLines, all bool) []shownRow {
+	out := make([]shownRow, 0, len(meta))
+	file := 0
+
+	for i := 0; i < len(meta); {
+		if all || meta[i].kind != 'c' {
+			file += b2i(meta[i].kind == 'f')
+			out = append(out, shownRow{i: i})
+			i++
+
+			continue
+		}
+
+		s := i
+		for i < len(meta) && meta[i].kind == 'c' {
+			i++
+		}
+
+		head := ctxRows * b2i(s > 0 && changed(meta[s-1].kind))
+		tail := ctxRows * b2i(i < len(meta) && changed(meta[i].kind))
+
+		if n := i - s - head - tail; n > 1 && !slices.ContainsFunc(open, func(g gapLines) bool { // an unfolded gap over its old lines
+			return g.file == file && g.a <= meta[i-tail-1].a && meta[s+head].a <= g.z
+		}) {
+			for j := s; j < s+head; j++ {
+				out = append(out, shownRow{i: j})
+			}
+
+			out = append(out, shownRow{i: s + head, n: n})
+			s = i - tail
+		}
+
+		for j := s; j < i; j++ {
+			out = append(out, shownRow{i: j})
+		}
+	}
+
+	return out
+}

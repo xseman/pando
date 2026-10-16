@@ -168,8 +168,9 @@ func (p *preview) findAgain(m *Model) {
 }
 
 // findPlace is the row of meta for the line k was: the same row, else the
-// first at or after its new line number (its old one for a deletion), else
-// the last row: the file ends before it.
+// first at or after its new line number (its old one for a deletion), or the
+// unfolding gap before that row hiding it, else the last row: the file ends
+// before it.
 func findPlace(meta []lineMeta, k lineMeta) int {
 	if i := slices.Index(meta, k); i >= 0 {
 		return i
@@ -182,6 +183,10 @@ func findPlace(meta []lineMeta, k lineMeta) int {
 
 		return k.a > 0 && l.a >= k.a
 	}); i >= 0 {
+		if i > 0 && k.b > 0 && meta[i].b > k.b && meta[i-1].kind == 'h' && meta[i-1].b > 0 { // an unfolding gap, not git's hunk row
+			return i - 1
+		}
+
 		return i
 	}
 

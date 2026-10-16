@@ -2647,7 +2647,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if m.st.Settings.DiffFull != full && m.pv.fileDiff() { // diff_full set elsewhere
 			m.pv.keepPlace(m)
-			reload = m.pv.load(m)
+			reload = m.pv.refull(m)
 		}
 
 		return m, tea.Batch(m.syncTabs(), reload)

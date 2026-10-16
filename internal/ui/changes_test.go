@@ -61,6 +61,7 @@ func loadDiff(m *Model, kind, raw string) {
 func TestGotoChange(t *testing.T) {
 	for _, split := range []bool{false, true} {
 		m := testModelSized(t, 160, 30)
+		m.st.Settings.DiffFull = true // the whole file, as z shows it
 		m.st.Settings.DiffView = ifElse(split, "split", "inline")
 		m.pv = preview{kind: pvDiff, root: m.ws, path: "f.go", entry: git.Entry{Path: "f.go", Letter: 'M'}}
 		m.preview, m.focus = true, onMain
@@ -220,6 +221,7 @@ func TestScrollbarChangeMarks(t *testing.T) {
 
 	for _, split := range []bool{false, true} {
 		m := testModelSized(t, 160, 30)
+		m.st.Settings.DiffFull = true // the whole file, as z shows it
 		m.st.Settings.DiffView = ifElse(split, "split", "inline")
 		m.pv = preview{kind: pvDiff, root: m.ws, path: "f.go", entry: git.Entry{Path: "f.go", Letter: 'M'}}
 		m.preview, m.focus = true, onMain
@@ -374,6 +376,7 @@ func compactDiff(n int, at ...int) string {
 // row, in the other context mode, as VS Code's diff editor does.
 func TestDiffLayoutKeepsPlace(t *testing.T) {
 	m := testModelSized(t, 160, 30)
+	m.st.Settings.DiffFull = true // the whole file, as z shows it
 	m.pv = preview{kind: pvDiff, root: m.ws, path: "f.go", entry: git.Entry{Path: "f.go", Letter: 'M'}}
 	m.preview, m.focus = true, onMain
 	loadDiff(m, pvDiff, longDiff(200, 50, 120))
@@ -424,6 +427,7 @@ func TestDiffLayoutKeepsPlace(t *testing.T) {
 // and a commit's diff keep their place.
 func TestDiffOpensOnFirstChange(t *testing.T) {
 	m := testModelSized(t, 100, 20)
+	m.st.Settings.DiffFull = true // the whole file, as z shows it
 	m.pv = preview{kind: pvDiff, root: m.ws, path: "f.go", entry: git.Entry{Path: "f.go", Letter: 'M'}}
 	m.preview, m.focus = true, onMain
 	loadDiff(m, pvDiff, longDiff(300, 200))

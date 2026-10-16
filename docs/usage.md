@@ -160,8 +160,11 @@ _Select for Compare_; _Open Changed Files_ on a pull request in GitHub does
 the same for the pull request. The ✕ on the drawer's header clears it. Each
 project keeps its own comparison.
 
-A diff shows the changes with three lines around them; `z` (or the header's
-fold button) shows the whole file, for every diff until toggled back. `]` and
+A diff shows the changes with three lines around them and the rest as
+`N hidden lines` rows: ⏎ on one or a click shows those lines in place, and
+they stay shown while the tab is open; find (`ctrl+f`) looks in them too
+and unfolds the one with the match. `z` (or the header's fold button) shows
+a file's whole diff, for every file until toggled back. `]` and
 `[` (VS Code's `alt+F5`, `shift+alt+F5`, or the header's `↓` `↑`) go to the
 next and previous change, `}` and `{` to the next and previous file: of a
 commit, or of Source Control from a file's diff; a file's diff opens on its

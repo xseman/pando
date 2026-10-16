@@ -139,8 +139,12 @@ func (m *Model) gotoLineQuery(query string) tea.Cmd {
 	last, side := p.lastLine()+1, func(l int) lineMeta { return lineMeta{b: l} }
 
 	if p.meta != nil { // a diff goes by the file's lines, as its status bar counts; a deleted file's by its old ones
-		newest, oldest := 0, 0
-		for _, l := range p.meta {
+		rows, newest, oldest := p.meta, 0, 0
+		if p.folds() { // the lines in its gaps too
+			rows = p.all.meta
+		}
+
+		for _, l := range rows {
 			newest, oldest = max(newest, l.b), max(oldest, l.a)
 		}
 
@@ -167,7 +171,8 @@ func (m *Model) gotoLineQuery(query string) tea.Cmd {
 		return item{always: true, label: label, run: func(m *Model) tea.Cmd {
 			n := line - 1
 			if m.pv.meta != nil {
-				n = findPlace(m.pv.meta, side(line)) // the row of that line, or the next shown
+				m.pv.unfoldLine(m, line) // a line in a gap shows
+				n = findPlace(m.pv.meta, side(line))
 			}
 
 			m.pv.gotoLine(m, n, m.pv.screenCol(n, max(col-1, 0)))

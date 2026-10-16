@@ -95,6 +95,11 @@ uncommitted changes as a first row, then every commit. It returns revisions
 or an error, never both; with no commits yet it is the one "Uncommitted
 changes" row. `RevisionDiff` is one revision's patch.
 
+The views fetch a file's diff, a revision's and a commit's (`git show
+--unified=1000000000`) with full context and fold it themselves; one too
+long or a merge's combined diff is fetched again with git's three lines
+([04-preview.md](04-preview.md#diffs-and-revisions)).
+
 ## Branches
 
 ```text

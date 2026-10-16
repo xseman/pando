@@ -113,10 +113,22 @@ inline                                side by side (diff_view = "split")
   string opened on a context line colors both sides.
 - `splitRows` pairs each deletion run with the additions after it; under
   `splitMinW` (90 cells) the split falls back to inline.
-- A file's diff (`fileDiff`: kinds `diff`, `cmp`, `rev`, not untracked) shows
-  the changes with git's three lines of context, or with `diff_full` the
-  whole file (`--unified=1000000000`). `z`, the header's unfold/fold button
-  and Toggle Collapse Unchanged Regions flip it (`toggleDiffFull`).
+- A file's diff (`fileDiff`: kinds `diff`, `cmp`, `rev`, not untracked) and a
+  commit's are fetched with full context (`--unified=1000000000`, `unfolds`)
+  and folded in the view: `all` keeps every row, `shownRows` shows each change
+  with `ctxRows` (3) around it and each longer unchanged run as a gap row,
+  `N hidden lines`, carrying its first hidden row's numbers. ⏎ on a gap or a
+  click unfolds it in place (`unfold`: the tab keeps the old lines it hid,
+  `gapLines`, so a reload, even with a new change inside them, leaves them
+  shown); Go to Line into a gap unfolds it, and find looks in the rows a
+  gap hides (`findHit.hidden`), unfolding it for the match selected. With
+  `diff_full` a file's diff shows whole; `z`, the header's unfold/fold
+  button and Toggle Collapse Unchanged Regions flip it locally (`refull`)
+  and fold every gap again.
+- A diff over `maxPreviewLines` or a merge's combined diff (`foldable`) is
+  `fixed`: fetched with git's three lines as before, its gaps git's own. A
+  pull request's diff always is. `y` with no selection copies the patch as
+  fetched, full context included.
 - `changes` are the runs of `a` and `d` rows, a deletion and its additions
   one change. `]` `[` (`gotoChange`) and a click on a scrollbar mark
   (`markAt`; again on the same cell, its next change) put the cursor on a

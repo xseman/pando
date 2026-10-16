@@ -87,18 +87,27 @@ type preview struct {
 	plain     [][]rune   // the same lines without styles
 	meta      []lineMeta // diff rows: line numbers and change kind
 	keep      *place     // the cursor's place while a diff reloads, to find again (keepPlace)
-	numW      int        // digits of the line-number gutter
-	ready     bool
-	wrap      bool
-	blanks    string // render_whitespace, put on as the editor draws
-	top       int    // first visible screen row
-	hl        []rune // the word under the cursor, painted wherever else it stands
-	comp      completion
-	left      int // horizontal scroll in cells when not wrapping
-	wide      int // cells of the widest line, measured with the rows while not wrapping
-	cur       pos
-	anchor    *pos // selection start; nil = no selection
-	reveal    bool // center the cursor once the content loads
+	// A diff fetched with full context (unfolds) shows its changes with
+	// ctxRows around them: all holds every row, open the gaps unfolded, gaps
+	// the rows of all hidden behind each gap row shown. fixed is a diff git
+	// gave three lines of context: too long to unfold, or a merge's combined
+	// diff.
+	all    diffRows
+	open   []gapLines
+	gaps   map[int]shownRow
+	fixed  bool
+	numW   int // digits of the line-number gutter
+	ready  bool
+	wrap   bool
+	blanks string // render_whitespace, put on as the editor draws
+	top    int    // first visible screen row
+	hl     []rune // the word under the cursor, painted wherever else it stands
+	comp   completion
+	left   int // horizontal scroll in cells when not wrapping
+	wide   int // cells of the widest line, measured with the rows while not wrapping
+	cur    pos
+	anchor *pos // selection start; nil = no selection
+	reveal bool // center the cursor once the content loads
 	// transient is VS Code's preview editor, its tab in italics: the next
 	// editor opened transient takes its tab over, until pin keeps it.
 	transient bool
@@ -148,6 +157,13 @@ type previewMsg struct {
 	revs         []git.Revision
 	gh           *ghDoc
 	cached       bool // from Model.ghPages, not fetched
+	fixed        bool // too long to unfold, or a merge's combined diff: git's three lines of context
+}
+
+// diffRows are a rendered diff's rows, every one of them.
+type diffRows struct {
+	lines, plain []string
+	meta         []lineMeta
 }
 
 func (p *preview) id() string {
@@ -274,7 +290,7 @@ func (p *preview) snapshot() preview {
 		root: p.root, entry: p.entry, rev: p.rev, gh: p.gh, folded: p.folded, compose: p.compose, tbl: p.tbl, cell: p.cell,
 		repo: p.repo, revs: p.revs, revIdx: p.revIdx, md: p.md,
 		cur: p.cur, top: p.top, left: p.left, buf: p.buf, trunc: p.trunc, used: p.used,
-		transient: p.transient,
+		transient: p.transient, open: p.open,
 	}
 }
 
@@ -1130,10 +1146,22 @@ func (p *preview) load(m *Model) tea.Cmd {
 
 		var err error
 
-		if cp.kind == pvGH {
+		switch {
+		case cp.kind == pvGH:
 			kind, n, _ := strings.Cut(cp.rev, "/")
 			raw, msg.gh, err = ghDocument(cp.root, kind, n)
-		} else {
+
+		case cp.unfolds():
+			raw, err = cp.fetch(true)
+			if err == nil && !foldable(raw) {
+				msg.fixed = true // git's three lines, or with z the whole file cut short
+
+				if !full || cp.kind == pvShow {
+					raw, err = cp.fetch(false)
+				}
+			}
+
+		default:
 			raw, err = cp.fetch(full)
 		}
 
@@ -1220,7 +1248,12 @@ func (p *preview) fetch(full bool) (string, error) {
 		return out, err
 
 	case pvShow:
+		if full {
+			return git.Run(p.root, "show", "--stat", "--patch", "--unified=1000000000", p.rev)
+		}
+
 		return git.Run(p.root, "show", "--stat", "--patch", p.rev)
+
 	case pvCmp:
 		out, err := git.CompareDiff(p.root, p.rev, p.entry, full)
 		if err == nil && out == "" {
@@ -1336,6 +1369,13 @@ func (p *preview) onLoad(m *Model, msg previewMsg) {
 	p.plain = make([][]rune, len(msg.plain))
 	for i, l := range msg.plain {
 		p.plain[i] = []rune(l)
+	}
+
+	if p.fixed = p.fixed || msg.fixed; p.unfolds() && msg.meta != nil {
+		p.all = diffRows{msg.lines, msg.plain, msg.meta}
+		p.compact(m)
+	} else { // git's own rows, a diff grown too long to fold among them: no gaps of an earlier load
+		p.all, p.gaps = diffRows{}, nil
 	}
 
 	if p.kind == pvFile {
@@ -1637,7 +1677,7 @@ func (p *preview) selCount() int {
 			return len(p.buf.line(i))
 		}
 
-		return len(p.plain[i])
+		return utf8.RuneCountInString(p.rowText(i))
 	}
 
 	if a.line == b.line {
@@ -1652,6 +1692,16 @@ func (p *preview) selCount() int {
 	return n + b.col
 }
 
+// rowText is row i's text, a diff's gap the rows it hides: a selection
+// over a gap holds them, as VS Code's over a collapsed region does.
+func (p *preview) rowText(i int) string {
+	if g := p.gaps[i]; g.n > 0 {
+		return strings.Join(p.all.plain[g.i:g.i+g.n], "\n")
+	}
+
+	return string(p.plain[i])
+}
+
 func (p *preview) selectedText() string {
 	a, b, ok := p.selection()
 	if !ok {
@@ -1663,11 +1713,11 @@ func (p *preview) selectedText() string {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(string(p.plain[a.line][a.col:]))
+	sb.WriteString(string([]rune(p.rowText(a.line))[a.col:]))
 
 	for i := a.line + 1; i < b.line; i++ {
 		sb.WriteByte('\n')
-		sb.WriteString(string(p.plain[i]))
+		sb.WriteString(p.rowText(i))
 	}
 
 	sb.WriteByte('\n')
@@ -2039,6 +2089,10 @@ func paintSpans(styled string, spans []cellSpan, start, end int) string {
 }
 
 func (p *preview) renderRow(vr vrow, w int) string {
+	if p.gaps[vr.line].n > 0 { // a gap's label, which is no text: find and copy read the rows it hides (rowText)
+		return p.gutterText(vr.line, true) + p.lines[vr.line]
+	}
+
 	tw := max(w-p.gutter(), 1)
 	line, styled := p.plain[vr.line], p.lines[vr.line]
 	marks := p.blankMarks(vr.line, line)
@@ -2272,7 +2326,7 @@ func (p *preview) splitBody(w, h int) []string {
 	for _, sr := range rows[p.top:min(p.top+h, len(rows))] {
 		switch {
 		case sr.full && p.meta[sr.l].kind == 'h':
-			body = append(body, dim.Render(center("⋯", w)))
+			body = append(body, dim.Render(center(strings.TrimSpace("⋯ "+ansi.Strip(p.lines[sr.l])), w)))
 		case sr.full:
 			body = append(body, ansi.Cut(p.lines[sr.l], p.left, p.left+w))
 		default:
@@ -2566,6 +2620,8 @@ func (p *preview) buttons(m *Model, w int) []rowAction {
 
 func (p *preview) hints(m *Model) string {
 	switch {
+	case p.gaps[p.at().line].n > 0:
+		return fmt.Sprintf(" ⏎ show %d hidden lines  ↑↓ move  ] [ change%s  q close", p.gaps[p.at().line].n, ifElse(p.fileDiff(), "  z whole file", ""))
 	case p.kind == pvTable && p.tbl != nil:
 		return p.tbl.hints()
 	case m.pk != nil:
@@ -2806,12 +2862,108 @@ func (p *preview) fileDiff() bool {
 	return p.meta != nil && p.entry.Letter != 'U' && (p.kind == pvDiff || p.kind == pvCmp || p.kind == pvRev)
 }
 
+// foldable reports a full-context diff a view can fold: short enough to
+// show whole, and no merge's combined diff, whose -x/+x columns read as
+// unchanged rows.
+func foldable(raw string) bool {
+	return strings.Count(raw, "\n") <= maxPreviewLines && !strings.Contains("\n"+raw, "\ndiff --cc ")
+}
+
+// unfolds reports a diff with gaps to unfold, fetched with full context: one
+// file's (not an untracked one, whole already) or a commit's.
+func (p *preview) unfolds() bool {
+	return !p.fixed && p.entry.Letter != 'U' && (p.kind == pvDiff || p.kind == pvCmp || p.kind == pvRev || p.kind == pvShow)
+}
+
+// folds reports a diff shown from all, folded or whole.
+func (p *preview) folds() bool { return p.unfolds() && p.all.meta != nil }
+
+// compact shows the rows of all: a file's diff whole with diff_full, else
+// the changes with the unchanged runs between them folded into gaps.
+func (p *preview) compact(m *Model) {
+	rows := shownRows(p.all.meta, p.open, m.st.Settings.DiffFull && p.fileDiff())
+	p.lines, p.plain, p.meta, p.gaps = make([]string, len(rows)), make([][]rune, len(rows)), make([]lineMeta, len(rows)), map[int]shownRow{}
+
+	for k, r := range rows {
+		if r.n > 0 { // the gap: its label, no text, and the first hidden row's numbers, which unfold it
+			l := p.all.meta[r.i]
+			p.lines[k], p.meta[k], p.gaps[k] = dim.Render(fmt.Sprintf("%d hidden lines", r.n)), lineMeta{a: l.a, b: l.b, kind: 'h'}, r
+
+			continue
+		}
+
+		p.lines[k], p.plain[k], p.meta[k] = p.all.lines[r.i], []rune(p.all.plain[r.i]), p.all.meta[r.i]
+	}
+
+	p.vis = nil
+}
+
+// refold shows what is folded now: the rows move under the cursor and the
+// find hits.
+func (p *preview) refold(m *Model) {
+	p.compact(m)
+	p.rehit()
+	p.rangeHi, p.cur.line = 0, min(p.cur.line, p.lastLine())
+
+	if p.anchor != nil {
+		a := pos{min(p.anchor.line, p.lastLine()), p.anchor.col}
+		p.anchor = &a
+	}
+}
+
+// unfold shows the rows behind the gap on meta line n, the cursor on the
+// first of them; false when n is no gap that unfolds.
+func (p *preview) unfold(m *Model, n int) bool {
+	if p.gaps[n].n == 0 {
+		return false
+	}
+
+	file := 0
+	for _, l := range p.meta[:n] {
+		file += b2i(l.kind == 'f')
+	}
+
+	p.open = append(p.open, gapLines{file, p.meta[n].a, p.meta[n].a + p.gaps[n].n - 1}) // a gap's rows are unchanged: one old line each
+	p.refold(m)
+	p.setLine(m, n)
+
+	return true
+}
+
+// unfoldLine unfolds the gap hiding new line b, if one does.
+func (p *preview) unfoldLine(m *Model, b int) {
+	for k, l := range p.meta { // in order: a commit's first file with the line, as findPlace finds it
+		if g := p.gaps[k]; g.n > 0 && b >= l.b && b < l.b+g.n {
+			p.unfold(m, k)
+			return
+		}
+	}
+}
+
 // toggleDiffFull is VS Code's Toggle Collapse Unchanged Regions: a file's
 // diff shows the whole file, or the changes with three lines around them.
 func (m *Model) toggleDiffFull() tea.Cmd {
 	m.pv.keepPlace(m) // the rows change under the cursor; its line is found again
+	cmd := m.setSettings(map[string]any{"diff_full": !m.st.Settings.DiffFull})
 
-	return tea.Batch(m.setSettings(map[string]any{"diff_full": !m.st.Settings.DiffFull}), m.pv.load(m))
+	return tea.Batch(cmd, m.pv.refull(m))
+}
+
+// refull shows a file's diff whole or folded as diff_full says now: folded
+// again where it has every row, fetched again where git cut it short.
+func (p *preview) refull(m *Model) tea.Cmd {
+	if !p.folds() {
+		return p.load(m)
+	}
+
+	p.open = nil
+	p.refold(m)
+
+	if p.keep != nil {
+		p.findAgain(m)
+	}
+
+	return nil
 }
 
 // toggleWrap is VS Code's Toggle Word Wrap. It flips the word_wrap setting,
@@ -2927,10 +3079,12 @@ func (p *preview) closeFind() {
 	p.repl.Blur()
 }
 
-// findHit is one match: where it starts and the column it ends at.
+// findHit is one match: where it starts and the column it ends at; hidden
+// is one in the rows a diff's gap at.line hides, which selected unfolds.
 type findHit struct {
-	at  pos
-	end int
+	at     pos
+	end    int
+	hidden bool
 }
 
 // refind recollects the matches and selects the one at or after the cursor.
@@ -2980,11 +3134,19 @@ func (p *preview) collectHits() {
 	}
 
 	for i, line := range p.plain {
-		text := string(line)
-		for _, r := range re.FindAllStringIndex(text, -1) {
-			if r[1] > r[0] {
-				a := utf8.RuneCountInString(text[:r[0]])
-				p.hits = append(p.hits, findHit{pos{i, a}, a + utf8.RuneCountInString(text[r[0]:r[1]])})
+		rows := []string{string(line)}
+
+		g, hidden := p.gaps[i] // a gap's label: the rows it hides, found as VS Code finds in them
+		if hidden {
+			rows = p.all.plain[g.i : g.i+g.n]
+		}
+
+		for _, text := range rows {
+			for _, r := range re.FindAllStringIndex(text, -1) {
+				if r[1] > r[0] {
+					a := utf8.RuneCountInString(text[:r[0]])
+					p.hits = append(p.hits, findHit{pos{i, a}, a + utf8.RuneCountInString(text[r[0]:r[1]]), hidden})
+				}
 			}
 		}
 	}
@@ -3003,6 +3165,10 @@ func (p *preview) findGo(m *Model, d int) tea.Cmd {
 }
 
 func (p *preview) selectHit(m *Model) {
+	if h := p.hits[min(p.hit, len(p.hits)-1)]; h.hidden {
+		p.unfold(m, h.at.line) // the same matches after, the rows shown
+	}
+
 	h := p.hits[min(p.hit, len(p.hits)-1)]
 	a := h.at
 	p.anchor, p.cur = &a, pos{h.at.line, h.end}
@@ -3113,7 +3279,7 @@ func (p *preview) findSpans(i int, line []rune) []cellSpan {
 	var spans []cellSpan
 
 	k, _ := slices.BinarySearchFunc(p.hits, i, func(h findHit, line int) int { return h.at.line - line })
-	for ; k < len(p.hits) && p.hits[k].at.line == i; k++ {
+	for ; k < len(p.hits) && p.hits[k].at.line == i && !p.hits[k].hidden; k++ {
 		h, bg := p.hits[k], pal.findMatchBg
 		if k == p.hit {
 			bg = pal.findHitBg
@@ -3995,6 +4161,11 @@ func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 
 	case "O":
 		return p.openHere(m)
+	case "enter":
+		if p.meta != nil && p.unfold(m, p.at().line) {
+			return nil
+		}
+
 	case "]", "[": // and VS Code's ⌥F5 ⇧⌥F5, everywhere (keybindings)
 		if p.meta != nil {
 			return p.gotoChange(m, ifElse(s == "]", 1, -1))
@@ -4186,7 +4357,7 @@ func (p *preview) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 		}
 
 		if p.split(m) {
-			if n, ok := p.splitPos(w, x, y); ok {
+			if n, ok := p.splitPos(w, x, y); ok && !p.unfold(m, n) {
 				p.selectTo(n, mo.Mod&tea.ModShift != 0)
 
 				m.drag = &drag{kind: dragSelect}
@@ -4204,6 +4375,9 @@ func (p *preview) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 		}
 
 		np := p.posAt(w, x, y)
+		if p.meta != nil && mo.Mod&tea.ModShift == 0 && p.unfold(m, np.line) {
+			return nil
+		}
 
 		if cmd, ok := p.ghClick(m, np, mo); ok {
 			return cmd
