@@ -155,3 +155,22 @@ func TestSuggestBoxFits(t *testing.T) {
 		m.pv.closeComp()
 	}
 }
+
+// TestSuggestEmptyEsc lets esc through an empty list: "." in a comment opens
+// a member list nothing fills, which shows nothing and must not cost an esc.
+func TestSuggestEmptyEsc(t *testing.T) {
+	m, _ := editorModel(t, "a.go", "package a\n\n// note\n")
+	m.st.Settings.Vim = true
+	m.pv.setCursor(m, pos{2, 0})
+	press(m, "A", ".")
+
+	if !m.pv.comp.on || len(m.pv.comp.items) != 0 {
+		t.Fatalf("after .: on=%v %v", m.pv.comp.on, compLabels(&m.pv))
+	}
+
+	press(m, "esc")
+
+	if m.pv.vim.mode != vimNormal || m.pv.comp.on {
+		t.Fatalf("one esc: mode %d, list on=%v", m.pv.vim.mode, m.pv.comp.on)
+	}
+}

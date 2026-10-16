@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/xseman/pando/internal/lsp"
 )
@@ -117,6 +118,35 @@ func TestPeek(t *testing.T) {
 
 	if m.refs != nil {
 		t.Fatal("esc closes the peek")
+	}
+}
+
+// TestPeekIndented highlights the match on an indented line where it is in the
+// source pane, though the list drops the indent, and names no folder for a
+// file at the workspace's root.
+func TestPeekIndented(t *testing.T) {
+	m := testModelSized(t, 120, 30)
+	code := filepath.Join(m.ws, "main.go")
+	mustWrite(t, code, "package main\n\nfunc main() {\n\tfmt.Println(s.Total())\n}\n")
+	m.pv, m.preview, m.focus = preview{kind: pvFile, path: code}, true, onMain
+	m.openPeek("References", []lsp.Location{{Path: code, Line: 3, Col: 15, EndLine: 3, EndCol: 20}})
+
+	hl := matchStyle(lipgloss.NewStyle()).Render("Total")
+
+	if src := m.refs.source(m, 60, 10); !slices.ContainsFunc(src, func(l string) bool { return strings.Contains(l, hl) }) {
+		t.Fatalf("the source pane does not highlight Total: %q", src)
+	}
+
+	if row := ansi.Strip(m.refs.renderRow(m, 1, 40, false, nil)); !strings.HasPrefix(row, "  fmt.Println(s.Total())") {
+		t.Fatalf("list row %q", row)
+	}
+
+	out := strings.Split(checkWidths(t, m), "\n")
+	top := slices.IndexFunc(out, func(l string) bool { return strings.Contains(l, "References (1)") })
+
+	head, file := ansi.Strip(out[max(top, 0)]), ansi.Strip(m.refs.renderRow(m, 0, 40, false, nil))
+	if !strings.Contains(head, "main.go  — References (1)") || strings.Contains(file, " .") {
+		t.Fatalf("a root file shows a folder: header %q, row %q", head, file)
 	}
 }
 

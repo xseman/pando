@@ -303,9 +303,9 @@ func (p *preview) compKey(m *Model, k tea.KeyPressMsg) (tea.Cmd, bool) {
 
 		return p.accept(m), true
 
-	case "esc":
+	case "esc": // an empty list shows nothing, so the editor gets the key too
 		p.closeComp()
-		return nil, true
+		return nil, n > 0
 
 	case "backspace", "delete":
 		return nil, false // the edit refilters

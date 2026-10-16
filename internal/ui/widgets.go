@@ -62,14 +62,16 @@ func row(w int, bg color.Color, left []seg, right ...seg) string {
 	}
 
 	used := 0
-	for _, x := range left {
+	for i, x := range left {
 		rem := w - rw - used
 		if rem <= 0 {
 			break
 		}
 
-		if strWidth(x.s) > rem {
-			x.s = ansi.Truncate(x.s, rem, "…")
+		// A segment that fills the row while more text follows ends in … too:
+		// the cut shows, whichever segment it falls on.
+		if sw := strWidth(x.s); sw > rem || sw == rem && slices.ContainsFunc(left[i+1:], func(s seg) bool { return strings.TrimSpace(s.s) != "" }) {
+			x.s = ansi.Truncate(x.s, rem-1, "") + "…"
 		}
 
 		paint(x)
@@ -247,14 +249,14 @@ func framedBox(in *textinput.Model, w int, focused, dark bool) []string {
 		edge = fg(pal.accent)
 	}
 
-	box, side, field := lipgloss.NewStyle().Background(pal.inputBg), edge.Background(pal.inputBg), max(w-6, 1)
+	side, field := edge.Background(pal.inputBg), max(w-6, 1)
 
 	in.SetStyles(inputStyles(dark))
 	in.SetWidth(field)
 	text := ansi.Truncate(realCaret(in.View()), field, "")
-	text += box.Render(blank(field - ansi.StringWidth(text)))
+	text = underBg(" "+text+blank(field-ansi.StringWidth(text))+" ", pal.inputBg) // the input leaves its caret cell, and the cells after its resets, bare
 
-	return []string{frameLine(w, "▁", edge), " " + side.Render("▏") + box.Render(" "+text+" ") + side.Render("▕") + " ", frameLine(w, "▔", edge)}
+	return []string{frameLine(w, "▁", edge), " " + side.Render("▏") + text + side.Render("▕") + " ", frameLine(w, "▔", edge)}
 }
 
 // frameLine is the row above (▁) or below (▔) an input box whose ▏ edge
@@ -1010,6 +1012,7 @@ type modal struct {
 	// area is the screen columns [from, to) the box stays in: a table's keep
 	// to the editor area, off a session docked beside it. Zero is the screen.
 	area [2]int
+	w    int // the widest the box has been: it does not narrow while open
 }
 
 // choices draws options in a row, a segmented control: the chosen one bold
@@ -1259,6 +1262,8 @@ func modalInput() textinput.Model {
 	in.Prompt = "› "
 	st := in.Styles()
 	st.Cursor.Blink = false // as inputStyles'
+	// A completion's rest in the placeholder's color: bubbles' ANSI 240 passes for typed text on a light theme.
+	st.Focused.Suggestion, st.Blurred.Suggestion = muted, muted
 	in.SetStyles(st)
 	in.Focus()
 
@@ -1484,10 +1489,19 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 	if md.area[1] > 0 {
 		x0, x1 = md.area[0], md.area[1]
 	}
+	// A box kept to an area covers it whole rather than leave a cell of what
+	// is under it showing at its sides.
+	cover := func(w int) int {
+		if md.area[1] > 0 && x1-x0-w < 4 {
+			return x1 - x0
+		}
+
+		return w
+	}
 
 	if md.form != nil { // its top stays put as it grows: placed as if at its tallest
 		fw, fh, placed := md.form.size()
-		w, h = min(fw, x1-x0-2), fh
+		w, h = cover(min(fw, x1-x0-2)), fh
 
 		return x0 + (x1-x0-w)/2, max((m.h-placed)/3, 0), w, h, 0
 	}
@@ -1505,7 +1519,7 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 			w = max(w, ansi.StringWidth(it.hint))
 		}
 
-		w = min(max(min(w+4, 64), row+3), x1-x0-2)
+		w = cover(min(max(min(w+4, 64), row+3), x1-x0-2))
 		msg, _, hintH := md.dialogBody(w - 2)
 		h = len(msg) + hintH + 4
 		// ponytail: taller than the terminal clips the bottom, buttons and all; scroll the message if one ever does.
@@ -1524,7 +1538,8 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 		}
 	}
 
-	w = min(w, x1-x0-2)
+	md.w = max(md.w, w)
+	w = cover(min(md.w, x1-x0-2))
 	maxRows := max(m.h-6, 1)
 
 	rows = min(len(md.disp), maxRows)
@@ -1541,7 +1556,10 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 		h++
 	}
 
-	if md.x < 0 {
+	x = min(md.x, x1-w)
+
+	switch {
+	case md.x < 0:
 		// A picker's top edge stays put while results change: it is placed as if full.
 		top := h
 		if md.filter {
@@ -1549,8 +1567,13 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 		}
 
 		x, y = x0+(x1-x0-w)/2, max((m.h-top)/3, 0)
-	} else {
-		x, y = min(md.x, x1-w), min(md.y, m.h-h)
+
+	case md.y+h <= m.h:
+		y = md.y
+	case !md.hasInput() && md.y-1-h >= 0: // a menu opens above the line it was opened under, as the suggestions do
+		y = md.y - 1 - h
+	default: // a text box stays as near its text as it fits
+		y = m.h - h
 	}
 
 	return max(x, x0), max(y, 0), w, h, rows

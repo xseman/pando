@@ -37,7 +37,8 @@ type peekFile struct {
 	locs []peekLoc
 }
 
-// peekLoc is one location with the line it sits on, the match in runes; a
+// peekLoc is one location with the line it sits on, the match in runes of
+// text; trim is the indent text drops, which the source pane keeps. A
 // problem's has its message and severity, which its row shows instead.
 type peekLoc struct {
 	loc  lsp.Location
@@ -45,6 +46,7 @@ type peekLoc struct {
 	a, b int
 	msg  string
 	sev  int
+	trim int
 }
 
 // peekRow is a file header (loc -1) or one of its locations.
@@ -146,7 +148,7 @@ func buildPeek(title string, locs []lsp.Location, probs []lsp.Diagnostic) *peek 
 
 			text := strings.TrimLeft(expandTabs(raw), " ")
 			trim := len([]rune(expandTabs(raw))) - len([]rune(text))
-			loc := peekLoc{loc: l, text: text, a: max(a-trim, 0), b: max(b-trim, 0)}
+			loc := peekLoc{loc: l, text: text, a: max(a-trim, 0), b: max(b-trim, 0), trim: trim}
 
 			if probs != nil {
 				loc.msg, loc.sev = firstLine(probs[i].Message), probs[i].Severity
@@ -244,12 +246,15 @@ func (pk *peek) view(m *Model, w, h int) []string {
 
 	name, dir := "", ""
 	if loc, ok := pk.shown(); ok {
-		name, dir = filepath.Base(loc.loc.Path), filepath.Dir(rel(m.ws, loc.loc.Path))
-		dir = ifElse(dir == ".", "", dir) // a file at the root: no folder
+		name, dir = filepath.Base(loc.loc.Path), relDir(m.ws, loc.loc.Path)
+	}
+
+	if dir != "" {
+		dir = "  " + dir
 	}
 
 	head := row(w, pal.sectionBg, []seg{
-		sg(" "+name, bold), sg("  "+dir, dim),
+		sg(" "+name, bold), sg(dir, dim),
 		sg(fmt.Sprintf("  — %s (%d) ", pk.title, pk.count()), dim),
 	}, sg(" "+icClose.s()+" ", dim))
 	body := h - 1
@@ -328,7 +333,7 @@ func (pk *peek) source(m *Model, w, h int) []string {
 
 		text := ansi.Cut(pk.src[n], 0, max(w-numW-1, 1))
 		if n == loc.loc.Line {
-			text = highlight(pk.src[n], loc.a, loc.b, max(w-numW-1, 1))
+			text = highlight(pk.src[n], loc.a+loc.trim, loc.b+loc.trim, max(w-numW-1, 1))
 		}
 
 		out[i] = dim.Render(fmt.Sprintf("%*d ", numW, n+1)) + text
@@ -362,7 +367,7 @@ func (pk *peek) renderRow(m *Model, i, w int, hovered bool, guides []seg) string
 
 		return row(w, bg, []seg{
 			sg(" "+chevron(!pk.closed[f.path]), dim), iconSeg(name, false, false), sg(name, base),
-			sg(" "+ifElse(filepath.Dir(rel(m.ws, f.path)) == ".", "", filepath.Dir(rel(m.ws, f.path))), dim), // a file at the root: no folder
+			sg(" "+relDir(m.ws, f.path), dim),
 		}, badge(strconv.Itoa(len(f.locs))), sg(" ", plain))
 	}
 
@@ -397,6 +402,15 @@ func rel(ws, path string) string {
 	}
 
 	return path
+}
+
+// relDir is the folder of path inside the workspace, "" at its root.
+func relDir(ws, path string) string {
+	if d := filepath.Dir(rel(ws, path)); d != "." {
+		return d
+	}
+
+	return ""
 }
 
 // open jumps to the selected location; a file header folds instead.

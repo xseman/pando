@@ -84,6 +84,10 @@ One terminal cursor, styled by the terminal unless an app asks otherwise:
 `activity_bar = "top"` or `"side"`; both draw one chip per view (`barPad`,
 icon, `barPad`). The mark (`markColor`) is `header_accent` for the open view,
 `sash_hover`, a tint of the accent, for the icon and the mark under the mouse.
+Where the chips would run into ⚙ the top bar tightens them (`tabs`): one cell
+of air (word labels to their initials), no gap between chips, then the icon
+alone, so every view keeps its chip down to the 20-cell column (emoji, two
+cells each, need a wider one).
 
 ```text
 top: activityBar, actH = 2 rows
@@ -320,14 +324,22 @@ session's column has its own.
 
 One at a time (`Model.modal`): menu, picker (fuzzy), prompt, dialog
 (`newDialog`), or a form (`modal.form`, a `formBox`: the Databases view's
-connection form, the indentation, the folder picker). Centered on the screen, or anchored (`x`, `y`) where the
-thing it acts on is, as rename over a symbol and a table's prompt over its
-cell; `area` keeps a box to some columns, a table's to the editor area, off a
-session docked beside it. A menu at the pointer has square corners, a
-centered box round ones. A context menu's groups are `menuGroups`, a rule
-between them; the editor's go as VS Code's: the code (definition,
-references, symbol, rename, quick fix, hover), formatting, undo, the
-clipboard, Select All, find, then the file's own.
+connection form, the indentation, the folder picker). Centered on the
+screen, or anchored (`x`, `y`) where the thing it acts on is, as rename over
+a symbol, a table's prompt over its cell and an editor's menu by key (`m`,
+`⇧F10`) under the cursor's row (`menuAt`), and the revert question it leads
+to; the form, and a menu centred in an area, sit at the top of the area's
+body. `area` keeps a box to some columns, a table's to the editor area, off
+a session docked beside it, and covers them whole when less than two cells a
+side would show. An anchored menu that does not fit below its line opens
+above it; a box never narrows while it is open (`modal.w`). A menu at the
+pointer has square corners, a centered box round ones. A context menu's
+groups are `menuGroups`, a rule between them; the editor's go as VS Code's:
+the code (definition, references, symbol, rename, quick fix, hover),
+formatting, undo, the clipboard, Select All, find, then the file's own.
+
+A hint row too long for its width drops whole hints from its end, the
+closing one kept last (`fitHints`), rather than cut one.
 
 ```text
 ╭ Select a branch or tag to checkout ─────────╮
