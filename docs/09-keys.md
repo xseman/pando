@@ -91,6 +91,7 @@ boxes: `⏎` `↓` to the results, `tab` next box.
 - `esc` (`ctrl+f` in the box): close find; a click on the terminal keeps the matches
 - `pgup` `pgdn` (`shift` too): page the scrollback; on the alternate screen, the app's
 - `alt+z`: Terminal panel: fit to the content width, scroll sideways
+- `ctrl+click` a URL or a `path:line`: open it, in the browser or the editor
 
 ## In a file
 

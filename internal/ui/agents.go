@@ -2514,7 +2514,9 @@ type term struct {
 	sel       [2][2]int
 	hasSel    bool
 	selecting bool
-	find      termFind // ⌃f: VS Code's terminal find widget
+	find      termFind   // ⌃f: VS Code's terminal find widget
+	link      *linkHover // the link under the pointer, which ctrl+click follows
+	followed  bool       // a ctrl+click followed a link: its release is not the app's either
 }
 
 // lineAt is the line on screen row y, counted from the oldest scrollback
@@ -3161,7 +3163,7 @@ func (t *term) view(m *Model, w, _ int) []string {
 
 	lines := slices.Clone(t.scr.Lines)
 	for i := range lines {
-		lines[i] = t.mark(i, t.paintFind(i, lines[i]))
+		lines[i] = t.mark(i, t.paintFind(i, t.paintLink(m, i, lines[i])))
 	}
 
 	return withBar(lines, w, t.bar(len(lines)), m.barState("session"))
@@ -3222,7 +3224,28 @@ func (t *term) mouse(m *Model, id string, msg tea.MouseMsg, x, y int) tea.Cmd {
 	}
 
 	if _, motion := msg.(tea.MouseMotionMsg); motion && mo.Button == tea.MouseNone {
+		if t.link = t.linkAt(m, id, x, y); t.link != nil {
+			t.link.sx, t.link.sy = mo.X, mo.Y
+		}
+
 		return nil // ponytail: hover motion is not forwarded; apps using any-event mouse mode miss it
+	}
+
+	if _, click := msg.(tea.MouseClickMsg); click {
+		t.followed = false // the last one's release may have gone to the editor it opened
+
+		if mo.Button == tea.MouseLeft && mo.Mod&(tea.ModCtrl|tea.ModSuper) != 0 {
+			if h := t.linkAt(m, id, x, y); h != nil {
+				t.followed = true // ahead of the app, as VS Code's terminal follows a link in a mouse app too
+
+				return m.followLink(*h)
+			}
+		}
+	}
+
+	if _, release := msg.(tea.MouseReleaseMsg); release && t.followed {
+		t.followed = false
+		return nil
 	}
 
 	if t.scr.Mouse && t.scroll == 0 && !t.selecting {
@@ -3707,7 +3730,7 @@ func (m *Model) termScreen(w, h int) []string {
 	out := make([]string, 0, max(h, 0))
 	for i := range max(h, 0) {
 		if t.id == t.term.id && i < len(t.scr.Lines) {
-			line := t.mark(i, t.paintFind(i, t.scr.Lines[i]))
+			line := t.mark(i, t.paintFind(i, t.paintLink(m, i, t.scr.Lines[i])))
 			if t.wide {
 				line = ansi.Cut(line, t.left, t.left+tw)
 			}

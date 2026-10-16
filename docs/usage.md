@@ -97,6 +97,13 @@ checkout.
   tab count (`⧉ 2`) on a session with more than one. An agent started in a
   tab, claude typed at its prompt, shows its state on the tab.
 - Drag over a terminal to select and copy; `ctrl+f` finds in its scrollback.
+- Ctrl+click a link in a terminal, as in VS Code's: a URL or an OSC 8
+  hyperlink opens in the browser, a path (`app.go:12:5`, `app.ts(12,5)`,
+  Python's `"x.py", line 12`) in the editor at that line. A relative path
+  starts from the directory of the program in front (on Linux), else from
+  the worktree; one found in neither (`go test`'s `x_test.go:42`, `rg -l`'s
+  `ui/app.go`) opens the one file whose path ends in it, else quick open
+  lists them. The pointer over a link underlines it.
 - `p` in Spaces, the `⊙` left of a session's row or its right-click menu
   pins it: Spaces lists it in the Pinned pane on top, and in its tree as
   before.

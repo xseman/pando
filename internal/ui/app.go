@@ -258,7 +258,10 @@ type (
 	indexMsg struct {
 		ws    string
 		files []string
-		open  bool // show quick open once loaded
+		open  bool   // show quick open once loaded
+		query string // a terminal link's path, which quick open looks for (openQuery)
+		// line and col are the link's position, 1-based, 0 for none.
+		line, col int
 	}
 )
 
@@ -623,7 +626,7 @@ func (m *Model) toggleDrawer(title string) tea.Cmd {
 
 func (m *Model) loadIndex(open bool) tea.Cmd {
 	ws := m.ws
-	return func() tea.Msg { return indexMsg{ws, git.ListFiles(ws, 20000), open} }
+	return func() tea.Msg { return indexMsg{ws: ws, files: git.ListFiles(ws, 20000), open: open} }
 }
 
 // cols lists the sidebar columns from the left edge of the screen: left
@@ -2813,7 +2816,10 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ex.rebuild(m)
 		}
 
-		if msg.open {
+		switch {
+		case msg.query != "":
+			return m, m.openQuery(msg)
+		case msg.open:
 			m.quickOpen(msg)
 		}
 

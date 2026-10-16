@@ -123,7 +123,7 @@ func TestMarkdownSymbols(t *testing.T) {
 	// No server needed, and "@" in quick open lands in the same picker.
 	m, _ := editorModel(t, "notes.md", text)
 	m.pv.setCursor(m, pos{11, 0})
-	m.quickOpen(indexMsg{m.ws, []string{"notes.md"}, true})
+	m.quickOpen(indexMsg{ws: m.ws, files: []string{"notes.md"}, open: true})
 	press(m, "@")
 
 	if m.modal == nil || m.modal.prefix != "@" || m.modal.input.Value() != "@" {

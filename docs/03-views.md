@@ -263,6 +263,18 @@ own tab shows their count in its row (`icTabs`).
 - `ctrl+f` is VS Code's terminal find (`termfind.go`): it searches
   `session.read` scrollback, scrolls a match to the middle, and searches
   again on every screen update.
+- Links (`termlink.go`), in a session and in the panel: `termLinks` takes a
+  screen line's OSC 8 runs, then the URLs and paths of its text
+  (`textLinks`: a dot, a slash or a `:12` after it; `lineRe` the positions
+  VS Code reads, `file:///a.mjs:12:5` too; a quoted path with spaces when
+  a position follows it, as Python prints one). Rows as wide as the emulator
+  (`Screen.Cols`) run on into the next (`runOn`), so a wrapped path is one
+  link. The disk decides on the pointer: `linkAt` resolves a path in the
+  directory of the program in front (`Screen.Cwd`, from `/proc`), then the
+  session's worktree (also without a diff's `a/` `b/`); one not
+  there but with a line, or with a directory and an extension, is a search
+  (`openQuery`: the one file ending in it, else quick open). Hover underlines it with VS Code's tip; ctrl+click
+  (`followLink`) goes ahead of a mouse app.
 
 ## Search
 

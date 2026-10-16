@@ -940,11 +940,9 @@ func (m *Model) quickOpen(msg indexMsg) {
 		md.items[i] = item{label: f, run: func(m *Model) tea.Cmd {
 			m.ex.reveal(m, p)
 
-			if line, col := parseLineCol(lineSuffix(md.input.Value())); line > 0 {
-				return m.openFileAt(p, line-1, max(col-1, 0), 0, false)
-			}
+			line, col := parseLineCol(lineSuffix(md.input.Value()))
 
-			return m.openFile(p, false)
+			return m.openLine(p, line, col)
 		}}
 	}
 
