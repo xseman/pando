@@ -88,13 +88,13 @@ header stick to the top (`scmView.pinned`).
 
 The action button (`scmView.action`):
 
-| State                                    | Button                                  |
-| ---------------------------------------- | --------------------------------------- |
-| merge, rebase or cherry-pick in progress | _Continue_, once Merge Changes is empty |
-| anything staged, changed or conflicted   | Commit, with a `∨` menu                 |
-| no upstream                              | _Publish Branch_ (`push -u`); `S` too   |
-| ahead or behind                          | _Sync Changes_                          |
-| otherwise                                | muted Commit                            |
+| State                                    | Button                                |
+| ---------------------------------------- | ------------------------------------- |
+| merge, rebase or cherry-pick in progress | _Continue_                            |
+| anything staged, changed or conflicted   | Commit, with a `∨` menu               |
+| no upstream                              | _Publish Branch_ (`push -u`); `S` too |
+| ahead or behind                          | _Sync Changes_                        |
+| otherwise                                | muted Commit                          |
 
 A Commit with nothing staged is muted too, and a click on it does nothing.
 
