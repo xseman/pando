@@ -60,7 +60,8 @@ vrow{line, from, to}   screen rows; wrapped when wrap is on
   paints them over the styled line. Files only.
 - Every change goes through `preview.edit` (display columns) or `editRaw`
   (buffer columns) into `buf.apply`, which pushes an undo splice (typing
-  coalesces).
+  coalesces). Undo or redo back to the text as read or saved (`saved`) is
+  clean again, so the 2 s reload follows the disk.
 - `refresh` re-lexes only the touched lines (a whole 5000-line file takes
   ~260 ms); undo, save and edits over 100 lines take `refreshAll`. A
   partial re-lex can miscolor the rest of a block comment until then. Both end

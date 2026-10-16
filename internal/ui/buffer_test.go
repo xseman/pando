@@ -83,6 +83,19 @@ func TestBufferTypingCoalesces(t *testing.T) {
 	if b.text() != "abx\n" {
 		t.Fatalf("after undoing y: %q", b.text())
 	}
+
+	b.undo()
+	b.undo()
+
+	if b.dirty || b.text() != "ab" {
+		t.Fatalf("undo back to the text as read is clean, as VS Code's is: %q dirty %v", b.text(), b.dirty)
+	}
+
+	b.redo()
+
+	if !b.dirty {
+		t.Fatal("redo from it is an edit again")
+	}
 }
 
 func TestBufferSave(t *testing.T) {

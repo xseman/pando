@@ -22,6 +22,7 @@ type buffer struct {
 	lines  [][]rune
 	endNL  bool // the file ended with a newline, so saving keeps one
 	dirty  bool
+	saved  string // the text as read or saved: undo back to it is clean again
 	undos  []edit
 	redos  []edit
 	modAt  time.Time // mtime at load: a newer one means someone else wrote
@@ -42,7 +43,7 @@ func newBuffer(text string, mod time.Time) *buffer {
 	endNL := strings.HasSuffix(text, "\n") || text == ""
 	raw := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
 
-	b := &buffer{lines: make([][]rune, len(raw)), modAt: mod, endNL: endNL}
+	b := &buffer{lines: make([][]rune, len(raw)), modAt: mod, endNL: endNL, saved: strings.TrimSuffix(text, "\n")}
 	for i, l := range raw {
 		b.lines[i] = []rune(l)
 	}
@@ -163,7 +164,7 @@ func (b *buffer) step(from, to *[]edit) (pos, bool) {
 	prev := b.textIn(e.a, e.z)
 	end := b.replace(e.a, e.z, e.text)
 	*to = append(*to, edit{a: e.a, z: end, text: prev, cur: e.cur})
-	b.dirty, b.typing = true, false
+	b.dirty, b.typing = b.text() != b.saved, false
 
 	if e.text == "" { // the change was an insert: come back to where it started
 		return e.a, true
@@ -202,7 +203,7 @@ func (b *buffer) save(path string, force bool) error {
 		return err
 	}
 
-	b.dirty, b.typing = false, false
+	b.dirty, b.typing, b.saved = false, false, b.text()
 	if st, err := os.Stat(path); err == nil {
 		b.modAt = st.ModTime()
 	}
