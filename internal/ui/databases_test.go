@@ -1657,3 +1657,51 @@ func formOf(m *Model) *connForm {
 
 	return f
 }
+
+func TestTableAddScrollsWholeColumns(t *testing.T) {
+	m, _, tb := openOrders(t)
+
+	// Every column fits, until the duplicate's DEFAULT widens id: the
+	// cursor's last column scrolls into view by whole columns, none cut.
+	lay := tb.layout(1000)
+	w := lay.gutter + lay.total + 1
+	tb.col = len(tb.t.Cols) - 1
+	tb.add(tb.l.sel)
+	tb.body(m, w, 30)
+
+	if lay := tb.layout(w - 1); tb.left == 0 || !slices.Contains(lay.xs, tb.left) {
+		t.Fatalf("left %d, columns at %v", tb.left, lay.xs)
+	}
+}
+
+func TestTablePendingSQLWraps(t *testing.T) {
+	m, _, tb := openOrders(t)
+
+	long := strings.Repeat("word ", 30) + "zzend"
+	tb.ref(0, 1).put(&long)
+	tb.add(0)
+	dbDo(m, tb.showSQL(m))
+
+	var labels, want []string
+	for _, it := range m.modal.items[2:] {
+		labels = append(labels, it.label)
+	}
+
+	for _, c := range tb.changes() {
+		want = append(want, tb.t.Statement(c)+";")
+	}
+
+	if out := checkWidths(t, m); !slices.Equal(strings.Fields(strings.Join(labels, " ")), strings.Fields(strings.Join(want, " "))) ||
+		!strings.Contains(out, "collate binary = 'note 1';") || !strings.Contains(out, "zzend', '1.0');") {
+		t.Fatalf("statements in full: %q, want %q:\n%s", labels, want, out)
+	}
+}
+
+func TestTableBoxesPlaceholders(t *testing.T) {
+	m, _, tb := openOrders(t)
+
+	out := ansi.Strip(strings.Join(tb.body(m, 68, 30), "\n")) // the demo's editor area
+	if !strings.Contains(out, tb.where.Placeholder) || !strings.Contains(out, tb.order.Placeholder) {
+		t.Fatalf("placeholders cut:\n%s", out)
+	}
+}

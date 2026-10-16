@@ -105,8 +105,8 @@ type tableDoneMsg struct {
 
 func newTable(id string, d db.DB, schema, name string) *table {
 	tb := &table{id: id, db: d, schema: schema, name: name, where: textinput.New(), order: textinput.New(), anchor: -1}
-	tb.where.Prompt, tb.where.Placeholder = "WHERE ", "a condition, e.g. id > 10"
-	tb.order.Prompt, tb.order.Placeholder = "ORDER BY ", "columns, e.g. id desc"
+	tb.where.Prompt, tb.where.Placeholder = "WHERE ", "e.g. id > 10"
+	tb.order.Prompt, tb.order.Placeholder = "ORDER BY ", "e.g. id desc"
 
 	return tb
 }
@@ -850,15 +850,20 @@ func (tb *table) column() string {
 	return s
 }
 
-// shown is a value on one line of a cell: line breaks as ↵ without the
-// indentation after them, other control characters, which would move the
-// terminal's cursor, as �. Past what a cell shows it is cut first, so a long
-// value costs no more than a short one.
+// shown is a value on one line of a cell, as oneLine has it. Past what a
+// cell shows it is cut first, so a long value costs no more than a short one.
 func shown(s string) string {
 	if len(s) > 4*cellMax {
 		s = s[:4*cellMax]
 	}
 
+	return oneLine(s)
+}
+
+// oneLine is s on one line: line breaks as ↵ without the indentation after
+// them, other control characters, which would move the terminal's cursor,
+// as �.
+func oneLine(s string) string {
 	brk := false // a line break came last: the next line's indentation goes
 
 	return strings.Map(func(r rune) rune {
@@ -935,13 +940,21 @@ func (tb *table) layout(w int) tableLayout {
 		lay.total += lay.ws[c] + 3
 	}
 
-	tb.left = max(min(tb.left, lay.total-lay.view), 0) // no further than the last column
+	// No further than the last column, or than the column the end's view
+	// starts in: follow scrolls by whole columns.
+	end := lay.total - lay.view
+	if i := slices.IndexFunc(lay.xs, func(x int) bool { return x >= end }); i >= 0 {
+		end = lay.xs[i]
+	}
+
+	tb.left = max(min(tb.left, end), 0)
 	lay.left = tb.left
 
 	return lay
 }
 
-// follow scrolls the cursor's column into view, whole where it fits.
+// follow scrolls the cursor's column into view, whole where it fits, by
+// whole columns: no column is left cut at the left edge.
 func (tb *table) follow(lay tableLayout) {
 	if tb.col >= len(lay.xs) {
 		return
@@ -953,7 +966,10 @@ func (tb *table) follow(lay tableLayout) {
 	case x < tb.left:
 		tb.left = x
 	case end > tb.left+lay.view:
-		tb.left = min(x, end-lay.view)
+		tb.left = x // wider than the view: its start
+		if i := slices.IndexFunc(lay.xs[:tb.col], func(cx int) bool { return cx >= end-lay.view }); i >= 0 {
+			tb.left = lay.xs[i]
+		}
 	}
 }
 
@@ -1021,6 +1037,8 @@ func (tb *table) rule(lay tableLayout) string {
 	for c := range lay.ws {
 		b.WriteString(strings.Repeat("─", lay.ws[c]+2) + joint)
 	}
+
+	b.WriteString(blank(lay.left + lay.view - lay.total)) // scrolled past the last column
 
 	return fg(pal.whitespace).Render(strings.Repeat("─", lay.gutter-1) + joint + ansi.Cut(b.String(), lay.left, lay.left+lay.view))
 }
@@ -1440,7 +1458,8 @@ func (tb *table) items() []item {
 	}, read...)
 }
 
-// showSQL lists the statements a submit would run; picking one copies it.
+// showSQL lists the statements a submit would run, each wrapped to the
+// editor area in full; picking one copies it.
 func (tb *table) showSQL(m *Model) tea.Cmd {
 	if len(tb.edits) == 0 {
 		return flash("no changes pending", false)
@@ -1452,8 +1471,16 @@ func (tb *table) showSQL(m *Model) tea.Cmd {
 	}
 
 	items := []item{{label: "Copy All", run: func(*Model) tea.Cmd { return setClipboard(strings.Join(all, "\n"), "copied the pending SQL") }}, separator()}
+
 	for _, s := range all {
-		items = append(items, item{label: shown(s), run: func(*Model) tea.Cmd { return setClipboard(s, "copied the statement") }})
+		// Within the menu's borders and margins, less the indentation of the
+		// lines after the first: those go plain, the keyboard past them.
+		lines := strings.Split(ansi.Wrap(oneLine(s), max(m.mainW()-8, 10), ""), "\n")
+		items = append(items, item{label: lines[0], run: func(*Model) tea.Cmd { return setClipboard(s, "copied the statement") }})
+
+		for _, l := range lines[1:] {
+			items = append(items, item{label: "  " + l, styled: true})
+		}
 	}
 
 	m.modal = newMenu("Pending SQL", -1, 0, items...)
