@@ -197,6 +197,13 @@ between projects (`projectDrop`). Let go anywhere else, it stays. A sash lights 
 Every row is segments padded to the exact width (`row` in `widgets.go`);
 `checkWidths` asserts every line is the terminal width.
 
+- Widths are grapheme widths, as the session's emulator counts them. Bubble
+  Tea's renderer counts them so only where the terminal answers mode 2027
+  (`graphemes`); elsewhere (tmux, Alacritty) it sums wcwidth, so `wcSafe`
+  rewrites the clusters the two disagree on before the frame goes out:
+  `⚠️` → `⚠ `, `👍🏽` → `👍`. Left in, the renderer would place the rest of
+  the row a cell off and its next partial redraw would land there.
+
 ```text
 row(w, bg, left…, right…)   " ▾ Changes            ↶ + [3] "
                               │ │                  │   └ count badge

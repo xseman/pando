@@ -178,6 +178,7 @@ type Model struct {
 	// have opened the terminal panel. saidCtrlJ keeps the hint to once.
 	ambiguous bool
 	saidCtrlJ bool
+	graphemes bool               // the terminal answered mode 2027: Bubble Tea measures the frame as it is laid out (wcSafe)
 	tv        termPanel          // the Terminal panel's shell
 	termMax   bool               // the panel fills the editor area (⌃⇧↑)
 	maxed     bool               // the docked session or the file fills the editor area (the strip's button): preview says which; saved with the session view
@@ -2557,6 +2558,13 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ambiguous = !msg.SupportsKeyDisambiguation()
 		return m, nil
 
+	case tea.ModeReportMsg: // what Bubble Tea switches its width method on
+		if msg.Mode == ansi.ModeUnicodeCore && (msg.Value == ansi.ModeSet || msg.Value == ansi.ModeReset || msg.Value == ansi.ModePermanentlySet) {
+			m.graphemes = true
+		}
+
+		return m, nil
+
 	case tea.BackgroundColorMsg:
 		m.dark, m.bg = msg.IsDark(), hexColor(msg.Color)
 		m.look()
@@ -4070,7 +4078,12 @@ func (m *Model) View() tea.View {
 		lines = append(append(append([]string{top.String()}, panels...), bot.String()), status)
 	}
 
-	v.SetContent(strings.Join(lines, "\n"))
+	frame := strings.Join(lines, "\n")
+	if !m.graphemes {
+		frame = wcSafe(frame)
+	}
+
+	v.SetContent(frame)
 
 	return v
 }

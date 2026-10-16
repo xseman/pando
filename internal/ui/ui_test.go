@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
@@ -1751,6 +1752,35 @@ func TestRowFitsExactly(t *testing.T) {
 	if s := fit("\x1b[31mhello\x1b[m", 3); ansi.Strip(s) != "hel" {
 		t.Errorf("fit truncate = %q", s)
 	}
+}
+
+func FuzzWcSafe(f *testing.F) {
+	for _, s := range []string{"a⚠️b", "✔️ ok", "👍🏽 👨‍💻 1️⃣", "🇸🇰 🇸", "č ľ 日本 │", "❤️\nx"} {
+		f.Add(s)
+	}
+
+	if got := wcSafe("\x1b[31ma⚠️\x1b[m \x1b]8;;https://x\x1b\\👍🏽\x1b]8;;\x1b\\"); got != "\x1b[31ma⚠ \x1b[m \x1b]8;;https://x\x1b\\👍\x1b]8;;\x1b\\" {
+		f.Fatalf("wcSafe = %q", got)
+	}
+	// Every line keeps the width it was laid out in, and wcwidth agrees. The
+	// frame's escapes are the emulator's and lipgloss's, well formed: only its
+	// text is the fuzzer's.
+	f.Fuzz(func(t *testing.T, s string) {
+		if !utf8.ValidString(s) || strings.ContainsFunc(s, func(r rune) bool { return r != '\n' && unicode.IsControl(r) }) {
+			return
+		}
+
+		in, out := strings.Split(s, "\n"), strings.Split(wcSafe(s), "\n")
+		if len(in) != len(out) {
+			t.Fatalf("%d lines became %d", len(in), len(out))
+		}
+
+		for i := range in {
+			if w, g, wc := ansi.StringWidth(in[i]), ansi.StringWidth(out[i]), ansi.WcWidth.StringWidth(out[i]); g != w || wc != w {
+				t.Fatalf("%q → %q: width %d, now %d, wcwidth %d", in[i], out[i], w, g, wc)
+			}
+		}
+	})
 }
 
 func TestGlyphs(t *testing.T) {

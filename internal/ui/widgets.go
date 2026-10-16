@@ -104,6 +104,45 @@ func fit(s string, w int) string {
 
 func blank(w int) string { return strings.Repeat(" ", max(w, 0)) }
 
+// wcSafe rewrites each cluster of frame that wcwidth measures other than
+// its grapheme width, the width every row is laid out in, as its first rune
+// padded to that width: ⚠️ (2 cells, 1 to wcwidth) becomes "⚠ ", 👍🏽 (2, 4)
+// "👍". Until the terminal answers mode 2027 Bubble Tea places cells by
+// wcwidth, while tmux draws ⚠️ wide: the renderer's idea of the rest of the
+// row is then a cell off, and its next partial redraw lands there.
+func wcSafe(frame string) string {
+	var b strings.Builder
+
+	for state := ansi.NormalState; frame != ""; {
+		seq, w, n, next := ansi.DecodeSequence(frame, state, nil)
+		if w > 0 { // text: cut where StringWidth does, which keeps 1️⃣ one cluster
+			seq, w = ansi.FirstGraphemeCluster(frame, ansi.GraphemeWidth)
+			n = len(seq)
+		}
+
+		frame, state = frame[n:], next
+
+		if ansi.WcWidth.StringWidth(seq) == w { // escapes too: 0 either way
+			b.WriteString(seq)
+			continue
+		}
+
+		r, _ := utf8.DecodeRuneInString(seq)
+		base := string(r)
+
+		// A lone regional indicator has no safe rune, and a zero-width one
+		// (U+06DD prepends) would join the next cluster.
+		bw := ansi.WcWidth.StringWidth(base)
+		if bw == 0 || bw > w || bw != ansi.StringWidth(base) {
+			base, bw = "", 0
+		}
+
+		b.WriteString(base + blank(w-bw))
+	}
+
+	return b.String()
+}
+
 // framedBox is a text box w cells wide in one thin frame, VS Code's input
 // with input.border, in the accent while it has the keyboard: three rows.
 func framedBox(in *textinput.Model, w int, focused, dark bool) []string {
