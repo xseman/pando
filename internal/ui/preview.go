@@ -2388,15 +2388,15 @@ func (p *preview) splitHalf(i int, old bool, w int) string {
 	tw := max(w-p.numW-3, 0)
 
 	body := ansi.Cut(p.lines[i], p.left, p.left+tw)
-	if !old { // the new side is the file, its problems squiggled
+	if sel { // selected text drops its own colors, as it does inline
+		body = lipgloss.NewStyle().Background(bg).Render(ansi.Strip(body))
+	}
+
+	if !old { // the new side is the file, its problems squiggled, selected too
 		body = paintProbs(body, p.probs[i], p.left)
 	}
 
 	body += "\x1b[m"
-
-	if sel { // selected text drops its own colors, as it does inline
-		body = lipgloss.NewStyle().Background(bg).Render(ansi.Strip(ansi.Cut(p.lines[i], p.left, p.left+tw)))
-	}
 
 	if used := ansi.StringWidth(body); used < tw {
 		pad := blank(tw - used)
