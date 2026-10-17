@@ -1,5 +1,110 @@
 # Changelog
 
+## [0.6.0](https://github.com/xseman/pando/compare/v0.5.0...v0.6.0) (2026-10-17)
+
+
+### Features
+
+* **daemon:** keep named databases in config.toml's [databases] ([6db19f0](https://github.com/xseman/pando/commit/6db19f0e44859bbaebaf7d9633c1b9d4781524c9))
+* **daemon:** keep pinned Spaces sessions in state.json ([38f2fdb](https://github.com/xseman/pando/commit/38f2fdb0a4463c73c950d32b5e4852cac8c90f57))
+* **daemon:** tell a screen's width and the directory in front ([bbe71e6](https://github.com/xseman/pando/commit/bbe71e63e7671131f82cf99a8414b07180e58aca))
+* **db:** read and edit SQLite, Postgres and MariaDB through their clients ([f6b0fd8](https://github.com/xseman/pando/commit/f6b0fd84d3a28d66e58a9e5f939844d947f2f8ff))
+* **git:** list files by name pattern, ignored ones too ([ecb6f44](https://github.com/xseman/pando/commit/ecb6f4438ea20793eb36d32fe5b600445abcde0e))
+* keep a scrolled-back session page on its text ([db3ff64](https://github.com/xseman/pando/commit/db3ff6499fe9e3fc45ebb886f78aa7e0c7ba3fdc))
+* run separate pando instances with --instance ([292eeb6](https://github.com/xseman/pando/commit/292eeb66f182f3b2c2f3a8747cd68c0138189b0b))
+* show language servers' diagnostics ([7a2cdca](https://github.com/xseman/pando/commit/7a2cdca64b304c2b5ccb8f9e82ddcfd956e290f3))
+* **ui:** add a Databases view and a table grid ([375047f](https://github.com/xseman/pando/commit/375047fe03c1c6b1ca48c5a2bbe7f6c6eede4d18))
+* **ui:** add a tooltips setting to turn the button tips off ([22e71c0](https://github.com/xseman/pando/commit/22e71c0c9ad5ecc7d3f94b9b7eac905e5cf5cdec))
+* **ui:** dock a session beside an empty editor ([62ca895](https://github.com/xseman/pando/commit/62ca895c89cc016b074cb5999cc45ac8e5f4d881))
+* **ui:** draw a border over the bottom Terminal panel ([cd1f220](https://github.com/xseman/pando/commit/cd1f2206095b3bda281d193f750e7c20dde60abc))
+* **ui:** draw a rule over each open Spaces project ([c58f316](https://github.com/xseman/pando/commit/c58f31670b18d7d5e90b59dea00f67e1414e614d))
+* **ui:** draw indent guides in every tree ([f748829](https://github.com/xseman/pando/commit/f748829ae78b697daa3a0a694ed97632c142e704))
+* **ui:** draw indent guides in the editor ([9bb7152](https://github.com/xseman/pando/commit/9bb715216d80f5ca70a4326ea5a58b79d30cbf7f))
+* **ui:** draw indent guides in the Explorer tree ([351f079](https://github.com/xseman/pando/commit/351f0792dcbe622a3ca48f571b8f27183ca26d00))
+* **ui:** expand a diff's hidden lines in place ([32e9cb4](https://github.com/xseman/pando/commit/32e9cb40490a262943ab5974fbe61fe024049523))
+* **ui:** frame Spaces' Pinned as a resizable pane, under its worktrees ([638dff9](https://github.com/xseman/pando/commit/638dff9f7f6aed2d9860990e47594afd29ba7fee))
+* **ui:** keep a worktree's maximized session, file or Terminal across restarts ([2ec4565](https://github.com/xseman/pando/commit/2ec4565cb5d168b9e1fd019f8c7a3f66e3b2590e))
+* **ui:** keep each project's GitHub lists and fetch them again when old ([c6210cb](https://github.com/xseman/pando/commit/c6210cbfe5adcfe5e4a58626685ea0823922cb31))
+* **ui:** keep each session's own maximized state ([210669d](https://github.com/xseman/pando/commit/210669d66f1990e95adf1051929802f58f5c39e2))
+* **ui:** lay a GitHub pull request or issue out as its conversation ([c4978d6](https://github.com/xseman/pando/commit/c4978d66c5c40ec09c23e0526852c61967328a64))
+* **ui:** light status bar items and dialog buttons under the pointer ([d2ae7ca](https://github.com/xseman/pando/commit/d2ae7ca44ac9c5f5648e9408841e6ba47efb2c92))
+* **ui:** light the Explorer's active indent guide ([3fdf529](https://github.com/xseman/pando/commit/3fdf529ff461a6ef2bdb3d419d55060f8be25ceb))
+* **ui:** mark a diff's changes on its scrollbar ([9c319b1](https://github.com/xseman/pando/commit/9c319b1aafa33c485b482216b72cb1d02149d56b))
+* **ui:** mark a file's changes on its scrollbar ([af14a09](https://github.com/xseman/pando/commit/af14a09443414f6111c70c94fa8e1b5c01db0c64))
+* **ui:** mark changed lines in the editor's gutter, VS Code's quick diff ([d74a808](https://github.com/xseman/pando/commit/d74a808e1887238c128fa85d3f8995f95e6a95ef))
+* **ui:** mark what a picker's query matched, and say when nothing does ([9b03964](https://github.com/xseman/pando/commit/9b03964213c768703e95fcdb8403254b658d5caf))
+* **ui:** name an icon button and its key when the pointer rests on it ([da5e520](https://github.com/xseman/pando/commit/da5e5208eda7c7e59dc67fcf854284d51551059b))
+* **ui:** open a terminal's links with ctrl+click ([bb9171e](https://github.com/xseman/pando/commit/bb9171ead97c52467a9b17eb9a129001da7f1d55))
+* **ui:** open the GitHub view with only pull requests unfolded ([37e3e87](https://github.com/xseman/pando/commit/37e3e8746f5d3a8c5a6cd6422b2bc51f6d8cd78a))
+* **ui:** pin sessions on top of Spaces ([021d8c4](https://github.com/xseman/pando/commit/021d8c41b1034f843af14bf13b20c554f9faae7d))
+* **ui:** resume a conversation from a worktree in Spaces ([888c6fe](https://github.com/xseman/pando/commit/888c6fe2b33f6dbb205d592fa1ef76ffc27df9f3))
+* **ui:** resume from Spaces' header ([b0337a7](https://github.com/xseman/pando/commit/b0337a7fa3356513912e69e3484f2b090ac489b2))
+* **ui:** reveal the editor's file in Explorer ([5e5299c](https://github.com/xseman/pando/commit/5e5299c90e7c3c069d8e07146036848ae7240c8a))
+* **ui:** say in the merge dialog when a pull request's checks fail ([651060e](https://github.com/xseman/pando/commit/651060e0fbb1d0ad08ec687e2fbf71383db82b74))
+* **ui:** set Spaces' Pinned apart by one heavy border, no resize ([d9d641a](https://github.com/xseman/pando/commit/d9d641a1a37fe37b591292550d4824d9eb90f88e))
+* **ui:** show a cut session name whole in a tip ([2ce07e6](https://github.com/xseman/pando/commit/2ce07e63cb4056f82102ce3bb0cc687afa92b9e3))
+* **ui:** show a GitHub page's button tips by the pointer ([1fbdc4f](https://github.com/xseman/pando/commit/1fbdc4f0730e4c216116093871231a7c5f4b1ff5))
+* **ui:** show an agent's state on a tab or terminal that runs it ([7231ea7](https://github.com/xseman/pando/commit/7231ea705563e9c3d6469948a84db33741b3ca39))
+* **ui:** show the one last used when the session and the file share the editor ([ddace10](https://github.com/xseman/pando/commit/ddace10c3dc68e3e1b02b0bbd6bd659c53823cc1))
+* **ui:** show the Spaces pin button on hover only ([70ced37](https://github.com/xseman/pando/commit/70ced37e8b19719fe9252b2936de4205dc628816))
+* **ui:** step through a diff's changes and files ([e2af73d](https://github.com/xseman/pando/commit/e2af73dbb4cefa7fa1966ad010c9ed61426edec2))
+* **ui:** turn a working session's ◐ like a spinner ([a4d270d](https://github.com/xseman/pando/commit/a4d270d0cc8965d984562b1d886655dc3c258862))
+
+
+### Bug Fixes
+
+* **daemon:** order Spaces by input and status, not output ([b93888f](https://github.com/xseman/pando/commit/b93888fe7e91c60987ef79e317a5d9f639577e55))
+* **ui:** click Source Control's and Search's buttons where they are drawn ([79cee96](https://github.com/xseman/pando/commit/79cee96b2dc6cdcc3ddb043d886f16288ac7a87b))
+* **ui:** draw indent guides over render_whitespace's marks ([b280ef9](https://github.com/xseman/pando/commit/b280ef98446f99c8756bdacef733ffe5525468a3))
+* **ui:** fit a row whose keycap emoji outmeasures its truncation ([49750ec](https://github.com/xseman/pando/commit/49750ecbdc42f65fb1dc30c58721159bd5429c8d))
+* **ui:** flash one line of a multi-line error ([6706218](https://github.com/xseman/pando/commit/67062184f39e48fed3abd8dd5c56eaf03c4394c8))
+* **ui:** keep a morph as wide as its new text, and shorter ([2196cba](https://github.com/xseman/pando/commit/2196cba7639f4b264cd41b2adf56a8ae19c9969e))
+* **ui:** keep a side-by-side selection on one half ([1a92321](https://github.com/xseman/pando/commit/1a9232193851790219ebd50ed87bc6672a288de8))
+* **ui:** keep a status bar item's tip off the bar in a framed layout ([1b232bf](https://github.com/xseman/pando/commit/1b232bf02fdf8bf1b36f8a5a3a2d1060888e6aff))
+* **ui:** keep a worktree's maximized session when switching back to it ([44cce28](https://github.com/xseman/pando/commit/44cce2830fedd13b0de82c873030e627a1edad26))
+* **ui:** keep emoji the renderer measures narrower from shifting rows ([8e05c76](https://github.com/xseman/pando/commit/8e05c7659a2e1f8a3d5f7a01d6e79d2bada35575))
+* **ui:** keep problems squiggled on a selected side-by-side row ([204f553](https://github.com/xseman/pando/commit/204f5539381ffba37585a78f962dc30b7eb75d6e))
+* **ui:** keep the columns while a divider is dragged on a narrow screen ([b5e0ba5](https://github.com/xseman/pando/commit/b5e0ba588d4e8400bbd94e60502f53a5c4448838))
+* **ui:** leave an editor clean when undo returns to the saved text ([a151377](https://github.com/xseman/pando/commit/a151377990361bac2677b1b359ce9c1fabbfc40a))
+* **ui:** leave the Commit button alone while other git work runs ([b79e616](https://github.com/xseman/pando/commit/b79e616c07376dec937f1dbc32eaae58698fbead))
+* **ui:** let a tip follow the pointer from button to button ([a3c7cbc](https://github.com/xseman/pando/commit/a3c7cbc0abec2742f46a36061994f6579178fc8f))
+* **ui:** put a tip away on a click's release, and name as the palette does ([bf83c54](https://github.com/xseman/pando/commit/bf83c540e86a25311fb39c55092994f4c9e595af))
+* **ui:** raise the quick diff's buttons under the mouse ([c17a313](https://github.com/xseman/pando/commit/c17a313e1c0ea2742e7697902dd3c9935bd26de9))
+* **ui:** reveal a change's file in Explorer, over Spaces too ([e3f8c35](https://github.com/xseman/pando/commit/e3f8c35711a5c7ef3a59808d6d2b6a89834bbecd))
+* **ui:** take M-p in Search's boxes for Preserve Case ([71b7a22](https://github.com/xseman/pando/commit/71b7a220ea87651155a3d7215b0281cbcb9dd3e7))
+* **ui:** turn a plain shell's ◐ only while a command runs, on the clock ([2fdaf3e](https://github.com/xseman/pando/commit/2fdaf3e6ceef10c3af56d77d49d6e0c90325ef13))
+
+
+### Performance Improvements
+
+* **daemon:** keep a session's scrollback as rendered rows ([f0799d0](https://github.com/xseman/pando/commit/f0799d0dfbb007c712b0b6992bd86dc98dbb9a02))
+* **git:** read status in one walk, and back off on slow worktrees ([8e8166a](https://github.com/xseman/pando/commit/8e8166a1578bda4c58ff41460b7b95f5df0e74ab))
+* **ui:** draw a frame with less work ([73e3318](https://github.com/xseman/pando/commit/73e33188fc64a829a47a1e1179d7279e1509f8f6))
+* **ui:** look up a session's links in linear time ([5693a37](https://github.com/xseman/pando/commit/5693a37bd17e3ba7e6fe4a6768d9891a2dbb15bb))
+* **ui:** reuse the frame after events that change nothing ([b0538e0](https://github.com/xseman/pando/commit/b0538e043b249c21c0fd62ca251d79c370fc8cd9))
+* **ui:** type in large files without matching lexers again ([028eb74](https://github.com/xseman/pando/commit/028eb745153fc89dc5e20d549a416f312954b9b4))
+
+
+### Documentation
+
+* **config:** describe spaces_project_sort by input and status ([da5d282](https://github.com/xseman/pando/commit/da5d282c83c6804f65865d616a3191df46e1cef8))
+* **demo:** drop the CLI GIF and re-record the rest ([1730077](https://github.com/xseman/pando/commit/1730077b8434e951863daba3f2c0bb2f37145281))
+* **demo:** record the Databases view ([0b157ae](https://github.com/xseman/pando/commit/0b157ae295aa5ad394ab92c9313c04caec85936c))
+* describe the quick diff as a zone under its change ([20dd781](https://github.com/xseman/pando/commit/20dd78146dd535f7c30cf02ca04e67f89b7745b8))
+
+
+### Maintenance
+
+* run the database tests against Postgres and MariaDB ([baf34f3](https://github.com/xseman/pando/commit/baf34f3bc0e27a0b087bb2a2c60ecf455a060a70))
+* **ui:** name the two-way choice and the tip's wake plainly ([9c9ce39](https://github.com/xseman/pando/commit/9c9ce39a8e233b0d5fb8b2424f108dfa998f2b74))
+* **ui:** share the Explorer's active indent guide ([3f8119a](https://github.com/xseman/pando/commit/3f8119a924930d26e18b516d4d0e7881c69439c5))
+
+
+### Testing
+
+* add benchmarks, allocation budgets and profile targets ([d49c44c](https://github.com/xseman/pando/commit/d49c44cea0851b9cfff6e0da538f0b09a26613c4))
+* **ui:** drop the view before renaming the table it reads ([e051062](https://github.com/xseman/pando/commit/e051062ff39c0f965a6b418fbf9d12e956573fb0))
+
 ## [0.5.0](https://github.com/xseman/pando/compare/v0.4.0...v0.5.0) (2026-10-09)
 
 
