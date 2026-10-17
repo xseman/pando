@@ -981,6 +981,47 @@ var Drawers = []Drawer{
 	{"Tags", []string{"tag", "--sort=-creatordate"}},
 }
 
+// FileAt is file path's text at rev, the index for "", smudged as a
+// checkout would write it: what VS Code's quick diff compares an editor
+// with. A file not at rev (untracked, in conflict) or outside a repository
+// has none.
+func FileAt(rev, path string) (string, error) {
+	return Run(filepath.Dir(path), "cat-file", "--filters", rev+":./"+filepath.Base(path))
+}
+
+// errStagedMoved stops a change staged over staged text that moved since.
+var errStagedMoved = errors.New("the staged text changed: try again")
+
+// StageChange stages one change from an editor, VS Code's Stage Change: lines
+// [a0, a1) of file path's staged text, which must still read old, become
+// lines. The text keeps its line endings and final newline.
+func StageChange(path string, a0, a1 int, old, lines []string) error {
+	dir, name := filepath.Dir(path), filepath.Base(path)
+
+	text, err := Run(dir, "cat-file", "blob", ":./"+name)
+	if err != nil {
+		return err
+	}
+
+	eol := "\n"
+	if strings.Contains(text, "\r\n") {
+		eol = "\r\n"
+	}
+
+	staged := strings.Split(strings.TrimSuffix(strings.ReplaceAll(text, "\r\n", "\n"), "\n"), "\n")
+
+	if a0 < 0 || a1 > len(staged) || a0 > a1 || !slices.Equal(staged[a0:a1], old) {
+		return errStagedMoved
+	}
+
+	out := strings.Join(slices.Concat(staged[:a0], lines, staged[a1:]), eol)
+	if strings.HasSuffix(text, "\n") || text == "" {
+		out += eol
+	}
+
+	return writeIndex(dir, name, out)
+}
+
 // FileHistory lists the commits that touched path, following renames.
 func FileHistory(root, path string) []string {
 	return Lines(root, "log", "--format=%h %ad %s", "--date=short", "--follow", "-n", "200", "--", path)

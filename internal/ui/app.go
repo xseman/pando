@@ -2526,7 +2526,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.noteFx()
 	m.noteDiags()
 
-	return m, tea.Batch(cmd, m.noteEdits(), m.animate(), m.spinLater())
+	return m, tea.Batch(cmd, m.noteEdits(), m.noteGutter(), m.animate(), m.spinLater())
 }
 
 // dockBare docks a session over an empty editor area to its side: with no
@@ -2770,6 +2770,18 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case diagSyncedMsg:
 		return m, m.onDiagSynced(msg)
+
+	case changeStagedMsg:
+		return m, m.onChangeStaged(msg)
+
+	case gutterMsg:
+		if p := &m.pv; p.path == msg.path && p.chgKey == msg.key {
+			p.changes, p.chg = msg.changes, msg.chg
+
+			m.followQuickDiff()
+		}
+
+		return m, nil
 
 	case problemsMsg:
 		if msg.live {

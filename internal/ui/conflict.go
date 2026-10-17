@@ -182,6 +182,9 @@ func (p *preview) conflictClick(m *Model, w, x, y int) (tea.Cmd, bool) {
 	}
 
 	vr := vis[p.top+y]
+	if vr.line < 0 { // the quick diff's zone
+		return nil, false
+	}
 
 	_, _, acts := p.conflictSuffix(vr.line)
 	if acts == nil || vr.to != len(p.plain[vr.line]) {

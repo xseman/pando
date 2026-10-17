@@ -58,6 +58,24 @@ vrow{line, from, to}   screen rows; wrapped when wrap is on
   change. `insert_spaces` makes the tab key insert spaces.
 - `render_whitespace`: `blankMarks` picks `·`/`→` per rune, `markBlanks`
   paints them over the styled line. Files only.
+- The gutter's lane after the numbers marks lines against the file's staged
+  text (`base`, read with each load), VS Code's quick diff (`gutter.go`):
+  `lineChanges` diffs by Myers' algorithm the lines between a common prefix
+  and suffix (`editScript`, at most `maxEdits`), in a command after each edit
+  (`noteGutter`, keyed by buffer, edits and base); a change that only added is
+  `┃` added, one that also removed `┇` modified (VS Code's hatched bar), a
+  deletion `▾` on the line before it (`▴` on the first), in the scrollbar's
+  change colors. A file with staged changes is diffed against its committed
+  text (`head`) too, VS Code's secondary quick diff: those marks, where no
+  unstaged one is, take its secondary shade (upper case in `chg`, darker on a
+  dark theme, lighter on a light one: `lookDark`).
+- A click on a change's mark (`laneChange`, which `markHot` widens under the
+  pointer) or `alt+F3` opens the quick diff (`quickdiff.go`): a `peek` whose
+  `qd` renders the change with `quickCtx` lines of context as a one-hunk diff
+  through `render`, rebuilt as the changes move (`followQuickDiff`). Stage
+  writes the change into the index over the staged text it was found
+  against (`git.StageChange`, refused when that moved); Revert is one
+  `setText`, undoable.
 - Indent guides (`indentGuides`, set as view draws): a line has as many as
   its indentation takes units, rounded up, a blank line VS Code's
   `getLinesIndentGuides` count from the lines around it; the unit is the step

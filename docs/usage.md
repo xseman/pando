@@ -317,6 +317,14 @@ column and a blob are read only.
 
 - Undo, find & replace, quick open (`ctrl+p`, recent files first,
   `:` line, `@` symbol), suggestions, merge-conflict _Accept_ actions.
+- The gutter marks the lines changed since the file was staged, as VS Code's
+  does, while you type, in a lane after the line numbers: `┃` green added,
+  `┇` blue modified (VS Code's hatched bar), `▾` red where lines were deleted;
+  staged changes in a darker shade until committed. The change under the
+  pointer widens; a click on it (or `alt+F3`, `shift+alt+F3`) shows it under
+  the editor as a diff, VS Code's quick diff: `↓` `↑` the next and previous,
+  `s` stages it, `r` reverts it in the editor. `alt+F5` goes to the next
+  change.
 - Indent guides as VS Code draws them: a `│` at each indent level, the block
   around the cursor's lit (`indent_guide`), a file indented by 2 spaces
   getting one every 2 cells.

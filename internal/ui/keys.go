@@ -158,6 +158,14 @@ var keybindings = []keybinding{
 	{keys: []string{"alt+f5", "alt+shift+f5"}, when: ctxPanels, cond: func(m *Model) bool { return m.showsPreview() && m.pv.meta != nil }, run: func(m *Model, k string) tea.Cmd {
 		return m.pv.gotoChange(m, ifElse(k == "alt+f5", 1, -1))
 	}},
+	// In a file, the same against its staged text, and VS Code's Show Next
+	// and Previous Change, its quick diff under the editor.
+	{keys: []string{"alt+f5", "alt+shift+f5"}, when: ctxPanels, cond: func(m *Model) bool { return m.showsPreview() && m.pv.kind == pvFile }, run: func(m *Model, k string) tea.Cmd {
+		return m.gotoFileChange(ifElse(k == "alt+f5", 1, -1))
+	}},
+	{keys: []string{"alt+f3", "alt+shift+f3"}, when: ctxPanels, cond: func(m *Model) bool { return m.showsPreview() && m.pv.kind == pvFile }, run: func(m *Model, k string) tea.Cmd {
+		return m.showChange(m.pv.stepChange(m.pv.at().line, ifElse(k == "alt+f3", 1, -1)))
+	}},
 	{keys: []string{"ctrl+n"}, when: ctxPanels, run: func(m *Model, _ string) tea.Cmd { return m.newUntitled() }},
 	// VS Code's paste in a file or a text box: the terminal's own paste
 	// (ctrl+shift+v) lands there too, as a bracketed paste. A text box's own

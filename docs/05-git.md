@@ -100,6 +100,13 @@ The views fetch a file's diff, a revision's and a commit's (`git show
 long or a merge's combined diff is fetched again with git's three lines
 ([04-preview.md](04-preview.md#diffs-and-revisions)).
 
+An editor's gutter compares the file with its staged text, `git cat-file
+--filters :./NAME` from its folder (`FileAt`), and a file with staged
+changes with its committed text too (`HEAD:./NAME`), both read with each
+load: an untracked file or one in conflict has none. Its quick diff's
+Stage Change rewrites the staged text with one change (`StageChange`,
+`hash-object` and `update-index --cacheinfo`, as staging selected lines).
+
 ## Branches
 
 ```text

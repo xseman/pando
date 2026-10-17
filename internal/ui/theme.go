@@ -145,8 +145,9 @@ var (
 	blankModes = []string{"none", "boundary", "selection", "trailing", "all"}
 
 	pal        = vscodeDark
-	iconsNerd  bool // glyphs from a Nerd Font
-	iconsEmoji bool // emoji, which any font draws
+	iconsNerd  bool   // glyphs from a Nerd Font
+	iconsEmoji bool   // emoji, which any font draws
+	lookDark   = true // the theme is dark, which VS Code shades a staged change's gutter mark darker on
 
 	plain  = lipgloss.NewStyle()
 	dim    = lipgloss.NewStyle().Faint(true)
@@ -199,11 +200,11 @@ func parseColor(s string) (color.Color, bool) {
 func applyLook(theme string, dark bool, icons string, colors map[string]string) {
 	switch {
 	case theme == "terminal":
-		pal = terminalPal
+		pal, lookDark = terminalPal, dark
 	case theme == "vscode-dark", theme != "vscode-light" && dark:
-		pal = vscodeDark
+		pal, lookDark = vscodeDark, true
 	default:
-		pal = vscodeLight
+		pal, lookDark = vscodeLight, false
 	}
 
 	keys := pal.colorKeys()

@@ -105,18 +105,29 @@ type preview struct {
 	// pointer stays on the screen cell where it found it.
 	probTip *tipAt
 	guide   indentGuides // the file's indent guides, set as view draws
-	numW    int          // digits of the line-number gutter
-	ready   bool
-	wrap    bool
-	blanks  string // render_whitespace, put on as the editor draws
-	top     int    // first visible screen row
-	hl      []rune // the word under the cursor, painted wherever else it stands
-	comp    completion
-	left    int // horizontal scroll in cells when not wrapping
-	wide    int // cells of the widest line, measured with the rows while not wrapping
-	cur     pos
-	anchor  *pos // selection start; nil = no selection
-	reveal  bool // center the cursor once the content loads
+	// base is a file's staged text, which its gutter marks the lines against
+	// (chg, for the text chgKey names), VS Code's quick diff; nil for none.
+	// head is its committed text when that differs, its staged changes then
+	// marked against it, dimmer.
+	base, head []string
+	baseGen    int
+	changes    []change
+	chg        []byte
+	chgKey     gutterKey
+	markHot    int        // the change under the pointer in the gutter, plus one; 0 for none
+	qd         *quickDiff // the quick diff open under a change, nil for none
+	numW       int        // digits of the line-number gutter
+	ready      bool
+	wrap       bool
+	blanks     string // render_whitespace, put on as the editor draws
+	top        int    // first visible screen row
+	hl         []rune // the word under the cursor, painted wherever else it stands
+	comp       completion
+	left       int // horizontal scroll in cells when not wrapping
+	wide       int // cells of the widest line, measured with the rows while not wrapping
+	cur        pos
+	anchor     *pos // selection start; nil = no selection
+	reveal     bool // center the cursor once the content loads
 	// transient is VS Code's preview editor, its tab in italics: the next
 	// editor opened transient takes its tab over, until pin keeps it.
 	transient bool
@@ -168,6 +179,7 @@ type previewMsg struct {
 	cached       bool     // from Model.ghPages, not fetched
 	fixed        bool     // too long to unfold, or a merge's combined diff: git's three lines of context
 	disk         []string // a working-tree diff's file, for its problems' columns
+	base, head   []string // a file's staged text and, when it differs, its committed text
 }
 
 // diffRows are a rendered diff's rows, every one of them.
@@ -1187,6 +1199,8 @@ func (p *preview) load(m *Model) tea.Cmd {
 				msg.mod = st.ModTime()
 			}
 
+			msg.base, msg.head = stagedText(cp.path)
+
 			msg.trunc = strings.Contains(raw, "\n[truncated at 1 MiB]") ||
 				strings.Count(raw, "\n") >= maxPreviewLines
 		}
@@ -1358,6 +1372,10 @@ func (p *preview) onLoad(m *Model, msg previewMsg) {
 	}
 
 	p.err = ""
+	if p.kind == pvFile && (!slices.Equal(p.base, msg.base) || !slices.Equal(p.head, msg.head) || (p.head == nil) != (msg.head == nil)) {
+		p.base, p.head, p.baseGen = msg.base, msg.head, p.baseGen+1
+	}
+
 	if msg.gh != nil {
 		p.gh, p.bodies = msg.gh, nil
 	}
@@ -1486,11 +1504,12 @@ func lineNumSt(active bool) lipgloss.Style {
 // them, so the numbers do not sit against the sidebar.
 const numPad = 1
 
-// gutter is the width of the line-number column: ` n ` for files, `old new ± ` for diffs.
+// gutter is the width of the line-number column: ` n ┃ ` for files, the
+// change mark in a lane of its own as VS Code's, `old new ± ` for diffs.
 func (p *preview) gutter() int {
 	switch {
 	case p.kind == pvFile && p.md != 1:
-		return numPad + p.numW + 1
+		return numPad + p.numW + 3
 	case p.meta != nil:
 		return 2*p.numW + 4
 	}
@@ -1522,10 +1541,12 @@ func (p *preview) gutterText(line int, first bool) string {
 	switch {
 	case gw == 0:
 		return ""
+	case !first && p.meta == nil: // a wrapped line's later rows keep its bar
+		return st.Render(blank(gw-2)) + p.changeMark(line, false, st) + st.Render(" ")
 	case !first:
 		return st.Render(blank(gw))
 	case p.meta == nil:
-		return st.Render(blank(numPad) + fmt.Sprintf("%*d ", p.numW, line+1))
+		return st.Render(blank(numPad)+fmt.Sprintf("%*d ", p.numW, line+1)) + p.changeMark(line, true, st) + st.Render(" ")
 	}
 
 	return diffGutter(p.meta[line], p.numW, bg)
@@ -1552,7 +1573,12 @@ func cellsOf(rs []rune) int {
 func (p *preview) rows(w int) []vrow {
 	tw := max(w-p.gutter(), 1)
 
-	key := fmt.Sprint(tw, p.wrap)
+	zone, zh := -1, 0 // the quick diff's rows go under this line
+	if p.qd != nil {
+		zone, zh = p.zoneLine(), p.qd.h
+	}
+
+	key := fmt.Sprint(tw, p.wrap, zone, zh)
 	if p.vis != nil && p.visKey == key {
 		return p.vis
 	}
@@ -1577,6 +1603,11 @@ func (p *preview) rows(w int) []vrow {
 		}
 
 		p.vis = append(p.vis, vrow{i, from, len(l)})
+		if i == zone {
+			for k := range zh {
+				p.vis = append(p.vis, vrow{-1, k, 0})
+			}
+		}
 	}
 
 	return p.vis
@@ -1651,6 +1682,9 @@ func (p *preview) posAt(w, x, y int) pos {
 	}
 
 	vr := vis[max(0, min(p.top+y, len(vis)-1))]
+	if vr.line < 0 { // on the quick diff's zone: the end of the line it stands under
+		return pos{p.zoneLine(), len(p.plain[p.zoneLine()])}
+	}
 
 	line, col, acc, cx := p.plain[vr.line], vr.from, 0, max(x-p.gutter(), 0)
 	if !p.wrap {
@@ -3070,6 +3104,11 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 	hb.top = p.left
 
 	for k := p.top; k < len(vis) && k < p.top+h; k++ {
+		if vis[k].line < 0 { // the quick diff's zone
+			body = append(body, p.qd.row(m, vis[k].from, tw))
+			continue
+		}
+
 		body = append(body, p.renderRow(vis[k], tw))
 	}
 
@@ -3980,6 +4019,14 @@ func (p *preview) keyItems(_ *Model) []item {
 		{label: "Expand Selection", hint: "M-⇧→", run: chord(tea.KeyRight, tea.ModAlt|tea.ModShift)},
 		{label: "Shrink Selection", hint: "M-⇧←", run: chord(tea.KeyLeft, tea.ModAlt|tea.ModShift)},
 	}
+	if len(p.changes) > 0 && p.meta == nil {
+		items = append(items,
+			item{label: "Go to Next Change", hint: "M-F5", run: func(m *Model) tea.Cmd { return m.gotoFileChange(1) }},
+			item{label: "Go to Previous Change", hint: "⇧M-F5", run: func(m *Model) tea.Cmd { return m.gotoFileChange(-1) }},
+			item{label: "Show Next Change", hint: "M-F3", run: func(m *Model) tea.Cmd { return m.showChange(m.pv.stepChange(m.pv.at().line, 1)) }},
+			item{label: "Show Previous Change", hint: "⇧M-F3", run: func(m *Model) tea.Cmd { return m.showChange(m.pv.stepChange(m.pv.at().line, -1)) }})
+	}
+
 	if p.diagPath() != "" {
 		items = append(items,
 			item{label: "Go to Next Problem", hint: "F8", run: func(m *Model) tea.Cmd { return m.gotoProblem(1) }},
@@ -4371,6 +4418,11 @@ func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 
 	switch s {
 	case "esc":
+		if p.qd != nil {
+			p.closeQuickDiff()
+			return nil
+		}
+
 		if p.anchor != nil {
 			p.anchor = nil
 			return nil
@@ -4599,6 +4651,23 @@ func (p *preview) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 				p.left = left
 				return nil
 			})
+		}
+	}
+
+	if vis := p.rows(w); p.qd != nil && y >= 0 && y < h && p.top+y < len(vis) && vis[p.top+y].line < 0 {
+		if cmd, ok := p.qd.mouse(m, msg, x, vis[p.top+y].from); ok {
+			return cmd
+		}
+	}
+
+	if p.kind == pvFile && p.md != 1 { // the gutter's change lane, VS Code's: the change under the pointer widens, a click shows it or closes it
+		ci := p.laneChange(w, h, x, y)
+		if _, move := msg.(tea.MouseMotionMsg); move {
+			p.markHot = ci + 1
+		}
+
+		if click && mo.Button == tea.MouseLeft && ci >= 0 {
+			return m.showChange(ci)
 		}
 	}
 

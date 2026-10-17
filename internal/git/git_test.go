@@ -1194,3 +1194,50 @@ func TestFilesNamed(t *testing.T) {
 		t.Fatalf("FilesNamed: %v %q, want %q", err, files, want)
 	}
 }
+
+// TestFileAt reads a file's staged text, not its worktree's, and its
+// committed text; an untracked file has none.
+func TestFileAt(t *testing.T) {
+	root := repo(t)
+	path := filepath.Join(root, "sub", "a.txt")
+	mustWrite(t, path, "one\n")
+	mustGit(t, root, "add", ".")
+	mustWrite(t, path, "two\n")
+
+	if got, err := FileAt("", path); err != nil || got != "one\n" {
+		t.Fatalf("staged text %q, %v", got, err)
+	}
+
+	mustGit(t, root, "commit", "-qm", "one")
+	mustWrite(t, path, "three\n")
+	mustGit(t, root, "add", ".")
+
+	if got, err := FileAt("HEAD", path); err != nil || got != "one\n" {
+		t.Fatalf("committed text %q, %v", got, err)
+	}
+
+	mustWrite(t, filepath.Join(root, "new.txt"), "x\n")
+
+	if _, err := FileAt("", filepath.Join(root, "new.txt")); err == nil {
+		t.Fatal("an untracked file has no staged text")
+	}
+}
+
+// TestStageChange stages one change from an editor over the staged text,
+// keeping its line endings; staged text that moved since refuses it.
+func TestStageChange(t *testing.T) {
+	root := repo(t)
+	path := filepath.Join(root, "a.txt")
+	mustWrite(t, path, "a\r\nb\r\nc\r\n")
+	mustGit(t, root, "-c", "core.autocrlf=false", "add", ".") // the index keeps them, whatever the user's config
+
+	must(t, "stage", StageChange(path, 1, 2, []string{"b"}, []string{"B", "B2"}))
+
+	if got, _ := Run(root, "show", ":a.txt"); got != "a\r\nB\r\nB2\r\nc\r\n" {
+		t.Fatalf("staged %q", got)
+	}
+
+	if err := StageChange(path, 1, 2, []string{"b"}, nil); err == nil {
+		t.Fatal("the staged text moved: no stage")
+	}
+}
