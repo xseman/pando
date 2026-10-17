@@ -189,7 +189,8 @@ in every mode.
   editor area: untitled file.
 - In a file: drag selects, double click a word, triple click a line.
 - Tilt or `shift`+wheel pans. The wheel scrolls a session's scrollback unless
-  the app takes the mouse or the alternate screen.
+  the app takes the mouse or the alternate screen; scrolled back, the page
+  stays on its text as output goes on below.
 - A drag over a terminal selects scrollback lines (`lineAt`), following its
   text; the release copies.
 - Copies go through `wl-copy`, `xclip`, `xsel` or `pbcopy`, plus OSC 52 (ssh;

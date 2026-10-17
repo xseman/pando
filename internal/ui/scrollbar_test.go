@@ -254,6 +254,31 @@ func TestSessionScrollbar(t *testing.T) {
 	}
 }
 
+// TestSessionScrollStays moves a page scrolled back up with the lines the
+// session pushes under it, so it stays on its text; at the bottom it follows.
+func TestSessionScrollStays(t *testing.T) {
+	m := testModel(t)
+	drainInputs(m)
+	m.Update(focusSessionMsg("s1"))
+
+	m.term.id = "s1"
+	m.term.scr = proto.Screen{Lines: make([]string, m.sessH()), Scrollback: 200, Pushed: 100}
+	m.term.scroll = 5
+
+	m.Update(screenMsg{"s1", proto.Screen{Lines: make([]string, m.sessH()), Scrollback: 207, Pushed: 107}, nil})
+
+	if m.term.scroll != 12 {
+		t.Fatalf("7 lines pushed under the page: scroll %d, want 12", m.term.scroll)
+	}
+
+	m.term.scroll = 0
+	m.Update(screenMsg{"s1", proto.Screen{Lines: make([]string, m.sessH()), Scrollback: 210, Pushed: 110}, nil})
+
+	if m.term.scroll != 0 {
+		t.Fatalf("at the bottom the view follows the output: scroll %d", m.term.scroll)
+	}
+}
+
 // TestSessionPageKeys pages a shell's scrollback with pgup and pgdn, shift
 // or not, as the wheel scrolls it; on the alternate screen the keys are the
 // app's, as a fullscreen claude pages its own history.

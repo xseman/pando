@@ -1869,6 +1869,43 @@ func testSession(cols, rows int) *session {
 	return s
 }
 
+// TestScrolledPageStays keeps a page scrolled back on its text while output
+// goes on below it, a full scrollback dropping lines off its top included.
+func TestScrolledPageStays(t *testing.T) {
+	s := testSession(20, 4)
+
+	n := 0
+	write := func(lines int) { // in writes of 1000 lines: vt holds at most scrollMax between drains
+		for lines > 0 {
+			var b strings.Builder
+			for range min(lines, 1000) {
+				fmt.Fprintf(&b, "line %d\r\n", n)
+				n++
+			}
+
+			s.drain(func() { _, _ = s.emu.WriteString(b.String()) })
+
+			lines -= 1000
+		}
+	}
+
+	for _, fill := range []int{30, scrollMax} { // part way, then past what it keeps
+		write(fill)
+
+		was := s.screen(proto.ScreenParams{Scroll: 10})
+
+		write(7)
+
+		now := s.screen(proto.ScreenParams{Scroll: 10, Pushed: was.Pushed})
+		if !slices.Equal(now.Lines, was.Lines) || now.Pushed != was.Pushed+7 {
+			t.Fatalf("after %d lines the page moved: %q, then %q (pushed %d, %d)", fill, was.Lines, now.Lines, was.Pushed, now.Pushed)
+		}
+	}
+
+	if len(s.back) != scrollMax {
+		t.Fatalf("scrollback holds %d lines, want %d", len(s.back), scrollMax)
+	}
+}
 
 // TestScrollbackMemory bounds what a session's full scrollback costs: rows
 // of vt's cells took 110 MiB, the rows rendered take a few. An app scrolling

@@ -342,6 +342,9 @@ type Screen struct {
 	// paths it prints start from; "" where the system does not say (Linux
 	// tells).
 	Cwd string `json:"cwd,omitempty"`
+	// Pushed counts the lines scrolled into scrollback since the session
+	// started; ScreenParams.Pushed sends it back.
+	Pushed int `json:"pushed,omitempty"`
 }
 
 // Key mirrors uv.Key so the daemon's emulator can encode it for the PTY
@@ -408,6 +411,9 @@ type ScreenParams struct {
 	Cols   int    `json:"cols,omitempty"`
 	Rows   int    `json:"rows,omitempty"`
 	Scroll int    `json:"scroll,omitempty"` // lines back into scrollback
+	// Pushed is the Screen.Pushed Scroll was taken against: the lines
+	// pushed since move the page up with them, so it stays on its text.
+	Pushed int `json:"pushed,omitempty"`
 }
 
 // MoveParams is project.move and workspace.move: Path takes the place To

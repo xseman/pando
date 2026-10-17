@@ -3777,6 +3777,18 @@ func TestSessionSelectionScrolls(t *testing.T) {
 		t.Fatalf("new output carries the mark: row 1 [%d, %d), text %q", a, b, m.term.selText())
 	}
 
+	// The scrollback full, output drops its oldest line as it pushes one:
+	// the mark still goes up with its text.
+	m.term.scr = proto.Screen{Lines: screen(101, h), Scrollback: 50, Pushed: 101}
+	m.term.sel = [2][2]int{{0, 102}, {7, 103}}
+	m.term.scr = proto.Screen{Lines: screen(102, h), Scrollback: 50, Pushed: 102}
+
+	if a, b := m.term.selRange(0); b <= a || m.term.selText() != "line 102\nline 103" {
+		t.Fatalf("a full scrollback carries the mark too: row 0 [%d, %d), text %q", a, b, m.term.selText())
+	}
+
+	m.term.scr = proto.Screen{Lines: screen(101, h), Scrollback: 101}
+
 	// Extended past the top of the screen, the copy reads what scrolled away.
 	m.term.sel[0] = [2]int{0, 50}
 	all := screen(0, 101+h)

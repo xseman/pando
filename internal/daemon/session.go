@@ -61,6 +61,7 @@ type session struct {
 	jobName       string
 	jobPID        int
 	cursorVisible bool
+	pushed        int      // lines scrolled into scrollback since it started: Screen.Pushed
 	back          []string // the scrollback, rendered, oldest first: at most scrollMax rows
 	cursorStyle   int      // DECSCUSR the app sent last: one for both screens, as in xterm
 	mouse         map[int]bool
@@ -513,7 +514,12 @@ func (s *session) screen(p proto.ScreenParams) proto.Screen {
 		back = 0
 	}
 
-	scroll := min(max(p.Scroll, 0), back)
+	scroll := p.Scroll
+	if scroll > 0 && p.Pushed > 0 { // the page moves up with its text
+		scroll += s.pushed - p.Pushed
+	}
+
+	scroll = min(max(scroll, 0), back)
 	if scroll > 0 { // the page scroll rows up the scrollback and screen together: only its rows are rendered
 		end := back + len(lines) - scroll
 		page := make([]string, 0, len(lines))
@@ -535,7 +541,7 @@ func (s *session) screen(p proto.ScreenParams) proto.Screen {
 		Lines: lines, CursorX: pos.X, CursorY: pos.Y,
 		CursorVisible: s.cursorVisible && scroll == 0 && !s.exited, CursorStyle: s.cursorStyle,
 		Mouse: slices.Contains(slices.Collect(maps.Values(s.mouse)), true), Scrollback: back, AltScreen: alt,
-		Cols: s.emu.Width(), Cwd: s.cwd(),
+		Cols: s.emu.Width(), Cwd: s.cwd(), Pushed: s.pushed,
 	}
 }
 
@@ -570,6 +576,7 @@ func (s *session) drain(f func()) {
 		s.back = append(s.back, l.Render())
 	}
 
+	s.pushed += len(rows)
 	clear(rows) // sb keeps the array: let the cells go
 	sb.Clear()
 

@@ -13,11 +13,10 @@ import (
 // panel's shell: the query and its toggles, the matches in everything the
 // emulator holds (scrollback, then the screen) and the one selected.
 //
-// Lines are counted from the oldest scrollback line, the way session.read
-// returns them, so row y of a screen scrolled back by s is line
-// Scrollback-s+y. Output appending to the bottom keeps that count.
-// ponytail: the emulator dropping its oldest lines, or an app redrawing
-// above its prompt, shifts it until the next search.
+// Lines are numbered as lineAt numbers them: session.read's line i is line
+// readBase()+i, taken from the screen when the text arrives.
+// ponytail: output between the two calls, or an app redrawing above its
+// prompt, shifts a match until the next search.
 type termFind struct {
 	filter
 	caseSens, word, regex bool
@@ -128,7 +127,9 @@ func (m *Model) onTermText(msg termTextMsg) tea.Cmd {
 		return nil
 	}
 
-	prev, had := termHit{line: len(msg.lines)}, false
+	base := msg.t.readBase()
+
+	prev, had := termHit{line: base + len(msg.lines)}, false
 	if f.hit < len(f.hits) && f.id == msg.id {
 		prev, had = f.hits[f.hit], true
 	}
@@ -144,7 +145,7 @@ func (m *Model) onTermText(msg termTextMsg) tea.Cmd {
 		for _, r := range re.FindAllStringIndex(line, -1) {
 			if r[1] > r[0] {
 				a := ansi.StringWidth(line[:r[0]])
-				f.hits = append(f.hits, termHit{i, a, a + ansi.StringWidth(line[r[0]:r[1]])})
+				f.hits = append(f.hits, termHit{base + i, a, a + ansi.StringWidth(line[r[0]:r[1]])})
 			}
 		}
 	}
@@ -214,14 +215,12 @@ func (t *term) reveal(m *Model) tea.Cmd {
 		return nil
 	}
 
-	rows, sb := len(t.scr.Lines), t.scr.Scrollback
-	line, top := f.hits[f.hit].line, sb-t.scroll
-
+	rows, line, top := len(t.scr.Lines), f.hits[f.hit].line, t.lineAt(0)
 	if line >= top && line < top+rows {
 		return nil
 	}
 
-	t.scroll = max(min(sb-(line-rows/2), sb), 0)
+	t.scroll = max(min(t.pushed()-(line-rows/2), t.scr.Scrollback), 0)
 
 	return m.fetchScreen()
 }

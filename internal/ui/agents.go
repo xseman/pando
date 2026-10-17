@@ -2519,17 +2519,31 @@ type term struct {
 	followed  bool       // a ctrl+click followed a link: its release is not the app's either
 }
 
-// lineAt is the line on screen row y, counted from the oldest scrollback
-// line as session.read returns them: the screen scrolled back by scroll
-// starts at Scrollback-scroll. New output keeps the count, so a line keeps
-// its number as it scrolls. The alternate screen has no scrollback.
+// lineAt is the line on screen row y, counted as Screen.Pushed counts: the
+// screen scrolled back by scroll starts at Pushed-scroll. A line keeps its
+// number as output scrolls it, and as a full scrollback drops lines above
+// it. The alternate screen has no scrollback.
 func (t *term) lineAt(y int) int {
 	if t.scr.AltScreen {
 		return y
 	}
 
-	return t.scr.Scrollback - t.scroll + y
+	return t.pushed() - t.scroll + y
 }
+
+// readBase is the number lineAt gives line 0 of session.read's text, the
+// oldest scrollback line.
+func (t *term) readBase() int {
+	if t.scr.AltScreen {
+		return 0
+	}
+
+	return t.pushed() - t.scr.Scrollback
+}
+
+// pushed is Screen.Pushed, or for a daemon too old to send it the
+// scrollback, which it equals until the scrollback is full.
+func (t *term) pushed() int { return max(t.scr.Pushed, t.scr.Scrollback) }
 
 // selEnds are the selection's ends in text order.
 func (t *term) selEnds() (p, q [2]int) {
@@ -2613,6 +2627,7 @@ func (t *term) copySel(id string) tea.Cmd {
 	}
 
 	sel := term{sel: t.sel, hasSel: true} // as it is now: the mouse may start another
+	base := t.readBase()
 
 	return func() tea.Msg {
 		var all string
@@ -2622,7 +2637,7 @@ func (t *term) copySel(id string) tea.Cmd {
 
 		lines := strings.Split(all, "\n")
 		text := sel.cutSel(func(n int) (string, bool) {
-			if n < 0 || n >= len(lines) {
+			if n -= base; n < 0 || n >= len(lines) {
 				return "", false
 			}
 
@@ -2665,6 +2680,10 @@ func (m *Model) fetchMain() tea.Cmd {
 		p.Cols, p.Rows = max(m.sessW()-1, 1), max(m.bodyH(viewSession)-sessStripH, 1)
 	}
 
+	if t.id == m.sess { // the scroll counts back from this screen
+		p.Pushed = t.scr.Pushed
+	}
+
 	return func() tea.Msg {
 		var scr proto.Screen
 
@@ -2689,6 +2708,10 @@ func (m *Model) onScreen(msg screenMsg) tea.Cmd {
 		var find tea.Cmd
 
 		if msg.err == nil {
+			if t.t.id == msg.id && t.t.scroll > 0 { // the page moved up with its text, as the daemon moved it
+				t.t.scroll += msg.scr.Pushed - t.t.scr.Pushed
+			}
+
 			t.t.id, t.t.scr = msg.id, msg.scr
 			t.t.scroll = min(t.t.scroll, msg.scr.Scrollback)
 			find = t.t.refind(m)
@@ -3598,7 +3621,11 @@ func (m *Model) fetchTerm() tea.Cmd {
 
 	t.fetching = true
 	_, h := m.termBody()
+
 	p := proto.ScreenParams{ID: t.id, Cols: m.termCols(), Rows: h, Scroll: t.scroll}
+	if t.term.id == t.id {
+		p.Pushed = t.scr.Pushed
+	}
 
 	return func() tea.Msg {
 		var scr proto.Screen

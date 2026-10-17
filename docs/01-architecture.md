@@ -111,7 +111,10 @@ driving the API.
   SIGHUP to the shell's and the foreground job's process groups, SIGKILL
   after 2 s.
 
-`session.screen` counts as viewed: it clears attention for 2 s.
+`session.screen` counts as viewed: it clears attention for 2 s. Its
+`scroll` counts back from the bottom; `Screen.Pushed` counts the lines
+scrolled into scrollback, and a call that sends it back as `pushed` gets the
+page moved up by those pushed since, so a scrolled page stays on its text.
 
 The scrollback is pando's, not vt's: after each write or resize `drain`
 moves the rows vt scrolled off into `session.back`, rendered (~150 B a row
