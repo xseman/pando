@@ -70,12 +70,14 @@ vrow{line, from, to}   screen rows; wrapped when wrap is on
   unstaged one is, take its secondary shade (upper case in `chg`, darker on a
   dark theme, lighter on a light one: `lookDark`).
 - A click on a change's mark (`laneChange`, which `markHot` widens under the
-  pointer) or `alt+F3` opens the quick diff (`quickdiff.go`): a `peek` whose
-  `qd` renders the change with `quickCtx` lines of context as a one-hunk diff
-  through `render`, rebuilt as the changes move (`followQuickDiff`). Stage
-  writes the change into the index over the staged text it was found
-  against (`git.StageChange`, refused when that moved); Revert is one
-  `setText`, undoable.
+  pointer) or `alt+F3` opens the quick diff (`quickdiff.go`, `p.qd`), a zone
+  under the change as VS Code's: `rows` puts its rows after the line's own
+  (`vrow{line: -1, from: k}`: header, diff, rule), so it scrolls with the
+  text, and the editor keeps the keyboard. It renders the change with
+  `quickCtx` lines of context as a one-hunk diff through `render`, rebuilt
+  as the changes move (`followQuickDiff`). Stage writes the change into the
+  index over the staged text it was found against (`git.StageChange`,
+  refused when that moved); Revert is one `setText`, undoable.
 - Indent guides (`indentGuides`, set as view draws): a line has as many as
   its indentation takes units, rounded up, a blank line VS Code's
   `getLinesIndentGuides` count from the lines around it; the unit is the step
