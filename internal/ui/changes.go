@@ -65,7 +65,12 @@ func (p *preview) gotoChange(m *Model, d int) tea.Cmd {
 		starts = append(starts, c[0])
 	}
 
-	n, ok := stepTo(starts, p.at().line, d)
+	at, rows := p.at().line, splitRows(p.meta)
+	if r := splitIndex(rows, at); p.split(m) && r >= 0 && rows[r].l >= 0 { // side by side: from its row's start, a change's deletion
+		at = rows[r].l
+	}
+
+	n, ok := stepTo(starts, at, d)
 	if !ok {
 		return flash("no changes", false)
 	}

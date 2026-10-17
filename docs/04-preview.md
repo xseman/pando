@@ -112,7 +112,10 @@ inline                                side by side (diff_view = "split")
   (`wordRanges`). `tokenLines` lexes an approximate old and new file, so a
   string opened on a context line colors both sides.
 - `splitRows` pairs each deletion run with the additions after it; under
-  `splitMinW` (90 cells) the split falls back to inline.
+  `splitMinW` (90 cells) the split falls back to inline. Side by side the
+  cursor is on a half (`oldHalf`, the new one first; a click picks it):
+  keys move by rows on it (`splitMove`), a drag stays on it, a selection is
+  its rows (`splitRange`): both halves stage, its own copies (`halfText`).
 - A file's diff (`fileDiff`: kinds `diff`, `cmp`, `rev`, not untracked) and a
   commit's are fetched with full context (`--unified=1000000000`, `unfolds`)
   and folded in the view: `all` keeps every row, `shownRows` shows each change

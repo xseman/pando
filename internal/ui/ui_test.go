@@ -2266,13 +2266,13 @@ func TestDiffLineMenu(t *testing.T) {
 	m := diffModel(t, 100, 20)
 	press(m, "down", "shift+down") // the deletion, up to column 0 of the next line
 
-	if dels, adds := m.pv.changedLines(); !maps.Equal(dels, map[int]bool{2: true}) || len(adds) != 0 {
+	if dels, adds := m.pv.changedLines(m); !maps.Equal(dels, map[int]bool{2: true}) || len(adds) != 0 {
 		t.Fatalf("one line: dels=%v adds=%v", dels, adds)
 	}
 
 	press(m, "shift+down", "shift+end")
 
-	if dels, adds := m.pv.changedLines(); !maps.Equal(dels, map[int]bool{2: true}) || !maps.Equal(adds, map[int]bool{2: true, 3: true}) {
+	if dels, adds := m.pv.changedLines(m); !maps.Equal(dels, map[int]bool{2: true}) || !maps.Equal(adds, map[int]bool{2: true, 3: true}) {
 		t.Fatalf("three lines: dels=%v adds=%v", dels, adds)
 	}
 	// A right click inside the selection keeps it and opens the menu.

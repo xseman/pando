@@ -87,6 +87,7 @@ type preview struct {
 	plain     [][]rune   // the same lines without styles
 	meta      []lineMeta // diff rows: line numbers and change kind
 	keep      *place     // the cursor's place while a diff reloads, to find again (keepPlace)
+	oldHalf   bool       // side by side, the cursor is on the old half: its keys, drags and copies stay there
 	// A diff fetched with full context (unfolds) shows its changes with
 	// ctxRows around them: all holds every row, open the gaps unfolded, gaps
 	// the rows of all hidden behind each gap row shown. fixed is a diff git
@@ -2289,8 +2290,18 @@ func (p *preview) splitPos(w, x, y int) (int, bool) {
 
 // selectTo moves the cursor of a side-by-side diff, where there are no
 // columns: a selection is always whole lines, so the cursor sits at the end
-// of its own.
+// of its own. A line of the other half's change takes the line beside it,
+// or the other half when it stands alone, as a pure deletion does.
 func (p *preview) selectTo(line int, extend bool) {
+	if line < len(p.meta) && p.otherHalf(line) {
+		rows := splitRows(p.meta)
+		if n := p.halfLine(rows[splitIndex(rows, line)]); n >= 0 {
+			line = n
+		} else {
+			p.oldHalf = !p.oldHalf
+		}
+	}
+
 	if extend {
 		if p.anchor == nil {
 			a := p.at()
@@ -2303,19 +2314,76 @@ func (p *preview) selectTo(line int, extend bool) {
 	p.cur = pos{line, p.lineLen(line)}
 }
 
-// rowSelected reports a meta line inside the selection, or the cursor's own
-// line when there is none — the same lines stage/revert would apply to.
-func (p *preview) rowSelected(i int) bool {
-	a, b, ok := p.selection()
-	if !ok {
-		return i == p.at().line
+// otherHalf reports meta line i a change the cursor's half does not show.
+func (p *preview) otherHalf(i int) bool { return p.meta[i].kind == ifElse(p.oldHalf, byte('a'), 'd') }
+
+// halfLine is the line row sr shows on the cursor's half, -1 for none.
+func (p *preview) halfLine(sr splitRow) int {
+	if sr.full {
+		return sr.l
 	}
 
-	if b.col == 0 && b.line > a.line {
-		b.line--
+	return ifElse(p.oldHalf, sr.l, sr.r)
+}
+
+// splitRange is the rows a side-by-side selection spans, the anchor's to
+// the cursor's, or the cursor's alone: both halves of them stage and revert,
+// as VS Code's do for what a selection in either editor touches.
+func (p *preview) splitRange(rows []splitRow) (a, z int) {
+	c := max(splitIndex(rows, p.at().line), 0)
+	if _, _, ok := p.selection(); !ok {
+		return c, c
 	}
 
-	return i >= a.line && i <= b.line
+	a = max(splitIndex(rows, p.anchor.line), 0)
+
+	return min(a, c), max(a, c)
+}
+
+// halfText is a side-by-side selection's text: the lines of its rows on the
+// cursor's half, as the editor on that side copies them; "" for none.
+func (p *preview) halfText() string {
+	if _, _, ok := p.selection(); !ok {
+		return ""
+	}
+
+	rows := splitRows(p.meta)
+	a, z := p.splitRange(rows)
+
+	var out []string
+
+	for _, sr := range rows[a : z+1] {
+		if i := p.halfLine(sr); i >= 0 {
+			out = append(out, p.rowText(i))
+		}
+	}
+
+	return strings.Join(out, "\n")
+}
+
+// splitMove is the line key takes the cursor of a side-by-side diff to: by
+// rows on its half, past the rows that half leaves empty, as VS Code's
+// editors move; false for a key that is no move.
+func (p *preview) splitMove(key string, h int) (int, bool) {
+	rows := splitRows(p.meta)
+	r := max(splitIndex(rows, p.at().line), 0)
+
+	d, ok := map[string]int{
+		"up": -1, "k": -1, "down": 1, "j": 1, "pgup": -h, "b": -h, "pgdown": h, "f": h, "space": h,
+		"g": -len(rows), "ctrl+home": -len(rows), "G": len(rows), "ctrl+end": len(rows),
+	}[key]
+	if !ok || len(rows) == 0 {
+		return 0, false
+	}
+
+	step := ifElse(d < 0, -1, 1)
+	for t := max(0, min(r+d, len(rows)-1)); t >= 0 && t < len(rows) && t != r; t += step {
+		if n := p.halfLine(rows[t]); n >= 0 {
+			return n, true
+		}
+	}
+
+	return p.at().line, true // nothing further on this half
 }
 
 // followSplit scrolls a side-by-side diff so the cursor's row is visible.
@@ -2337,14 +2405,18 @@ func (p *preview) splitBody(w, h int) []string {
 
 	var body []string
 
-	for _, sr := range rows[p.top:min(p.top+h, len(rows))] {
+	sa, sz := p.splitRange(rows)
+
+	for k, sr := range rows[p.top:min(p.top+h, len(rows))] {
+		sel := p.top+k >= sa && p.top+k <= sz // drawn on the cursor's half
+
 		switch {
 		case sr.full && p.meta[sr.l].kind == 'h':
 			body = append(body, dim.Render(center(strings.TrimSpace("⋯ "+ansi.Strip(p.lines[sr.l])), w)))
 		case sr.full:
 			body = append(body, ansi.Cut(p.lines[sr.l], p.left, p.left+w))
 		default:
-			body = append(body, p.splitHalf(sr.l, true, lw)+dim.Render("│")+p.splitHalf(sr.r, false, w-1-lw))
+			body = append(body, p.splitHalf(sr.l, true, sel && p.oldHalf, lw)+dim.Render("│")+p.splitHalf(sr.r, false, sel && !p.oldHalf, w-1-lw))
 		}
 	}
 
@@ -2352,13 +2424,13 @@ func (p *preview) splitBody(w, h int) []string {
 }
 
 // splitHalf is one side of a split row: its line number, mark and code,
-// tinted to the half's edge.
-func (p *preview) splitHalf(i int, old bool, w int) string {
+// tinted to the half's edge, or selected.
+func (p *preview) splitHalf(i int, old, sel bool, w int) string {
 	if i < 0 {
 		return blank(w)
 	}
 
-	md, bg, sel := p.meta[i], p.rowBg(i), p.rowSelected(i)
+	md, bg := p.meta[i], p.rowBg(i)
 	if sel {
 		bg = pal.textSelBg
 	}
@@ -3814,12 +3886,36 @@ func (p *preview) menu(m *Model, x, y int) tea.Cmd { return m.menuOf(p.items(m),
 
 // changedLines are the selected diff changes: deletions by old line number,
 // additions by new line number. A selection ending at column 0 leaves that
-// line out; without a selection the change under the cursor counts, its
-// deletion with its additions, so staging one never splits a line's edit.
-func (p *preview) changedLines() (dels, adds map[int]bool) {
+// line out; side by side, a selection is its rows, both halves of them;
+// without a selection the change under the cursor counts, its deletion with
+// its additions, so staging one never splits a line's edit.
+func (p *preview) changedLines(m *Model) (dels, adds map[int]bool) {
 	dels, adds = map[int]bool{}, map[int]bool{}
+	note := func(i int) {
+		switch md := p.meta[i]; md.kind {
+		case 'd':
+			dels[md.a] = true
+		case 'a':
+			adds[md.b] = true
+		}
+	}
 
 	a, b, ok := p.selection()
+	if ok && p.split(m) {
+		rows := splitRows(p.meta)
+		ra, rz := p.splitRange(rows)
+
+		for _, sr := range rows[ra : rz+1] {
+			for _, i := range []int{sr.l, sr.r} {
+				if i >= 0 {
+					note(i)
+				}
+			}
+		}
+
+		return dels, adds
+	}
+
 	if !ok { // the change under the cursor, its deletion with its additions, as VS Code's
 		a, b = p.at(), p.at()
 
@@ -3832,19 +3928,14 @@ func (p *preview) changedLines() (dels, adds map[int]bool) {
 	}
 
 	for i := a.line; i <= b.line && i < len(p.meta); i++ {
-		switch md := p.meta[i]; md.kind {
-		case 'd':
-			dels[md.a] = true
-		case 'a':
-			adds[md.b] = true
-		}
+		note(i)
 	}
 
 	return dels, adds
 }
 
 func (p *preview) applyLines(m *Model, op git.LineOp) tea.Cmd {
-	dels, adds := p.changedLines()
+	dels, adds := p.changedLines(m)
 
 	n := len(dels) + len(adds)
 	if n == 0 {
@@ -4100,8 +4191,16 @@ func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 			return nil
 		}
 
-		if np, ok := p.moved(strings.TrimPrefix(s, "shift+"), h); ok {
-			p.selectTo(np.line, strings.HasPrefix(s, "shift+"))
+		key := strings.TrimPrefix(s, "shift+")
+
+		n, ok := p.splitMove(key, h)
+		if !ok { // home, end, a word: the line it is on
+			np, moved := p.moved(key, h)
+			n, ok = np.line, moved
+		}
+
+		if ok {
+			p.selectTo(n, strings.HasPrefix(s, "shift+"))
 			p.followSplit(h)
 
 			return nil
@@ -4153,7 +4252,12 @@ func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		p.follow(w, h)
 
 	case "y", "ctrl+c":
-		if text := p.selectedText(); text != "" {
+		text := p.selectedText()
+		if p.split(m) {
+			text = p.halfText()
+		}
+
+		if text != "" {
 			return setClipboard(text, fmt.Sprintf("copied %d characters", utf8.RuneCountInString(text)))
 		}
 
@@ -4388,8 +4492,12 @@ func (p *preview) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 			// Like an editor: a right click outside the selection moves the cursor there.
 			switch {
 			case p.split(m):
-				if n, ok := p.splitPos(w, x, y); ok && !p.rowSelected(n) {
-					p.selectTo(n, false)
+				rows := splitRows(p.meta)
+				if a, z := p.splitRange(rows); a > p.top+y || z < p.top+y {
+					p.oldHalf = x <= (w-1)/2
+					if n, ok := p.splitPos(w, x, y); ok {
+						p.selectTo(n, false)
+					}
 				}
 
 			case !p.scrollOnly(m):
@@ -4408,6 +4516,10 @@ func (p *preview) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 
 		if p.split(m) {
 			if n, ok := p.splitPos(w, x, y); ok && !p.unfold(m, n) {
+				if mo.Mod&tea.ModShift == 0 { // a shift+click extends on the half it started
+					p.oldHalf = x <= (w-1)/2
+				}
+
 				p.selectTo(n, mo.Mod&tea.ModShift != 0)
 
 				m.drag = &drag{kind: dragSelect}
@@ -4508,7 +4620,7 @@ func (p *preview) dragTo(m *Model, x, y int, release bool) tea.Cmd {
 			p.top, y = min(p.top+1, max(p.scrollRows(m)-h, 0)), h-1
 		}
 
-		if n, ok := p.splitPos(w, x, y); ok {
+		if n, ok := p.splitPos(w, ifElse(p.oldHalf, 0, w-1), y); ok && !p.otherHalf(n) { // on the half it started
 			p.selectTo(n, true)
 		}
 

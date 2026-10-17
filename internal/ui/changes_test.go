@@ -74,7 +74,13 @@ func TestGotoChange(t *testing.T) {
 		rows := changes(m.pv.meta)
 		first, second := rows[0][0], rows[1][0]
 
-		if m.pv.at().line != first {
+		// on reports the cursor on line n's row: side by side, on its new half
+		on := func(n int) bool {
+			sr := splitRows(m.pv.meta)
+			return m.pv.at().line == n || split && splitIndex(sr, n) == splitIndex(sr, m.pv.at().line)
+		}
+
+		if !on(first) {
 			t.Fatalf("split %v: the diff opens on its first change, line %d; the cursor is on %d", split, first, m.pv.at().line)
 		}
 
@@ -92,7 +98,7 @@ func TestGotoChange(t *testing.T) {
 		}{{"]", second}, {"]", first}, {"[", second}, {"[", first}, {"alt+f5", second}, {"alt+shift+f5", first}} {
 			press(m, step.key)
 
-			if got := m.pv.at().line; got != step.want {
+			if got := m.pv.at().line; !on(step.want) {
 				t.Fatalf("split %v: %s went to line %d, want %d", split, step.key, got, step.want)
 			}
 
@@ -506,7 +512,7 @@ func TestDiffCursorChange(t *testing.T) {
 
 	press(m, "]") // the second change's deletion, line 151
 
-	if dels, adds := m.pv.changedLines(); !dels[151] || !adds[151] || len(dels)+len(adds) != 2 {
+	if dels, adds := m.pv.changedLines(m); !dels[151] || !adds[151] || len(dels)+len(adds) != 2 {
 		t.Fatalf("the change under the cursor: dels %v adds %v, want line 151 both", dels, adds)
 	}
 

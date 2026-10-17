@@ -183,7 +183,8 @@ the same cell.
 | `S`       | sync, or publish a branch with no upstream                 |
 
 In a diff, `s` switches inline and side by side, and selected lines stage,
-unstage or revert (`m`). The commit button turns into _Continue_ during a
+unstage or revert (`m`). Side by side, a click picks the half the cursor
+moves on, and a copy holds that half's lines only. The commit button turns into _Continue_ during a
 merge, rebase or cherry-pick.
 
 ![a diff inline and side by side, staging part of it, then a conflicting merge continued with git's message](demo/diff.gif)

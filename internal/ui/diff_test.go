@@ -153,7 +153,8 @@ func TestDiffHunksBinaryAndShow(t *testing.T) {
 	}
 }
 
-// Side by side selects and stages the same lines inline does.
+// Side by side selects and stages the same lines inline does; the cursor
+// moves by rows on its half, and a copy holds that half's lines only.
 func TestSplitDiffSelection(t *testing.T) {
 	applyLook("vscode", true, "ascii", nil)
 
@@ -164,15 +165,25 @@ func TestSplitDiffSelection(t *testing.T) {
 		t.Fatal("s shows the diff side by side")
 	}
 
-	// Down the rows, then a selection over both changed lines.
+	// Down the rows on the new half, then a selection over both changed
+	// rows: one press a row, the deletion beside an addition no stop.
 	press(m, "down", "shift+down", "shift+down")
 
 	a, b, ok := m.pv.selection()
-	if !ok || a.line != 1 || b.line != 3 {
+	if !ok || a.line != 2 || b.line != 4 {
 		t.Fatalf("selection = %+v..%+v (%v)", a, b, ok)
 	}
 
-	dels, adds := m.pv.changedLines()
+	want := "console.log(\"scm oh yeah\");\n// TODO: debounce input\nsearch(\"hello\");"
+	if got := m.pv.halfText(); got != want {
+		t.Fatalf("a copy is the new half's lines, no deletion: %q", got)
+	}
+
+	if !strings.Contains(m.View().Content, fmt.Sprintf("(%d selected)", len([]rune(want)))) {
+		t.Fatal("the status bar counts what a copy holds")
+	}
+
+	dels, adds := m.pv.changedLines(m)
 	if len(dels) != 1 || !dels[2] || len(adds) != 2 || !adds[2] || !adds[3] {
 		t.Fatalf("selected changes: dels=%v adds=%v", dels, adds)
 	}
@@ -202,6 +213,21 @@ func TestSplitDiffSelection(t *testing.T) {
 
 	if at := m.pv.at(); at.line != 1 {
 		t.Fatalf("clicking the old half selects line 1, got %+v", at)
+	}
+
+	// The old half goes past the row it leaves empty and copies its own.
+	press(m, "shift+down")
+
+	if got := m.pv.halfText(); m.pv.at().line != 4 || got != "console.log(\"scm-playground up\");\nsearch(\"hello\");" {
+		t.Fatalf("the old half's selection: line %d, %q", m.pv.at().line, got)
+	}
+
+	// A drag stays on the half it started on.
+	click(m, m.mainX()+lw+2, 2, tea.MouseLeft)
+	m.pv.dragTo(m, m.mainX()+1, 4, true)
+
+	if got := m.pv.halfText(); got != "console.log(\"scm oh yeah\");\n// TODO: debounce input\nsearch(\"hello\");" {
+		t.Fatalf("dragged over to the old half, the new half's lines: %q", got)
 	}
 }
 

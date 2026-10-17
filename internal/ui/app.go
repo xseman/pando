@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
@@ -4785,7 +4786,12 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 			pos = fmt.Sprintf(" Ln %d ", ln)
 		}
 
-		if n := m.pv.selCount(); n > 0 {
+		n := m.pv.selCount()
+		if m.pv.split(m) {
+			n = utf8.RuneCountInString(m.pv.halfText())
+		}
+
+		if n > 0 {
 			pos = fmt.Sprintf(" Ln %d, Col %d (%d selected) ", ln, c.col+1, n)
 		}
 
