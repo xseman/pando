@@ -193,6 +193,19 @@ func TestSearchTreeAndExclude(t *testing.T) {
 	if !slices.Equal(labels, []string{"src3", "deep2", "b.go", "a.go"}) {
 		t.Fatalf("tree rows = %v", labels)
 	}
+	// Indent guides run under each open folder's and file's chevron; b.go's
+	// is lit while its line is selected.
+	m.sr.l.sel = 3
+
+	lines := m.sr.lines(m, 40, 30)
+	for name, want := range map[string]struct {
+		lead string
+		lit  int
+	}{"src": {" ▾ ", -1}, "deep": {" │ ▾ ", -1}, "b.go": {" │ │ ▾ ", -1}, "hello": {" │ │ │   ", 2}, "a.go": {" │ ▾ ", -1}} {
+		if got, lit := treeLead(t, lines, name); !strings.HasPrefix(got, want.lead) || strings.Count(got, "│") != strings.Count(want.lead, "│") || lit != want.lit {
+			t.Errorf("%s: %q lit %d, want %q lit %d", name, got, lit, want.lead, want.lit)
+		}
+	}
 
 	press(m, "4")
 

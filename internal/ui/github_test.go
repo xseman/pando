@@ -115,7 +115,7 @@ func ghRun(t *testing.T, m *Model, cmd tea.Cmd) {
 func ghRowText(m *Model) []string {
 	var out []string
 	for _, r := range m.gh.rows(m) {
-		out = append(out, strings.Join(strings.Fields(ansi.Strip(m.gh.renderRow(m, r, 80, false, false))), " "))
+		out = append(out, strings.Join(strings.Fields(ansi.Strip(m.gh.renderRow(m, r, 80, false, false, nil))), " "))
 	}
 
 	return out
@@ -212,6 +212,11 @@ func TestGitHubViewLists(t *testing.T) {
 		if !slices.ContainsFunc(rows, func(r string) bool { return strings.HasSuffix(r, want) }) {
 			t.Errorf("no row ending %q in %q", want, rows)
 		}
+	}
+
+	// A query's results hang off its chevron.
+	if lead, lit := treeLead(t, m.gh.lines(m, 80, 40), "release v0.4.0"); !strings.HasPrefix(lead, "   │ ") || strings.Count(lead, "│") != 1 || lit != -1 {
+		t.Errorf("a pull request's lead %q lit %d", lead, lit)
 	}
 
 	// Unfolding a query asks gh for it, and only it.

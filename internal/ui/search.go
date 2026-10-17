@@ -66,6 +66,15 @@ type srRow struct {
 	depth, count int
 }
 
+// level is how deep r sits for its indent guides: a line under its file.
+func (r srRow) level() int {
+	if r.file >= 0 && r.line >= 0 {
+		return r.depth + 1
+	}
+
+	return r.depth
+}
+
 // searchView is VS Code's Search: a query with match case, whole word and
 // regex toggles, an optional replace box, files-to-include and files-to-exclude
 // globs, and matches grouped by file. It searches while typing.
@@ -649,9 +658,10 @@ func (s *searchView) lines(m *Model, w, h int) []string {
 	s.l.clamp(len(rows), bh)
 	hover := m.hoverRow(viewSearch) - len(out)
 	s.l.bar = m.barState("list:search")
+	ag := activeGuide(len(rows), s.l.sel, func(i int) int { return rows[i].level() })
 
 	return append(out, s.l.render(w, bh, len(rows), func(i, rw int) string {
-		return s.renderRow(m, rows[i], rw, i == s.l.sel, i-s.l.top == hover)
+		return s.renderRow(m, rows[i], rw, i == s.l.sel, i-s.l.top == hover, ag.at(i, rows[i].level()))
 	})...)
 }
 
@@ -776,14 +786,16 @@ func plural(n int, word string) string {
 	return fmt.Sprintf("%d %ss", n, word)
 }
 
-func (s *searchView) renderRow(m *Model, r srRow, w int, selected, hovered bool) string {
+// renderRow draws r behind its indent guides.
+func (s *searchView) renderRow(m *Model, r srRow, w int, selected, hovered bool, guides []seg) string {
 	bg, base := m.rowColors(viewSearch, selected, hovered)
 
-	indent := strings.Repeat("  ", r.depth)
+	lead := append([]seg{sg(" ", plain)}, guides...)
+
 	if r.file < 0 { // a directory in tree mode
 		open := !s.closed["dir:"+r.dir]
 
-		return row(w, bg, []seg{sg(" "+indent+chevron(open), dim), iconSeg(path.Base(r.dir), true, open), sg(r.label, base)},
+		return row(w, bg, append(lead, sg(chevron(open), dim), iconSeg(path.Base(r.dir), true, open), sg(r.label, base)),
 			badge(strconv.Itoa(r.count)), sg(" ", plain))
 	}
 
@@ -794,15 +806,14 @@ func (s *searchView) renderRow(m *Model, r srRow, w int, selected, hovered bool)
 			dir = ""
 		}
 
-		return row(w, bg, []seg{sg(" "+indent+chevron(!s.closed[f.path]), dim), iconSeg(name, false, false), sg(name, base), sg(" "+dir, dim)},
+		return row(w, bg, append(lead, sg(chevron(!s.closed[f.path]), dim), iconSeg(name, false, false), sg(name, base), sg(" "+dir, dim)),
 			badge(strconv.Itoa(f.count)), sg(" ", plain))
 	}
 
 	ln := f.lines[r.line]
 	with, _ := s.replacing()
-	pad := "     " + indent
 
-	return row(w, bg, append([]seg{sg(pad, plain)}, matchSegs(ln, w-len(pad), base, s.replPreview(ln, with))...))
+	return row(w, bg, append(append(lead, sg("  ", plain)), matchSegs(ln, w-5-2*r.depth, base, s.replPreview(ln, with))...))
 }
 
 // replPreview is what each match of ln becomes, nil when replace is off.

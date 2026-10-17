@@ -55,7 +55,9 @@ Show Hidden Files and Sort by Type / Name (`explorer_sort`) added.
 - An open folder draws a `│` under its chevron down its children, VS Code's
   indent guides (`renderIndentGuides: always`), in `whitespace`'s color; the
   active one, the selected open folder's or else the selection's parent's
-  (`activeGuide`), in `indent_guide`'s.
+  (`activeGuide`), in `indent_guide`'s. Every tree draws them so (`guides.at`):
+  Search, Source Control (a section's files, Compare's tree), GitHub (a
+  query's results), Databases (a source's tables), the references peek.
 
 ## Source Control
 

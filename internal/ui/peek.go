@@ -213,7 +213,10 @@ func (pk *peek) view(m *Model, w, h int) []string {
 	rw := max(w-lw-1, 10)
 	left := pk.source(m, lw, body)
 	pk.l.clamp(len(pk.rows), body)
-	right := pk.l.render(rw, body, len(pk.rows), func(i, rww int) string { return pk.renderRow(m, i, rww) })
+
+	level := func(i int) int { return ifElse(pk.rows[i].loc >= 0, 1, 0) } // a hit under its file
+	ag := activeGuide(len(pk.rows), pk.l.sel, level)
+	right := pk.l.render(rw, body, len(pk.rows), func(i, rww int) string { return pk.renderRow(m, i, rww, ag.at(i, level(i))) })
 
 	out := []string{head}
 	for i := range body {
@@ -276,7 +279,8 @@ func highlight(styled string, a, b, w int) string {
 	return ansi.Cut(styled, 0, a) + "\x1b[m" + hl.Render(string(plain[a:b])) + ansi.Cut(styled, b, w)
 }
 
-func (pk *peek) renderRow(m *Model, i, w int) string {
+// renderRow draws row i, a hit behind its indent guides.
+func (pk *peek) renderRow(m *Model, i, w int, guides []seg) string {
 	r := pk.rows[i]
 	f := pk.files[r.file]
 	bg, base := m.rowColors(viewFiles, i == pk.l.sel, false)
@@ -290,18 +294,20 @@ func (pk *peek) renderRow(m *Model, i, w int) string {
 		}, badge(strconv.Itoa(len(f.locs))), sg(" ", plain))
 	}
 
+	lead := append(append([]seg{sg(" ", plain)}, guides...), sg(" ", plain))
+
 	l := f.locs[r.loc]
 	if l.msg != "" { // a problem: its severity and message, VS Code's Problems row
 		g, st := sevMark(l.sev)
 
-		return row(w, bg, []seg{sg("    ", plain), sg(g+" ", st), sg(l.msg, base)},
+		return row(w, bg, append(lead, sg(g+" ", st), sg(l.msg, base)),
 			sg(fmt.Sprintf(" %d:%d ", l.loc.Line+1, l.loc.Col+1), dim))
 	}
 
 	text := []rune(l.text)
 	a, b := max(min(l.a, len(text)), 0), max(min(l.b, len(text)), 0)
 
-	segs := []seg{sg("    ", plain)}
+	segs := lead
 	if a < b {
 		segs = append(segs, sg(string(text[:a]), base),
 			sgOwn(string(text[a:b]), base.Background(pal.matchBg)), sg(string(text[b:]), base))

@@ -41,6 +41,12 @@ func TestPeek(t *testing.T) {
 		t.Fatalf("peek row: source %q, list %q", src, list)
 	}
 
+	// The selected hit hangs off its file's chevron, the guide lit.
+	_, hit, _ := strings.Cut(m.pk.view(m, 100, 8)[2], dim.Render("│"))
+	if lead, lit := treeLead(t, []string{hit}, "# hi"); lead != " │  " || lit != 0 {
+		t.Fatalf("peek hit: %q lit %d", lead, lit)
+	}
+
 	// Keys belong to the widget while it is open.
 	press(m, "down")
 

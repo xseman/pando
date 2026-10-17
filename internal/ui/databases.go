@@ -430,17 +430,21 @@ func (v *dbView) lines(m *Model, w, h int) []string {
 		return []string{row(w, nil, []seg{sg(" "+note, dim)})}
 	}
 
+	level := func(i int) int { return ifElse(rows[i].obj != nil || rows[i].note != "", 1, 0) } // a table under its source
+	ag := activeGuide(len(rows), v.l.sel, level)
+
 	return v.l.render(w, h, len(rows), func(i, rw int) string {
 		r := rows[i]
 		bg, name := m.rowColors(viewDB, i == v.l.sel, i-v.l.top == hover)
+		lead := append([]seg{sg(" ", plain)}, ag.at(i, level(i))...)
 
 		switch {
 		case r.note != "":
-			return row(rw, bg, []seg{sg("     "+r.note, dim)})
+			return row(rw, bg, append(lead, sg("  "+r.note, dim)))
 		case r.obj != nil && r.obj.View:
-			return row(rw, bg, []seg{sg("     "+icView.s()+" ", dim), sg(objName(*r.obj), name)}, sg("view ", dim))
+			return row(rw, bg, append(lead, sg("  "+icView.s()+" ", dim), sg(objName(*r.obj), name)), sg("view ", dim))
 		case r.obj != nil:
-			return row(rw, bg, []seg{sg("     "+icTable.s()+" ", dim), sg(objName(*r.obj), name)})
+			return row(rw, bg, append(lead, sg("  "+icTable.s()+" ", dim), sg(objName(*r.obj), name)))
 		case r.src.db.Kind == db.SQLite:
 			dir, base := filepath.Split(r.src.label)
 			return row(rw, bg, []seg{sg(" "+chevron(v.open[r.src.id]), dim), iconSeg(base, false, false), sg(base, name), sg(" "+strings.TrimSuffix(dir, string(filepath.Separator)), dim)})

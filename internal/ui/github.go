@@ -600,17 +600,20 @@ func (g *ghView) lines(m *Model, w, h int) []string {
 	hover := m.hoverRow(viewGitHub)
 
 	if len(rows) == 1 && rows[0].kind == ghrInfo { // the view's one message: no sections
-		return []string{g.renderRow(m, rows[0], w, g.l.sel == 0, hover == 0)}
+		return []string{g.renderRow(m, rows[0], w, g.l.sel == 0, hover == 0, nil)}
 	}
 
 	var out []string
+
+	level := func(i int) int { return ifElse(rows[i].q != nil && rows[i].kind != ghrQuery, 1, 0) } // a result under its query
+	ag := activeGuide(len(rows), g.l.sel, level)
 
 	ps := g.panes(rows, h)
 	for _, p := range ps {
 		head := rows[p.start-1]
 		head.sash = g.resizes(ps, p.sec)
 
-		out = append(out, g.renderRow(m, head, w, g.l.sel == p.start-1, hover == p.head))
+		out = append(out, g.renderRow(m, head, w, g.l.sel == p.start-1, hover == p.head, nil))
 		if p.h == 0 {
 			continue
 		}
@@ -621,7 +624,7 @@ func (g *ghView) lines(m *Model, w, h int) []string {
 		g.tops[p.sec] = l.top
 
 		out = append(out, l.render(w, p.h, n, func(i, rw int) string {
-			return g.renderRow(m, rows[p.start+i], rw, p.start+i == g.l.sel, p.body+i-l.top == hover)
+			return g.renderRow(m, rows[p.start+i], rw, p.start+i == g.l.sel, p.body+i-l.top == hover, ag.at(p.start+i, level(p.start+i)))
 		})...)
 	}
 
@@ -654,7 +657,8 @@ func (g *ghView) bar(m *Model, y int) (listBar, bool) {
 	return b, b.geo().on()
 }
 
-func (g *ghView) renderRow(m *Model, r ghRow, w int, selected, hovered bool) string {
+// renderRow draws r, a result under a query behind its indent guides.
+func (g *ghView) renderRow(m *Model, r ghRow, w int, selected, hovered bool, guides []seg) string {
 	bg, base := m.rowColors(viewGitHub, selected, hovered)
 
 	count := func(q *ghQuery) []seg { // none for none: the row under it says so
@@ -686,15 +690,22 @@ func (g *ghView) renderRow(m *Model, r ghRow, w int, selected, hovered bool) str
 
 	case ghrQuery:
 		return row(w, bg, []seg{sg("   "+chevron(g.open[r.key]), dim), sg(r.q.label, base)}, count(r.q)...)
-	case ghrItem:
-		return g.itemRow(m, r, w, bg, base)
-	case ghrNote:
-		return g.noteRow(r, w, bg, base)
 	}
 
-	indent := "      "
-	if r.key == "error" {
-		indent = " "
+	lead := []seg{sg("      ", plain)}
+
+	switch {
+	case r.key == "error":
+		lead = []seg{sg(" ", plain)}
+	case r.q != nil:
+		lead = append(append([]seg{sg("   ", plain)}, guides...), sg(" ", plain))
+	}
+
+	switch r.kind {
+	case ghrItem:
+		return g.itemRow(m, r, w, bg, base, lead)
+	case ghrNote:
+		return g.noteRow(r, w, bg, base)
 	}
 
 	st := dim
@@ -707,15 +718,15 @@ func (g *ghView) renderRow(m *Model, r ghRow, w int, selected, hovered bool) str
 	}
 
 	if r.text == "Loading…" {
-		return row(w, bg, append([]seg{sg(indent, plain)}, m.shimmer(r.text, dim, bold)...))
+		return row(w, bg, append(lead, m.shimmer(r.text, dim, bold)...))
 	}
 
-	return row(w, bg, []seg{sg(indent+r.text, st)})
+	return row(w, bg, append(lead, sg(r.text, st)))
 }
 
-// itemRow is a pull request or an issue: its icon, its title, its number and
-// author, and on the right its worktree and its checks.
-func (g *ghView) itemRow(m *Model, r ghRow, w int, bg color.Color, base lipgloss.Style) string {
+// itemRow is a pull request or an issue after left: its icon, its title, its
+// number and author, and on the right its worktree and its checks.
+func (g *ghView) itemRow(m *Model, r ghRow, w int, bg color.Color, base lipgloss.Style, left []seg) string {
 	it := r.item
 	icon, ist, title := icPR, fg(pal.ok), base
 
@@ -726,7 +737,7 @@ func (g *ghView) itemRow(m *Model, r ghRow, w int, bg color.Color, base lipgloss
 		icon, ist, title = icPRDraft, fg(pal.ignored), dim
 	}
 
-	left := []seg{sg("      ", plain), sg(icon.s()+" ", ist), sg(it.Title, title), sg(fmt.Sprintf(" #%d @%s", it.Number, it.Author.Login), dim)}
+	left = append(left, sg(icon.s()+" ", ist), sg(it.Title, title), sg(fmt.Sprintf(" #%d @%s", it.Number, it.Author.Login), dim))
 
 	var right []seg
 

@@ -812,6 +812,20 @@ func TestGitLayoutTreeAndPanes(t *testing.T) {
 	}
 
 	checkWidths(t, m)
+	// Indent guides run under the section's and each open folder's chevron,
+	// the selection's folder's lit.
+	m.scm.sel = slices.IndexFunc(m.scm.rows, func(r scmRow) bool { return r.kind == rowFile && filepath.Base(r.entry.Path) == "b.go" })
+
+	lines := m.scm.lines(m, 40, 30)
+	for name, want := range map[string]struct {
+		lead string
+		lit  int
+	}{"b.go": {" │ │ ", 1}, "x/y": {" │ ▾ ", -1}, "z.go": {" │ │ ", -1}, "d.go": {" │ ", -1}} {
+		if got, lit := treeLead(t, lines, name); !strings.HasPrefix(got, want.lead) || strings.Count(got, "│") != strings.Count(want.lead, "│") || lit != want.lit {
+			t.Errorf("%s: %q lit %d, want %q lit %d", name, got, lit, want.lead, want.lit)
+		}
+	}
+
 	m.scm.sel = slices.IndexFunc(m.scm.rows, func(r scmRow) bool { return r.kind == rowDir && r.text == "a" })
 	press(m, "enter")
 

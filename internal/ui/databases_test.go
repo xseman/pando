@@ -124,6 +124,11 @@ func TestDatabasesView(t *testing.T) {
 	if !slices.Equal(names, []string{"big (view)", "orders"}) {
 		t.Fatalf("objects: %q", names)
 	}
+	// The tables hang off their database's chevron, its guide lit while it
+	// is selected.
+	if lead, lit := treeLead(t, m.db.lines(m, 40, 10), "orders"); !strings.HasPrefix(lead, " │ ") || strings.Count(lead, "│") != 1 || lit != 0 {
+		t.Fatalf("orders: %q lit %d", lead, lit)
+	}
 
 	if out := checkWidths(t, m); !strings.Contains(out, "DATABASES") || !strings.Contains(out, "orders") {
 		t.Fatalf("view:\n%s", out)

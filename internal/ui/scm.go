@@ -47,6 +47,19 @@ type scmRow struct {
 // box and the action button. Keyboard navigation skips them.
 func (r scmRow) widget() bool { return r.kind >= rowMsg && r.kind <= rowCommit }
 
+// level is how deep r sits for its indent guides: a file or folder one under
+// its section, a drawer's at its root.
+func (r scmRow) level() int {
+	switch {
+	case r.kind != rowDir && r.kind != rowFile:
+		return 0
+	case r.title == cmpTitle:
+		return r.depth
+	}
+
+	return r.depth + 1
+}
+
 // scmView is VS Code's Source Control: per repository a message box, the
 // action button and the changes, all as list rows; history drawers sit at
 // the bottom and act on the active repository.
@@ -74,6 +87,7 @@ type scmView struct {
 	cmps     map[string]cmpMsg // the comparison of each project not shown, by workspace
 	cmpSel   string            // the commit Select for Compare picked
 	hovRow   int               // row under the mouse in the frame being drawn, -1 = none
+	guides   guides            // the active indent guide in the frame being drawn
 }
 
 // pastMsg answers an ↑ from the message box's draft: the commit messages to
@@ -1243,6 +1257,7 @@ func (s *scmView) lines(m *Model, w, h int) []string {
 
 	hover := m.hoverRow(viewGit)
 	ch, ds := s.geometry(m, h)
+	s.guides = activeGuide(len(s.rows), s.sel, func(i int) int { return s.rows[i].level() })
 
 	out := s.renderPane(m, w, ch, "", 0, s.changesEnd(), hover)
 	for j := range s.heads {
@@ -1363,7 +1378,8 @@ func (s *scmView) renderRow(m *Model, i, w int, hovered bool) string {
 
 	bg, base := m.rowColors(viewGit, i == s.sel && !s.input.Focused(), hovered)
 
-	indent := strings.Repeat("  ", r.depth)
+	lead := append([]seg{sg(ifElse(r.title == cmpTitle, "   ", " "), plain)}, s.guides.at(i, r.level())...) // Compare's tree starts under its title
+
 	switch r.kind {
 	case rowRepo:
 		st := s.status[r.root]
@@ -1405,7 +1421,7 @@ func (s *scmView) renderRow(m *Model, i, w int, hovered bool) string {
 
 		right = append(right, sg(" ● ", base.Foreground(statusColor(r.entry.Letter))))
 
-		return row(w, bg, []seg{sg("   "+indent+chevron(open), dim), iconSeg(path.Base(r.path), true, open), sg(r.text, base)}, right...)
+		return row(w, bg, append(lead, sg(chevron(open), dim), iconSeg(path.Base(r.path), true, open), sg(r.text, base)), right...)
 
 	case rowFile:
 		name, dir := path.Base(r.entry.Path), path.Dir(r.entry.Path)
@@ -1443,7 +1459,7 @@ func (s *scmView) renderRow(m *Model, i, w int, hovered bool) string {
 
 		right = append(right, sg(" "+string(r.entry.Letter)+" ", base.Foreground(c)))
 
-		return row(w, bg, []seg{sg("   "+indent, plain), iconSeg(name, false, false), sg(name, nameSt), sg(" "+dir, dim)}, right...)
+		return row(w, bg, append(lead, iconSeg(name, false, false), sg(name, nameSt), sg(" "+dir, dim)), right...)
 
 	case rowDrawer:
 		p := m.pane(r.title)

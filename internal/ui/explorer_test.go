@@ -363,6 +363,31 @@ func TestExplorerCutCopyPaste(t *testing.T) {
 	}
 }
 
+// treeLead is the first of lines with name, up to it: a tree row's indent
+// guides and chevron as plain text, and the level of the lit guide, -1 for
+// none.
+func treeLead(t *testing.T, lines []string, name string) (string, int) {
+	t.Helper()
+
+	for _, l := range lines {
+		before, _, ok := strings.Cut(ansi.Strip(l), name)
+		if !ok {
+			continue
+		}
+
+		lit := -1
+		if b, _, ok := strings.Cut(ansi.Cut(l, 0, ansi.StringWidth(before)), fgParams(pal.indentGuide)); ok {
+			lit = strings.Count(ansi.Strip(b), "│")
+		}
+
+		return before, lit
+	}
+
+	t.Fatalf("no %q in\n%s", name, ansi.Strip(strings.Join(lines, "\n")))
+
+	return "", -1
+}
+
 // TestExplorerIndentGuides draws VS Code's indent guides: a rule under each
 // open folder's chevron down its children, none at the root.
 func TestExplorerIndentGuides(t *testing.T) {
