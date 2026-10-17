@@ -191,6 +191,26 @@ func TestQuickDiff(t *testing.T) {
 		t.Fatalf("the change as a diff, %q:\n%s", kinds.String(), out)
 	}
 
+	// The zone stands under its change's line, its buttons raised under the
+	// mouse as every button is.
+	if strings.Contains(m.View().Content, bgParams(pal.keycapBg)+"m") {
+		t.Fatal("no button raised before the mouse is on one")
+	}
+
+	for y, l := range strings.Split(out, "\n") {
+		if x := strings.Index(l, "Stage"); x >= 0 && strings.Contains(l, "1 of 2 changes") {
+			if !strings.Contains(strings.Split(out, "\n")[y-1], " 2 ▒ B") {
+				t.Fatalf("the zone right under its change:\n%s", out)
+			}
+
+			m.Update(tea.MouseMotionMsg{X: ansi.StringWidth(l[:x]), Y: y})
+		}
+	}
+
+	if !strings.Contains(m.View().Content, bgParams(pal.keycapBg)+"m") {
+		t.Fatal("the button under the mouse is raised")
+	}
+
 	press(m, "alt+f3")
 
 	if m.pv.qd.i != 1 || m.pv.at().line != 4 {

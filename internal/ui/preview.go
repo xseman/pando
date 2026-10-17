@@ -3109,7 +3109,7 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 
 	for k := p.top; k < len(vis) && k < p.top+h; k++ {
 		if vis[k].line < 0 { // the quick diff's zone
-			body = append(body, p.qd.row(m, vis[k].from, tw))
+			body = append(body, p.qd.row(m, vis[k].from, tw, m.headH()+m.stripH()+k-p.top))
 			continue
 		}
 

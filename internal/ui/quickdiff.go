@@ -152,17 +152,24 @@ func (q *quickDiff) actions(m *Model, w int) []rowAction {
 	return acts
 }
 
-// row is the zone's row k, w cells wide: the header, a row of the diff, or
+// row is the zone's row k, w cells wide, on screen row y: the header, its
+// button under the mouse raised as every button is, a row of the diff, or
 // the rule closing it.
-func (q *quickDiff) row(m *Model, k, w int) string {
+func (q *quickDiff) row(m *Model, k, w, y int) string {
 	p := &m.pv
 
 	switch k {
 	case 0:
-		c := p.changes[q.i]
+		c, mx := p.changes[q.i], ifElse(m.mouseY == y, m.mouseX-m.mainX(), -1)
 
 		var right []seg
+
 		for _, a := range q.actions(m, w) {
+			if mx >= a.x && mx < a.x+a.w {
+				right, m.tip = append(right, sgOwn(a.label(), keycapHot())), a.tip
+				continue
+			}
+
 			right = append(right, sg(a.label(), ifElse(a.text != "", plain, dim)))
 		}
 
