@@ -58,6 +58,13 @@ vrow{line, from, to}   screen rows; wrapped when wrap is on
   change. `insert_spaces` makes the tab key insert spaces.
 - `render_whitespace`: `blankMarks` picks `·`/`→` per rune, `markBlanks`
   paints them over the styled line. Files only.
+- Indent guides (`indentGuides`, set as view draws): a line has as many as
+  its indentation takes units, rounded up, a blank line VS Code's
+  `getLinesIndentGuides` count from the lines around it; the unit is the step
+  most lines indent by, else `tabW`. `activeGuide`, the Explorer's, lights
+  the cursor's block; `paintGuides` draws `│` in `whitespace` and
+  `indent_guide`, a blank mark keeping its cell. A wrapped line's later rows
+  start with its text and have none. Files only.
 - Every change goes through `preview.edit` (display columns) or `editRaw`
   (buffer columns) into `buf.apply`, which pushes an undo splice (typing
   coalesces). Undo or redo back to the text as read or saved (`saved`) is

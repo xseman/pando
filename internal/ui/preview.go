@@ -104,7 +104,8 @@ type preview struct {
 	// probTip is the problem under the pointer, its tip shown while the
 	// pointer stays on the screen cell where it found it.
 	probTip *tipAt
-	numW    int // digits of the line-number gutter
+	guide   indentGuides // the file's indent guides, set as view draws
+	numW    int          // digits of the line-number gutter
 	ready   bool
 	wrap    bool
 	blanks  string // render_whitespace, put on as the editor draws
@@ -2025,6 +2026,118 @@ func (p *preview) blankMarks(i int, line []rune) []string {
 	return marks
 }
 
+// indentGuides are a file's indent guides, VS Code's: how many each line
+// has, one every unit cells, and the one lit around the cursor.
+type indentGuides struct {
+	lv   []int
+	unit int
+	act  guides
+}
+
+// indentGuides are the shown file's guides, none for a diff or rendered
+// Markdown. A line has as many as its indentation takes units, rounded up;
+// a blank line takes them from the lines around it, as VS Code's
+// getLinesIndentGuides does. The unit is the step most lines indent by, as
+// VS Code's detectIndentation guesses it, else tab_size.
+func (p *preview) indentGuides() indentGuides {
+	if p.kind != pvFile || p.md == 1 || p.meta != nil {
+		return indentGuides{}
+	}
+
+	in, steps, prev := make([]int, len(p.plain)), map[int]int{}, 0 // leading blanks, -1 for a blank line
+	for i, l := range p.plain {
+		n := 0
+		for n < len(l) && l[n] == ' ' {
+			n++
+		}
+
+		in[i] = ifElse(n == len(l), -1, n)
+		if in[i] < 0 {
+			continue
+		}
+
+		if d := max(in[i]-prev, prev-in[i]); d > 0 && d <= 8 {
+			steps[d]++
+		}
+
+		prev = in[i]
+	}
+
+	unit := tabW
+	for d, n := range steps {
+		if n > steps[unit] || n == steps[unit] && d < unit {
+			unit = d
+		}
+	}
+
+	lv := make([]int, len(in))
+	for i := 0; i < len(in); {
+		if in[i] >= 0 {
+			lv[i] = (in[i] + unit - 1) / unit
+			i++
+
+			continue
+		}
+
+		j := i // a run of blank lines, i to j
+		for j < len(in) && in[j] < 0 {
+			j++
+		}
+
+		n := 0 // at the top or the bottom of the file: none
+
+		switch above, below := ifElse(i > 0, in[max(i-1, 0)], -1), ifElse(j < len(in), in[min(j, len(in)-1)], -1); {
+		case above < 0 || below < 0:
+		case above < below: // inside the block below the line above
+			n = 1 + above/unit
+		case above == below: // between two blocks
+			n = (below + unit - 1) / unit
+		default: // inside the block that ends below
+			n = 1 + below/unit
+		}
+
+		for ; i < j; i++ {
+			lv[i] = n
+		}
+	}
+
+	return indentGuides{lv, unit, activeGuide(len(lv), p.at().line, func(i int) int { return lv[i] })}
+}
+
+// paintGuides draws row vr's indent guides over body, its cells start to
+// end: a │ at each level, render_whitespace's mark keeping its cell, the
+// active one in indent_guide's color, a selected one on the selection. A
+// wrapped line's later rows start with its text and have none.
+func (p *preview) paintGuides(body string, vr vrow, start, end int, marks []string, s0, s1 int) string {
+	g := p.guide
+	if vr.line >= len(g.lv) || vr.from > 0 {
+		return body
+	}
+
+	for k := range g.lv[vr.line] {
+		c := k * g.unit
+		if c < start || c >= end || c < len(marks) && marks[c] != "" {
+			continue
+		}
+
+		lit := k == g.act.lit && vr.line > g.act.act && vr.line <= g.act.end
+
+		st := fg(ifElse(lit, pal.indentGuide, pal.whitespace))
+		if c >= s0 && c < s1 {
+			st = st.Background(pal.textSelBg)
+		}
+
+		x := c - start
+		if w := ansi.StringWidth(body); w <= x { // a blank line's guides run past its text
+			body += blank(x - w + 1)
+		}
+
+		body = ansi.Cut(body, 0, x) + "\x1b[m" + st.Render("│") + ansi.Cut(body, x+1, wideCols)
+	}
+
+	return body
+}
+
 // markBlanks draws marks over a styled line's blanks in st; the text around
 // keeps its own style.
 func markBlanks(styled string, line []rune, marks []string, st lipgloss.Style) string {
@@ -2122,6 +2235,7 @@ func (p *preview) renderRow(vr vrow, w int) string {
 	var b strings.Builder
 
 	a, z, ok := p.selection()
+	c0, c1 := 0, 0 // the row's selected cells
 
 	hits := p.findSpans(vr.line, line)
 	if ok && p.hitSelected(a, z) {
@@ -2173,8 +2287,8 @@ func (p *preview) renderRow(vr vrow, w int) string {
 			s1 = z.col
 		}
 
-		c0 := max(start, min(cellsOf(line[:s0]), end))
-		c1 := max(start, min(cellsOf(line[:s1]), end))
+		c0 = max(start, min(cellsOf(line[:s0]), end))
+		c1 = max(start, min(cellsOf(line[:s1]), end))
 		b.WriteString(ansi.Cut(styled, start, c0))
 		b.WriteString("\x1b[m")
 		// Selected text drops its colors, the whitespace markers keep theirs.
@@ -2186,7 +2300,7 @@ func (p *preview) renderRow(vr vrow, w int) string {
 		}
 	}
 
-	body := paintProbs(b.String(), p.probs[vr.line], start)
+	body := paintProbs(p.paintGuides(b.String(), vr, start, end, marks, c0, c1), p.probs[vr.line], start)
 	if vr.line == p.rangeHi-1 { // the line Go to Line is about to go to, the whole width
 		body = underBg(body+blank(max(tw-ansi.StringWidth(body), 0)), pal.rangeHiBg)
 	} else if bg := p.conflictBg(vr.line); bg != nil { // a conflict block is tinted under its text
@@ -2922,7 +3036,7 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 		}
 	}
 
-	p.hl, p.blanks = p.hlWord(), m.st.Settings.Blanks
+	p.hl, p.blanks, p.guide = p.hlWord(), m.st.Settings.Blanks, p.indentGuides()
 	vis, hb := p.rows(tw), p.hbar(m, tw)
 
 	p.top = max(0, min(p.top, len(vis)-h))

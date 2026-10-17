@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -520,6 +521,67 @@ func TestClickWithMotionDoesNotSelectTheNextLine(t *testing.T) {
 
 // TestRenderWhitespace is render_whitespace, VS Code's modes: a space drawn
 // as ·, a tab as → over the four cells it takes, in the whitespace color.
+// TestIndentGuides draws VS Code's indent guides in the editor: a │ at each
+// level, on through a blank line inside a block, the block around the
+// cursor's in indent_guide's color, a selected one on the selection;
+// render_whitespace's marks keep their cells, and a file indented by 2
+// spaces gets one every 2 cells.
+func TestIndentGuides(t *testing.T) {
+	m, _ := editorModel(t, "a.go", "package a\n\nfunc A() {\n\tif x {\n\t\ty()\n\n\t\tz()\n\t}\n}\n")
+	m.pv.cur = pos{4, tabW * 2} // on y()
+
+	checkWidths(t, m)
+
+	rows := strings.Split(m.View().Content, "\n")
+	row := func(text string) string {
+		t.Helper()
+
+		for _, r := range rows {
+			if strings.Contains(ansi.Strip(r), text) {
+				return r
+			}
+		}
+
+		t.Fatalf("no row with %q", text)
+
+		return ""
+	}
+
+	rule := "│" + strings.Repeat(" ", tabW-1)
+	if y := row("y()"); !strings.Contains(ansi.Strip(y), rule+rule+"y()") || !strings.Contains(y, fgParams(pal.indentGuide)+"m│") {
+		t.Fatalf("two guides before y(), the if's lit: %q", y)
+	}
+
+	if !strings.Contains(ansi.Strip(row("}")), rule+"}") || strings.Contains(row(rule+"}"), fgParams(pal.indentGuide)+"m│") {
+		t.Fatal("the if's closing brace has the function's guide, not lit")
+	}
+
+	blankRow := ansi.Strip(rows[slices.IndexFunc(rows, func(r string) bool { return strings.Contains(ansi.Strip(r), "y()") })+1])
+	if !strings.Contains(blankRow, rule+"│") {
+		t.Fatalf("the blank line inside the if carries its guides: %q", blankRow)
+	}
+
+	m.pv.anchor = &pos{3, 0} // selected, a guide keeps the selection under it
+	rows = strings.Split(m.View().Content, "\n")
+
+	if y := row("y()"); !strings.Contains(y, bgParams(pal.textSelBg)+"m│") {
+		t.Fatalf("a selected guide: %q", y)
+	}
+
+	m.pv.anchor = nil
+	m.st.Settings.Blanks = "all"
+	rows = strings.Split(m.View().Content, "\n")
+
+	if y := ansi.Strip(row("y()")); !strings.Contains(y, "→   →   y()") {
+		t.Fatalf("render_whitespace's marks keep their cells: %q", y)
+	}
+
+	m, _ = editorModel(t, "a.ts", "function f() {\n  if (x) {\n    y();\n  }\n}\n")
+	if y := checkWidths(t, m); !strings.Contains(y, "│ │ y();") {
+		t.Fatalf("2 spaces, a guide every 2 cells:\n%s", y)
+	}
+}
+
 func TestRenderWhitespace(t *testing.T) {
 	m, _ := editorModel(t, "w.txt", "\tif a  b c \n")
 	line := m.pv.plain[0] // "    if a  b c "

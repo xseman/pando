@@ -314,6 +314,9 @@ column and a blob are read only.
 
 - Undo, find & replace, quick open (`ctrl+p`, recent files first,
   `:` line, `@` symbol), suggestions, merge-conflict _Accept_ actions.
+- Indent guides as VS Code draws them: a `│` at each indent level, the block
+  around the cursor's lit (`indent_guide`), a file indented by 2 spaces
+  getting one every 2 cells.
 - A file's path shows under its tab (`breadcrumbs`); click a folder to browse it, ⏎ opens a
   file or unfolds a folder.
 - `ctrl+shift+v` renders Markdown, `alt+v` beside the source.
