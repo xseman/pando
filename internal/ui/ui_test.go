@@ -2734,6 +2734,22 @@ func FuzzStrWidth(f *testing.F) {
 	})
 }
 
+// TestTickGitBacksOff leaves git alone on the tick for ten times what the
+// last refresh took, so a slow worktree is not read again and again.
+func TestTickGitBacksOff(t *testing.T) {
+	m := testModel(t)
+	m.Update(gitMsg{ws: m.ws, took: time.Hour})
+
+	if m.tickGit() != nil {
+		t.Fatal("an hour-long status: the next tick waits")
+	}
+
+	m.gitNext = time.Time{}
+
+	if m.tickGit() == nil {
+		t.Fatal("once due the tick refreshes")
+	}
+}
 
 // TestStillEventKeepsFrame gives the last frame back after an event that
 // only asks the daemon for what changed, and draws again after the answer.

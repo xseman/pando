@@ -181,6 +181,7 @@ type Model struct {
 	events      <-chan proto.Event
 	inputs      chan proto.InputParams
 	gitBusy     bool
+	gitNext     time.Time // when the tick may refresh git again
 	clicks      clicks
 	drag        *drag
 	// ambiguous marks a terminal that cannot tell ⌃` from ⌃space: both
@@ -282,6 +283,7 @@ type (
 		repos  []string
 		status map[string]git.Status
 		deco   map[string]byte
+		took   time.Duration // how long git took: the tick waits ten times that before the next
 	}
 	indexMsg struct {
 		ws    string
@@ -596,6 +598,16 @@ func (m *Model) setSettingsWith(patch, more map[string]any) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
+// tickGit is the tick's refresh: git at most a tenth of the time, so a
+// worktree whose status takes a second is read every ten, not every two.
+// What changes it here (a save, a stage, a commit) refreshes at once.
+func (m *Model) tickGit() tea.Cmd {
+	if time.Now().Before(m.gitNext) {
+		return nil
+	}
+
+	return m.refreshGit()
+}
 
 func (m *Model) refreshGit() tea.Cmd {
 	if m.gitBusy {
@@ -606,6 +618,7 @@ func (m *Model) refreshGit() tea.Cmd {
 	ws, withDeco := m.ws, m.st.Settings.GitDeco
 
 	return func() tea.Msg {
+		start := time.Now()
 
 		msg := gitMsg{ws: ws, repos: git.Discover(ws), status: map[string]git.Status{}, deco: map[string]byte{}}
 		for _, r := range msg.repos {
@@ -616,6 +629,8 @@ func (m *Model) refreshGit() tea.Cmd {
 				}
 			}
 		}
+
+		msg.took = time.Since(start)
 
 		return msg
 	}
@@ -2653,7 +2668,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		m.ex.rebuild(m)
 		m.scm.fit(m) // the box learns its width when drawn: a resize rewraps it
-		cmds := []tea.Cmd{tick(), m.blink(), m.refreshGit(), m.pv.reloadIfLive(m), m.scm.saveDraft(m), m.scm.loadDrawers(m), m.gh.shown(m), m.db.shown(m), m.saveWorkspace(), m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts()}
+		cmds := []tea.Cmd{tick(), m.blink(), m.tickGit(), m.pv.reloadIfLive(m), m.scm.saveDraft(m), m.scm.loadDrawers(m), m.gh.shown(m), m.db.shown(m), m.saveWorkspace(), m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts()}
 		// ponytail: other projects' branches come back every 30 s, one git call
 		// per project; watch their HEADs if that lags.
 		m.ticks++
@@ -2768,7 +2783,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case termTextMsg:
 		return m, m.onTermText(msg)
 	case gitMsg:
-		m.gitBusy = false
+		m.gitBusy, m.gitNext = false, time.Now().Add(10*msg.took)
 		if msg.ws != m.ws {
 			return m, m.refreshGit()
 		}

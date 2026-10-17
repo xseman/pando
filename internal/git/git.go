@@ -139,17 +139,20 @@ type Status struct {
 	Behind    int
 	Staged    []Entry
 	Changes   []Entry
-	Conflicts []Entry // VS Code's Merge Changes group
-	Op        string  // "merge", "rebase" or "cherry-pick" while one is in progress
+	Conflicts []Entry  // VS Code's Merge Changes group
+	Ignored   []string // what .gitignore matches: an ignored directory once, not what it holds
+	Op        string   // "merge", "rebase" or "cherry-pick" while one is in progress
 	// MergeMsg is the message git prepared for the merge or cherry-pick in
 	// progress, comments dropped: VS Code's message box value then.
 	MergeMsg string
 }
 
 // Stat runs `git status --porcelain --branch` over root and adds the
-// operation in progress.
+// operation in progress. The ignored paths come in the same walk: a second
+// status for them would walk the worktree again, which on a large one is
+// most of what a refresh costs.
 func Stat(root string) (Status, error) {
-	out, err := Run(root, "status", "--porcelain", "-z", "--branch", "--renames", "--untracked-files=all")
+	out, err := Run(root, "status", "--porcelain", "-z", "--branch", "--renames", "--untracked-files=all", "--ignored=matching")
 	if err != nil {
 		return Status{}, err
 	}
@@ -275,6 +278,11 @@ func parseStatus(raw string) Status {
 		}
 
 		switch {
+		case x == '!' && y == '!':
+			if p := strings.TrimSuffix(path, "/"); p != "" {
+				s.Ignored = append(s.Ignored, p)
+			}
+
 		case x == '?':
 			s.Changes = append(s.Changes, Entry{Path: path, Letter: 'U'})
 		case x == 'U' || y == 'U' || (x == 'A' && y == 'A') || (x == 'D' && y == 'D'):
@@ -315,7 +323,9 @@ func parseBranch(s *Status, h string) {
 }
 
 // Decorations maps absolute paths to status letters; directories containing
-// changes map to '*'. Ignored top-level entries map to 'I'.
+// changes map to '*'. What a .gitignore pattern names maps to 'I', as VS
+// Code dims it: an ignored directory (node_modules/), or the files of one a
+// pattern only empties (logs/ under *.log), not the directory itself.
 func Decorations(root string, st Status) map[string]byte {
 	d := map[string]byte{}
 
@@ -332,12 +342,8 @@ func Decorations(root string, st Status) map[string]byte {
 		}
 	}
 
-	if out, err := Run(root, "status", "--porcelain", "-z", "--ignored=traditional", "--untracked-files=normal"); err == nil {
-		for p := range strings.SplitSeq(out, "\x00") {
-			if rel, ok := strings.CutPrefix(p, "!! "); ok {
-				d[filepath.Join(root, strings.TrimSuffix(rel, "/"))] = 'I'
-			}
-		}
+	for _, rel := range st.Ignored {
+		d[filepath.Join(root, rel)] = 'I'
 	}
 
 	return d

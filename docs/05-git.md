@@ -51,18 +51,29 @@ other lock is left to git.
 
 ## Status
 
-The TUI reads status on its 2 s tick, off the UI goroutine:
+The TUI reads status on its 2 s tick, off the UI goroutine, and at once
+after anything it changes (a save, a stage, a commit):
 
 ```text
- refreshGit (skipped while the last one runs)
+ refreshGit (skipped while the last one runs; the tick's tickGit also
+             waits 10x what the last one took)
    Discover(workspace) ─▶ repository roots
    per root, Stat:
      git status --porcelain -z --branch --renames --untracked-files=all
-       └─ parseStatus ─▶ Branch, Upstream, Ahead, Behind, entries
+                --ignored=matching
+       └─ parseStatus ─▶ Branch, Upstream, Ahead, Behind, entries, Ignored
      git rev-parse --git-dir ─▶ operationIn ─▶ Op, MergeMsg
-   Decorations (git_deco on): entries + status --ignored ─▶ Explorer letters
+   Decorations (git_deco on): entries + Ignored ─▶ Explorer letters
    gitMsg ─▶ Model.Update
 ```
+
+- A status walks the worktree for untracked files, which on a large one is
+  most of its cost: one walk gives the ignored paths too
+  (`--ignored=matching`: what a pattern names, so `node_modules/` once but
+  each file of `logs/` under `*.log`, the folder itself not dimmed, as in
+  VS Code), and a status that takes 0.5 s is read
+  every 5 s, not every 2. 50 000 files with a 120 000-file `node_modules`
+  took git 0.78 of a core idle, now 0.09.
 
 - Entries fall into `Staged` (X), `Changes` (Y; `??` as `U`, which the view
   splits off as Untracked) and `Conflicts` (`UU AA DD AU UA DU UD`, letter `!`,

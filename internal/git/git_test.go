@@ -130,8 +130,9 @@ func TestWorkflow(t *testing.T) {
 	}
 
 	mustWrite(t, filepath.Join(root, "a", "b.txt"), "hi\n")
-	mustWrite(t, filepath.Join(root, ".gitignore"), "build/\n")
+	mustWrite(t, filepath.Join(root, ".gitignore"), "build/\n*.log\n")
 	mustWrite(t, filepath.Join(root, "build", "x"), "x")
+	mustWrite(t, filepath.Join(root, "logs", "a.log"), "x")
 
 	st, err := Stat(root)
 	must(t, "stat before stage", err)
@@ -143,6 +144,12 @@ func TestWorkflow(t *testing.T) {
 	deco := Decorations(root, st)
 	if deco[filepath.Join(root, "a")] != '*' || deco[filepath.Join(root, "a", "b.txt")] != 'U' || deco[filepath.Join(root, "build")] != 'I' {
 		t.Errorf("decorations: %v", deco)
+	}
+
+	// What a pattern names is dimmed, as in VS Code: logs/a.log under *.log,
+	// not the folder it leaves holding nothing else.
+	if deco[filepath.Join(root, "logs", "a.log")] != 'I' || deco[filepath.Join(root, "logs")] == 'I' {
+		t.Errorf("an ignored file in a folder no pattern names: %v", deco)
 	}
 
 	if d, _ := Diff(root, st.Changes[0], false); d == "" {
@@ -863,6 +870,7 @@ func FuzzParseStatus(f *testing.F) {
 		"## main...origin/main [gone]\x00",
 		"## m...o/m [ahead 99999999999999999999, behind -3]\x00",
 		"## \xff\xfe\x00?? \xff\xfe.txt\x00\\ No newline at end of file\x00",
+		"## main\x00!! build/\x00!! a b.log\x00!! \x00", // --ignored=matching
 	} {
 		f.Add(raw)
 	}
@@ -882,6 +890,12 @@ func FuzzParseStatus(f *testing.F) {
 
 			if e.Staged || e.Letter == ' ' {
 				t.Fatalf("changed entry %+v from %q", e, raw)
+			}
+		}
+
+		for _, p := range s.Ignored {
+			if p == "" || !strings.Contains(raw, p) {
+				t.Fatalf("ignored %q not in %q", p, raw)
 			}
 		}
 
