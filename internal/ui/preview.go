@@ -3053,7 +3053,8 @@ func isMarkdown(path string) bool {
 // side reports a Markdown file shown as source and rendering side by side.
 func (p *preview) side(m *Model) bool { return p.md == 2 && m.mainW() >= splitMinW }
 
-// scrollOnly reports the two-column views, which scroll instead of moving a cursor.
+// scrollOnly reports the two-column views, which scroll by rows: side by side
+// Markdown has no cursor, a split diff a whole row.
 func (p *preview) scrollOnly(m *Model) bool { return p.split(m) || p.side(m) }
 
 func (p *preview) scrollRows(m *Model) int {
@@ -3246,6 +3247,8 @@ func (p *preview) buttons(m *Model, w int) []rowAction {
 
 func (p *preview) hints(m *Model) string {
 	switch {
+	case m.modal != nil: // the keys go to the box over it
+		return " esc close"
 	case p.gaps[p.at().line].n > 0:
 		return fmt.Sprintf(" ⏎ show %d hidden lines  ↑↓ move  ] [ change%s  q close", p.gaps[p.at().line].n, ifElse(p.fileDiff(), "  z whole file", ""))
 	case p.kind == pvTable && p.tbl != nil:
@@ -3299,7 +3302,7 @@ func (p *preview) hints(m *Model) string {
 			keys += "  ^⇧v rendered  M-v side by side"
 		}
 
-		return " ^f find  ^h replace" + keys + save + "  ^w close"
+		return " ^f find  ^h replace" + save + keys + "  ^w close" // save before what a narrow row drops first
 
 	case p.kind == pvFile:
 		return " ↑↓ move  ^f find  F12 def  ⇧F12 refs  ^. fix  F2 rename  q close"

@@ -301,6 +301,21 @@ func TestDiffStatusLine(t *testing.T) {
 	}
 }
 
+// TestDiffSplitStatusLine shows the row cursor's line side by side too: a
+// split diff moves a whole row, it does not only scroll.
+func TestDiffSplitStatusLine(t *testing.T) {
+	m := diffModel(t, 200, 20)
+	m.st.Settings.DiffView = "split"
+
+	if !m.pv.split(m) {
+		t.Fatal("not split")
+	}
+
+	if status := strings.Split(checkWidths(t, m), "\n")[m.h-1]; !strings.Contains(status, " Ln ") {
+		t.Fatalf("no position side by side: %q", status)
+	}
+}
+
 // TestDiffFollowsStaging:a working-tree diff whose changes were all staged
 // shows them as the index diff, its tab with it, not an empty page.
 func TestDiffFollowsStaging(t *testing.T) {
@@ -430,6 +445,13 @@ func TestEditorHintsByServer(t *testing.T) {
 	m, _ = editorModel(t, "a.go", "package a\n")
 	if h := m.pv.hints(m); !strings.Contains(h, "F12 def") || strings.Contains(h, "rendered") {
 		t.Fatalf("Go: %q", h)
+	}
+
+	// Unsaved, a narrow row keeps save: the server's keys go first.
+	typeText(m, "x")
+
+	if h := fitHints(m.pv.hints(m), 50); !strings.Contains(h, "^s save") {
+		t.Fatalf("narrow, unsaved: %q", h)
 	}
 }
 

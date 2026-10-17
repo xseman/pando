@@ -2563,6 +2563,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.followCramp(focus, v, inSess)
 	}
 
+	if m.pv.transient && m.pv.tbl != nil && len(m.pv.tbl.edits) > 0 { // an edited table keeps its tab, as an edited file does
+		m.pin()
+	}
+
 	m.noteFx()
 	m.noteDiags()
 

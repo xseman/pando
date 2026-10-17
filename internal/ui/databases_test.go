@@ -1740,6 +1740,27 @@ func TestTablePendingSQLAtTop(t *testing.T) {
 	}
 }
 
+// TestTableEditPins keeps a table's preview tab once it is edited, as an
+// edited file's, and offers only esc under a prompt open over the grid.
+func TestTableEditPins(t *testing.T) {
+	m, _, _ := openOrders(t)
+	m.pv.transient = true
+
+	press(m, "enter") // the cell's prompt
+
+	if h := m.pv.hints(m); h != " esc close" {
+		t.Fatalf("hints under the prompt: %q", h)
+	}
+
+	press(m, "ctrl+u")
+	typeText(m, "x")
+	press(m, "enter")
+
+	if m.pv.transient {
+		t.Fatal("an edited table stays in the preview tab")
+	}
+}
+
 // TestTableRuleCloses ends the rule under the header in the last column's own
 // border, not a joint with nothing on its right.
 func TestTableRuleCloses(t *testing.T) {
