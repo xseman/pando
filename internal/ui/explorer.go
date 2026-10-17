@@ -192,7 +192,7 @@ func (e *explorer) lines(m *Model, w, h int) []string {
 	filtering := m.query(viewFiles) != ""
 	hover := m.hoverRow(viewFiles)
 	e.l.bar = m.barState("list:files")
-	act, end := e.activeGuide()
+	ag := activeGuide(len(e.nodes), e.l.sel, func(i int) int { return e.nodes[i].depth })
 
 	return e.l.render(w, h, len(e.nodes), func(i, rw int) string {
 		n := e.nodes[i]
@@ -234,49 +234,10 @@ func (e *explorer) lines(m *Model, w, h int) []string {
 
 		// VS Code's indent guides, one under each open folder's chevron, the
 		// active one lit.
-		guides := []seg{sg(strings.Repeat("│ ", n.depth), fg(pal.whitespace))}
-		if i > act && i <= end {
-			k := e.nodes[act].depth
-			guides = []seg{sg(strings.Repeat("│ ", k), fg(pal.whitespace)), sg("│ ", fg(pal.indentGuide)), sg(strings.Repeat("│ ", n.depth-k-1), fg(pal.whitespace))}
-		}
-
-		left := append(append([]seg{sg(" ", dim)}, guides...), sg(chev, dim), iconSeg(n.name, n.dir, open), sg(n.name, name))
+		left := append(append([]seg{sg(" ", dim)}, ag.at(i, n.depth)...), sg(chev, dim), iconSeg(n.name, n.dir, open), sg(n.name, name))
 
 		return row(rw, bg, left, right...)
 	})
-}
-
-// activeGuide is the folder whose indent guide is lit, VS Code's active one,
-// and the last row under it: the selection when it is an open folder with
-// rows under it, else the selection's parent; -1 at the root.
-func (e *explorer) activeGuide() (act, end int) {
-	i := e.l.sel
-	if i < 0 || i >= len(e.nodes) {
-		return -1, -1
-	}
-
-	act = i
-	if d := e.nodes[i].depth; i+1 == len(e.nodes) || e.nodes[i+1].depth <= d { // not an open folder: its parent
-		act = -1
-
-		for j := i - 1; j >= 0; j-- {
-			if e.nodes[j].depth < d {
-				act = j
-				break
-			}
-		}
-	}
-
-	if act < 0 {
-		return -1, -1
-	}
-
-	end = act
-	for end+1 < len(e.nodes) && e.nodes[end+1].depth > e.nodes[act].depth {
-		end++
-	}
-
-	return act, end
 }
 
 // collapseAll folds every directory and scrolls to the top.

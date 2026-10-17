@@ -213,6 +213,53 @@ func chevron(open bool) string {
 	return "▸ "
 }
 
+// guides is a tree's active indent guide, VS Code's: lit at level lit on the
+// rows after act through end, the ones under it. The zero value lights none.
+type guides struct{ act, end, lit int }
+
+// activeGuide is the guide lit among n rows depth(i) levels deep: the
+// selection's when it has rows under it, else its parent's; none at the root.
+func activeGuide(n, sel int, depth func(int) int) guides {
+	if sel < 0 || sel >= n {
+		return guides{}
+	}
+
+	act := sel
+	if d := depth(sel); sel+1 == n || depth(sel+1) <= d { // nothing under it: its parent
+		act = -1
+
+		for j := sel - 1; j >= 0; j-- {
+			if depth(j) < d {
+				act = j
+				break
+			}
+		}
+	}
+
+	if act < 0 {
+		return guides{}
+	}
+
+	end, lit := act, depth(act)
+	for end+1 < n && depth(end+1) > lit {
+		end++
+	}
+
+	return guides{act, end, lit}
+}
+
+// at is row i's indent guides, depth of them: a │ under each of its
+// ancestors' chevrons in the whitespace color, the active one in
+// indent_guide's.
+func (g guides) at(i, depth int) []seg {
+	rule := func(n int) seg { return sg(strings.Repeat("│ ", n), fg(pal.whitespace)) }
+	if i <= g.act || i > g.end {
+		return []seg{rule(depth)}
+	}
+
+	return []seg{rule(g.lit), sg("│ ", fg(pal.indentGuide)), rule(depth - g.lit - 1)}
+}
+
 // list is a windowed selection: the wheel scrolls the view only, keys move
 // the selection and snap the view to it. sel -1 = nothing selected yet.
 // bar is the mouse on its scrollbar, which draws the slider held or hovered.
