@@ -25,6 +25,7 @@ const (
 	busyWindow   = 1500 * time.Millisecond // output this recent = running
 	longBurst    = 3 * time.Second         // a burst this long ending unseen = attention
 	viewedWindow = 2 * time.Second
+	redrawWindow = 500 * time.Millisecond // output this soon after a resize = the app's redraw, no activity
 )
 
 // session is one process on a terminal of its own (a pty, a pseudo console
@@ -42,6 +43,8 @@ type session struct {
 	lastOutput time.Time
 	busySince  time.Time
 	lastViewed time.Time
+	resized    time.Time // when a client last resized it
+	active     time.Time // its last input or change of status: what Updated reports
 	exited     bool
 	exitCode   int
 	attention  bool
@@ -378,7 +381,7 @@ func (s *session) tick(now time.Time) bool {
 			s.attention = true
 		}
 
-	case s.seen == "running", s.command, s.seen != "idle" && now.Sub(s.lastOutput) < busyWindow:
+	case s.seen == "running", s.command, s.seen != "idle" && now.Sub(s.lastOutput) < busyWindow && s.lastOutput.Sub(s.resized) > redrawWindow:
 		s.status = "running"
 	default:
 		s.status = "idle"
@@ -395,6 +398,10 @@ func (s *session) tick(now time.Time) bool {
 		s.attention = false
 	}
 
+	if prev != s.status {
+		s.active = now
+	}
+
 	return prev != s.status || prevAttn != s.attention
 }
 
@@ -407,7 +414,7 @@ func (s *session) info() proto.Session {
 		status = "exited" // the process is gone; tick would say so within half a second
 	}
 
-	updated := s.lastOutput
+	updated := s.active
 	if updated.IsZero() {
 		updated = s.spec.Created
 	}
@@ -484,6 +491,7 @@ func (s *session) screen(p proto.ScreenParams) proto.Screen {
 	s.lastViewed, s.attention = time.Now(), false
 	if p.Cols > 0 && p.Rows > 0 && (p.Cols != s.emu.Width() || p.Rows != s.emu.Height()) {
 		s.emu.Resize(p.Cols, p.Rows)
+		s.resized = time.Now()
 
 		if !s.exited {
 			_ = s.pty.resize(p.Cols, p.Rows)
@@ -609,6 +617,8 @@ func (s *session) input(p proto.InputParams) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	s.active = time.Now()
 
 	for _, k := range p.Keys {
 		// vt's SendKey only emits printable keys without modifiers, which

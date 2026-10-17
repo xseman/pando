@@ -76,7 +76,7 @@ config.toml edited ───────────┘  └─ "state" event �
 | `shell`                | `""`        | command every terminal opens: [Shell](#shell)                                  |
 | `session_position`     | `right`     | `right`, `left` (a column), `editor` (over the editor area, with a file open)  |
 | `session_highlight`    | `tint`      | waiting, done or failed session: `tint` (pulsing), `steady`, `off`             |
-| `spaces_sort`          | `created`   | `created`, `updated` (last output)                                             |
+| `spaces_sort`          | `created`   | `created`, `updated` (last input or change of state)                           |
 | `spaces_group`         | `workspace` | `workspace`, `time` (Today, Yesterday, …)                                      |
 | `spaces_project_sort`  | `manual`    | `manual` (drag, `alt+↑↓`), `updated` (sessions' last output)                   |
 | `spaces_hide`          | `[]`        | states left out: `blocked` `running` `done` `idle` `exited`                    |

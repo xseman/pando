@@ -293,8 +293,8 @@ type Session struct {
 	Shell     bool   `json:"shell,omitempty"` // running on a shell command under it, not on its screen's word
 	Title     string `json:"title"`
 	Program   string `json:"program,omitempty"` // what runs in its foreground: the shell, or claude started in it
-	// Updated is its last output, Created before it printed anything; it
-	// starts over when a restarted daemon respawns the session.
+	// Updated is its last input or change of status, Created before either;
+	// it starts over when a restarted daemon respawns the session.
 	Updated time.Time `json:"updated,omitzero"`
 }
 

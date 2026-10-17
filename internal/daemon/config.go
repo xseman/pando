@@ -225,13 +225,13 @@ func (c *config) encode() []byte {
 	kv("A session that waits for an answer, finished unseen or ended with an error: \"tint\"\n"+
 		"its row and tab in its symbol's color and pulse until it is clicked (colors blocked_bg,\n"+
 		"done_bg and their _soft_bg), \"steady\" to tint without the pulse, or \"off\".", "session_highlight", s.SessHi)
-	kv("Spaces: sessions sorted by \"created\" or \"updated\" (last output), grouped by\n"+
-		"\"workspace\" (project and worktree) or \"time\" (Today, Yesterday, …), and the states\n"+
-		"left out: blocked, running, done, idle, exited.", "spaces_sort", s.SpSort)
+	kv("Spaces: sessions sorted by \"created\" or \"updated\" (last input or change of state),\n"+
+		"grouped by \"workspace\" (project and worktree) or \"time\" (Today, Yesterday, …), and\n"+
+		"the states left out: blocked, running, done, idle, exited.", "spaces_sort", s.SpSort)
 	kv("", "spaces_group", s.SpGroup)
 	kv("", "spaces_hide", list(s.SpHide))
 	kv("Spaces: projects in their \"manual\" order (drag, alt+up/down) or by \"updated\",\n"+
-		"the one whose sessions printed last first.", "spaces_project_sort", s.SpProj)
+		"the one whose sessions changed last first.", "spaces_project_sort", s.SpProj)
 	b.WriteString("\n# Sidebar columns per side, from the screen edge toward main, each with its tabs\n" +
 		"# and optional width. Views: \"files\", \"git\", \"agents\", \"search\", \"session\"; unlisted\n" +
 		"# views join the left column next to main.\n")

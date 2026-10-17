@@ -460,6 +460,24 @@ func TestAttentionAfterUnseenBurst(t *testing.T) {
 	}
 }
 
+// TestUpdatedSkipsRedraw keeps Updated where it was through the redraw a
+// resize prompts, as a click on the session sends: only a change of status
+// or input moves it, so a list sorted by Updated stays put under the click.
+func TestUpdatedSkipsRedraw(t *testing.T) {
+	now := time.Now()
+	before := now.Add(-time.Minute)
+
+	s := &session{status: "idle", active: before, resized: now.Add(-100 * time.Millisecond), lastOutput: now}
+	if s.tick(now) || s.status != "idle" || !s.info().Updated.Equal(before) {
+		t.Fatalf("redraw after a resize: %+v", s)
+	}
+
+	s.resized = now.Add(-time.Minute)
+	if !s.tick(now) || s.status != "running" || !s.info().Updated.Equal(now) {
+		t.Fatalf("output: %+v", s)
+	}
+}
+
 func TestSessionClosesOnCleanExit(t *testing.T) {
 	d := start(t)()
 	defer d.Close()

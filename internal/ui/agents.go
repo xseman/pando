@@ -269,7 +269,7 @@ func (m *Model) listedSessions() []proto.Session {
 }
 
 // projects are the projects in the project Sort's order: their saved one, or
-// by Updated the one whose sessions printed last first, the rest saved.
+// by Updated the one whose sessions changed last first, the rest saved.
 func (m *Model) projects() []string {
 	out := slices.Clone(m.st.Projects)
 	if m.st.Settings.SpProj != "updated" {
@@ -291,7 +291,7 @@ func (m *Model) projects() []string {
 }
 
 // rollup is session s as its row shows it: its most demanding tab's state,
-// and the latest output of any of them.
+// and the latest Updated of any of them.
 func (m *Model) rollup(s proto.Session) proto.Session {
 	tabs := m.tabsOf(s.ID)
 	if len(tabs) == 0 {
@@ -1071,7 +1071,7 @@ func (a *agents) selected(m *Model) *agRow {
 }
 
 // follow keeps the selection on row r, the one selected before the rows
-// changed: sorted by Updated, a session that prints moves up the list, and
+// changed: sorted by Updated, a session that changes moves up the list, and
 // the highlight goes with it rather than onto whatever took its place.
 func (a *agents) follow(m *Model, r *agRow) {
 	if r == nil {
