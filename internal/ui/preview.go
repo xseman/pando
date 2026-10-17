@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -30,7 +31,23 @@ import (
 	"github.com/xseman/pando/internal/proto"
 )
 
+// lexerCache holds lexers.Match by file name, nil where none matches: chroma
+// tries the patterns of every lexer it has, which was 41% of a keystroke
+// once an edit renders its line again.
+var lexerCache sync.Map
 
+// matchLexer is lexers.Match(name), asked once per name.
+func matchLexer(name string) chroma.Lexer {
+	if l, ok := lexerCache.Load(name); ok {
+		lx, _ := l.(chroma.Lexer)
+		return lx
+	}
+
+	l := lexers.Match(name)
+	lexerCache.Store(name, l)
+
+	return l
+}
 
 const (
 	maxPreviewBytes = 1 << 20
@@ -1339,7 +1356,7 @@ func render(kind, path, raw string, dark bool) (styled, plainLines []string, met
 
 	styled = slices.Clone(plainLines)
 
-	lexer := lexers.Match(filepath.Base(path))
+	lexer := matchLexer(filepath.Base(path))
 	if lexer == nil {
 		lexer = lexers.Analyse(raw)
 	}

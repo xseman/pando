@@ -10,7 +10,6 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/alecthomas/chroma/v2"
-	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/alecthomas/chroma/v2/styles"
 )
 
@@ -285,7 +284,7 @@ func renderDiff(lines []diffLine, path string, dark bool) (styled, plainLines []
 	numW = max(len(strconv.Itoa(maxNo)), 2)
 	ranges := wordRanges(lines)
 	section := func(start, end int, file string) {
-		lexer := lexers.Match(filepath.Base(file))
+		lexer := matchLexer(filepath.Base(file))
 		// Two token streams approximate the old and new file, so a string or
 		// comment opened on a context line colors both sides correctly.
 		var (

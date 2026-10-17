@@ -185,12 +185,28 @@ func (p *preview) refilter(word string) {
 	p.comp.items, p.comp.sel, p.comp.top = items, 0, 0
 }
 
+// prefixFold reports whether r starts with low, a lowercased prefix, in
+// any case.
+func prefixFold(r, low []rune) bool {
+	if len(r) < len(low) {
+		return false
+	}
+
+	for i, c := range low {
+		if unicode.ToLower(r[i]) != c {
+			return false
+		}
+	}
+
+	return true
+}
+
 // fileWords are the identifiers of the file starting with word, nearest to the
 // cursor first.
 // ponytail: the whole buffer is scanned per keystroke, ~1 ms at 5 000 lines;
 // cache the word set per buffer change if files get bigger than that.
 func (p *preview) fileWords(word string) []compItem {
-	low := strings.ToLower(word)
+	low := []rune(strings.ToLower(word))
 	dist := map[string]int{}
 
 	cur := p.comp.line
@@ -206,13 +222,14 @@ func (p *preview) fileWords(word string) []compItem {
 				b++
 			}
 
-			w := string(bl[a:b])
-			if i == cur && a == p.comp.from { // the word being typed is not a suggestion
+			// The word being typed is not a suggestion; a word that does not
+			// start with it is not made a string, as most of the file's are not.
+			if i == cur && a == p.comp.from || b-a < 2 || unicode.IsDigit(bl[a]) || !prefixFold(bl[a:b], low) {
 				a = b
 				continue
 			}
 
-			if b-a >= 2 && !unicode.IsDigit(bl[a]) && w != word && strings.HasPrefix(strings.ToLower(w), low) {
+			if w := string(bl[a:b]); w != word {
 				d := max(i-cur, cur-i)
 				if old, ok := dist[w]; !ok || d < old {
 					dist[w] = d
