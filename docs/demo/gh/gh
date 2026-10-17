@@ -5,6 +5,7 @@ d=$(dirname "$0")
 case "$1 $2" in
 "api user") echo mara ;;
 "api -X") ;;                                   # mark read, Mark as Done
+"api graphql") cat "$d/pr-8-timeline.json" ;;  # the conversation of #8, the one opened
 "api "*) cat "$d/notifications.json" ;;
 "pr list")
 	case "$*" in

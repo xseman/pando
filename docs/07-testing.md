@@ -116,7 +116,7 @@ GIF, [vhs#787](https://github.com/charmbracelet/vhs/issues/787)). Also needs
 make demo ─▶ make install          overwrites $(PREFIX)/bin/pando
    ├─ PAR_TAPES, JOBS=4 at once    markdown lsp vim databases
    │    own /tmp/pando-<tape>/ repo and daemon
-   └─ SEQ_TAPES, one at a time     cli diff edit github tui resume
+   └─ SEQ_TAPES, one at a time     diff edit github tui resume
         share /tmp/pando-demo (claude trusts it; its path is on screen)
    after each tape: pando stop
 ```
@@ -137,8 +137,8 @@ Tape rules:
 - `Set Theme` and `mode` paint terminal and pando: change both together.
 - `lsp.tape` writes `lsp.png` with `Screenshot`, then `Sleep`: vhs grabs the
   next frame, which already shows the next key.
-- Agents start from the CLI (`session new`, `session wait --until`), hidden
-  except in `cli.tape`; `Hide`/`Show` cuts the awaited turn.
+- Agents start from the CLI (`session new`, `session wait --until`), hidden;
+  `Hide`/`Show` cuts the awaited turn.
 - vhs cannot send `F12`, `ctrl+.`, `ctrl+s`, `ctrl+space`, `alt+shift`: bind
   to a ctrl letter (`cfg 26 ctrl+k=editor.saveFile`).
 - Inside a session every key goes to the agent, `[keys]` bindings included.

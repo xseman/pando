@@ -17,28 +17,22 @@ Type `cfg 40` Enter
 Type "export PATH=$DEMO/gh:$PATH; clear" Enter
 Type "pando" Enter
 Sleep 1500ms
-# Notifications folds to its header at the bottom (⏎ on it, 16th row once
-# everything is listed), which leaves Pull Requests the height to list all
-# three; 1 goes back to Explorer.
+# The pull requests load once, hidden; 1 goes back to Explorer.
 Type "6"
-Wait+Screen@10s /review requested/
-Type "g"
-Down 15
-Enter
-Type "g"
+Wait+Screen@10s /Round to the cent/
 Type "1"
 Sleep 500ms
 Show
 Sleep 600ms
 
 # 6 is the GitHub view: pull requests with their checks (passing, failing,
-# still running) and issues.
+# still running); issues and notifications wait folded below.
 Type "6"
 Sleep 2000ms
 
 # ⏎ on a pull request renders its description in the editor: who wants to
 # merge what, the text, the checks and the comments.
-Down@120ms 7
+Down@120ms 8
 Sleep 500ms
 Enter
 Sleep 3500ms
@@ -54,4 +48,4 @@ Sleep 3s
 
 # Spaces (3): the worktree beside the checkout, ready for a session.
 Type "3"
-Sleep 2500ms
+Sleep 2000ms

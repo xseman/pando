@@ -402,8 +402,6 @@ polls. The API covers sessions, workspaces, projects and settings; diffs and
 commits are git's. A session gets `PANDO_SESSION`, so an agent inside one can
 drive pando too: `pando skill` prints [the agent guide](../skills/pando/SKILL.md).
 
-![the CLI: a worktree, claude started in it, a prompt that blocks until the turn is over, and the diff it left](demo/cli.gif)
-
 ## Instances
 
 `pando --instance work` opens a separate pando: a daemon, projects and

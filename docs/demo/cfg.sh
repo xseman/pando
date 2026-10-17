@@ -3,7 +3,7 @@
 # setup.tape, so a tape names only what makes it different:
 #
 #   cfg 26 ctrl+k=editor.saveFile        # width, then key bindings
-#   cfg 34 claude-edits                  # claude with edits and Bash allowed, no prompts (cli, tui)
+#   cfg 34 claude-edits                  # claude with edits and Bash allowed, no prompts (tui)
 #   cfg 34 claude-edits claude-ask       # and agent ask: one that asks before every command, whatever settings.json says
 #   cfg 26 vim ctrl+k=editor.saveFile    # a setting of its own
 #   cfg 30 resume                        # claude resumed in the foreground, in the demo's palette
@@ -17,11 +17,8 @@
 mode=light
 # mode=dark
 
-# The command resume.tape types into its shell session, after cfg has written
-# claude.json. Its "tui": "default" keeps claude in its classic renderer, the
-# one the GIFs show, whatever the recording machine's settings.json picked (a
-# fullscreen claude draws on the alternate screen and looks nothing like them).
-claude_cmd="claude --no-chrome --strict-mcp-config --permission-mode acceptEdits --settings $PANDO_CONFIG_DIR/claude.json"
+# The command resume.tape types into its shell session.
+claude_cmd="claude --permission-mode acceptEdits"
 
 # The claude a tape runs is a stranger's: a config directory of its own with the
 # login and nothing else, so no CLAUDE.md, memory, hooks, plugins, status line
@@ -37,28 +34,35 @@ demo_claude() {
 	: "${demo_claude_src:=${CLAUDE_CONFIG_DIR:-$HOME/.claude}}"
 	local dir=$STATE/claude
 	export DISABLE_AUTOUPDATER=1 CLAUDE_CODE_HIDE_ACCOUNT_INFO=1 ENABLE_CLAUDEAI_MCP_SERVERS=false
+	# Every claude a tape starts is this one, the flags above given, and its
+	# settings as a file (an argument holding JSON would not survive being typed
+	# into a shell), so a command typed on screen is claude's own: a resume
+	# command fits a line. cfg's claude.json has "tui": "default", claude's
+	# classic renderer, the one the GIFs show, whatever the recording machine's
+	# settings.json picked (fullscreen draws on the alternate screen).
+	mkdir -p "$STATE/bin"
+	printf '#!/bin/sh\nexec %s --no-chrome --strict-mcp-config --settings %s "$@"\n' "$(command -v claude)" "$PANDO_CONFIG_DIR/claude.json" > "$STATE/bin/claude"
+	chmod +x "$STATE/bin/claude"
+	export PATH=$STATE/bin:$PATH
 	[ -f "$demo_claude_src/.credentials.json" ] || return 0
 	mkdir -p "$dir"
-	install -m600 "$demo_claude_src/.credentials.json" "$dir/.credentials.json"
-	printf '{"hasCompletedOnboarding": true, "theme": "%s", "projects": {"%s": {"hasTrustDialogAccepted": true}, "%s": {"hasTrustDialogAccepted": true}}}\n' "$mode" "$REPO" "$STATE" > "$dir/.claude.json"
+	# Without the refresh token's expiry: claude warns in its last three days.
+	(umask 077; jq 'del(.claudeAiOauth.refreshTokenExpiresAt)' "$demo_claude_src/.credentials.json" > "$dir/.credentials.json")
+	printf '{"hasCompletedOnboarding": true, "lspRecommendationDisabled": true, "theme": "%s", "projects": {"%s": {"hasTrustDialogAccepted": true}, "%s": {"hasTrustDialogAccepted": true}}}\n' "$mode" "$REPO" "$STATE" > "$dir/.claude.json"
 	export CLAUDE_CONFIG_DIR=$dir
 }
 
 cfg() {
-	local width=$1 top="" agents="" rid="" keys="" a s
+	local width=$1 top="" agents="" keys="" a
 	shift
-	# claude's settings as a file: a resume command is typed into a shell,
-	# where an argument holding JSON would not survive.
-	s='"--settings", "'$PANDO_CONFIG_DIR/claude.json'"'
 	for a in "$@"; do
 		case $a in
 		vim) top+=$'vim_mode = true\n' ;;
 		resume) # the resumed claude in the foreground, not a Claude Code background
-			# job that outlives the recording, and in the palette it started in
-			top+=$'claude_background = false\n'
-			rid+="claude = [\"claude\", \"--no-chrome\", \"--strict-mcp-config\", \"--permission-mode\", \"acceptEdits\", $s, \"--resume\", \"{id}\"]"$'\n' ;;
-		claude-ask) agents+="ask = [\"claude\", \"--no-chrome\", \"--strict-mcp-config\", \"--permission-mode\", \"default\", $s]"$'\n' ;;
-		claude-edits) agents+="claude = [\"claude\", \"--no-chrome\", \"--strict-mcp-config\", \"--permission-mode\", \"acceptEdits\", \"--allowedTools\", \"Bash\", $s]"$'\n' ;;
+			# job that outlives the recording
+			top+=$'claude_background = false\n' ;;
+		claude-ask) agents+="ask = [\"claude\", \"--permission-mode\", \"default\"]"$'\n' ;;
+		claude-edits) agents+="claude = [\"claude\", \"--permission-mode\", \"acceptEdits\", \"--allowedTools\", \"Bash\"]"$'\n' ;;
 		*=*) keys+="\"${a%%=*}\" = \"${a#*=}\""$'\n' ;;
 		*) echo "cfg: unknown argument $a" >&2 ;;
 		esac
@@ -71,11 +75,11 @@ cfg() {
 	# Top-level keys first: after a [table] header they would belong to it.
 	# Every panel on the left, the session over the editor area: at the 98
 	# columns a GIF records in, a session docked beside the editor leaves
-	# both too narrow to read, and a file opened shows in front of it.
+	# both too narrow to read, and a file opened shows in front of it. A
+	# terminal's bash skips the recorder's .bashrc: its prompt is vhs's.
 	{
-		printf 'icons = "nerd"\npanel_borders = false\ncolor_theme = "vscode-%s"\nwidth = %s\nsession_position = "editor"\n%s' "$mode" "$width" "$top"
+		printf 'icons = "nerd"\npanel_borders = false\ncolor_theme = "vscode-%s"\nwidth = %s\nsession_position = "editor"\nshell = "bash --norc"\n%s' "$mode" "$width" "$top"
 		[ -n "$agents" ] && printf '[agents]\n%s' "$agents"
-		[ -n "$rid" ] && printf '[resume_id]\n%s' "$rid"
 		[ -n "$keys" ] && printf '[keys]\n%s' "$keys"
 	} > "$PANDO_CONFIG_DIR/config.toml"
 }

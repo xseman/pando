@@ -27,11 +27,15 @@ Sleep 800ms
 
 # 12G jumps to Add's comment; V and 4j take it, the method and the blank
 # line under it: V-LINE.
-Type@200ms "12G"
+Type@200ms "12"
+Sleep 600ms
+Type "G"
 Sleep 500ms
 Type "V"
 Sleep 300ms
-Type@150ms "4j"
+Type "4"
+Sleep 600ms
+Type "j"
 Sleep 900ms
 
 # y yanks the lines and P puts the copy above them, the cursor on its top.
@@ -40,9 +44,11 @@ Sleep 400ms
 Type "P"
 Sleep 900ms
 
-# j6w goes down a line and walks the words to Add (the count shows beside NORMAL) and C changes the
-# rest of the line: INSERT until esc.
-Type@200ms "j6w"
+# j6w goes down a line and walks the words to Add (the count shows beside
+# NORMAL), and C changes the rest of the line: INSERT until esc.
+Type@200ms "j6"
+Sleep 600ms
+Type "w"
 Sleep 400ms
 Type "C"
 Sleep 300ms
@@ -52,21 +58,23 @@ Escape
 Sleep 400ms
 
 # cc retypes the body line, its indent kept.
-Type@150ms "jcc"
+Type@150ms "jc"
+Sleep 500ms
+Type "c"
 Sleep 300ms
 Type "delete(s.items, name)"
 Sleep 400ms
 Escape
 Sleep 400ms
 
-# The comment last: 2k0w puts the cursor on its Add. Its "." opens the
-# suggest list, empty in a comment, so the first esc closes that and the
-# second goes back to NORMAL.
-Type@150ms "2k0wC"
+# The comment last: 2k0w puts the cursor on its Add, C retypes the rest.
+Type "2"
+Sleep 600ms
+Type@150ms "k0w"
+Sleep 400ms
+Type "C"
 Sleep 300ms
 Type "Remove drops an item."
 Sleep 400ms
-Escape
-Sleep 150ms
 Escape
 Sleep 2s

@@ -23,7 +23,7 @@ Type "b=$(pando session new --agent ask --ws $wt/discount --wait | jq -r .id)" E
 Type "c=$(pando session new --agent claude --ws $wt/readme --wait | jq -r .id)" Enter
 # The prompts go in from a background job once pando is up, one by one, so
 # the tree comes alive on screen.
-Type `(sleep 3; pando session send $a 'add a Count method to Store' --enter; sleep 1; pando session send $b 'run go vet ./... and go run .' --enter; sleep 1; pando session send $c 'document the store package in README.md, with an example' --enter) >/dev/null 2>&1 &` Enter
+Type `(sleep 5; pando session send $a 'add a Count method to Store' --enter; sleep 1; pando session send $b 'run go vet ./... and go run .' --enter; sleep 1; pando session send $c 'document the store package in README.md, with an example' --enter) >/dev/null 2>&1 &` Enter
 Type "clear; pando" Enter
 Sleep 1500ms
 Type "3"
@@ -32,17 +32,16 @@ Show
 
 # Three worktrees, a claude in each, idle (○) until its prompt arrives: then
 # ◐, and each renames itself after its work.
-Wait+Screen@30s /running[\s\S]*running[\s\S]*running/
+Wait+Screen@30s /running[\s\S]*running/
 Sleep 1500ms
 
-# One waits for a yes (× pulses), then one finishes (✓) while the third
-# works on. (The wait for it is cut.)
-Wait+Screen@90s /blocked/
-Sleep 1500ms
+# One waits for a yes (× pulses) and one finishes (✓), in whichever order,
+# while the third works on. (The wait for them is cut.)
 Hide
+Wait+Screen@90s /blocked/
 Wait+Screen@90s /✓/
 Show
-Sleep 2s
+Sleep 2500ms
 
 # ⏎ on the finished one opens it in the editor area: what it did.
 Type "g"
@@ -79,4 +78,11 @@ Sleep 300ms
 Type "Add Store.Count"
 Sleep 400ms
 Enter
+Sleep 2s
+
+# ctrl+] goes to the diff, empty once committed, and ctrl+w closes it: the
+# session it was opened in front of shows again.
+Ctrl+]
+Sleep 300ms
+Ctrl+w
 Sleep 3s

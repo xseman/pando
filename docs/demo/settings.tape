@@ -14,6 +14,9 @@ Set Margin 40
 Set MarginFill "docs/demo/bg.png"
 Set BorderRadius 10
 Set TypingSpeed 40ms
+# The shell's cursor holds still. pando's editor asks for the terminal's
+# default cursor (DECSCUSR 0), which xterm.js blinks whatever this says.
+Set CursorBlink false
 Set Framerate 24
 
 # The palette: VS Code's light terminal colors on a white editor. Keep it in

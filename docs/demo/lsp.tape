@@ -2,8 +2,8 @@
 # by gopls. VHS cannot send F12, shift+F12, ctrl+. or F2, so the demo binds
 # those commands to ctrl letters in its config (the browser VHS records in eats
 # ctrl+r, so rename is ctrl+y).
-# The README's still under Why is a frame of it: lsp.png, the peek with a
-# reference picked.
+# The README's still under Install is a frame of it: lsp.png, the peek with
+# a reference picked.
 # Record with: make demo   (needs vhs v0.10 or v0.11, ttyd, ffmpeg, a Chrome and gopls)
 Output docs/demo/lsp.gif
 
@@ -31,6 +31,12 @@ Sleep 300ms
 Ctrl+e
 Wait+Screen@60s /References/
 Escape
+# Away from Total again, so the first step visibly goes to it. (esc and a
+# key within 50 ms read as one alt key.)
+Sleep 200ms
+Ctrl+g
+Type "1:1"
+Enter
 Sleep 500ms
 Show
 Sleep 800ms
@@ -88,7 +94,7 @@ Sleep 2s
 # Typing asks gopls: after "s." the list holds the store's methods, S picks Sum.
 Ctrl+g
 Sleep 300ms
-Type "27:44"
+Type "27:38"
 Enter
 Sleep 500ms
 Enter
@@ -100,7 +106,8 @@ Sleep 1200ms
 Enter
 Sleep 1500ms
 
-# The rename wrote two files, the code action a new test file.
+# Source Control (2): the rename changed main.go, the code action added
+# store_test.go; the rest was changed before the GIF starts.
 Ctrl+]
 Sleep 400ms
 Type "2"

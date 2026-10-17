@@ -17,8 +17,8 @@ Type `cfg 30 resume` Enter
 # is what the daemon respawns, and what it types the resume command into.
 # The shell is started with claude's isolated config directory in its
 # environment (see demo_claude in cfg.sh), so what it runs keeps its
-# conversation there.
-Type "pando project add . >/dev/null && pando session new --ws . --name barista --wait -- env CLAUDE_CONFIG_DIR=$CLAUDE_CONFIG_DIR bash >/dev/null" Enter
+# conversation there, and without the recorder's .bashrc: its prompt is vhs's.
+Type "pando project add . >/dev/null && pando session new --ws . --name barista --wait -- env CLAUDE_CONFIG_DIR=$CLAUDE_CONFIG_DIR bash --norc >/dev/null" Enter
 Type `pando session send barista "$claude_cmd" --wait >/dev/null` Enter
 Type `pando session send barista 'The secret word is cortado. Answer in one short line.' --wait >/dev/null` Enter
 # The sends above return only once claude has answered, so the shell is busy
@@ -37,18 +37,23 @@ Sleep 2500ms
 # Close pando (q asks first), then stop the daemon: every session's program
 # goes with it.
 Type "q"
-Sleep 800ms
+Sleep 1500ms
 Enter
 Sleep 600ms
 Type "pando stop" Enter
 Sleep 1200ms
 
 # The next pando starts a daemon, which brings the session back: its shell,
-# and claude resumed on the same conversation. 3 shows Spaces at once, beside
-# the shell typing the resume command.
-Type "pando" Enter
+# and claude resumed on the same conversation by the command it typed there.
+# The start is cut to Spaces (3), beside the session.
+Type "pando"
+Sleep 400ms
+Hide
+Enter
 Wait+Screen@30s /PANDO-DEMO/
 Type "3"
+Sleep 400ms
+Show
 Wait+Screen@60s /cortado/
 Sleep 2500ms
 

@@ -11,6 +11,8 @@
 Hide
 Type "export DEMO=$PWD/docs/demo REPO=${PANDO_DEMO_REPO:-/tmp/pando-demo} STATE=${PANDO_DEMO_STATE:-/tmp/pando-state}" Enter
 Type "export PANDO_RUNTIME_DIR=$STATE/run PANDO_CONFIG_DIR=$STATE/cfg PANDO_DATA_DIR=$STATE/data" Enter
+# The recorder's git config stays out too: a conflict reads the same anywhere.
+Type "export GIT_CONFIG_GLOBAL=/dev/null" Enter
 # Recorded from inside claude or a pando session, the demo's claude would take
 # that session's id, name and messaging socket; CLAUDE_CONFIG_DIR stays, it
 # holds the trusted folders.

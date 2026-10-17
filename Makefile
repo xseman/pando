@@ -12,7 +12,7 @@ GOLANGCI ?= go run $(GOLANGCI_PKG)
 # would be a second one to trust by hand, or it shows the repository's path on
 # screen, where /tmp/pando-demo is what belongs in the GIF.
 PAR_TAPES ?= markdown lsp vim databases
-SEQ_TAPES ?= cli diff edit github tui resume
+SEQ_TAPES ?= diff edit github tui resume
 JOBS ?= 4
 
 .PHONY: build install test lint fmt clean demo $(addprefix demo-,$(PAR_TAPES) $(SEQ_TAPES))

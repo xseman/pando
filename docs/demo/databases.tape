@@ -12,7 +12,7 @@ Require sqlite3
 
 Source docs/demo/settings.tape
 Source docs/demo/setup.tape
-Type `cfg 26 ctrl+k=editor.submitChanges` Enter
+Type `cfg 23 ctrl+k=editor.submitChanges` Enter
 Type "sqlite3 shop.db < $DEMO/shop.sql && clear" Enter
 Type "pando" Enter
 Sleep 1500ms
@@ -29,7 +29,7 @@ Ctrl+]
 Sleep 300ms
 Show
 
-# The table under its WHERE and ORDER BY boxes, 200 rows a page.
+# The table under its WHERE and ORDER BY boxes.
 Sleep 1800ms
 
 # s sorts by the cursor's column: up, then down.
@@ -60,11 +60,11 @@ Enter
 Sleep 1000ms
 
 # ctrl+d duplicates a row, A, its key left to the database: one cell changed.
-Type "j"
+Type@150ms "j0"
 Sleep 200ms
 Ctrl+D
 Sleep 900ms
-Type@150ms "0l"
+Type "l"
 Enter
 Sleep 500ms
 Ctrl+U
@@ -85,7 +85,7 @@ Sleep 600ms
 Down@80ms 8
 Sleep 500ms
 Enter
-Sleep 2800ms
+Sleep 4500ms
 Escape
 Sleep 400ms
 
@@ -126,4 +126,4 @@ Tab
 Type@80ms "secret"
 Sleep 2500ms
 Escape
-Sleep 1000ms
+Sleep 2s

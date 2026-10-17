@@ -1,0 +1,5 @@
+{"data":{"repository":{"pullRequest":{"timelineItems":{"nodes":[
+{"__typename":"PullRequestCommit","commit":{"oid":"7e2a5d3c41f09b8e6a2d5c7f3b1e9a04d6c8b2f1","messageHeadline":"Add Discount","committedDate":"2026-09-29T15:40:00Z",
+ "authors":{"nodes":[{"name":"Jun","user":{"login":"jun"}}]},"statusCheckRollup":{"state":"SUCCESS"},"signature":null}},
+{"__typename":"IssueComment","id":"IC_1","author":{"login":"noor"},"body":"Rounds down, like Total. Looks good to me.","createdAt":"2026-09-29T17:02:00Z","url":"https://github.com/pando-demo/shop/pull/8#issuecomment-1","lastEditedAt":null}
+]}}}}}

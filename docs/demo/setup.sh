@@ -78,9 +78,9 @@ git commit -qm "the basket and its store"
 # Uncommitted work, so Source Control has something to show.
 cat >> internal/store/store.go <<'EOF'
 
-// Discount takes a percentage off the basket.
-func (s *Store) Discount(percent int) int {
-	return s.Total() * (100 - percent) / 100
+// Discount takes percent off.
+func (s *Store) Discount(p int) int {
+	return s.Total() * (100 - p) / 100
 }
 EOF
 printf '\n## Prices\n\nEverything is in cents.\n' >> README.md

@@ -36,7 +36,7 @@ Sleep 1800ms
 # The cursor is a row of the diff: m on one line reverts just that line, after
 # asking.
 Down 4
-Sleep 700ms
+Sleep 1400ms
 Type "m"
 Sleep 800ms
 Down
@@ -63,7 +63,14 @@ Sleep 400ms
 Type "Add Discount"
 Sleep 500ms
 Enter
-Sleep 2500ms
+Sleep 2000ms
+
+# Committed, the diff is empty: ctrl+] goes to it, and ctrl+w closes it,
+# back to the sidebar.
+Ctrl+]
+Sleep 300ms
+Ctrl+w
+Sleep 600ms
 
 # A merge that conflicts, run in the terminal panel (5). Merge Changes shows
 # up above the sections with ! after the branch, and Commit waits as Continue.

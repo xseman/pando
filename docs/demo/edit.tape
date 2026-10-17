@@ -37,13 +37,13 @@ Sleep 1200ms
 Ctrl+k
 Sleep 700ms
 Type "i"
-Sleep 300ms
+Sleep 600ms
 Tab
-Sleep 400ms
+Sleep 700ms
 Type "s"
-Sleep 300ms
+Sleep 600ms
 Tab
-Sleep 400ms
+Sleep 700ms
 Type "cents.go"
 Sleep 900ms
 
