@@ -2735,3 +2735,26 @@ func FuzzStrWidth(f *testing.F) {
 }
 
 
+// TestStillEventKeepsFrame gives the last frame back after an event that
+// only asks the daemon for what changed, and draws again after the answer.
+func TestStillEventKeepsFrame(t *testing.T) {
+	m := testModel(t)
+	drainInputs(m)
+	m.Update(focusSessionMsg("s1"))
+	m.term.id, m.term.scr = "s1", proto.Screen{Lines: []string{"before"}}
+
+	was := m.View().Content
+	m.term.scr.Lines[0] = "after" // as if drawn, but a still event does not draw
+
+	m.Update(eventMsg{Kind: "screen", ID: "s1"})
+
+	if m.View().Content != was {
+		t.Fatal("a screen event draws the frame it had")
+	}
+
+	m.Update(screenMsg{"s1", proto.Screen{Lines: []string{"after"}}, nil})
+
+	if !strings.Contains(m.View().Content, "after") {
+		t.Fatal("the screen it asked for is drawn")
+	}
+}

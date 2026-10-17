@@ -214,6 +214,8 @@ type Model struct {
 	tipSeen   time.Time // when a tip was last drawn: moving on, the next one shows at once
 	tipOff    time.Time // a key or a click puts the tip away until the pointer moves
 	frame     *frame    // the columns while View draws, which asks for them row by row; nil otherwise
+	drawn     *tea.View // the last frame View drew, which a still message gets again
+	still     bool      // the last message changed nothing on screen (stillEvent)
 	index     struct {  // workspace file list for quick open and the Files filter
 		ws    string
 		files []string
@@ -2545,9 +2547,20 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.noteFx()
 	m.noteDiags()
 
+	m.still = stillEvent(msg)
+
 	return m, tea.Batch(cmd, m.noteEdits(), m.noteGutter(), m.animate(), m.spinLater())
 }
 
+// stillEvent reports a daemon event whose handling only asks for what
+// changed: the screen stays as it was until the answer arrives, so View
+// gives the last frame again. Bubble Tea draws after every message, and a
+// busy session sends one of these before each of its screens.
+func stillEvent(msg tea.Msg) bool {
+	e, ok := msg.(eventMsg)
+
+	return ok && (e.Kind == "screen" || e.Kind == "state" || e.Kind == "sessions" || e.Kind == "workspaces")
+}
 
 // dockBare docks a session over an empty editor area to its side: with no
 // editor open it has nothing to cover, and the empty editor shows beside it.
@@ -3998,6 +4011,10 @@ const snapHide = 10
 // View draws the columns side by side into the panel rows, then the status
 // bar, the overlays and the cursor.
 func (m *Model) View() tea.View {
+	if m.still && m.drawn != nil {
+		return *m.drawn
+	}
+
 	v := tea.NewView("")
 	v.AltScreen = true
 
@@ -4189,6 +4206,7 @@ func (m *Model) View() tea.View {
 	}
 
 	v.SetContent(frame)
+	m.drawn = &v
 
 	return v
 }
