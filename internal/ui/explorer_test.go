@@ -11,6 +11,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/xseman/pando/internal/proto"
 )
 
 // submit presses enter in a prompt and delivers what its command produces.
@@ -443,5 +444,72 @@ func TestExplorerIndentGuides(t *testing.T) {
 				t.Errorf("%s selected: %s lights level %d, want %d", sel, name, got, level)
 			}
 		}
+	}
+}
+
+func TestExplorerAutoReveal(t *testing.T) {
+	m := testModel(t)
+	other := t.TempDir()
+	deep := filepath.Join(other, "src", "deep", "y.go")
+	mustWrite(t, deep, "package deep\n")
+
+	m.wss = append(m.wss, proto.Workspace{Path: other, Project: other, Branch: "b"})
+	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: other, Agent: "shell"}, Status: "idle"})
+	m.st.Editors = map[string]proto.Editors{other: {Open: []proto.Editor{{Path: deep}}}}
+
+	// Off, the session's editor opens and Explorer stays folded.
+	fire(m, m.switchSession("s2"))
+
+	if m.pv.path != deep || m.ex.selected() != nil {
+		t.Fatalf("off: editor %q, Explorer selected %+v", m.pv.path, m.ex.selected())
+	}
+
+	// On, switching to the session from Spaces selects its file, folders
+	// unfolded, with Explorer brought to the front of its column.
+	m.st.Settings.Reveal = true
+	fire(m, m.switchSession("s1"))
+	fire(m, m.showView(viewAgents))
+	m.focus = onMain // as a click on its row
+	fire(m, m.switchSession("s2"))
+
+	if n := m.ex.selected(); n == nil || n.path != deep || !m.ex.expanded[filepath.Dir(deep)] {
+		t.Fatalf("on: Explorer selected %+v", n)
+	}
+
+	if m.recent[viewFiles] <= m.recent[viewAgents] {
+		t.Fatal("on: Explorer stays behind Spaces")
+	}
+
+	// A session of the same worktree leaves Spaces in front.
+	fire(m, m.showView(viewAgents))
+	fire(m, m.switchSession("s2"))
+
+	if m.recent[viewFiles] > m.recent[viewAgents] {
+		t.Fatal("same worktree: Explorer came to the front")
+	}
+
+	// Picking another editor tab reveals its file, Explorer in front.
+	readme := filepath.Join(other, "README.md")
+	mustWrite(t, readme, "# hi\n")
+	m.ex.rebuild(m)
+	fire(m, m.openFile(readme, false))
+	fire(m, m.showView(viewAgents))
+	m.focus = onMain
+	fire(m, m.showEditor(0))
+
+	if n := m.ex.selected(); n == nil || n.path != deep || m.recent[viewFiles] <= m.recent[viewAgents] {
+		t.Fatalf("tab: Explorer selected %+v, in front %v", n, m.recent[viewFiles] > m.recent[viewAgents])
+	}
+
+	// Opened from Search in Explorer's column, the file is selected behind it.
+	fire(m, m.showView(viewSearch))
+	fire(m, m.openFile(readme, true))
+
+	if n := m.ex.selected(); n == nil || n.path != readme {
+		t.Fatalf("search: Explorer selected %+v", n)
+	}
+
+	if m.colOf(viewSearch) == m.colOf(viewFiles) && m.recent[viewFiles] > m.recent[viewSearch] {
+		t.Fatal("search: Explorer covered the view the file was opened from")
 	}
 }

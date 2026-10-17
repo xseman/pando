@@ -188,6 +188,18 @@ func (e *explorer) reveal(m *Model, path string) {
 	}
 }
 
+// frontExplorer brings Explorer to the front of its column once it selected
+// path, unless that column has the keyboard: a file opened from Search or
+// Source Control in it leaves that view in front.
+func (m *Model) frontExplorer(path string) {
+	if n := m.ex.selected(); n == nil || n.path != path || m.focus == m.colOf(viewFiles) {
+		return
+	}
+
+	m.clock++
+	m.recent[viewFiles] = m.clock
+}
+
 func (e *explorer) lines(m *Model, w, h int) []string {
 	filtering := m.query(viewFiles) != ""
 	hover := m.hoverRow(viewFiles)

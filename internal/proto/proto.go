@@ -43,6 +43,7 @@ type Event struct {
 type Settings struct {
 	Hidden    bool                `json:"hidden" toml:"hidden"`
 	ExSort    string              `json:"explorer_sort" toml:"explorer_sort"` // Explorer files by "name" or "type" (extension, then name), folders first
+	Reveal    bool                `json:"auto_reveal" toml:"auto_reveal"`     // Explorer selects the file the editor shows, its folders unfolded
 	Icons     string              `json:"icons" toml:"icons"`                 // "nerd" | "emoji" | "ascii"
 	Width     int                 `json:"width" toml:"width"`                 // left sidebar
 	WidthR    int                 `json:"width_right" toml:"width_right"`

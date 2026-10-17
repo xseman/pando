@@ -42,7 +42,7 @@ func defaultConfig() config {
 
 	return config{
 		Settings: proto.Settings{
-			Hidden: true, Icons: "ascii", Width: 40, WidthR: 32, GitDeco: true, GitTree: true, Crumbs: true,
+			Hidden: true, Icons: "ascii", Width: 40, WidthR: 32, GitDeco: true, GitTree: true, Crumbs: true, Reveal: true,
 			Theme: "vscode", DiffView: "inline", Borders: true, FmtSave: true, Diags: true,
 			ActBar: "top", TermPos: "bottom", TermH: 12, SessPos: "right", SessHi: "tint",
 			SpSort: "created", SpGroup: "workspace", SpProj: "manual", ExSort: "name",
@@ -180,6 +180,7 @@ func (c *config) encode() []byte {
 	kv("A file's diff shows the whole file, not only the changes and three lines around\nthem. z in a diff toggles it.", "diff_full", s.DiffFull)
 	kv("Show dotfiles in Files.", "hidden", s.Hidden)
 	kv("Files sorts by \"name\" or by \"type\" (extension, then name), folders first,\nas VS Code's explorer.sortOrder.", "explorer_sort", s.ExSort)
+	kv("Files selects the file the editor shows, unfolding its folders, as VS Code's\nexplorer.autoReveal, and comes to the front of its column: a file opened, its tab picked\nor a session switched to. Opened from a view in Files' own column, that view stays.", "auto_reveal", s.Reveal)
 	kv("Color Files entries by their git status.", "git_deco", s.GitDeco)
 	kv("Show Source Control changes as a tree instead of a flat list.", "git_tree", s.GitTree)
 	kv("Group quick open (ctrl+p) results by directory.", "quick_open_tree", s.QuickTree)

@@ -5159,6 +5159,7 @@ func settingsItems(m *Model) []item {
 			return tea.Batch(m.setSettings(map[string]any{"git_deco": !m.st.Settings.GitDeco}), m.refreshGit())
 		}},
 		{label: "Sort files by", hint: cmp.Or(s.ExSort, "name"), run: toggleSort},
+		{label: "Auto reveal", hint: onOff(s.Reveal), run: func(m *Model) tea.Cmd { return m.setSettings(map[string]any{"auto_reveal": !m.st.Settings.Reveal}) }},
 		{},
 		heading("Source Control"),
 		{label: "Git changes as tree", hint: onOff(s.GitTree), run: func(m *Model) tea.Cmd {

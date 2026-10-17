@@ -353,6 +353,11 @@ func (m *Model) setPreview(p preview) tea.Cmd {
 		m.files = slices.Insert(slices.DeleteFunc(m.files, func(f string) bool { return f == p.path }), 0, p.path)
 	}
 
+	if p.kind == pvFile && m.st.Settings.Reveal { // a tab picked or restored too: a session switched to shows its file
+		m.ex.reveal(m, p.path)
+		m.frontExplorer(p.path)
+	}
+
 	m.pv = p
 	m.pv.wrap = m.st.Settings.Wrap
 
