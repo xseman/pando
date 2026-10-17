@@ -11,6 +11,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/xseman/pando/internal/git"
 	"github.com/xseman/pando/internal/proto"
 )
 
@@ -468,8 +469,7 @@ func TestExplorerAutoReveal(t *testing.T) {
 	// unfolded, with Explorer brought to the front of its column.
 	m.st.Settings.Reveal = true
 	fire(m, m.switchSession("s1"))
-	fire(m, m.showView(viewAgents))
-	m.focus = onMain // as a click on its row
+	fire(m, m.showView(viewAgents)) // the keyboard in Spaces, as a click on a workspace row leaves it
 	fire(m, m.switchSession("s2"))
 
 	if n := m.ex.selected(); n == nil || n.path != deep || !m.ex.expanded[filepath.Dir(deep)] {
@@ -494,7 +494,6 @@ func TestExplorerAutoReveal(t *testing.T) {
 	m.ex.rebuild(m)
 	fire(m, m.openFile(readme, false))
 	fire(m, m.showView(viewAgents))
-	m.focus = onMain
 	fire(m, m.showEditor(0))
 
 	if n := m.ex.selected(); n == nil || n.path != deep || m.recent[viewFiles] <= m.recent[viewAgents] {
@@ -511,5 +510,12 @@ func TestExplorerAutoReveal(t *testing.T) {
 
 	if m.colOf(viewSearch) == m.colOf(viewFiles) && m.recent[viewFiles] > m.recent[viewSearch] {
 		t.Fatal("search: Explorer covered the view the file was opened from")
+	}
+
+	// A change opened from Source Control reveals the file it changed.
+	fire(m, m.openDiff(other, git.Entry{Path: filepath.Join("src", "deep", "y.go")}, true))
+
+	if n := m.ex.selected(); n == nil || n.path != deep {
+		t.Fatalf("diff: Explorer selected %+v", n)
 	}
 }

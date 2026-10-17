@@ -188,11 +188,17 @@ func (e *explorer) reveal(m *Model, path string) {
 	}
 }
 
-// frontExplorer brings Explorer to the front of its column once it selected
-// path, unless that column has the keyboard: a file opened from Search or
-// Source Control in it leaves that view in front.
-func (m *Model) frontExplorer(path string) {
-	if n := m.ex.selected(); n == nil || n.path != path || m.focus == m.colOf(viewFiles) {
+// autoReveal selects path in Explorer, as auto_reveal, and brings Explorer to
+// the front of its column, unless that column has the keyboard on another
+// view than Spaces: a file opened from Search or Source Control there leaves
+// that view in front.
+func (m *Model) autoReveal(path string) {
+	if n := m.ex.selected(); n == nil || n.path != path { // shown already: arrowing through previews rebuilds nothing
+		m.ex.reveal(m, path)
+	}
+
+	n := m.ex.selected()
+	if v, _ := m.viewOn(m.focus); n == nil || n.path != path || m.focus == m.colOf(viewFiles) && v != viewAgents {
 		return
 	}
 

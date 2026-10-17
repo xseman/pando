@@ -62,7 +62,7 @@ config.toml edited ───────────┘  └─ "state" event �
 | `left`, `right`        | `[]`        | sidebar columns: [Columns](#columns)                                           |
 | `hidden`               | `true`      | Explorer shows dotfiles                                                        |
 | `explorer_sort`        | `name`      | Explorer files by `name` or `type` (extension, then name), folders first       |
-| `auto_reveal`          | `true`      | Explorer selects and fronts the editor's file, unless its column has focus     |
+| `auto_reveal`          | `true`      | Explorer selects the editor's file or diff, in front unless Search/Git in use  |
 | `git_deco`             | `true`      | Explorer colors entries by git status                                          |
 | `git_tree`             | `true`      | Source Control changes as a tree                                               |
 | `git_drawers`          | 5 drawers   | Graph, Commits, Branches, Remotes, Stashes; top to bottom, any drawer's title  |

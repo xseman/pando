@@ -93,8 +93,9 @@ checkout.
   over the editor, or off screen to hide it; it keeps running.
 - A session re-roots Explorer and Source Control to its worktree; Explorer
   selects the file its editor shows and comes to the front of its column
-  (`auto_reveal`), as for any file opened or tab picked. A file opened from
-  Search or Source Control sharing Explorer's column leaves that view in front.
+  (`auto_reveal`), as for any file or change opened, or tab picked. A file
+  opened from Search or Source Control sharing Explorer's column leaves that
+  view in front.
 - Each session has shell tabs (the strip's `+`) and its own Terminal panel.
   `[` `]` step through its tabs; `alt+t` picks a session. Spaces shows the
   tab count (`⧉ 2`) on a session with more than one. An agent started in a

@@ -365,9 +365,13 @@ func (m *Model) setPreview(p preview) tea.Cmd {
 		m.files = slices.Insert(slices.DeleteFunc(m.files, func(f string) bool { return f == p.path }), 0, p.path)
 	}
 
-	if p.kind == pvFile && m.st.Settings.Reveal { // a tab picked or restored too: a session switched to shows its file
-		m.ex.reveal(m, p.path)
-		m.frontExplorer(p.path)
+	if m.st.Settings.Reveal && p.path != "" { // a tab picked or restored too: a session switched to shows its file
+		switch p.kind {
+		case pvFile:
+			m.autoReveal(p.path)
+		case pvDiff, pvCmp: // the file changed, as VS Code reveals a diff's modified side
+			m.autoReveal(filepath.Join(p.root, p.path))
+		}
 	}
 
 	m.pv = p
