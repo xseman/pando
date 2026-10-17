@@ -107,9 +107,11 @@ func fitWith(s string, w int, tail string) string {
 		return tail
 	}
 
+	// Truncate counts some clusters narrower than StringWidth does (1️⃣):
+	// cut a cell shorter until the row fits.
 	sw := strWidth(s)
-	if sw > w {
-		s = ansi.Truncate(s, w, "")
+	for lim := w; sw > w; lim-- {
+		s = ansi.Truncate(s, lim, "")
 		sw = strWidth(s)
 	}
 

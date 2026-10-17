@@ -1766,6 +1766,12 @@ func TestRowFitsExactly(t *testing.T) {
 	if s := fit("\x1b[31mhello\x1b[m", 3); ansi.Strip(s) != "hel" {
 		t.Errorf("fit truncate = %q", s)
 	}
+
+	for w := range 14 { // Truncate leaves the keycap wider than it counted: View panicked
+		if got := ansi.StringWidth(fit("# ▶️ 1️⃣ 漢字 é", w)); got != w {
+			t.Errorf("fit to %d is %d wide", w, got)
+		}
+	}
 }
 
 func FuzzWcSafe(f *testing.F) {
