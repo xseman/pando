@@ -19,6 +19,7 @@ import (
 	"time"
 
 	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/charmbracelet/x/vt"
 	"github.com/xseman/pando/internal/git"
 	"github.com/xseman/pando/internal/proto"
 )
@@ -1856,5 +1857,54 @@ func TestXtermKey(t *testing.T) {
 
 	if _, ok := xtermKey(uv.KeyTab, uv.ModShift); ok {
 		t.Fatal("shift+tab is vt's CSI Z")
+	}
+}
+
+// testSession is a session with no process: an emulator cols x rows and
+// the scrollback it keeps, as spawn sets it up.
+func testSession(cols, rows int) *session {
+	s := &session{emu: vt.NewEmulator(cols, rows), mouse: map[int]bool{}, exited: true}
+	s.keepBack()
+
+	return s
+}
+
+
+// TestScrollbackMemory bounds what a session's full scrollback costs: rows
+// of vt's cells took 110 MiB, the rows rendered take a few. An app scrolling
+// on the alternate screen keeps none, as vt would 100 MiB of them.
+func TestScrollbackMemory(t *testing.T) {
+	heap := func() uint64 {
+		runtime.GC()
+
+		var ms runtime.MemStats
+		runtime.ReadMemStats(&ms)
+
+		return ms.HeapAlloc
+	}
+
+	for _, alt := range []bool{false, true} {
+		before := heap()
+
+		s := testSession(200, 50)
+
+		if alt {
+			s.drain(func() { _, _ = s.emu.WriteString("\x1b[?1049h") })
+		}
+
+		for i := 0; i < scrollMax+100; i += 100 {
+			var b strings.Builder
+			for j := i; j < i+100; j++ {
+				fmt.Fprintf(&b, "\x1b[38;5;%dm● %d\x1b[0m Thinking about the problem, reading internal/ui/app.go:%d\r\n", j%200+16, j, j)
+			}
+
+			s.drain(func() { _, _ = s.emu.WriteString(b.String()) })
+		}
+
+		if grew := heap() - before; grew > 8<<20 {
+			t.Errorf("alt %v: a full scrollback grew the heap %.1f MiB, want under 8", alt, float64(grew)/(1<<20))
+		}
+
+		runtime.KeepAlive(s)
 	}
 }

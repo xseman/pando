@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 	"os/exec"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"syscall"
 	"time"
 	"unicode"
+	"unsafe"
 
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
@@ -59,7 +61,8 @@ type session struct {
 	jobName       string
 	jobPID        int
 	cursorVisible bool
-	cursorStyle   int // DECSCUSR the app sent last: one for both screens, as in xterm
+	back          []string // the scrollback, rendered, oldest first: at most scrollMax rows
+	cursorStyle   int      // DECSCUSR the app sent last: one for both screens, as in xterm
 	mouse         map[int]bool
 	status        string
 	screenAt      time.Time // lastOutput when the screen was last classified
@@ -88,7 +91,7 @@ func spawn(spec proto.SessionSpec, cols, rows int, onOutput, onExit func()) (*se
 		spec: spec, cmd: cmd, pty: f, done: make(chan struct{}),
 		emu: vt.NewEmulator(cols, rows), cursorVisible: true, mouse: map[int]bool{}, status: "running",
 	}
-	s.emu.SetScrollbackSize(10000)
+	s.keepBack()
 	// Answer OSC 10/11 color queries with the attached terminal's colors so
 	// apps pick a readable theme (vt defaults to white on black).
 	if c := ansi.XParseColor(spec.FG); c != nil {
@@ -134,7 +137,7 @@ func spawn(spec proto.SessionSpec, cols, rows int, onOutput, onExit func()) (*se
 				}
 
 				s.lastOutput = now
-				_, _ = s.emu.Write(osc.ascii(buf[:n])) // the emulator absorbs anything
+				s.drain(func() { _, _ = s.emu.Write(osc.ascii(buf[:n])) }) // the emulator absorbs anything
 				s.mu.Unlock()
 				onOutput()
 			}
@@ -349,9 +352,11 @@ func (s *session) notice(lines ...string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	for _, l := range lines {
-		_, _ = s.emu.WriteString("\x1b[2mpando: " + l + "\x1b[0m\r\n") // the emulator absorbs anything
-	}
+	s.drain(func() {
+		for _, l := range lines {
+			_, _ = s.emu.WriteString("\x1b[2mpando: " + l + "\x1b[0m\r\n") // the emulator absorbs anything
+		}
+	})
 
 	s.attention = true
 }
@@ -490,7 +495,7 @@ func (s *session) screen(p proto.ScreenParams) proto.Screen {
 
 	s.lastViewed, s.attention = time.Now(), false
 	if p.Cols > 0 && p.Rows > 0 && (p.Cols != s.emu.Width() || p.Rows != s.emu.Height()) {
-		s.emu.Resize(p.Cols, p.Rows)
+		s.drain(func() { s.emu.Resize(p.Cols, p.Rows) })
 		s.resized = time.Now()
 
 		if !s.exited {
@@ -499,26 +504,29 @@ func (s *session) screen(p proto.ScreenParams) proto.Screen {
 	}
 
 	lines := strings.Split(s.emu.Render(), "\n")
-	sb := s.emu.Scrollback()
 	// The alternate screen has no scrollback of its own: what the emulator
 	// holds is the shell's from before the app, which it does not show.
 	alt := s.emu.IsAltScreen()
 
-	back := sb.Len()
+	back := len(s.back)
 	if alt {
 		back = 0
 	}
 
 	scroll := min(max(p.Scroll, 0), back)
-	if scroll > 0 {
-		all := make([]string, 0, sb.Len()+len(lines))
-		for _, l := range sb.Lines() {
-			all = append(all, l.Render())
+	if scroll > 0 { // the page scroll rows up the scrollback and screen together: only its rows are rendered
+		end := back + len(lines) - scroll
+		page := make([]string, 0, len(lines))
+
+		for i := max(end-len(lines), 0); i < end; i++ {
+			if i < back {
+				page = append(page, s.back[i])
+			} else {
+				page = append(page, lines[i-back])
+			}
 		}
 
-		all = append(all, lines...)
-		end := len(all) - scroll
-		lines = all[max(end-len(lines), 0):end]
+		lines = page
 	}
 
 	pos := s.emu.CursorPosition()
@@ -529,6 +537,59 @@ func (s *session) screen(p proto.ScreenParams) proto.Screen {
 		Mouse: slices.Contains(slices.Collect(maps.Values(s.mouse)), true), Scrollback: back, AltScreen: alt,
 		Cols: s.emu.Width(), Cwd: s.cwd(),
 	}
+}
+
+// scrollMax is the scrollback lines a session keeps.
+const scrollMax = 10000
+
+// keepBack sets the emulator up for drain: its scrollback only holds rows
+// until drain moves them into back, the alternate screen keeps none, and
+// ED 3 clears back.
+func (s *session) keepBack() {
+	s.emu.SetScrollbackSize(scrollMax)
+	noAltScrollback(s.emu)
+	s.emu.RegisterCsiHandler('J', func(p ansi.Params) bool {
+		if n, _, _ := p.Param(0, 0); n == 3 && !s.emu.IsAltScreen() {
+			s.back = nil
+		}
+
+		return false // the emulator clears its own
+	})
+}
+
+// drain runs f, which writes to the emulator or resizes it, and moves the
+// rows it scrolled off the main screen into back, rendered: a row of vt's
+// 112-byte cells takes some 80 times the bytes. Callers hold s.mu.
+func (s *session) drain(f func()) {
+	f()
+
+	sb := s.emu.Scrollback()
+	rows := sb.Lines()
+
+	for _, l := range rows {
+		s.back = append(s.back, l.Render())
+	}
+
+	clear(rows) // sb keeps the array: let the cells go
+	sb.Clear()
+
+	if n := len(s.back) - scrollMax; n > 0 {
+		s.back = slices.Delete(s.back, 0, n)
+	}
+}
+
+// noAltScrollback drops the scrollback vt gives the alternate screen: what
+// scrolls off a fullscreen app is never shown, yet would keep up to 10 000
+// rows of cells, 100 MiB. vt has no setter for it, so this reaches the
+// screen by reflection, and leaves it be if vt's layout changes
+// (TestScrollbackMemory notices).
+func noAltScrollback(e *vt.Emulator) {
+	f := reflect.ValueOf(e).Elem().FieldByName("scrs")
+	if f.Kind() != reflect.Array || f.Len() != 2 || f.Type().Elem() != reflect.TypeFor[vt.Screen]() {
+		return
+	}
+
+	(*vt.Screen)(unsafe.Pointer(f.Index(1).UnsafeAddr())).SetScrollback(nil)
 }
 
 // text renders the session as plain text: the screen, with everything the
@@ -542,8 +603,8 @@ func (s *session) text(scrollback bool, lines int) string {
 	var b strings.Builder
 
 	if scrollback {
-		for _, l := range s.emu.Scrollback().Lines() {
-			b.WriteString(strings.TrimRight(l.String(), " "))
+		for _, l := range s.back {
+			b.WriteString(strings.TrimRight(ansi.Strip(l), " "))
 			b.WriteByte('\n')
 		}
 	}

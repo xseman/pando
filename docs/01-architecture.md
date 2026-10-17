@@ -21,7 +21,7 @@ Killing a TUI never kills a session.
  │ daemon: pando serve      state.json · config.toml    │
  │  500 ms ticker: status, foreground, resume, config   │
  │  session ── PTY ── shell ── claude / codex / …       │
- │     └─ vt.Emulator: screen + 10 000 lines scrollback │
+ │     └─ vt.Emulator: screen; scrollback: 10 000 rows  │
  │  broadcast ──▶ every subscribe connection            │
  └──────────────────────────┬───────────────────────────┘
                             │ claude attach JOB, run in a PTY
@@ -112,6 +112,13 @@ driving the API.
   after 2 s.
 
 `session.screen` counts as viewed: it clears attention for 2 s.
+
+The scrollback is pando's, not vt's: after each write or resize `drain`
+moves the rows vt scrolled off into `session.back`, rendered (~150 B a row
+against ~11 KB of vt's 112-byte cells), at most 10 000; ED 3 clears it. vt's
+alternate screen keeps a scrollback of its own that nothing shows;
+`noAltScrollback` drops it by reflection, as vt has no setter
+(`TestScrollbackMemory` fails if that stops working).
 
 ## Status
 
