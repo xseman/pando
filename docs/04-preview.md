@@ -63,8 +63,9 @@ vrow{line, from, to}   screen rows; wrapped when wrap is on
   `getLinesIndentGuides` count from the lines around it; the unit is the step
   most lines indent by, else `tabW`. `activeGuide`, the Explorer's, lights
   the cursor's block; `paintGuides` draws `│` in `whitespace` and
-  `indent_guide`, a blank mark keeping its cell. A wrapped line's later rows
-  start with its text and have none. Files only.
+  `indent_guide` on the cell `guideRoom` clears of render_whitespace's mark,
+  a tab's arrow moving to its next cell. A wrapped line's later rows start
+  with its text and have none. Files only.
 - Every change goes through `preview.edit` (display columns) or `editRaw`
   (buffer columns) into `buf.apply`, which pushes an undo splice (typing
   coalesces). Undo or redo back to the text as read or saved (`saved`) is

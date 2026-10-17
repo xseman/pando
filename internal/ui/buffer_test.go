@@ -523,9 +523,9 @@ func TestClickWithMotionDoesNotSelectTheNextLine(t *testing.T) {
 // as ·, a tab as → over the four cells it takes, in the whitespace color.
 // TestIndentGuides draws VS Code's indent guides in the editor: a │ at each
 // level, on through a blank line inside a block, the block around the
-// cursor's in indent_guide's color, a selected one on the selection;
-// render_whitespace's marks keep their cells, and a file indented by 2
-// spaces gets one every 2 cells.
+// cursor's in indent_guide's color, a selected one on the selection, and
+// render_whitespace's arrow beside it; a file indented by 2 spaces gets one
+// every 2 cells.
 func TestIndentGuides(t *testing.T) {
 	m, _ := editorModel(t, "a.go", "package a\n\nfunc A() {\n\tif x {\n\t\ty()\n\n\t\tz()\n\t}\n}\n")
 	m.pv.cur = pos{4, tabW * 2} // on y()
@@ -572,8 +572,8 @@ func TestIndentGuides(t *testing.T) {
 	m.st.Settings.Blanks = "all"
 	rows = strings.Split(m.View().Content, "\n")
 
-	if y := ansi.Strip(row("y()")); !strings.Contains(y, "→   →   y()") {
-		t.Fatalf("render_whitespace's marks keep their cells: %q", y)
+	if y := ansi.Strip(row("y()")); !strings.Contains(y, "│→  │→  y()") {
+		t.Fatalf("a guide takes its cell, a tab's arrow moving beside it: %q", y)
 	}
 
 	m, _ = editorModel(t, "a.ts", "function f() {\n  if (x) {\n    y();\n  }\n}\n")
@@ -625,7 +625,7 @@ func TestRenderWhitespace(t *testing.T) {
 	m.pv.anchor = nil
 
 	out := checkWidths(t, m)
-	if !strings.Contains(out, "→   if·a··b·c·") {
+	if !strings.Contains(out, "│→  if·a··b·c·") { // the indent guide on the tab's first cell, its arrow beside
 		t.Fatalf("the editor draws the markers:\n%s", out)
 	}
 

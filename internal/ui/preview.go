@@ -2104,11 +2104,32 @@ func (p *preview) indentGuides() indentGuides {
 	return indentGuides{lv, unit, activeGuide(len(lv), p.at().line, func(i int) int { return lv[i] })}
 }
 
+// guideRoom clears render_whitespace's marks off row vr's guide cells, as
+// VS Code draws both: a tab's arrow moves to the tab's next cell, a space's
+// dot gives way.
+func (p *preview) guideRoom(vr vrow, marks []string) []string {
+	if vr.line >= len(p.guide.lv) || vr.from > 0 {
+		return marks
+	}
+
+	for k := range p.guide.lv[vr.line] {
+		if c := k * p.guide.unit; c < len(marks) {
+			if marks[c] == tabMark && c+1 < len(marks) && marks[c+1] == " " {
+				marks[c+1] = tabMark
+			}
+
+			marks[c] = ""
+		}
+	}
+
+	return marks
+}
+
 // paintGuides draws row vr's indent guides over body, its cells start to
-// end: a │ at each level, render_whitespace's mark keeping its cell, the
-// active one in indent_guide's color, a selected one on the selection. A
-// wrapped line's later rows start with its text and have none.
-func (p *preview) paintGuides(body string, vr vrow, start, end int, marks []string, s0, s1 int) string {
+// end: a │ at each level, the active one in indent_guide's color, a selected
+// one on the selection. A wrapped line's later rows start with its text and
+// have none.
+func (p *preview) paintGuides(body string, vr vrow, start, end, s0, s1 int) string {
 	g := p.guide
 	if vr.line >= len(g.lv) || vr.from > 0 {
 		return body
@@ -2116,7 +2137,7 @@ func (p *preview) paintGuides(body string, vr vrow, start, end int, marks []stri
 
 	for k := range g.lv[vr.line] {
 		c := k * g.unit
-		if c < start || c >= end || c < len(marks) && marks[c] != "" {
+		if c < start || c >= end {
 			continue
 		}
 
@@ -2223,7 +2244,7 @@ func (p *preview) renderRow(vr vrow, w int) string {
 
 	tw := max(w-p.gutter(), 1)
 	line, styled := p.plain[vr.line], p.lines[vr.line]
-	marks := p.blankMarks(vr.line, line)
+	marks := p.guideRoom(vr, p.blankMarks(vr.line, line))
 	styled = markBlanks(styled, line, marks, fg(pal.whitespace))
 	start := cellsOf(line[:vr.from])
 
@@ -2300,7 +2321,7 @@ func (p *preview) renderRow(vr vrow, w int) string {
 		}
 	}
 
-	body := paintProbs(p.paintGuides(b.String(), vr, start, end, marks, c0, c1), p.probs[vr.line], start)
+	body := paintProbs(p.paintGuides(b.String(), vr, start, end, c0, c1), p.probs[vr.line], start)
 	if vr.line == p.rangeHi-1 { // the line Go to Line is about to go to, the whole width
 		body = underBg(body+blank(max(tw-ansi.StringWidth(body), 0)), pal.rangeHiBg)
 	} else if bg := p.conflictBg(vr.line); bg != nil { // a conflict block is tinted under its text
