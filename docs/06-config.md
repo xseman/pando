@@ -78,7 +78,7 @@ config.toml edited ───────────┘  └─ "state" event �
 | `session_highlight`    | `tint`      | waiting, done or failed session: `tint` (pulsing), `steady`, `off`             |
 | `spaces_sort`          | `created`   | `created`, `updated` (last input or change of state)                           |
 | `spaces_group`         | `workspace` | `workspace`, `time` (Today, Yesterday, …)                                      |
-| `spaces_project_sort`  | `manual`    | `manual` (drag, `alt+↑↓`), `updated` (sessions' last output)                   |
+| `spaces_project_sort`  | `manual`    | `manual` (drag, `alt+↑↓`), `updated` (sessions' last input or change)          |
 | `spaces_hide`          | `[]`        | states left out: `blocked` `running` `done` `idle` `exited`                    |
 | `sounds`               | `true`      | sound for a session out of view                                                |
 | `sound_done`           | desktop     | file on finish; `""`: bell                                                     |
