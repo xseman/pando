@@ -15,7 +15,14 @@ PAR_TAPES ?= markdown lsp vim databases
 SEQ_TAPES ?= diff edit github tui resume
 JOBS ?= 4
 
-.PHONY: build install test lint fmt clean demo $(addprefix demo-,$(PAR_TAPES) $(SEQ_TAPES))
+BENCHSTAT ?= go run golang.org/x/perf/cmd/benchstat@v0.0.0-20261009192801-be2c69fb417e
+BENCH_PKGS ?= ./internal/ui ./internal/daemon
+BENCH ?= .
+BASE ?= HEAD
+PROF ?= ViewFile
+PROF_PKG ?= ./internal/ui
+
+.PHONY: build install test lint fmt bench bench-cmp profile clean demo $(addprefix demo-,$(PAR_TAPES) $(SEQ_TAPES))
 
 build:
 	go build -ldflags "-X github.com/xseman/pando/internal/update.Version=$(VERSION)" -o pando .
@@ -26,6 +33,7 @@ install: build
 test:
 	go vet ./...
 	go test -race ./...
+	go test -run '^TestAllocBudgets$$' ./internal/ui
 
 # The style gate: gofumpt formatting plus the linters in .golangci.yml, then
 # the Windows build: built for this machine, run as if on Windows. Its tests
@@ -36,6 +44,28 @@ lint:
 
 fmt:
 	$(GOFUMPT) -w .
+
+# The benchmarks, 6 runs each, the sample benchstat needs: make bench > a.txt.
+BENCH_RUN = go test -run '^$$' -bench '$(BENCH)' -benchmem -count 6 $(BENCH_PKGS)
+
+bench:
+	@$(BENCH_RUN)
+
+# The working tree against BASE (a commit, HEAD by default), both measured
+# here, then compared: time, bytes and allocations per op, with p-values.
+bench-cmp:
+	@d=$$(mktemp -d); git worktree add -q --detach $$d/base $(BASE) && \
+	(cd $$d/base && $(BENCH_RUN) > $$d/old.txt); \
+	$(BENCH_RUN) > $$d/new.txt && (cd $$d && $(BENCHSTAT) $(BASE)=old.txt tree=new.txt); \
+	s=$$?; git worktree remove --force $$d/base; rm -rf $$d; exit $$s
+
+# CPU and allocation profiles of one benchmark, into prof/: make profile
+# PROF=Output PROF_PKG=./internal/daemon. The flame graphs: View > Flame Graph.
+profile:
+	@mkdir -p prof
+	go test -run '^$$' -bench '^Benchmark$(PROF)$$' -benchtime 3s -cpuprofile prof/cpu.out -memprofile prof/mem.out -o prof/pando.test $(PROF_PKG)
+	@echo "go tool pprof -http=: prof/cpu.out"
+	@echo "go tool pprof -http=: -sample_index=alloc_space prof/mem.out"
 
 # Needs vhs v0.10 or v0.11 (v0.12 records but writes no GIF: vhs#787),
 # ttyd, ffmpeg, a Chrome, jq, gopls, claude and sqlite3. One tape: make demo-lsp.

@@ -59,21 +59,21 @@ func TestList(t *testing.T) {
 }
 
 // mustMkdir creates a directory tree, or fails the test where it went wrong.
-func mustMkdir(t *testing.T, dir string) {
-	t.Helper()
+func mustMkdir(tb testing.TB, dir string) {
+	tb.Helper()
 
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatalf("mkdir %s: %v", dir, err)
+		tb.Fatalf("mkdir %s: %v", dir, err)
 	}
 }
 
 // mustWrite writes a file and the directories above it, or fails the test.
-func mustWrite(t *testing.T, path, content string) {
-	t.Helper()
-	mustMkdir(t, filepath.Dir(path))
+func mustWrite(tb testing.TB, path, content string) {
+	tb.Helper()
+	mustMkdir(tb, filepath.Dir(path))
 
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("write %s: %v", path, err)
+		tb.Fatalf("write %s: %v", path, err)
 	}
 }
 
@@ -129,12 +129,12 @@ func drainInputs(m *Model) {
 	}()
 }
 
-func testModelSized(t *testing.T, w, h int) *Model {
-	t.Helper()
-	root := t.TempDir()
-	mustWrite(t, filepath.Join(root, "src", "deep", "x.go"), "package x\n")
-	mustWrite(t, filepath.Join(root, "README.md"), "# hi\n")
-	mustWrite(t, filepath.Join(root, ".env"), "A=1\n")
+func testModelSized(tb testing.TB, w, h int) *Model {
+	tb.Helper()
+	root := tb.TempDir()
+	mustWrite(tb, filepath.Join(root, "src", "deep", "x.go"), "package x\n")
+	mustWrite(tb, filepath.Join(root, "README.md"), "# hi\n")
+	mustWrite(tb, filepath.Join(root, ".env"), "A=1\n")
 	st := proto.State{
 		Settings: proto.Settings{Width: 30, Icons: "ascii", SessPos: "editor", Crumbs: true, Tips: true}, Projects: []string{root},
 		Agents: map[string][]string{"shell": {"sh"}},

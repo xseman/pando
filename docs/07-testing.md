@@ -82,6 +82,44 @@ go test -run xxx -fuzz FuzzParseStatus -fuzztime 30s ./internal/git
 Each asserts an invariant, e.g. every `parseStatus` path is a substring of
 the input. Crashers in `testdata/fuzz/` replay in `go test`: commit them.
 
+## Benchmarks
+
+Bubble Tea calls `View` after every `Update`, on the event loop: its cost
+times the message rate (mouse motion with `MouseModeAllMotion`, a busy
+session's screens at up to 60/s) is what is left for keys. The daemon's cost
+is per session: its scrollback, and every byte of output through vt.
+
+| Benchmark                 | Measures                                                 |
+| ------------------------- | -------------------------------------------------------- |
+| `BenchmarkViewSession`    | a frame with a busy session docked, 220x55               |
+| `BenchmarkViewFile`       | the same with `app.go` open, highlighted                 |
+| `BenchmarkStreaming`      | a busy session's turn: its screen event, then its screen |
+| `BenchmarkTypeLargeFile`  | a letter typed and deleted in a 4900-line file           |
+| `BenchmarkHoverSession`   | the link lookup each mouse motion over a session         |
+| `BenchmarkScreenScrolled` | `session.screen` scrolled into a full scrollback         |
+| `BenchmarkOutput`         | 100 lines of output through vt into the scrollback       |
+
+| Command                      | Does                                                           |
+| ---------------------------- | -------------------------------------------------------------- |
+| `make bench`                 | all of them, 6 runs each (`BENCH=View` narrows)                |
+| `make bench-cmp`             | the working tree against `BASE` (`HEAD`), with benchstat       |
+| `make profile PROF=ViewFile` | CPU and allocation profiles into `prof/`, and how to open them |
+
+Time is compared, not gated: it moves with the machine. What does not move
+is gated in `go test`, so CI catches a regression:
+
+- `TestAllocBudgets`: allocations per `View`, hover, streaming turn and
+  keystroke in a large file, the same on every machine for a Go version; a
+  budget sits ~15% over the count. `-race` drops `sync.Pool` items at
+  random, so it skips there and `make test` runs it once more without.
+- `TestScrollbackMemory`: the heap a full scrollback takes, on the main and
+  the alternate screen.
+
+A change that beats a budget lowers it in the same commit; one that has to
+raise it says why. In `go tool pprof -http=:`, View > Flame Graph; for
+allocations add `-sample_index=alloc_space`, for what a heap holds
+`inuse_space`.
+
 ## Interactive checks
 
 ```sh

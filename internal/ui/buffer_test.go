@@ -146,11 +146,11 @@ func TestBufferSave(t *testing.T) {
 }
 
 // editorModel is a file preview with a real file behind it, ready to type in.
-func editorModel(t *testing.T, name, text string) (*Model, string) {
-	t.Helper()
-	m := testModelSized(t, 120, 30)
+func editorModel(tb testing.TB, name, text string) (*Model, string) {
+	tb.Helper()
+	m := testModelSized(tb, 120, 30)
 	path := filepath.Join(m.ws, name)
-	mustWrite(t, path, text)
+	mustWrite(tb, path, text)
 	st, _ := os.Stat(path)
 	lines, plain, meta, numW := render(pvFile, path, text, true)
 	m.pv = preview{kind: pvFile, path: path}

@@ -8,11 +8,13 @@ for what it does; read a doc below only when the task touches that area.
 
 ```sh
 make build              # go build -o pando .
-make test               # go vet + go test -race ./...
+make test               # go vet + go test -race ./... + TestAllocBudgets without -race
 make lint               # golangci-lint, config in .golangci.yml — must be clean
 make fmt                # gofumpt -w .
 go test -short ./...    # skip the PTY end-to-end test (main_test.go)
 go test ./internal/ui -run TestName
+make bench-cmp          # benchmarks: working tree vs HEAD, through benchstat
+make profile PROF=ViewFile   # CPU + alloc profiles in prof/, flame graphs via pprof
 make demo               # re-record docs/demo/*.gif with vhs (slow, needs claude, gopls)
 ```
 
