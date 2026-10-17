@@ -106,7 +106,20 @@ func textLinks(s string) []termLink {
 	// ponytail: a cell is counted by the width of the text before it, so a
 	// mark or a format character joining a grapheme across a link's edge
 	// (U+06DD before a path) can put that link a cell off.
-	cells := func(i int) int { return ansi.StringWidth(s[:i]) }
+	// The offsets come in order within each pass (URLs, quoted paths, paths),
+	// so the width runs on from the last one, starting over for the next pass:
+	// a row as wide as the screen is measured once a pass, not once a link.
+	at, width := 0, 0
+	cells := func(i int) int {
+		if i < at {
+			at, width = 0, 0
+		}
+
+		width += ansi.StringWidth(s[at:i])
+		at = i
+
+		return width
+	}
 
 	urls := urlRe.FindAllStringIndex(s, -1)
 	for _, u := range urls {
@@ -295,7 +308,11 @@ func (t *term) linkAt(m *Model, id string, x, y int) *linkHover {
 // joins them the same way before it looks for links). Its first row, its
 // rows, and the rows joined.
 func (t *term) runOn(y int) (ry, rows int, line string) {
-	full := func(i int) bool { return t.scr.Cols > 0 && ansi.StringWidth(t.scr.Lines[i]) >= t.scr.Cols }
+	// The emulator pads a row it cleared with spaces: one that ends in
+	// them did not run on.
+	full := func(i int) bool {
+		return t.scr.Cols > 0 && ansi.StringWidth(strings.TrimRight(ansi.Strip(t.scr.Lines[i]), " ")) >= t.scr.Cols
+	}
 
 	ry, last := y, y
 	for ry > 0 && full(ry-1) {
