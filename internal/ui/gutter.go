@@ -127,11 +127,11 @@ func (p *preview) laneChange(w, h, x, y int) int {
 // changeMark is line's mark in the gutter's lane, VS Code's: ┃ added, ┇
 // modified (its hatched bar), ▾ where lines were deleted after it (▴ before
 // the first), on a line's first row; a staged change's the same in VS
-// Code's secondary shade; the change under the pointer wider, █ and ▒; a
-// blank in st else.
-func (p *preview) changeMark(line int, first bool, st lipgloss.Style) string {
+// Code's secondary shade; the change under the pointer wider, █ and ▒;
+// none, a blank in st, else.
+func (p *preview) changeMark(line int, first bool, st lipgloss.Style, none string) string {
 	if line >= len(p.chg) || p.chg[line] == 0 {
-		return st.Render(" ")
+		return none
 	}
 
 	k, shade := p.chg[line], func(c color.Color) color.Color { return c }
@@ -152,7 +152,7 @@ func (p *preview) changeMark(line int, first bool, st lipgloss.Style) string {
 		return st.Foreground(shade(pal.diffDelMark)).Bold(hot).Render(ifElse(k == 'd', "▾", "▴"))
 	}
 
-	return st.Render(" ")
+	return none
 }
 
 // stepChange is the change after (d 1) or before (d -1) line, around the

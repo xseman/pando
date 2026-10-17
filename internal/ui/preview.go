@@ -30,6 +30,8 @@ import (
 	"github.com/xseman/pando/internal/proto"
 )
 
+
+
 const (
 	maxPreviewBytes = 1 << 20
 	maxPreviewLines = 5000
@@ -1542,15 +1544,19 @@ func (p *preview) gutterText(line int, first bool) string {
 		st = st.Background(bg)
 	}
 
-	switch {
-	case gw == 0:
+	if gw == 0 {
 		return ""
+	}
+
+	pre, suf := renderSides(st)
+
+	switch sp := pre + " " + suf; {
 	case !first && p.meta == nil: // a wrapped line's later rows keep its bar
-		return st.Render(blank(gw-2)) + p.changeMark(line, false, st) + st.Render(" ")
+		return pre + blank(gw-2) + suf + p.changeMark(line, false, st, sp) + sp
 	case !first:
-		return st.Render(blank(gw))
+		return pre + blank(gw) + suf
 	case p.meta == nil:
-		return st.Render(blank(numPad)+fmt.Sprintf("%*d ", p.numW, line+1)) + p.changeMark(line, true, st) + st.Render(" ")
+		return pre + blank(numPad) + fmt.Sprintf("%*d ", p.numW, line+1) + suf + p.changeMark(line, true, st, sp) + sp
 	}
 
 	return diffGutter(p.meta[line], p.numW, bg)
@@ -1582,7 +1588,7 @@ func (p *preview) rows(w int) []vrow {
 		zone, zh = p.zoneLine(), p.qd.h
 	}
 
-	key := fmt.Sprint(tw, p.wrap, zone, zh)
+	key := fmt.Sprint(tw*b2i(p.wrap), p.wrap, zone, zh) // the width breaks only wrapped lines
 	if p.vis != nil && p.visKey == key {
 		return p.vis
 	}
@@ -2075,6 +2081,7 @@ type indentGuides struct {
 	lv   []int
 	unit int
 	act  guides
+	bar  [2]string // a guide, then the active one, off the selection
 }
 
 // indentGuides are the shown file's guides, none for a diff or rendered
@@ -2144,7 +2151,9 @@ func (p *preview) indentGuides() indentGuides {
 		}
 	}
 
-	return indentGuides{lv, unit, activeGuide(len(lv), p.at().line, func(i int) int { return lv[i] })}
+	bar := [2]string{fg(pal.whitespace).Render("│"), fg(pal.indentGuide).Render("│")}
+
+	return indentGuides{lv, unit, activeGuide(len(lv), p.at().line, func(i int) int { return lv[i] }), bar}
 }
 
 // guideRoom clears render_whitespace's marks off row vr's guide cells, as
@@ -2186,17 +2195,17 @@ func (p *preview) paintGuides(body string, vr vrow, start, end, s0, s1 int) stri
 
 		lit := k == g.act.lit && vr.line > g.act.act && vr.line <= g.act.end
 
-		st := fg(ifElse(lit, pal.indentGuide, pal.whitespace))
+		bar := g.bar[b2i(lit)]
 		if c >= s0 && c < s1 {
-			st = st.Background(pal.textSelBg)
+			bar = fg(ifElse(lit, pal.indentGuide, pal.whitespace)).Background(pal.textSelBg).Render("│")
 		}
 
 		x := c - start
-		if w := ansi.StringWidth(body); w <= x { // a blank line's guides run past its text
+		if w := strWidth(body); w <= x { // a blank line's guides run past its text
 			body += blank(x - w + 1)
 		}
 
-		body = ansi.Cut(body, 0, x) + "\x1b[m" + st.Render("│") + ansi.Cut(body, x+1, wideCols)
+		body = ansi.Cut(body, 0, x) + "\x1b[m" + bar + ansi.Cut(body, x+1, wideCols)
 	}
 
 	return body

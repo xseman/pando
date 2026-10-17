@@ -20,6 +20,7 @@ import (
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/charmbracelet/x/ansi/parser"
 )
 
 func b2i(b bool) int {
@@ -44,7 +45,7 @@ func sgOwn(s string, st lipgloss.Style) seg { return seg{s: s, st: st, ownBg: tr
 func row(w int, bg color.Color, left []seg, right ...seg) string {
 	rw := 0
 	for _, r := range right {
-		rw += ansi.StringWidth(r.s)
+		rw += strWidth(r.s)
 	}
 
 	if rw > w {
@@ -68,12 +69,12 @@ func row(w int, bg color.Color, left []seg, right ...seg) string {
 			break
 		}
 
-		if ansi.StringWidth(x.s) > rem {
+		if strWidth(x.s) > rem {
 			x.s = ansi.Truncate(x.s, rem, "…")
 		}
 
 		paint(x)
-		used += ansi.StringWidth(x.s)
+		used += strWidth(x.s)
 	}
 
 	if gap := w - rw - used; gap > 0 {
@@ -87,19 +88,75 @@ func row(w int, bg color.Color, left []seg, right ...seg) string {
 	return b.String()
 }
 
+// renderSides are the escapes st.Render puts either side of a line of text
+// with no tab, for st of colors and text attributes only (no width, padding,
+// border, or spaces styled apart): pre+text+suf is that text rendered,
+// without the pass over every property Render makes.
+func renderSides(st lipgloss.Style) (pre, suf string) {
+	pre, suf, _ = strings.Cut(st.Render("\x00"), "\x00")
+
+	return pre, suf
+}
+
 // fit truncates or pads a pre-styled line to exactly w cells.
-func fit(s string, w int) string {
+func fit(s string, w int) string { return fitWith(s, w, "") }
+
+// fitWith is fit(s, w)+tail in one allocation.
+func fitWith(s string, w int, tail string) string {
 	if w <= 0 {
-		return ""
+		return tail
 	}
 
-	sw := ansi.StringWidth(s)
+	sw := strWidth(s)
 	if sw > w {
 		s = ansi.Truncate(s, w, "")
-		sw = ansi.StringWidth(s)
+		sw = strWidth(s)
 	}
 
-	return s + "\x1b[m" + strings.Repeat(" ", w-sw)
+	var b strings.Builder
+
+	b.Grow(len(s) + len("\x1b[m") + w - sw + len(tail))
+	b.WriteString(s)
+	b.WriteString("\x1b[m")
+
+	for range w - sw {
+		b.WriteByte(' ')
+	}
+
+	b.WriteString(tail)
+
+	return b.String()
+}
+
+// strWidth is ansi.StringWidth, which segments every character into its
+// grapheme cluster, with plainRun's characters counted without that.
+func strWidth(s string) int {
+	pstate, w := parser.GroundState, 0
+
+	for i := 0; i < len(s); i++ {
+		if pstate == parser.GroundState {
+			if n, cells := plainRun(s[i:]); n > 0 {
+				w += cells
+				i += n - 1
+
+				continue
+			}
+		}
+
+		state, action := parser.Table.Transition(pstate, s[i])
+		if action == parser.PrintAction || state == parser.Utf8State {
+			cluster, cw := ansi.FirstGraphemeCluster(s[i:], ansi.GraphemeWidth)
+			w += cw
+			i += len(cluster) - 1
+			pstate = parser.GroundState
+
+			continue
+		}
+
+		pstate = state
+	}
+
+	return w
 }
 
 func blank(w int) string { return strings.Repeat(" ", max(w, 0)) }
@@ -113,9 +170,19 @@ func blank(w int) string { return strings.Repeat(" ", max(w, 0)) }
 func wcSafe(frame string) string {
 	var b strings.Builder
 
+	b.Grow(len(frame))
+
 	for state := ansi.NormalState; frame != ""; {
+		// A plain run is one cell a character either way.
+		if n, _ := plainRun(frame); n > 0 && state == ansi.NormalState {
+			b.WriteString(frame[:n])
+			frame = frame[n:]
+
+			continue
+		}
+
 		seq, w, n, next := ansi.DecodeSequence(frame, state, nil)
-		if w > 0 { // text: cut where StringWidth does, which keeps 1️⃣ one cluster
+		if w > 0 && frame[0] < utf8.RuneSelf { // DecodeSequence takes ASCII a byte at a time: cut where StringWidth does, which keeps 1️⃣ one cluster
 			seq, w = ansi.FirstGraphemeCluster(frame, ansi.GraphemeWidth)
 			n = len(seq)
 		}
@@ -141,6 +208,34 @@ func wcSafe(frame string) string {
 	}
 
 	return b.String()
+}
+
+// plainRun measures the text s starts with whose every character is one
+// cell to wcwidth and to its grapheme width alike, and a cluster of its own
+// while the next one is such too, or ASCII, or the end: printable ASCII, and
+// box drawing, block elements and geometric shapes (U+2500–U+25FC; ◽◾ are
+// wide). n is its length in bytes and cells in characters, less the last one
+// when other text follows, which a mark there would join.
+func plainRun(s string) (n, cells int) {
+	last, i := 0, 0
+	for i < len(s) {
+		r, size := rune(s[i]), 1
+		if r >= utf8.RuneSelf {
+			r, size = utf8.DecodeRuneInString(s[i:])
+		}
+
+		if (r < ' ' || r >= 0x7f) && (r < 0x2500 || r > 0x25fc) {
+			break
+		}
+
+		last, i, cells = i, i+size, cells+1
+	}
+
+	if i < len(s) && s[i] >= utf8.RuneSelf && cells > 0 {
+		return last, cells - 1
+	}
+
+	return i, cells
 }
 
 // framedBox is a text box w cells wide in one thin frame, VS Code's input
@@ -406,14 +501,14 @@ func (b vbar) cells(s barState) []string {
 		return out
 	}
 
-	slider := lipgloss.NewStyle().Background(s.slider(b))
+	slider, track := lipgloss.NewStyle().Background(s.slider(b)).Render(" "), fg(pal.rulerBorder).Render("▏")
 
 	ty, sh := b.thumb()
 	for i := range out {
 		if i >= ty && i < ty+sh {
-			out[i] = slider.Render(" ")
+			out[i] = slider
 		} else {
-			out[i] = fg(pal.rulerBorder).Render("▏")
+			out[i] = track
 		}
 	}
 
@@ -568,8 +663,8 @@ func (b vbar) hcells(s barState) string {
 
 	slider := s.slider(b)
 
-	line := func(c color.Color, n int) string {
-		return lipgloss.NewStyle().Underline(true).UnderlineSpaces(true).UnderlineColor(c).Render(blank(n))
+	line := func(c color.Color, n int) string { // underlined spaces render one by one: render one
+		return strings.Repeat(lipgloss.NewStyle().Underline(true).UnderlineSpaces(true).UnderlineColor(c).Render(" "), max(n, 0))
 	}
 
 	x, sw := b.thumb()
@@ -592,7 +687,7 @@ func withCells(lines []string, w int, cells []string) []string {
 			line = lines[i]
 		}
 
-		out[i] = fit(line, max(w-1, 0)) + cells[i]
+		out[i] = fitWith(line, max(w-1, 0), cells[i])
 	}
 
 	return out

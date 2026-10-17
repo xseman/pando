@@ -2714,3 +2714,18 @@ func TestDefaultCursor(t *testing.T) {
 		t.Fatalf("wrote %q", got)
 	}
 }
+
+func FuzzStrWidth(f *testing.F) {
+	for _, s := range []string{"a⚠️b", "1️⃣ x", "é \x1b[31mred\x1b[m", "👍🏽 👨‍💻", "\x1b]8;;https://x\x1b\\link\x1b]8;;\x1b\\", "\r\n\tč", "┌─│● ▏◽◾x\u0301 ─\u0301"} {
+		f.Add(s)
+	}
+
+	// The fast path changes the cost, never the width.
+	f.Fuzz(func(t *testing.T, s string) {
+		if got, want := strWidth(s), ansi.StringWidth(s); got != want {
+			t.Fatalf("strWidth(%q) = %d, ansi.StringWidth %d", s, got, want)
+		}
+	})
+}
+
+

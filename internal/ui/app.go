@@ -126,6 +126,14 @@ type dropTarget struct {
 
 type rect struct{ x, w int }
 
+// frame is cols and layout as they stand for one View: drawing changes
+// neither.
+type frame struct {
+	cols  []col
+	rects []rect
+	main  rect
+}
+
 // col is one sidebar column: tabs, the side of main it docks on, and its
 // configured width (0 = the side's default).
 type col struct {
@@ -205,6 +213,7 @@ type Model struct {
 	tipDue    time.Time // when the tipWakeMsg on its way comes, zero for none
 	tipSeen   time.Time // when a tip was last drawn: moving on, the next one shows at once
 	tipOff    time.Time // a key or a click puts the tip away until the pointer moves
+	frame     *frame    // the columns while View draws, which asks for them row by row; nil otherwise
 	index     struct {  // workspace file list for quick open and the Files filter
 		ws    string
 		files []string
@@ -585,6 +594,7 @@ func (m *Model) setSettingsWith(patch, more map[string]any) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
+
 func (m *Model) refreshGit() tea.Cmd {
 	if m.gitBusy {
 		return nil
@@ -594,6 +604,7 @@ func (m *Model) refreshGit() tea.Cmd {
 	ws, withDeco := m.ws, m.st.Settings.GitDeco
 
 	return func() tea.Msg {
+
 		msg := gitMsg{ws: ws, repos: git.Discover(ws), status: map[string]git.Status{}, deco: map[string]byte{}}
 		for _, r := range msg.repos {
 			if st, err := git.Stat(r); err == nil {
@@ -656,6 +667,10 @@ func (m *Model) loadIndex(open bool) tea.Cmd {
 // or a view added later) join the left column next to main. A session with
 // the editor area, maximized or for room, has no column.
 func (m *Model) cols() []col {
+	if m.frame != nil {
+		return m.frame.cols
+	}
+
 	out := m.allCols()
 	if colWith(out, viewSession) >= 0 && (m.maxed || m.crampedBy(out)) {
 		out = removeView(out, viewSession)
@@ -989,6 +1004,10 @@ func (m *Model) resize() { m.h = max(m.termH-2*m.bord(), 1) }
 // outermost first, then Spaces does, then the editor gives up all but 20
 // cells; only then does a column go, the outermost first and Spaces last.
 func (m *Model) layout() (cs []rect, c rect) {
+	if m.frame != nil {
+		return m.frame.rects, m.frame.main
+	}
+
 	b := m.bord()
 	gap := 1 + b
 	cols := m.cols()
@@ -2529,6 +2548,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmd, m.noteEdits(), m.noteGutter(), m.animate(), m.spinLater())
 }
 
+
 // dockBare docks a session over an empty editor area to its side: with no
 // editor open it has nothing to cover, and the empty editor shows beside it.
 // The keyboard stays where it was; a session with no room beside the editor
@@ -3989,6 +4009,10 @@ func (m *Model) View() tea.View {
 	m.tip = "" // the frame notes the button under the mouse again
 
 	cs, c := m.layout()
+	m.frame = &frame{m.cols(), cs, c}
+
+	defer func() { m.frame = nil }()
+
 	b := m.bord()
 
 	type panel struct {
@@ -4020,45 +4044,55 @@ func (m *Model) View() tea.View {
 	}
 	status, _ := m.statusLine(m.w)
 
+	// owner is the column the divider before panel j resizes: the sidebar
+	// column beside it.
+	owner := func(j int) int {
+		if ps[j-1].focus != onMain && ps[j-1].focus < left {
+			return ps[j-1].focus
+		}
+
+		return ps[j].focus
+	}
+
+	// The edges either side of each panel, the same on every row.
+	ls, rs := make([]string, len(ps)), make([]string, len(ps))
+	for j, p := range ps {
+		switch {
+		case b == 1: // the divider is the two frame edges either side of it
+			ls[j], rs[j] = edge(p).Render("│"), edge(p).Render("│")
+
+			if j > 0 {
+				if st, ok := m.sashStyle(colSash(owner(j))); ok {
+					ls[j] = st.Render("┃")
+				}
+			}
+
+			if j+1 < len(ps) {
+				if st, ok := m.sashStyle(colSash(owner(j + 1))); ok {
+					rs[j] = st.Render("┃")
+				}
+			}
+
+		case j > 0:
+			ls[j] = m.divider(owner(j))
+		}
+	}
+
 	lines := make([]string, m.panelH()+1) // the panel rows, then the status bar
 	for i := range m.panelH() {
 		var sb strings.Builder
 
-		// owner is the column the divider before panel j resizes: the
-		// sidebar column beside it.
-		owner := func(j int) int {
-			if ps[j-1].focus != onMain && ps[j-1].focus < left {
-				return ps[j-1].focus
-			}
-
-			return ps[j].focus
+		n := 0
+		for j, p := range ps {
+			n += len(ls[j]) + len(p.lines[i]) + len(rs[j])
 		}
 
+		sb.Grow(n)
+
 		for j, p := range ps {
-			switch {
-			case b == 1: // the divider is the two frame edges either side of it
-				l, r := edge(p).Render("│"), edge(p).Render("│")
-
-				if j > 0 {
-					if st, ok := m.sashStyle(colSash(owner(j))); ok {
-						l = st.Render("┃")
-					}
-				}
-
-				if j+1 < len(ps) {
-					if st, ok := m.sashStyle(colSash(owner(j + 1))); ok {
-						r = st.Render("┃")
-					}
-				}
-
-				sb.WriteString(l + p.lines[i] + r)
-
-			case j > 0:
-				sb.WriteString(m.divider(owner(j)) + p.lines[i])
-
-			default:
-				sb.WriteString(p.lines[i])
-			}
+			sb.WriteString(ls[j])
+			sb.WriteString(p.lines[i])
+			sb.WriteString(rs[j])
 		}
 
 		lines[i] = sb.String()
