@@ -3122,7 +3122,19 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 		set = diffMarks()
 	}
 
-	body = withCells(body, w, vbar{len(vis), h, p.top}.marked(vb, kinds, set))
+	bar := vbar{len(vis), h, p.top}
+
+	cells := bar.marked(vb, kinds, set)
+	if under := p.fileBarChanges(vis); p.meta == nil && under != nil { // a file's changes under its problems, VS Code's ruler's lanes in one
+		bare, chg := bar.cells(vb), bar.marked(vb, under, diffMarks())
+		for i := range cells {
+			if cells[i] == bare[i] {
+				cells[i] = chg[i]
+			}
+		}
+	}
+
+	body = withCells(body, w, cells)
 	if hb.on() { // under the text, the gutter and the vertical bar's corner left blank
 		body = append(body, blank(p.gutter())+hb.hcells(m.barState("editor-h"))+" ")
 	}

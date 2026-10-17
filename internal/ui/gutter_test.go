@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/xseman/pando/internal/git"
+	"github.com/xseman/pando/internal/lsp"
 )
 
 // marksOf is the marks now's changes against base give it, as text, a dot
@@ -233,5 +235,49 @@ func TestQuickDiff(t *testing.T) {
 
 	if got, _ := git.Run(m.ws, "show", ":a.txt"); got != "a\nb\nc\nd\nnew\ne\n" {
 		t.Fatalf("Stage writes the change into the index: %q", got)
+	}
+}
+
+// TestFileScrollbarChanges marks a file's changes on its scrollbar as VS
+// Code's overview ruler does, a problem over them, and a click on a change's
+// mark goes to it.
+func TestFileScrollbarChanges(t *testing.T) {
+	var base, now []string
+	for i := range 120 {
+		base, now = append(base, fmt.Sprint("l", i)), append(now, fmt.Sprint("l", i))
+	}
+
+	now[90] = "changed"
+
+	m, _ := editorModel(t, "a.txt", strings.Join(now, "\n")+"\n")
+	m.pv.base, m.pv.baseGen, m.pv.chgKey = base, 1, gutterKey{}
+
+	for _, msg := range runAll(m.noteGutter()) {
+		m.Update(msg)
+	}
+
+	b, vis := m.pv.bar(m), m.pv.rows(m.pvW())
+	y := b.halfOf(slices.IndexFunc(vis, func(vr vrow) bool { return vr.line == 90 })) / 2
+	cell := func() string { // the scrollbar's cell on row y
+		row := strings.Split(m.View().Content, "\n")[1+m.stripH()+y]
+		return ansi.Cut(row, m.mainX()+m.pvW(), m.mainX()+m.pvW()+1)
+	}
+
+	if !strings.Contains(cell(), fgParams(pal.diffModMark)) {
+		t.Fatalf("the change is marked on the scrollbar: %q", cell())
+	}
+
+	click(m, m.mainX()+m.pvW(), 1+m.stripH()+y, tea.MouseLeft)
+
+	if m.pv.at().line != 90 {
+		t.Fatalf("a click on its mark goes to the change: line %d", m.pv.at().line)
+	}
+
+	m.pv.gotoLine(m, 0, 0) // the slider off the mark again
+	m.diags[m.pv.path] = []lsp.Diagnostic{{Line: 90, EndLine: 90, EndCol: 2, Severity: 1, Message: "x"}}
+	m.st.Settings.Diags = true
+
+	if !strings.Contains(cell(), fgParams(pal.errc)) {
+		t.Fatalf("a problem shows over the change: %q", cell())
 	}
 }

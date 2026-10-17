@@ -68,7 +68,9 @@ vrow{line, from, to}   screen rows; wrapped when wrap is on
   change colors. A file with staged changes is diffed against its committed
   text (`head`) too, VS Code's secondary quick diff: those marks, where no
   unstaged one is, take its secondary shade (upper case in `chg`, darker on a
-  dark theme, lighter on a light one: `lookDark`).
+  dark theme, lighter on a light one: `lookDark`). The scrollbar marks them
+  as VS Code's overview ruler does (`fileBarChanges`, `diffMarks`) under the
+  problems, which keep their cells; a click goes to one (`changeMarkAt`).
 - A click on a change's mark (`laneChange`, which `markHot` widens under the
   pointer) or `alt+F3` opens the quick diff (`quickdiff.go`, `p.qd`), a zone
   under the change as VS Code's: `rows` puts its rows after the line's own

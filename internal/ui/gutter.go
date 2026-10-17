@@ -332,3 +332,58 @@ func backtrack(trace [][]int, x, y int) []byte {
 
 	return ops
 }
+
+// fileBarChanges are a file's rows as its scrollbar counts them: each row's
+// change bits for vbar.marked with diffMarks, a staged change's too, as VS
+// Code's overview ruler marks the quick diff's changes. Nil for none.
+func (p *preview) fileBarChanges(vis []vrow) []byte {
+	if len(p.chg) == 0 {
+		return nil
+	}
+
+	kinds := make([]byte, len(vis))
+
+	for r, vr := range vis {
+		if vr.line < 0 || vr.line >= len(p.chg) {
+			continue
+		}
+
+		switch p.chg[vr.line] | 0x20 { // lower case: staged or not
+		case 'a':
+			kinds[r] = 2
+		case 'm':
+			kinds[r] = 3
+		case 'd', 'u':
+			kinds[r] = 1
+		}
+	}
+
+	return kinds
+}
+
+// changeMarkAt goes to a file's change marked on scrollbar row y, off the
+// slider: from the cursor on one of the cell's changes, the next, so each
+// is a click away; false when none is there.
+func (p *preview) changeMarkAt(m *Model, y int) bool {
+	vis, b := p.rows(m.pvW()), p.bar(m)
+	if ty, sh := b.thumb(); p.meta != nil || len(p.changes) == 0 || !b.on() || len(vis) != b.n || y >= ty && y < ty+sh {
+		return false
+	}
+
+	var here []int
+
+	for r, vr := range vis {
+		if i := p.changeAt(vr.line); vr.line >= 0 && i >= 0 && b.halfOf(r)/2 == y && !slices.Contains(here, i) {
+			here = append(here, i)
+		}
+	}
+
+	if len(here) == 0 {
+		return false
+	}
+
+	k := (slices.Index(here, p.changeAt(p.at().line)) + 1) % len(here)
+	p.gotoLine(m, p.changes[here[k]].b0, 0)
+
+	return true
+}

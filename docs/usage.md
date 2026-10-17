@@ -319,9 +319,10 @@ column and a blob are read only.
 - Undo, find & replace, quick open (`ctrl+p`, recent files first,
   `:` line, `@` symbol), suggestions, merge-conflict _Accept_ actions.
 - The gutter marks the lines changed since the file was staged, as VS Code's
-  does, while you type, in a lane after the line numbers: `┃` green added,
-  `┇` blue modified (VS Code's hatched bar), `▾` red where lines were deleted;
-  staged changes in a darker shade until committed. The change under the
+  does, while you type, in a lane after the line numbers: `┃` green added, `┇`
+  blue modified (VS Code's hatched bar), `▾` red where lines were deleted;
+  staged changes in a darker shade until committed; the scrollbar marks them
+  too, under the problems, a click on a mark going there. The change under the
   pointer widens; a click on it (or `alt+F3`, `shift+alt+F3`) opens VS Code's
   quick diff right under it, scrolling with the text: the change as a diff,
   its buttons staging it, reverting it in the editor, going to the next and

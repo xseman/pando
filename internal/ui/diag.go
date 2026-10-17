@@ -741,15 +741,15 @@ func (p *preview) barProbs(vis []vrow) []byte {
 	return kinds
 }
 
-// markClick goes to what scrollbar row y marks: a diff's change or a file's
-// problem; false when it marks nothing there.
+// markClick goes to what scrollbar row y marks: a diff's change, a file's
+// problem, or under it a file's change; false when it marks nothing there.
 func (p *preview) markClick(m *Model, y int) bool {
 	if n, ok := p.markAt(m, y); ok {
 		p.showLine(m, n, false)
 		return true
 	}
 
-	return p.probMarkAt(m, y)
+	return p.probMarkAt(m, y) || p.changeMarkAt(m, y)
 }
 
 // probMarkAt goes to the first problem marked on scrollbar row y of a file,
