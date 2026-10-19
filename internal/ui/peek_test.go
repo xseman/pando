@@ -44,7 +44,10 @@ func TestPeek(t *testing.T) {
 	out := strings.Split(checkWidths(t, m), "\n")
 	top := slices.IndexFunc(out, func(l string) bool { return strings.Contains(l, "References (2)") })
 
-	if top < 1 || !strings.Contains(out[top], "README.md") || !strings.Contains(out[top-1], "line04") || !strings.Contains(out[top+m.peekH()], "line05") {
+	// Under the cursor's line, past a rule, which another closes over the
+	// next line.
+	if top < 2 || !strings.Contains(out[top], "README.md") || !strings.Contains(out[top-2], "line04") || !strings.Contains(out[top+m.peekH()-1], "line05") ||
+		strings.Trim(ansi.Cut(out[top-1], m.mainX(), m.mainX()+m.pvW()), "▁") != "" || strings.Trim(ansi.Cut(out[top+m.peekH()-2], m.mainX(), m.mainX()+m.pvW()), "▔") != "" {
 		t.Fatalf("not under the cursor's line, the next line past it:\n%s", strings.Join(out, "\n"))
 	}
 
@@ -60,7 +63,7 @@ func TestPeek(t *testing.T) {
 	}
 
 	// The selected hit hangs off its file's chevron, the guide lit.
-	_, hit, _ := strings.Cut(m.refs.view(m, 100, 8)[2], dim.Render("│"))
+	_, hit, _ := strings.Cut(m.refs.view(m, 100, 8)[3], dim.Render("│"))
 	if lead, lit := treeLead(t, []string{hit}, "# hi"); lead != " │  " || lit != 0 {
 		t.Fatalf("peek hit: %q lit %d", lead, lit)
 	}
@@ -674,7 +677,7 @@ func TestPeekKeepsCursor(t *testing.T) {
 	out := strings.Split(checkWidths(t, m), "\n")
 	top := slices.IndexFunc(out, func(l string) bool { return strings.Contains(l, "References (1)") })
 	src, _, _ := strings.Cut(ansi.Strip(ansi.Cut(out[top+1], m.mainX(), m.w)), "│")
-	ed := ansi.Strip(ansi.Cut(out[top-1], m.mainX(), m.w))
+	ed := ansi.Strip(ansi.Cut(out[top-2], m.mainX(), m.w)) // over the rule
 
 	if lead := func(s string) int { return len(s) - len(strings.TrimLeft(s, " ")) }; lead(src) != lead(ed) {
 		t.Fatalf("source pane %q, editor %q", src, ed)

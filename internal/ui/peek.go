@@ -238,9 +238,18 @@ func (pk *peek) shown() (peekLoc, bool) {
 // peekSourceW is the narrowest panel that shows the source beside the list.
 const peekSourceW = 100
 
+// edge is the rows a rule takes above the header and below the list:
+// inline, VS Code's peekView.border parts the References from the code
+// around them, a line along the bottom of the row over them and the top of
+// the one under them.
+func (pk *peek) edge() int { return b2i(pk.inline) }
+
+// bodyH is the rows the list has.
+func (pk *peek) bodyH() int { return max(pk.h-1-2*pk.edge(), 1) }
+
 func (pk *peek) view(m *Model, w, h int) []string {
 	pk.w, pk.h = w, h
-	if h < 2 {
+	if h < 2+2*pk.edge() {
 		return make([]string, max(h, 0))
 	}
 
@@ -257,7 +266,7 @@ func (pk *peek) view(m *Model, w, h int) []string {
 		sg(" "+name, bold), sg(dir, dim),
 		sg(fmt.Sprintf("  — %s (%d) ", pk.title, pk.count()), dim),
 	}, sg(" "+icClose.s()+" ", dim))
-	body := h - 1
+	body := pk.bodyH()
 	lw := pk.sourceW()
 	rw := max(w-lw-b2i(lw > 0), 10)
 	left := pk.source(m, lw, body)
@@ -268,13 +277,20 @@ func (pk *peek) view(m *Model, w, h int) []string {
 		hover = pk.l.at(y-1, len(pk.rows))
 	}
 
+	rule := func(glyph string) string { return renderText(fg(pal.accent), strings.Repeat(glyph, w)) }
+
 	level := func(i int) int { return ifElse(pk.rows[i].loc >= 0, 1, 0) } // a hit under its file
 	ag := activeGuide(len(pk.rows), pk.l.sel, level)
 	right := pk.l.render(rw, body, len(pk.rows), func(i, rww int) string {
 		return pk.renderRow(m, i, rww, i == hover, ag.at(i, level(i)))
 	})
 
-	out := []string{head}
+	var out []string
+	if pk.edge() > 0 {
+		out = append(out, rule("▁"))
+	}
+
+	out = append(out, head)
 
 	for i := range body {
 		if lw == 0 { // too narrow for the source: the list alone
@@ -283,6 +299,10 @@ func (pk *peek) view(m *Model, w, h int) []string {
 		}
 
 		out = append(out, fit(left[i], lw)+dim.Render("│")+fit(right[i], rw))
+	}
+
+	if pk.edge() > 0 {
+		out = append(out, rule("▔"))
 	}
 
 	return out
@@ -445,7 +465,7 @@ func (pk *peek) open(m *Model) tea.Cmd {
 }
 
 func (pk *peek) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
-	h, n := max(pk.h-1, 1), len(pk.rows)
+	h, n := pk.bodyH(), len(pk.rows)
 
 	switch k.String() {
 	case "up", "k":
@@ -502,8 +522,9 @@ func (pk *peek) close(m *Model) {
 
 func (pk *peek) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 	mo := msg.Mouse()
+	y -= pk.edge() // the rule over the header
 
-	h := max(pk.h-1, 1)
+	h := pk.bodyH()
 	if _, wheel := msg.(tea.MouseWheelMsg); wheel {
 		pk.l.wheel(wheelDelta(mo), len(pk.rows), h)
 		return nil
@@ -514,6 +535,10 @@ func (pk *peek) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 			pk.hov = pk.l.at(y-1, len(pk.rows))
 		}
 
+		return nil
+	}
+
+	if y < 0 || y > h { // a rule
 		return nil
 	}
 

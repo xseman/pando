@@ -373,7 +373,9 @@ F12, shift+F12 ─▶ lspGo ─▶ tea.Cmd ─▶ lspPool.get(root, path, lang, 
   headings) without a server.
 - The References (`peek.go`, `m.refs`) open inline, under the cursor's line
   (`peekRow`, `withPeek`), `peekH` rows over the text that goes on past
-  them, the editor scrolled to make room: the selected hit's source left
+  them, the editor scrolled to make room, between two rules in the accent
+  (`edge`, VS Code's peekView.border: `▁` over the header, `▔` under the
+  list): the selected hit's source left
   (three fifths), hits grouped by file right, a hit too long for its row cut
   at its start so the match shows. They have the keys while open;
   ⏎ goes there and closes them, `o` keeps them, `esc` or ✕ closes.
