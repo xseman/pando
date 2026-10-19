@@ -838,6 +838,55 @@ func Message(root, rev string) (string, error) {
 	return strings.TrimSpace(out), err
 }
 
+// Blame is who last changed a line: the commit, its author, when, and its
+// subject. Hash is "" for a line not committed yet.
+type Blame struct {
+	Hash, Author, Summary string
+	When                  time.Time
+}
+
+// BlameLine is the blame of line n (0-based) of the file at path as text
+// holds it, the editor's unsaved text included: git blames the file's
+// committed history against that text (--contents).
+func BlameLine(path string, n int, text string) (Blame, error) {
+	l := strconv.Itoa(n + 1)
+	out, err := run(filepath.Dir(path), strings.NewReader(text), "blame", "--porcelain", "-L", l+","+l, "--contents", "-", "--", filepath.Base(path))
+
+	return parseBlame(out), err
+}
+
+// parseBlame reads one line's --porcelain blame: the commit, then its
+// headers. Git writes the hash of zeros for a line not committed yet.
+func parseBlame(out string) Blame {
+	var b Blame
+
+	first, rest, _ := strings.Cut(out, "\n")
+	if h, _, _ := strings.Cut(first, " "); len(h) >= 7 && strings.Trim(h, "0123456789abcdef") == "" && strings.Trim(h, "0") != "" {
+		b.Hash = h
+	}
+
+	for line := range strings.Lines(rest) {
+		k, v, _ := strings.Cut(strings.TrimRight(line, "\n"), " ")
+		switch k {
+		case "author":
+			b.Author = v
+		case "author-time":
+			if s, err := strconv.ParseInt(v, 10, 64); err == nil {
+				b.When = time.Unix(s, 0)
+			}
+
+		case "summary":
+			b.Summary = v
+		}
+
+		if strings.HasPrefix(line, "\t") { // the line itself ends the headers
+			break
+		}
+	}
+
+	return b
+}
+
 // CommitRange is the diff range of what commit h changed: from its first
 // parent, or from the empty tree for a root commit.
 func CommitRange(root, h string) (string, error) {

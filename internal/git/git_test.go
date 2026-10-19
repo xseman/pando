@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestParseStatus(t *testing.T) {
@@ -555,6 +556,58 @@ func TestMessages(t *testing.T) {
 	if msg, err := Message(root, "HEAD~1"); err != nil || msg != "one" {
 		t.Fatalf("message: %q %v", msg, err)
 	}
+}
+
+// BlameLine names the commit that last changed a line of the text as the
+// editor holds it: a line typed since is not committed yet, and the lines
+// after it keep their commit.
+func TestBlameLine(t *testing.T) {
+	root := repo(t)
+	path := filepath.Join(root, "a.txt")
+
+	mustWrite(t, path, "one\ntwo\n")
+	must(t, "stage", StageAll(root))
+	must(t, "commit", Commit(root, "add a"))
+
+	head, _ := Run(root, "rev-parse", "HEAD")
+
+	b, err := BlameLine(path, 1, "one\ntwo\n")
+	if err != nil || b.Hash != strings.TrimSpace(head) || b.Summary != "add a" || b.Author == "" || time.Since(b.When) > time.Hour {
+		t.Fatalf("committed line: %+v %v", b, err)
+	}
+
+	if b, err := BlameLine(path, 1, "one\nnew\ntwo\n"); err != nil || b.Hash != "" {
+		t.Fatalf("a line typed since: %+v %v", b, err)
+	}
+
+	if b, err := BlameLine(path, 2, "one\nnew\ntwo\n"); err != nil || b.Summary != "add a" {
+		t.Fatalf("the line after it: %+v %v", b, err)
+	}
+
+	mustWrite(t, filepath.Join(root, "new.txt"), "x\n")
+
+	if _, err := BlameLine(filepath.Join(root, "new.txt"), 0, "x\n"); err == nil {
+		t.Fatal("an untracked file has a blame")
+	}
+}
+
+// FuzzParseBlame checks a blame names a commit by its hex hash or none at
+// all, whatever git (or a broken pipe) wrote.
+func FuzzParseBlame(f *testing.F) {
+	f.Add("1a2b3c4d5e6f 1 1 1\nauthor Ann\nauthor-time 1700000000\nsummary fix it\n\tthe line\n")
+	f.Add("0000000000000000000000000000000000000000 1 1 1\nauthor External file (--contents)\n\tx\n")
+	f.Add("")
+
+	f.Fuzz(func(t *testing.T, out string) {
+		b := parseBlame(out)
+		if b.Hash != "" && (len(b.Hash) < 7 || strings.Trim(b.Hash, "0123456789abcdef") != "" || !strings.HasPrefix(out, b.Hash)) {
+			t.Fatalf("%q: hash %q", out, b.Hash)
+		}
+
+		if strings.ContainsRune(b.Author, '\n') || strings.ContainsRune(b.Summary, '\n') {
+			t.Fatalf("%q: a header runs over its line: %+v", out, b)
+		}
+	})
 }
 
 func TestCompare(t *testing.T) {
