@@ -184,6 +184,17 @@ in every mode.
   `q` closes. In a path prompt `tab` or `→` takes the suggestion.
 - A question: `←` `→` `h` `l` `tab` pick a button, `⏎` `space` run it, `esc`
   `q` cancel.
+- The folder picker: type a path (what follows its last slash filters the
+  folders), `tab` `shift+tab` path, places, folders, buttons, `↑` `↓` move,
+  `⏎` go in (on the path or the button: pick it), `⌫` in the folders up,
+  `esc` cancel.
+- The Settings tab: `↑` `↓` move, `space` `⏎` flip a checkbox or open a
+  dropdown, `←` `→` change the value, `tab` `]` `[` the section, `q` `esc`
+  close.
+- The indentation dialog: `↑` `↓` `tab` pick a row, `←` `→` its value, `1`–`8`
+  the width, `a` Auto, `⏎` the button (else Apply), `esc` cancel.
+- Output (`ctrl+shift+u`): `j` `k` `b` `f` `g` `G` move, `h` `l` `←` `→`
+  pan a line wider than the panel, `y` copy the line, `esc` `q` `tab` leave.
 - References (`shift+F12`): `j` `k` `b` `f` `g` `G` move, `h` `l` fold, `⏎` go
   and close, `o` `space` go and keep the list, `esc` `q` `tab` close.
 

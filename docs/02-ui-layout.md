@@ -312,6 +312,14 @@ A picker marks the characters its query matched in each label in the
 accent, VS Code's `list.highlightForeground` (`fuzzyHits`, `marked`), and
 says _No matching results_ when nothing is left.
 
+The folder picker (`dirpick.go`, `newDirPicker`) is a path to type over the
+places (home, the XDG user directories, GTK's bookmarks, the folders
+holding the projects) and the path's folders: what follows its last slash
+filters them, `..` always first, dotted ones once a dot is typed. `tab`
+walks path, places, folders and buttons; ⏎ or a second click on a folder
+goes in, ⏎ on the path or the primary button picks it. Both columns scroll,
+by the keyboard and the wheel (`dirForm.wheel`).
+
 A dialog's buttons run `items[0]` (primary, focused) to `cancelItem()`,
 drawn primary rightmost with Cancel before it. `←→` `tab` walk, `⏎` runs,
 `esc` cancels; the button under the pointer lights without taking the focus

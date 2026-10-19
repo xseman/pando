@@ -72,8 +72,8 @@ color is the point.
 
 Targets: `parseStatus`, `pickLines`, `ConflictText`, `parseSuggestion`,
 `parseBlame`, the merge message (`internal/git`); `parseSignature`
-(`internal/lsp`); `ecGlob`, `detectIndent`, `splitLoc`, terminal links
-(`internal/ui`); `Columns` JSON/TOML (`internal/proto`); transcript titles
+(`internal/lsp`); `ecGlob`, `detectIndent`, `splitLoc`, `binaryCard`,
+`refine`, `foldRanges`, `parseUserDirs`, terminal links (`internal/ui`); `Columns` JSON/TOML (`internal/proto`); transcript titles
 (`internal/daemon`); `checksum` (`internal/update`); `backgroundID` (`main`).
 
 ```sh

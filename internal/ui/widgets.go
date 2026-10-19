@@ -1899,6 +1899,13 @@ func (md *modal) mouse(m *Model, msg tea.MouseMsg) tea.Cmd {
 	x, y, w, h, rows := md.rect(m)
 	inside := mo.X >= x && mo.X < x+w && mo.Y >= y && mo.Y < y+h
 
+	if wf, ok := md.form.(interface{ wheel(cx, d int) }); ok && inside {
+		if _, wheel := msg.(tea.MouseWheelMsg); wheel {
+			wf.wheel(mo.X-x-1, wheelDelta(mo))
+			return nil
+		}
+	}
+
 	if _, click := msg.(tea.MouseClickMsg); md.form != nil && click { // outside closes it, a row takes the keyboard
 		if r := mo.Y - y - 1; !inside {
 			md.dismiss(m)

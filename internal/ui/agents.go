@@ -2429,19 +2429,13 @@ func (m *Model) agentNavigator() tea.Cmd {
 	return nil
 }
 
-// addProjectPrompt asks for a directory and adds it as a project, completing
-// the path as fish does: the rest shows dimmed, tab or → takes it.
+// addProjectPrompt asks for a folder in the folder picker and adds it as a
+// project.
 func (m *Model) addProjectPrompt() tea.Cmd {
-	defer func() {
-		md := m.modal
-		md.complete, md.input.ShowSuggestions = completeDir, true
-		md.input.SetSuggestions(completeDir(md.input.Value()))
-	}()
-
-	m.modal = newPrompt("Add project (directory)", m.ws, func(_ *Model, v string) tea.Cmd {
+	m.modal = newDirPicker(m, "Add Project", "Add", m.ws, func(_ *Model, dir string) tea.Cmd {
 		return func() tea.Msg {
 			var root string
-			if err := proto.Call("project.add", map[string]string{"path": expandHome(v)}, &root); err != nil {
+			if err := proto.Call("project.add", map[string]string{"path": dir}, &root); err != nil {
 				return flashMsg{err.Error(), true}
 			}
 
@@ -2451,10 +2445,6 @@ func (m *Model) addProjectPrompt() tea.Cmd {
 
 	return nil
 }
-
-// completeDir lists the directories a typed path can go on to: "~/gi" gives
-// "~/github.com/". Dotted ones only once a dot is typed.
-func completeDir(v string) []string { return completeEntries(v, true) }
 
 // completeEntries lists what a typed path can go on to, directories with a
 // trailing slash. With dirsOnly the files are left out.

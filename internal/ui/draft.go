@@ -296,6 +296,6 @@ func (m *Model) saveAs(i int, path string, then func(m *Model) tea.Cmd) tea.Cmd 
 	return tea.Batch(cmds...)
 }
 
-// completePath is completeDir with the files as well, so an existing file can
+// completePath is what a typed path can go on to, the files as well, so an existing file can
 // be picked to overwrite.
 func completePath(v string) []string { return completeEntries(v, false) }

@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"image/color"
+	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -2658,8 +2659,12 @@ func TestStatusProjects(t *testing.T) {
 	m.projectPicker()
 	m.modal.choose(m, len(m.modal.disp)-1)
 
-	if m.modal == nil || m.modal.title != "Add project (directory)" {
-		t.Fatalf("add project: %+v", m.modal)
+	if m.modal == nil {
+		t.Fatal("+ Add Project… opens nothing")
+	}
+
+	if _, ok := m.modal.form.(*dirForm); !ok {
+		t.Fatal("+ Add Project… opens the folder picker")
 	}
 }
 
@@ -2684,9 +2689,11 @@ func TestDragByTitle(t *testing.T) {
 	}
 }
 
-// TestProjectPromptComplete completes the directory typed into Add project, as
-// fish does.
-func TestProjectPromptComplete(t *testing.T) {
+// TestProjectPicker adds a project from the folder picker: the typed path
+// lists its folders, what follows its last slash filtering them (.. always
+// there, dotted ones once a dot is typed); a folder clicked twice, or ⏎ on
+// it, goes in; .. goes up; a place goes there.
+func TestProjectPicker(t *testing.T) {
 	dir := t.TempDir()
 	for _, d := range []string{"alpha", "beta", ".hidden"} {
 		mustMkdir(t, filepath.Join(dir, d))
@@ -2694,39 +2701,123 @@ func TestProjectPromptComplete(t *testing.T) {
 
 	mustWrite(t, filepath.Join(dir, "afile"), "")
 
-	if got := completeDir(dir + "/a"); !slices.Equal(got, []string{dir + "/alpha/"}) {
-		t.Fatalf("a: %q", got)
-	}
-
-	if got := completeDir(dir + "/"); !slices.Equal(got, []string{dir + "/alpha/", dir + "/beta/"}) {
-		t.Fatalf("all: %q", got)
-	}
-
-	if got := completeDir(dir + "/."); !slices.Equal(got, []string{dir + "/.hidden/"}) {
-		t.Fatalf("dotted: %q", got)
-	}
-
-	m := testModel(t)
+	m := testModelSized(t, 120, 30)
 	m.addProjectPrompt()
-	m.modal.input.SetValue("")
 
-	for _, r := range dir + "/b" {
-		press(m, string(r))
+	f, ok := m.modal.form.(*dirForm)
+	if !ok {
+		t.Fatalf("Add Project opens %+v", m.modal)
 	}
 
-	if got := m.modal.input.CurrentSuggestion(); got != dir+"/beta/" {
-		t.Fatalf("suggestion %q", got)
+	f.goTo(dir)
+
+	if !slices.Equal(f.dirs, []string{"..", "alpha", "beta"}) {
+		t.Fatalf("listing %q", f.dirs)
 	}
 
-	if !strings.Contains(ansi.Strip(m.modal.input.View()), "eta/") {
-		t.Fatalf("the rest is not shown: %q", ansi.Strip(m.modal.input.View()))
+	press(m, "b")
+
+	if !slices.Equal(f.dirs, []string{"..", "beta"}) {
+		t.Fatalf("filtered by b: %q", f.dirs)
 	}
 
-	press(m, "tab")
+	press(m, "backspace", ".")
 
-	if m.modal == nil || m.modal.input.Value() != dir+"/beta/" {
-		t.Fatalf("tab took %+v", m.modal)
+	if !slices.Equal(f.dirs, []string{"..", ".hidden"}) {
+		t.Fatalf("dotted: %q", f.dirs)
 	}
+
+	out := checkWidths(t, m)
+	for _, want := range []string{"Add Project", "❱ " + dir + "/.", ".hidden", "Home", "Cancel", "Add"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("no %q in the picker:\n%s", want, out)
+		}
+	}
+
+	press(m, "backspace", "tab", "tab", "down", "enter") // the listing: alpha, in
+
+	if got := f.in.Value(); got != filepath.Join(dir, "alpha")+"/" {
+		t.Fatalf("⏎ on alpha: %q", got)
+	}
+
+	press(m, "enter") // .. up
+
+	if got := f.in.Value(); got != dir+"/" {
+		t.Fatalf("⏎ on ..: %q", got)
+	}
+
+	// The mouse: a place goes there, a folder clicked twice goes in.
+	x, y, _, _, _ := m.modal.rect(m)
+	click(m, x+1+2, y+1+2, tea.MouseLeft) // the first place, Home
+
+	if home, _ := os.UserHomeDir(); f.in.Value() != home+"/" {
+		t.Fatalf("a click on Home: %q", f.in.Value())
+	}
+
+	f.goTo(dir)
+	click(m, x+1+dirPlacesW+3, y+1+2+1, tea.MouseLeft) // alpha
+	click(m, x+1+dirPlacesW+3, y+1+2+1, tea.MouseLeft)
+
+	if got := f.in.Value(); got != filepath.Join(dir, "alpha")+"/" {
+		t.Fatalf("alpha clicked twice: %q", got)
+	}
+
+	// More places than rows: the column scrolls to the one with the
+	// keyboard, the wheel scrolls it, and a click takes the place it shows.
+	for i := range 20 {
+		f.places = append(f.places, dirPlace{label: fmt.Sprintf("place%02d", i), path: dir})
+	}
+
+	f.at, f.place = dirPlaces, 0
+	for range len(f.places) - 1 {
+		press(m, "down")
+	}
+
+	if out := checkWidths(t, m); !strings.Contains(out, "place19") || strings.Contains(out, "Home") {
+		t.Fatalf("the last place in view:\n%s", out)
+	}
+
+	m.Update(tea.MouseWheelMsg{X: x + 2, Y: y + 4, Button: tea.MouseWheelUp})
+	m.Update(tea.MouseWheelMsg{X: x + 2, Y: y + 4, Button: tea.MouseWheelUp})
+
+	if f.ptop >= len(f.places)-dirListH || f.place >= f.ptop+dirListH {
+		t.Fatalf("wheeled up: top %d, place %d", f.ptop, f.place)
+	}
+
+	click(m, x+1+2, y+1+2, tea.MouseLeft)
+
+	if f.place != f.ptop {
+		t.Fatalf("a click on the first place shown: %d, top %d", f.place, f.ptop)
+	}
+
+	press(m, "esc")
+
+	if m.modal != nil {
+		t.Fatal("esc closes the picker")
+	}
+}
+
+// parseUserDirs reads XDG's user directories in the picker's order.
+func TestParseUserDirs(t *testing.T) {
+	b := []byte("# comment\nXDG_MUSIC_DIR=\"$HOME/Music\"\nXDG_DOCUMENTS_DIR=\"$HOME/Docs\"\nXDG_DESKTOP_DIR=\"$HOME/\"\nXDG_DOWNLOAD_DIR=\"/data/dl\"\nXDG_VIDEOS_DIR=\"rel\"\n")
+	if got := parseUserDirs(b, "/home/a"); !slices.Equal(got, []string{"/home/a/Docs", "/data/dl", "/home/a/Music"}) {
+		t.Fatalf("parseUserDirs = %q", got)
+	}
+}
+
+// FuzzParseUserDirs checks every folder it gives is absolute, is not home
+// itself, and has no variable left in it.
+func FuzzParseUserDirs(f *testing.F) {
+	f.Add([]byte("XDG_DOCUMENTS_DIR=\"$HOME/Documents\"\n"), "/home/a")
+	f.Add([]byte("XDG_X_DIR=$HOME\nXDG_MUSIC_DIR=\"$HOMEX/m\""), "/h")
+
+	f.Fuzz(func(t *testing.T, b []byte, home string) {
+		for _, p := range parseUserDirs(b, home) {
+			if !filepath.IsAbs(p) || p == filepath.Clean(home) || strings.Contains(p, "$") {
+				t.Fatalf("%q, home %q: %q", b, home, p)
+			}
+		}
+	})
 }
 
 // TestTerminalMenu is the Terminal panel's right click menu and its size to
