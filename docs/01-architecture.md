@@ -126,7 +126,7 @@ alternate screen keeps a scrollback of its own that nothing shows;
 
 ## Status
 
-`Session.Status` is `blocked`, `running`, `idle` or `exited`; the TUI shows
+`Session.Status` is `blocked`, `running`, `idle`, `asleep` or `exited`; the TUI shows
 `idle` with `attention` as done, and `running` with `shell` (a shell command
 under the worker) as shell, its ◐ blue. Each tick, `session.tick` decides:
 
@@ -199,4 +199,41 @@ Scrollback is lost. A claude resumes by id from its `sessions/<pid>.json`
 - `pando claude ARGS` runs `claude --bg ARGS` and execs `claude attach ID`, so
   the conversation lives in Claude Code's daemon and a restart stops only the
   attach. With `claude_background` on, resumes by id go through it too.
+- `session.kill` stops the job too (`[stop_job]`, `claude stop ID`), and waits
+  for it to let go of the conversation; `claude --resume` still opens it.
 - An attach sets no title: the session shows the job's name or transcript title.
+
+## Sleep
+
+A session put to sleep (`session.sleep`, `sleep_after`) is a restart of one
+session, put off until `session.wake` (`sleep.go`).
+
+```text
+ sleep: under d.mu  canSleep (remember first, as a tick) ─▶ asleep = true
+        kill (SIGHUP, as Close) ─▶ stopJob ─▶ spec.Asleep, screen kept ─▶ save
+        then its Terminal panel's shells
+ wake:  respawn (the restart's path: resume, ResumeExec, shells)
+        add replaces it under its id, in its place ─▶ save, then its shells
+        waits up to 20 s for the agent in front, idle or blocked (no /proc: none)
+ restart: spec.Asleep ─▶ dormant: a screen, no process, until woken
+```
+
+| A session in front runs…                  | By hand | On its own | Wakes to                |
+| ----------------------------------------- | ------- | ---------- | ----------------------- |
+| an agent with a resume (spec.Resume)      | yes     | when idle  | the agent, resumed      |
+| its shell, at the prompt                  | yes     | when idle  | a new shell             |
+| something else (a server, an editor)      | yes     | no         | a new shell             |
+| a known agent with no `[resume]` (gemini) | refused | no         | -                       |
+
+- On its own: `sleep_after` minutes since `used`: the last input, a client's
+  `session.screen` (a TUI asks for the session it shows every 30 s while
+  `sleep_after` is on), or a status change past `startGrace` (30 s) after a
+  start, so an agent coming back does not count. `Active` keeps it over a
+  restart. Not with `attention` (done unseen), not a Terminal shell (they go
+  with their session), nor a session one of whose shells is not unused the
+  same way (a quiet server, an editor); where nothing says what runs in
+  front (no /proc), only an agent with a resume.
+- `asleep` is settled: `session.wait` stops at it; `session.input` is
+  refused. A wait begun asleep follows the woken session (`d.session` each
+  poll). The exit of the process it stops neither closes it nor falls back.
+- `d.moving` keeps a sleep and a wake of one session apart.

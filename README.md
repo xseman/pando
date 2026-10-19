@@ -50,8 +50,9 @@ Needs git. Optional: `gh` for GitHub, `rg` for search, `sqlite3` (3.37+),
 ## Features
 
 - **Agent sessions**: projects → worktrees → sessions, each with its own shells,
-  marked when they need you, resumed after a daemon restart; ctrl+click a
-  `path:line` or a URL in their output to open it.
+  marked when they need you, resumed after a daemon restart, put to sleep when
+  unused to free memory; ctrl+click a `path:line` or a URL in their output to
+  open it.
 - **Source Control**: VS Code's view — line-level staging, Commit & Sync,
   Publish, AI commit messages, history drawers, GitLens-style commit and pull
   request comparisons.

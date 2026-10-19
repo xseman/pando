@@ -80,7 +80,8 @@ config.toml edited ───────────┘  └─ "state" event �
 | `spaces_sort`          | `created`   | `created`, `updated` (last input or change of state)                           |
 | `spaces_group`         | `workspace` | `workspace`, `time` (Today, Yesterday, …)                                      |
 | `spaces_project_sort`  | `manual`    | `manual` (drag, `alt+↑↓`), `updated` (sessions' last input or change)          |
-| `spaces_hide`          | `[]`        | states left out: `blocked` `running` `done` `idle` `exited`                    |
+| `spaces_hide`          | `[]`        | states left out: `blocked` `running` `done` `idle` `asleep` `exited`           |
+| `sleep_after`          | `0`         | minutes idle and unused before a session sleeps; `0` never                     |
 | `sounds`               | `true`      | sound for a session out of view                                                |
 | `sound_done`           | desktop     | file on finish; `""`: bell                                                     |
 | `sound_request`        | desktop     | file on a question; `""`: bell                                                 |
@@ -118,9 +119,10 @@ dropdown with its `opts`.
 | `[resume]`     | program to its "continue last": claude, codex, opencode                                                                |
 | `[resume_id]`  | program to its "continue `{id}`": claude                                                                               |
 | `[resume_job]` | program to its "re-attach job `{id}`": claude                                                                          |
+| `[stop_job]`   | program to its "stop job `{id}`", run when the session is killed: claude                                               |
 | `[resume_env]` | program to the variables naming its config: `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, …                                       |
 
-The last five replace the built-ins (an `[agents]` without `codex` drops it);
+The last six replace the built-ins (an `[agents]` without `codex` drops it);
 the rest add. Resume: [01-architecture.md](01-architecture.md).
 
 ## Shell

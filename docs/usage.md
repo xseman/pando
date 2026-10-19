@@ -124,6 +124,7 @@ checkout.
 | `◐`  | `shell`   | running a shell command, in the background too (blue)     |
 | `✓`  | `done`    | finished, not looked at yet                               |
 | `○`  | `idle`    | at its prompt                                             |
+| `◌`  | `asleep`  | stopped to free memory; opening it brings it back         |
 | `✕`  | `exited`  | failed (`exit N`); a clean exit closes the session        |
 
 One needing you pulses until clicked (`session_highlight`) and can
@@ -154,6 +155,28 @@ aider = ["aider", "--restore-chat-history"]
   (`claude --resume`); an agent without such a list continues its last.
 
 ![a claude conversation, pando closed and its daemon stopped; the next pando brings the session back and claude continues the same conversation](demo/resume.gif)
+
+## Sleep
+
+An unused session can stop to free its memory: a claude takes 300–600 MB,
+its background job and its `claude attach` together.
+
+- `z` in Spaces, or _Sleep Session_ in a session's menu, puts it to sleep;
+  working, it asks first. `pando session sleep ID` too.
+- `sleep_after = 120` in `config.toml`, or _Settings → Sessions_, does it on
+  its own to a session idle and unused that long: nobody typed into it,
+  looked at it or saw it change. Blocked, working, finished but not looked
+  at yet (`✓`), or running something pando would not bring back, it stays
+  awake.
+- Asleep (`◌`), its screen stays, its process and a claude's background job
+  are stopped; its Terminal panel's shells sleep with it. A daemon restart
+  leaves it asleep.
+- Opening it, or a key typed into it, wakes it: the conversation is resumed
+  as after a restart. A shell wakes to a new shell; a server or an editor
+  that ran in it does not come back.
+- codex (`resume --last`) and opencode (`--continue`) continue the latest
+  conversation in the worktree: two of one in the same worktree can swap.
+  gemini, with nothing in `[resume]`, is not put to sleep.
 
 ## Review and commit
 
