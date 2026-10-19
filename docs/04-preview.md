@@ -345,16 +345,23 @@ F12, shift+F12 ─▶ lspGo ─▶ tea.Cmd ─▶ lspPool.get(root, path, lang, 
   them (SGR 4:3 and 58, re-emitted after each SGR inside), `probAtCursor`
   feeds the footer, `probTip` the pointer's tip, `barProbs` the scrollbar
   (`probMarks`), `decorateDiags` Explorer and Source Control; `gotoProblem`
-  is F8, `showProblems` the Problems peek built in a command, built again
-  (`problems(true)`, `peek.follow`) on each change while it is open.
+  is F8, `showProblems` the panel's Problems built in a command, built again
+  (`problems(true)`, `peek.follow`) on each change while there is a list.
 - Code actions carry the server's own diagnostics under the range (`near`,
   from `seen`), which its quick fixes need. They and rename write to disk:
   `saveForServer` saves first, the `WorkspaceEdit` is applied file by file,
   then preview and git reload. Git is the undo.
 - Go to Symbol flattens the symbol tree; Markdown uses `mdSymbols` (ATX
   headings) without a server.
-- The references peek (`peek.go`) sits under the editor: the selected hit's
-  source left, hits grouped by file right.
+- The References (`peek.go`, `m.refs`) open inline, under the cursor's line
+  (`peekRow`, `withPeek`), `peekH` rows over the text that goes on past
+  them, the editor scrolled to make room: the selected hit's source left
+  (three fifths), hits grouped by file right. They have the keys while open;
+  ⏎ goes there and closes them, `o` keeps them, `esc` or ✕ closes.
+- A server's stderr, its `window/logMessage` and `showMessage` and why it
+  stopped go to the panel's Output (`lsp.Logger`, the pool's `log`, the
+  `logBox`), tagged `lsp:<binary>`, as does every error the status bar
+  flashes, whole.
 - Hover (`hover.go`): a pointer resting `tipDelay` on a word (with `tips`)
   asks through `lspPool.background`, `ctrl+k` through `get`; `seq` drops a
   stale answer. The box renders the Markdown (`renderMarkdown`, its margins

@@ -180,7 +180,7 @@ func TestClient(t *testing.T) {
 		}
 	}()
 
-	c := newClient(cw, cr, nil)
+	c := newClient(cw, cr, nil, nil)
 	if err := c.initialize(dir, map[string]any{"tsserver": map[string]any{"path": "/ts/lib/tsserver.js"}}); err != nil {
 		t.Fatal(err)
 	}
@@ -585,7 +585,7 @@ func TestDiagnostics(t *testing.T) {
 			if path == file {
 				got <- ds
 			}
-		})
+		}, nil)
 
 		if err := c.initialize(dir, nil); err != nil {
 			t.Fatal(err)

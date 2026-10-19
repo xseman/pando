@@ -233,7 +233,10 @@ type Model struct {
 	vimReg      string // vim_mode: the unnamed register, shared by every editor
 	vimRegLine  bool   // what it holds was yanked line-wise, so p pastes it as lines
 	pv          preview
-	pk          *peek // the references widget under the editor
+	ptab        panelTab  // the bottom panel's tab: Terminal, Problems, References, Output
+	probs, refs *peek     // the panel's Problems and References; nil for none
+	out         outputLog // the panel's Output
+	logIn       *logBox   // Output lines from the language servers' readers
 	lsps        lspPool
 	// lsp_diagnostics: the servers' readers leave diagnostics in diagIn;
 	// diags are each file's, probDeco the colors they give Explorer and
@@ -457,11 +460,12 @@ func New(st proto.State, wss []proto.Workspace, ss []proto.Session, ws string, e
 		hasGH:      hasGH(),
 		hasDB:      hasDB(),
 		diagIn:     newDiagBox(),
+		logIn:      newLogBox(),
 		diags:      map[string][]lsp.Diagnostic{},
 		diagFailed: map[string]diagFailMsg{}, diagWarned: map[string]bool{},
 	}
 
-	m.lsps.sink = m.diagIn.put
+	m.lsps.sink, m.lsps.log = m.diagIn.put, m.logIn.put
 	for i := range m.filters {
 		m.filters[i] = newFilter()
 	}
@@ -494,7 +498,7 @@ func (m *Model) Init() tea.Cmd {
 	// m.pv is the editor New restored for the workspace; its content loads here.
 	cmds := []tea.Cmd{
 		waitEvent(m.events), tick(), tea.RequestBackgroundColor, tea.RequestForegroundColor,
-		m.refreshGit(), m.pv.load(m), m.loadDrafts(), loadUpdate(), m.ensureTerm(), m.gh.shown(m), m.loadGHUser(), m.diagIn.waitDiags(),
+		m.refreshGit(), m.pv.load(m), m.loadDrafts(), loadUpdate(), m.ensureTerm(), m.gh.shown(m), m.loadGHUser(), m.diagIn.waitDiags(), m.logIn.waitLogs(),
 	}
 	if m.open != "" { // over the restored editor, whose answer is then for another
 		cmds = append(cmds, m.openSpec(m.open))
@@ -2407,7 +2411,7 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 	m.scm.reset()
 	m.scm.cmp, m.scm.cmpSel = m.scm.cmps[path], "" // each project compares on its own
 	m.sr.clear()
-	m.pk = nil
+	m.probs, m.refs = nil, nil
 	m.gh.sync(m) // another project's repository: its own lists
 	hub := m.gh.shown(m)
 	m.lsps.reset(path) // the servers belong to the workspace they indexed
@@ -2781,7 +2785,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.tv.id, m.tv.term = "", term{}
 			if termNext != "" {
 				m.tv.id = termNext
-			} else if m.termOpen() { // the last tab closed: so does the panel
+			} else if m.termOpen() && m.ptab == ptTerm { // the last shell closed: so does the panel showing it
 				return m, tea.Batch(cmd, m.toggleTerminal())
 			}
 		}
@@ -2844,23 +2848,14 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case problemsMsg:
 		if msg.live {
 			if m.problemsOpen() {
-				msg.pk.follow(m.pk)
-				m.pk = msg.pk
+				msg.pk.follow(m.probs)
+				m.probs = msg.pk
 			}
 
 			return m, nil
 		}
 
-		var open tea.Cmd
-
-		if !m.showsPreview() && len(msg.pk.files) > 0 { // the list sits under an editor: the first problem's
-			l := msg.pk.files[0].locs[0].loc
-			open = m.openLine(l.Path, l.Line+1, 0)
-		}
-
-		m.showPeek(msg.pk)
-
-		return m, open
+		return m, m.showPeek(msg.pk)
 
 	case searchTickMsg:
 		return m, m.sr.onTick(m, int(msg))
@@ -2990,6 +2985,10 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case flashMsg:
 		m.flash(msg.text, msg.err)
 		return m, nil
+
+	case logsMsg:
+		m.out.add(msg...)
+		return m, m.logIn.waitLogs()
 
 	case fileOpMsg:
 		if msg.moved != "" && m.ex.clip == msg.moved { // a moved entry is pasted once, as in VS Code
@@ -3160,6 +3159,9 @@ func reconnect() tea.Cmd {
 // reading (errLine), as a git error's stderr would break the bar into rows.
 func (m *Model) flash(text string, isErr bool) {
 	m.msg, m.msgErr, m.msgAt = errLine(text), isErr, time.Now()
+	if isErr { // the whole of it, which the status bar cuts to a line
+		m.out.add(outputLine{at: m.msgAt, src: "pando", msg: text, err: true})
+	}
 }
 
 func (m *Model) onEvent(ev proto.Event) tea.Cmd {
@@ -3231,16 +3233,16 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 		return t.findKey(m, id, k)
 	}
 
-	if m.focus == onPanel { // the panel is a terminal: every other key is the shell's
-		return m.termPanelKey(k)
+	if m.focus == onPanel { // a terminal takes every other key, a list its own
+		return m.panelKey(k)
 	}
 
 	if m.focus == onMain {
 		switch {
 		case m.showsSession():
 			return m.term.key(m, m.sess, k)
-		case m.pk != nil:
-			return m.pk.key(m, k)
+		case m.peekH() > 0:
+			return m.refs.key(m, k)
 		case s == "esc" && m.pv.kind == "":
 			return m.confirmQuit()
 		}
@@ -3249,8 +3251,8 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 	}
 
 	v, _ := m.viewOn(m.focus)
-	if v == viewTerm { // the panel is a terminal: every other key is the shell's
-		return m.termPanelKey(k)
+	if v == viewTerm { // a terminal takes every other key, a list its own
+		return m.panelKey(k)
 	}
 
 	if v == viewSession {
@@ -3599,25 +3601,12 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 			return nil
 
 		case y > 2:
-			return m.termPanelMouse(msg, mo.X-c.x, y-panelTopH)
-		case !click:
-			m.setOver(stripTerm, mo.X-c.x-1)
+			return m.panelMouse(msg, mo.X-c.x, y-panelTopH)
+		case !click || mo.Button != tea.MouseLeft:
 			return nil
 		}
 
-		if a, ok := hit(m.termButtons(), mo.X-c.x); ok && mo.Button == tea.MouseLeft {
-			return a.run(m)
-		}
-
-		x := mo.X - c.x - 1
-
-		onTab := slices.ContainsFunc(m.termTabs(m.termStripW()), func(t sessTab) bool { return x >= t.x && x < t.x+t.w })
-		if mo.Button == tea.MouseLeft && !onTab { // the rest of the row is the panel's sash
-			m.drag = &drag{kind: dragTerm, y0: mo.Y, h0: m.termRows()}
-			return nil
-		}
-
-		return m.termStripMouse(x, mo.Button)
+		return m.panelStripClick(mo.X-c.x, mo.Y, c.w)
 	}
 
 	if click {
@@ -3646,11 +3635,19 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 		return m.sessionMouse(msg, mo.X-c.x, mo.Y-m.headH()-strip, c.w)
 	}
 
-	if top := 1 + strip + m.pvH() + m.hbarH(); m.pk != nil && mo.Y >= top {
-		return m.pk.mouse(m, msg, mo.X-c.x, mo.Y-top)
+	y := mo.Y - m.headH() - strip
+	if ph := m.peekH(); ph > 0 { // the References inline: the text under them is past them
+		m.refs.hov = -1
+
+		switch r := m.peekRow(); {
+		case y > r && y <= r+ph:
+			return m.refs.mouse(m, msg, mo.X-c.x, y-r-1)
+		case y > r+ph && y < m.pvH():
+			y -= ph
+		}
 	}
 
-	return m.pv.mouse(m, msg, mo.X-c.x, mo.Y-m.headH()-strip)
+	return m.pv.mouse(m, msg, mo.X-c.x, y)
 }
 
 // sessionMouse is the session's screen at body cell (x, y), w cells wide in
@@ -3883,15 +3880,13 @@ func (m *Model) viewMouse(v view, msg tea.MouseMsg, x, y int) tea.Cmd {
 	case viewSearch:
 		return m.sr.mouse(m, msg, x, y)
 	case viewTerm:
-		if y == 0 { // the tab strip
-			m.setOver(stripTerm, x)
-
+		if y == 0 { // the strip: its tabs and buttons
 			if a, ok := hit(m.termButtons(), x); ok && click && mo.Button == tea.MouseLeft {
 				return a.run(m)
 			}
 
-			if click && (mo.Button == tea.MouseLeft || mo.Button == tea.MouseMiddle || mo.Button == tea.MouseRight) {
-				return m.termStripMouse(x, mo.Button)
+			if tab, ok := m.panelTabAt(x, panelTabX, m.colRect(m.colOf(viewTerm)).w); ok && click && mo.Button == tea.MouseLeft {
+				return m.pickPanelTab(tab)
 			}
 
 			return nil
@@ -3901,7 +3896,7 @@ func (m *Model) viewMouse(v view, msg tea.MouseMsg, x, y int) tea.Cmd {
 			return nil
 		}
 
-		return m.termPanelMouse(msg, x, y-termStripH)
+		return m.panelMouse(msg, x, y-termStripH)
 
 	case viewSession:
 		if y == 0 { // its tabs
@@ -4202,7 +4197,7 @@ func (m *Model) View() tea.View {
 	case caret: // a text box has the keyboard
 		v.Cursor = tea.NewCursor(cx, b+cy)
 
-	case m.focus == onPanel && m.termRows() > panelTopH:
+	case m.focus == onPanel && m.ptab == ptTerm && m.termRows() > panelTopH:
 		if m.tv.scr.CursorVisible && !m.tv.find.editing && m.tv.term.id == m.tv.id && m.tv.scr.CursorX >= m.tv.left {
 			v.Cursor = appCursor(c.x+m.tv.scr.CursorX-m.tv.left, b+m.mainH()+panelTopH+m.tv.scr.CursorY, m.tv.scr.CursorStyle)
 		}
@@ -4217,7 +4212,7 @@ func (m *Model) View() tea.View {
 			v.Cursor = appCursor(m.colRect(m.focus).x+m.term.scr.CursorX, b+m.bodyTop(viewSession)+sessStripH+m.term.scr.CursorY, m.term.scr.CursorStyle)
 		}
 
-	case m.focus == onMain && m.showsPreview() && !m.pv.scrollOnly(m) && m.pv.kind != pvGH: // a page's cursor is its tinted row
+	case m.focus == onMain && m.showsPreview() && !m.pv.scrollOnly(m) && m.pv.kind != pvGH && m.peekH() == 0: // a page's cursor is its tinted row; the References inline have the keys
 		if x, y, ok := m.pv.cursor(c.w, m.pvH()); ok {
 			v.Cursor = tea.NewCursor(c.x+x, b+1+m.stripH()+y)
 			if m.pv.vimOn(m) && m.pv.vim.mode == vimInsert {
@@ -4326,9 +4321,7 @@ func (m *Model) sashUnder(x, y int) sash {
 		return noSash
 	}
 
-	tx := x - c.x - 1
-
-	if slices.ContainsFunc(m.termTabs(m.termStripW()), func(t sessTab) bool { return tx >= t.x && tx < t.x+t.w }) {
+	if _, ok := m.panelTabAt(x-c.x, panelTabX, c.w); ok {
 		return noSash
 	}
 
@@ -5033,7 +5026,7 @@ func (m *Model) attentionCount() int {
 func (m *Model) pvW() int { return max(m.mainW()-1, 1) }
 
 func (m *Model) pvH() int {
-	return max(m.mainH()-1-m.headH()-m.stripH()-m.peekH()-m.hbarH(), 1)
+	return max(m.mainH()-1-m.headH()-m.stripH()-m.hbarH(), 1)
 }
 
 // hbarH is the row the editor's horizontal scrollbar takes under the text:
@@ -5110,16 +5103,11 @@ func (m *Model) editorLines(w int) []string {
 		h = m.pvH()
 
 		header, body, footer = m.pv.view(m, w, h)
+		if m.peekH() > 0 {
+			body = append(m.withPeek(body, w, h), body[min(h, len(body)):]...)
+		}
 
 		h += m.hbarH() // the horizontal bar's row, which view puts under the text
-		if m.pk != nil {
-			for len(body) < h {
-				body = append(body, "")
-			}
-
-			body = append(body, m.pk.view(m, w, m.peekH())...)
-			h += m.peekH()
-		}
 
 	default:
 		header = row(w, nil, []seg{sg(" pando", accent), sg("  "+m.ws, dim)})
@@ -5250,6 +5238,7 @@ func (m *Model) viewItems() []item {
 		{label: "New Untitled File", hint: "^n", run: func(m *Model) tea.Cmd { return m.newUntitled() }},
 		{label: "Quick Open…", hint: "^p", run: func(m *Model) tea.Cmd { return m.loadIndex(true) }},
 		{label: "Show Problems", hint: "^⇧m", run: (*Model).showProblems},
+		{label: "Show Output", hint: "^⇧u", run: func(m *Model) tea.Cmd { return m.showPanel(ptOutput) }},
 		{label: "Show Explorer", hint: showKeys[viewFiles], run: show(viewFiles)},
 		{label: "Show Source Control", hint: showKeys[viewGit], run: show(viewGit)},
 		{label: "Show Spaces", hint: showKeys[viewAgents], run: show(viewAgents)},

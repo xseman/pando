@@ -144,9 +144,7 @@ func (m *Model) noteDiags() {
 	clear(m.diagFailed)
 	m.lsps.reset("") // no workspace's: a sync still running starts no server (errOtherRoot)
 
-	if m.problemsOpen() {
-		m.pk = nil
-	}
+	m.probs = nil
 }
 
 // noteEdits arms the sync of the shown editor's text when it changed: a
@@ -333,8 +331,8 @@ func (m *Model) onDiagSynced(msg diagSyncedMsg) tea.Cmd {
 	return nil
 }
 
-// problemsOpen reports the Problems list open under the editor.
-func (m *Model) problemsOpen() bool { return m.pk != nil && m.pk.title == "Problems" }
+// problemsOpen reports a Problems list in the panel, which follows the problems.
+func (m *Model) problemsOpen() bool { return m.probs != nil }
 
 // sevMark is a severity's glyph and color, VS Code's: ✖ error, ⚠ warning,
 // ℹ information and hint.
@@ -684,12 +682,14 @@ func (m *Model) problems(live bool) tea.Cmd {
 		}
 	}
 
-	if len(all) == 0 {
+	if len(all) == 0 { // the panel says there are none
+		m.probs = nil
+
 		if live {
-			m.pk = nil
+			return nil
 		}
 
-		return flash("no problems", false)
+		return m.showPanel(ptProblems)
 	}
 
 	slices.SortFunc(all, func(a, b prob) int {

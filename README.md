@@ -73,7 +73,8 @@ Needs git. Optional: `gh` for GitHub, `rg` for search, `sqlite3` (3.37+),
   the system keyring), their tables in a grid: filter, sort and page, then
   edit cells and rows and submit them in one transaction, or open the client
   in the terminal for the rest.
-- **Layout**: a terminal panel, draggable views and columns, VS Code's 2026
+- **Layout**: a bottom panel with the terminals, the problems and the
+  output, a settings tab, draggable views and columns, VS Code's 2026
   themes, remappable keys.
 - **CLI and API**: JSON over a unix socket; self-update on Linux and macOS.
 - **Instances**: `pando --instance work` is a separate pando, with projects

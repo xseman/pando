@@ -248,50 +248,7 @@ func TestDragSessionTab(t *testing.T) {
 	}
 }
 
-// TestDragTerminalTab reorders the Terminal panel's shells by a drag on its
-// title row, which is otherwise the panel's sash.
-func TestDragTerminalTab(t *testing.T) {
-	m := testModel(t)
-	drainInputs(m)
-
-	m.sessions = append(m.sessions, termSession(m.ws, "p1"), termSession(m.ws, "p2"))
-	m.tv.id = "p1"
-	m.st.Settings.TermOpen, m.st.Settings.TermPos, m.st.Settings.TermH = true, "bottom", 8
-	m.resize()
-	checkWidths(t, m)
-
-	order := func() string {
-		var out []string
-		for _, s := range m.termSessions() {
-			out = append(out, s.ID)
-		}
-
-		return strings.Join(out, " ")
-	}
-
-	tabs := m.termTabs(m.termStripW())
-	y, left := m.mainH()+1, m.mainX()+1
-
-	m.Update(tea.MouseClickMsg{X: left + tabs[0].x + 1, Y: y, Button: tea.MouseLeft})
-
-	if m.drag == nil || m.drag.kind != dragStrip || m.focus != onPanel {
-		t.Fatalf("a press on a shell's tab picks it up, not the sash: %+v", m.drag)
-	}
-
-	m.Update(tea.MouseMotionMsg{X: left + tabs[1].x + tabs[1].w - 1, Y: y, Button: tea.MouseLeft})
-
-	if got := markAt(m.termPanelLines(m.mainW(), m.termRows())[1]); got != 1+tabs[1].x+tabs[1].w {
-		t.Fatalf("the mark sits after p2 in the panel's title row: %d", got)
-	}
-
-	m.Update(tea.MouseReleaseMsg{X: left + tabs[1].x + tabs[1].w - 1, Y: y, Button: tea.MouseLeft})
-
-	if got := order(); got != "p2 p1" || m.drag != nil || m.st.Settings.TermH != 8 {
-		t.Fatalf("p1 moved past p2, the panel kept its height: %s, %d", got, m.st.Settings.TermH)
-	}
-}
-
-// TestPlusButtonHovers paints the + of the session and Terminal strips on
+// TestPlusButtonHovers paints the + of the session strip on
 // hover_bg while the pointer is over it.
 func TestPlusButtonHovers(t *testing.T) {
 	m := testModel(t)
@@ -307,7 +264,6 @@ func TestPlusButtonHovers(t *testing.T) {
 		tabs  []sessTab
 	}{
 		{stripSession, m.sessionTabs(m.sessW())},
-		{stripTerm, m.termTabs(m.termStripW())},
 	} {
 		plus := c.tabs[len(c.tabs)-1]
 		in, _ := m.tabUnder(c.strip, plus.x+1)
@@ -485,22 +441,26 @@ func TestTerminalStripCarriesTheButtons(t *testing.T) {
 
 	checkWidths(t, m)
 
-	// The first button maximizes the panel, and then restores it.
-	acts := m.termButtons()
-	click(m, m.mainX()+acts[0].x+1, m.mainH()+1, tea.MouseLeft)
+	// The button after ⋮ maximizes the panel, and then restores it.
+	maxBtn := func() rowAction {
+		acts := m.termButtons()
+		return acts[slices.IndexFunc(acts, func(a rowAction) bool { return a.g == icEllipsis })+1]
+	}
 
-	if !m.termMax || m.termButtons()[0].g != icRestore {
+	click(m, m.mainX()+maxBtn().x+1, m.mainH()+1, tea.MouseLeft)
+
+	if !m.termMax || maxBtn().g != icRestore {
 		t.Fatalf("maximized: %v", m.termMax)
 	}
 
-	click(m, m.mainX()+m.termButtons()[0].x+1, m.mainH()+1, tea.MouseLeft)
+	click(m, m.mainX()+maxBtn().x+1, m.mainH()+1, tea.MouseLeft)
 
 	if m.termMax {
 		t.Fatal("restored")
 	}
 
 	// The last one closes the panel.
-	acts = m.termButtons()
+	acts := m.termButtons()
 	click(m, m.mainX()+acts[len(acts)-1].x+1, m.mainH()+1, tea.MouseLeft)
 
 	if m.termOpen() {

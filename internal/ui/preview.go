@@ -4482,7 +4482,6 @@ func (p *preview) closeAndRefocus(m *Model) tea.Cmd {
 func (p *preview) closeNow(m *Model) tea.Cmd {
 	p.close(m)
 
-	m.pk = nil
 	if m.sess == "" {
 		for i := range m.cols() {
 			if m.colRect(i).w > 0 && !m.railed(i) {

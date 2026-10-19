@@ -38,7 +38,7 @@ func (m *Model) keyContext() keyCtx {
 		return ctxInput
 	case m.focus != onMain:
 		return ctxList
-	case m.pk == nil && m.pv.editable():
+	case m.pv.editable():
 		return ctxText
 	}
 
@@ -154,6 +154,7 @@ var keybindings = []keybinding{
 		return m.gotoProblem(ifElse(k == "f8", 1, -1))
 	}},
 	{keys: []string{"ctrl+shift+m"}, when: ctxNotTerm, run: func(m *Model, _ string) tea.Cmd { return m.showProblems() }},
+	{keys: []string{"ctrl+shift+u"}, when: ctxNotTerm, run: func(m *Model, _ string) tea.Cmd { return m.showPanel(ptOutput) }},
 	// VS Code's Go to Next and Previous Change, wherever the keyboard is while
 	// a diff shows: a file opened from Source Control leaves it in the list.
 	{keys: []string{"alt+f5", "alt+shift+f5"}, when: ctxPanels, cond: func(m *Model) bool { return m.showsPreview() && m.pv.meta != nil }, run: func(m *Model, k string) tea.Cmd {

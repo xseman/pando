@@ -15,10 +15,15 @@ import (
 	"github.com/xseman/pando/internal/lsp"
 )
 
-// peek is VS Code's references widget under the editor: the selected
-// location on the left, every location grouped by file on the right.
+// peek is a list of locations, VS Code's references widget: the selected
+// location on the left, every location grouped by file on the right. The
+// panel's Problems tab has one; the References open inline, in the editor
+// under the cursor's line.
 type peek struct {
 	title  string
+	inline bool // in the editor, under the cursor's line: the References
+	hov    int  // inline, the row under the mouse; -1 none
+	w, h   int  // the size it was last drawn at, which keys and clicks go by
 	files  []peekFile
 	rows   []peekRow
 	l      list
@@ -45,20 +50,63 @@ type peekLoc struct {
 // peekRow is a file header (loc -1) or one of its locations.
 type peekRow struct{ file, loc int }
 
-// openPeek shows locations under the editor, the first one selected.
+// openPeek shows locations inline under the cursor's line, the first one
+// selected.
 // ponytail: it reads every result file on the update loop, so a reference
 // search over hundreds of files stalls the TUI; move the reads into a
 // tea.Cmd that hands back the built rows if that ever bites (the problems
 // list does: showProblems).
-func (m *Model) openPeek(title string, locs []lsp.Location) {
-	m.showPeek(buildPeek(title, locs, nil))
+func (m *Model) openPeek(title string, locs []lsp.Location) tea.Cmd {
+	return m.showPeek(buildPeek(title, locs, nil))
 }
 
-// showPeek opens pk under the editor, focused, its first location selected.
-func (m *Model) showPeek(pk *peek) {
+// showPeek opens pk focused, its first location selected: the Problems in
+// the panel's tab, the References inline, the editor scrolled to make room
+// under the cursor's line.
+func (m *Model) showPeek(pk *peek) tea.Cmd {
 	pk.build()
 	pk.l.sel = min(1, len(pk.rows)-1)
-	m.pk, m.focus = pk, onMain
+
+	if pk.title == "Problems" {
+		m.probs = pk
+		return m.showPanel(ptProblems)
+	}
+
+	pk.inline, pk.hov = true, -1
+	m.refs, m.focus = pk, onMain
+
+	if k, room := m.pv.cursorRow(m.pvW()), m.pvH()-m.peekH()-1; k-m.pv.top > room {
+		m.pv.top = k - room
+	}
+
+	return nil
+}
+
+// peekH is the height of the References inline, 0 while they are closed.
+func (m *Model) peekH() int {
+	if m.refs == nil || !m.showsPreview() {
+		return 0
+	}
+
+	return min(max(m.pvH()*45/100, 6), max(m.pvH()-2, 1))
+}
+
+// peekRow is the editor's text row the References open under: the cursor's,
+// kept where the widget fits below it.
+func (m *Model) peekRow() int {
+	return max(min(m.pv.cursorRow(m.pvW())-m.pv.top, m.pvH()-m.peekH()-1), 0)
+}
+
+// withPeek is the editor's text rows, h of them, with the References
+// inline under the cursor's line, w wide: what they cover is under them.
+func (m *Model) withPeek(text []string, w, h int) []string {
+	for len(text) < h {
+		text = append(text, "")
+	}
+
+	r, ph := m.peekRow(), m.peekH()
+
+	return append(append(slices.Clip(text[:r+1]), m.refs.view(m, w, ph)...), text[r+1:h-ph]...)
 }
 
 // buildPeek groups locations by file with the line each sits on, read from
@@ -185,23 +233,19 @@ func (pk *peek) shown() (peekLoc, bool) {
 	return peekLoc{}, false
 }
 
-// peekH is the height of the widget, 0 when it is closed.
-func (m *Model) peekH() int {
-	if m.pk == nil || !m.showsPreview() {
-		return 0
-	}
-
-	return min(max(m.mainH()*45/100, 6), max(m.mainH()-6, 1))
-}
+// peekSourceW is the narrowest panel that shows the source beside the list.
+const peekSourceW = 100
 
 func (pk *peek) view(m *Model, w, h int) []string {
+	pk.w, pk.h = w, h
 	if h < 2 {
-		return nil
+		return make([]string, max(h, 0))
 	}
 
 	name, dir := "", ""
 	if loc, ok := pk.shown(); ok {
 		name, dir = filepath.Base(loc.loc.Path), filepath.Dir(rel(m.ws, loc.loc.Path))
+		dir = ifElse(dir == ".", "", dir) // a file at the root: no folder
 	}
 
 	head := row(w, pal.sectionBg, []seg{
@@ -209,21 +253,49 @@ func (pk *peek) view(m *Model, w, h int) []string {
 		sg(fmt.Sprintf("  — %s (%d) ", pk.title, pk.count()), dim),
 	}, sg(" "+icClose.s()+" ", dim))
 	body := h - 1
-	lw := max(w*3/5, 20)
-	rw := max(w-lw-1, 10)
+	lw := pk.sourceW()
+	rw := max(w-lw-b2i(lw > 0), 10)
 	left := pk.source(m, lw, body)
 	pk.l.clamp(len(pk.rows), body)
 
+	hover := pk.hov
+	if x, y, ok := m.panelHover(); ok && x >= w-rw && !pk.inline {
+		hover = pk.l.at(y-1, len(pk.rows))
+	}
+
 	level := func(i int) int { return ifElse(pk.rows[i].loc >= 0, 1, 0) } // a hit under its file
 	ag := activeGuide(len(pk.rows), pk.l.sel, level)
-	right := pk.l.render(rw, body, len(pk.rows), func(i, rww int) string { return pk.renderRow(m, i, rww, ag.at(i, level(i))) })
+	right := pk.l.render(rw, body, len(pk.rows), func(i, rww int) string {
+		return pk.renderRow(m, i, rww, i == hover, ag.at(i, level(i)))
+	})
 
 	out := []string{head}
+
 	for i := range body {
+		if lw == 0 { // too narrow for the source: the list alone
+			out = append(out, fit(right[i], rw))
+			continue
+		}
+
 		out = append(out, fit(left[i], lw)+dim.Render("│")+fit(right[i], rw))
 	}
 
 	return out
+}
+
+// sourceW is the width of the source beside the list: inline the larger
+// part, as VS Code's peek has it; none for the panel's problems, whose
+// messages VS Code's Problems give the whole width; none too narrow.
+func (pk *peek) sourceW() int {
+	if pk.inline {
+		return ifElse(pk.w < peekSourceW*3/5, 0, pk.w*3/5)
+	}
+
+	if pk.w < peekSourceW || len(pk.files) > 0 && len(pk.files[0].locs) > 0 && pk.files[0].locs[0].msg != "" {
+		return 0
+	}
+
+	return pk.w * 2 / 5
 }
 
 // source is the selected location's file around it, its match highlighted.
@@ -274,23 +346,23 @@ func highlight(styled string, a, b, w int) string {
 		return ansi.Cut(styled, 0, w)
 	}
 
-	hl := lipgloss.NewStyle().Background(pal.matchBg)
+	hl := matchStyle(lipgloss.NewStyle())
 
 	return ansi.Cut(styled, 0, a) + "\x1b[m" + hl.Render(string(plain[a:b])) + ansi.Cut(styled, b, w)
 }
 
-// renderRow draws row i, a hit behind its indent guides.
-func (pk *peek) renderRow(m *Model, i, w int, guides []seg) string {
+// renderRow draws row i, a hit behind its indent guides; hovered lights it.
+func (pk *peek) renderRow(m *Model, i, w int, hovered bool, guides []seg) string {
 	r := pk.rows[i]
 	f := pk.files[r.file]
-	bg, base := m.rowColors(viewFiles, i == pk.l.sel, false)
+	bg, base := m.rowColors(viewFiles, i == pk.l.sel, hovered)
 
 	if r.loc < 0 {
 		name := filepath.Base(f.path)
 
 		return row(w, bg, []seg{
 			sg(" "+chevron(!pk.closed[f.path]), dim), iconSeg(name, false, false), sg(name, base),
-			sg(" "+filepath.Dir(rel(m.ws, f.path)), dim),
+			sg(" "+ifElse(filepath.Dir(rel(m.ws, f.path)) == ".", "", filepath.Dir(rel(m.ws, f.path))), dim), // a file at the root: no folder
 		}, badge(strconv.Itoa(len(f.locs))), sg(" ", plain))
 	}
 
@@ -310,7 +382,7 @@ func (pk *peek) renderRow(m *Model, i, w int, guides []seg) string {
 	segs := lead
 	if a < b {
 		segs = append(segs, sg(string(text[:a]), base),
-			sgOwn(string(text[a:b]), base.Background(pal.matchBg)), sg(string(text[b:]), base))
+			sgOwn(string(text[a:b]), matchStyle(base)), sg(string(text[b:]), base))
 	} else {
 		segs = append(segs, sg(l.text, base))
 	}
@@ -346,7 +418,7 @@ func (pk *peek) open(m *Model) tea.Cmd {
 }
 
 func (pk *peek) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
-	h, n := max(m.peekH()-1, 1), len(pk.rows)
+	h, n := max(pk.h-1, 1), len(pk.rows)
 
 	switch k.String() {
 	case "up", "k":
@@ -377,8 +449,9 @@ func (pk *peek) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 
 	case "enter":
 		cmd := pk.open(m)
-		if _, ok := pk.selected(); ok {
-			m.pk = nil // ⏎ takes you there, o keeps the list open
+		if _, ok := pk.selected(); ok { // ⏎ takes you there, o keeps the keyboard in the list
+			m.focus = onMain
+			pk.close(m)
 		}
 
 		return cmd
@@ -386,36 +459,50 @@ func (pk *peek) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	case "o", "space":
 		return pk.open(m)
 	case "esc", "q", "tab":
-		m.pk = nil
+		m.focus = onMain
+		pk.close(m)
 	}
 
 	return nil
 }
 
+// close shuts the References inline; the panel's list stays.
+func (pk *peek) close(m *Model) {
+	if pk.inline {
+		m.refs = nil
+	}
+}
+
 func (pk *peek) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 	mo := msg.Mouse()
 
-	h := max(m.peekH()-1, 1)
+	h := max(pk.h-1, 1)
 	if _, wheel := msg.(tea.MouseWheelMsg); wheel {
 		pk.l.wheel(wheelDelta(mo), len(pk.rows), h)
 		return nil
 	}
 
 	if _, click := msg.(tea.MouseClickMsg); !click || mo.Button != tea.MouseLeft {
-		return nil
-	}
-
-	w := m.mainW()
-	if y == 0 { // the header: only ✕ does anything
-		if x >= w-3 {
-			m.pk = nil
+		if pk.hov = -1; x > pk.sourceW() { // inline, the hit under the mouse lights
+			pk.hov = pk.l.at(y-1, len(pk.rows))
 		}
 
 		return nil
 	}
 
-	lw := max(w*3/5, 20)
-	if x <= lw { // the source preview is not clickable
+	if y == 0 { // the header: only ✕ does anything, which clears the list
+		if x >= pk.w-3 {
+			if m.probs == pk {
+				m.probs = nil
+			} else {
+				m.refs = nil
+			}
+		}
+
+		return nil
+	}
+
+	if lw := pk.sourceW(); lw > 0 && x <= lw { // the source preview is not clickable
 		return nil
 	}
 

@@ -118,6 +118,10 @@ func fakeLSP() {
 			}})
 
 		default:
+			if msg.Method == "initialize" { // what a server says on stderr, for the Output
+				fmt.Fprintln(os.Stderr, "fake server ready")
+			}
+
 			if len(msg.ID) > 0 { // initialize, shutdown, anything asked: an answer of nothing
 				reply(msg.ID, map[string]any{"capabilities": map[string]any{}})
 			}

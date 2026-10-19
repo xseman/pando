@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -12,63 +13,87 @@ import (
 	"github.com/xseman/pando/internal/lsp"
 )
 
+// TestPeek opens references inline, under the cursor's line: the selected
+// hit's source beside the hits grouped by file, the text below the widget
+// past it, the keys the widget's, ⏎ going there and closing it.
 func TestPeek(t *testing.T) {
-	m := testModelSized(t, 120, 30)
+	m := testModelSized(t, 120, 40)
 	code := filepath.Join(m.ws, "src", "deep", "x.go")
 	doc := filepath.Join(m.ws, "README.md")
-	m.pv, m.preview, m.focus = preview{kind: pvFile, path: code}, true, onMain
+
+	var lines []string
+	for i := range 30 {
+		lines = append(lines, fmt.Sprintf("// line%02d", i))
+	}
+
+	mustWrite(t, code, "package x\n"+strings.Join(lines, "\n")+"\n")
+	fire(m, m.openFile(code, false))
+	m.focus = onMain
+	m.pv.gotoLine(m, 5, 0) // the line with // line04
+
 	m.openPeek("References", []lsp.Location{
 		{Path: code, Line: 0, Col: 8, EndLine: 0, EndCol: 9},
 		{Path: doc, Line: 0, Col: 2, EndLine: 0, EndCol: 4},
 	})
 
-	if m.peekH() < 6 || len(m.pk.rows) != 4 || m.pk.l.sel != 1 {
-		t.Fatalf("peek: h=%d rows=%d sel=%d", m.peekH(), len(m.pk.rows), m.pk.l.sel)
+	if m.peekH() < 6 || len(m.refs.rows) != 4 || m.refs.l.sel != 1 || m.focus != onMain || slices.Contains(panelTitles, "References") {
+		t.Fatalf("peek: h=%d rows=%d sel=%d focus %d", m.peekH(), len(m.refs.rows), m.refs.l.sel, m.focus)
 	}
 
 	out := strings.Split(checkWidths(t, m), "\n")
-	top := 1 + m.stripH() + m.pvH()
+	top := slices.IndexFunc(out, func(l string) bool { return strings.Contains(l, "References (2)") })
 
-	head := ansi.Cut(out[top], m.mainX(), m.w)
-	if !strings.Contains(head, "References (2)") || !strings.Contains(head, "README.md") {
-		t.Fatalf("peek header = %q", head)
+	if top < 1 || !strings.Contains(out[top], "README.md") || !strings.Contains(out[top-1], "line04") || !strings.Contains(out[top+m.peekH()], "line05") {
+		t.Fatalf("not under the cursor's line, the next line past it:\n%s", strings.Join(out, "\n"))
+	}
+
+	if !strings.Contains(strings.Join(out, "\n"), "o open and stay") {
+		t.Fatal("the footer has the References' keys")
 	}
 
 	row := ansi.Cut(out[top+1], m.mainX(), m.w)
 
 	src, list, _ := strings.Cut(row, "│")
-	if !strings.Contains(src, "# hi") || !strings.Contains(list, "README.md") {
+	if !strings.Contains(src, "# hi") || !strings.Contains(list, "README.md") || strings.Contains(list, "README.md .") {
 		t.Fatalf("peek row: source %q, list %q", src, list)
 	}
 
 	// The selected hit hangs off its file's chevron, the guide lit.
-	_, hit, _ := strings.Cut(m.pk.view(m, 100, 8)[2], dim.Render("│"))
+	_, hit, _ := strings.Cut(m.refs.view(m, 100, 8)[2], dim.Render("│"))
 	if lead, lit := treeLead(t, []string{hit}, "# hi"); lead != " │  " || lit != 0 {
 		t.Fatalf("peek hit: %q lit %d", lead, lit)
+	}
+
+	// A hit under the mouse lights; a click under the widget lands on the
+	// text it shows there.
+	m.Update(tea.MouseMotionMsg{X: m.mainX() + m.mainW() - 5, Y: top + 3})
+
+	if m.refs.hov != 2 || !strings.Contains(m.View().Content, bgParams(pal.hoverBg)) {
+		t.Fatalf("hover: %d", m.refs.hov)
 	}
 
 	// Keys belong to the widget while it is open.
 	press(m, "down")
 
-	if m.pk.l.sel != 2 {
-		t.Fatalf("down: sel=%d", m.pk.l.sel)
+	if m.refs.l.sel != 2 {
+		t.Fatalf("down: sel=%d", m.refs.l.sel)
 	}
 
 	press(m, "left")
 
-	if !m.pk.closed[code] || len(m.pk.rows) != 3 {
-		t.Fatalf("left folds: rows=%d", len(m.pk.rows))
+	if !m.refs.closed[code] || len(m.refs.rows) != 3 {
+		t.Fatalf("left folds: rows=%d", len(m.refs.rows))
 	}
 
 	press(m, "right", "down", "enter")
 
-	if m.pk != nil || !strings.HasSuffix(m.pv.path, "x.go") || m.pv.cur != (pos{0, 9}) {
-		t.Fatalf("enter opens and closes: pk=%v path=%s cur=%+v", m.pk, m.pv.path, m.pv.cur)
+	if m.refs != nil || !strings.HasSuffix(m.pv.path, "x.go") || m.pv.cur != (pos{0, 9}) {
+		t.Fatalf("enter opens and closes: refs=%v path=%s cur=%+v", m.refs, m.pv.path, m.pv.cur)
 	}
 	// The definition of a single location opens straight away.
 	fire(m, m.onLSP(lspMsg{locs: []lsp.Location{{Path: doc, Line: 0, Col: 2, EndLine: 0, EndCol: 4}}}))
 
-	if !strings.HasSuffix(m.pv.path, "README.md") || m.pk != nil {
+	if !strings.HasSuffix(m.pv.path, "README.md") || m.refs != nil {
 		t.Fatalf("one definition opens it: %s", m.pv.path)
 	}
 
@@ -76,11 +101,22 @@ func TestPeek(t *testing.T) {
 		t.Fatal("no results flashes")
 	}
 
-	m.pk = &peek{}
-	click(m, m.w-2, 1+m.stripH()+m.pvH(), tea.MouseLeft)
+	// ✕ in its header closes it; esc too.
+	m.openPeek("References", []lsp.Location{{Path: doc, Line: 0, Col: 2, EndLine: 0, EndCol: 4}})
 
-	if m.pk != nil {
+	out = strings.Split(checkWidths(t, m), "\n")
+	top = slices.IndexFunc(out, func(l string) bool { return strings.Contains(l, "References (1)") })
+	click(m, m.mainX()+m.mainW()-2, top, tea.MouseLeft)
+
+	if m.refs != nil {
 		t.Fatal("✕ closes the peek")
+	}
+
+	m.openPeek("References", []lsp.Location{{Path: doc, Line: 0, Col: 2, EndLine: 0, EndCol: 4}})
+	press(m, "esc")
+
+	if m.refs != nil {
+		t.Fatal("esc closes the peek")
 	}
 }
 

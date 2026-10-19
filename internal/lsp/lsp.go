@@ -44,8 +44,9 @@ type Client struct {
 	uris   map[string]string          // a synced document's URI to its path, as the reader names files
 	seen   map[string]json.RawMessage // each file's last diagnostics as the server wrote them, for its quick fixes
 	dead   error
-	sink   Sink // the server's diagnostics go here; nil drops them
-	pull   bool // the server answers textDocument/diagnostic: asked after each sync
+	sink   Sink   // the server's diagnostics go here; nil drops them
+	logf   Logger // the server's stderr and log messages go here; nil drops them
+	pull   bool   // the server answers textDocument/diagnostic: asked after each sync
 	// dmu guards docs: a version bump and the didChange that carries it go
 	// out together. The reader never takes it, so a server blocked writing
 	// to us cannot hold up a sync.
@@ -73,14 +74,20 @@ type Diagnostic struct {
 // them. It runs on the client's reader and must not block.
 type Sink func(path string, ds []Diagnostic)
 
+// Logger takes a line the server wrote to its stderr, a log or a message it
+// sent, or why it stopped. It runs on the client's goroutines and must not
+// block.
+type Logger func(line string)
+
 type result struct {
 	body json.RawMessage
 	err  error
 }
 
 // Start runs a language server in root and initializes it. opts are its
-// initializationOptions, nil for none; sink gets its diagnostics.
-func Start(root string, argv []string, opts map[string]any, sink Sink) (*Client, error) {
+// initializationOptions, nil for none; sink gets its diagnostics, logf what
+// it logs.
+func Start(root string, argv []string, opts map[string]any, sink Sink, logf Logger) (*Client, error) {
 	if len(argv) == 0 {
 		return nil, errors.New("no language server configured")
 	}
@@ -102,12 +109,27 @@ func Start(root string, argv []string, opts map[string]any, sink Sink) (*Client,
 		return nil, err
 	}
 
-	cmd.Stderr = io.Discard
+	errOut, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, err
+	}
+
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
 
-	c := newClient(in, out, sink)
+	go func() { // drained whether anyone listens or not: a full pipe would stall the server
+		sc := bufio.NewScanner(errOut)
+		sc.Buffer(make([]byte, 64*1024), 1024*1024)
+
+		for sc.Scan() {
+			if logf != nil {
+				logf(sc.Text())
+			}
+		}
+	}()
+
+	c := newClient(in, out, sink, logf)
 
 	c.cmd = cmd
 	if err := c.initialize(root, opts); err != nil {
@@ -119,8 +141,8 @@ func Start(root string, argv []string, opts map[string]any, sink Sink) (*Client,
 }
 
 // newClient wires a client to a server's pipes; tests use it directly.
-func newClient(in io.WriteCloser, out io.Reader, sink Sink) *Client {
-	c := &Client{in: in, pend: map[int]chan result{}, uris: map[string]string{}, seen: map[string]json.RawMessage{}, docs: map[string]*doc{}, sink: sink}
+func newClient(in io.WriteCloser, out io.Reader, sink Sink, logf Logger) *Client {
+	c := &Client{in: in, pend: map[int]chan result{}, uris: map[string]string{}, seen: map[string]json.RawMessage{}, docs: map[string]*doc{}, sink: sink, logf: logf}
 	go c.read(out)
 
 	return c
@@ -1153,11 +1175,14 @@ func (c *Client) read(out io.Reader) {
 			} `json:"error"`
 		}
 		if json.Unmarshal(buf, &msg) != nil || len(msg.ID) == 0 || string(msg.ID) == "null" {
-			if msg.Method == "textDocument/publishDiagnostics" {
+			switch msg.Method {
+			case "textDocument/publishDiagnostics":
 				c.publish(msg.Params)
+			case "window/logMessage", "window/showMessage":
+				c.logMessage(msg.Params)
 			}
 
-			continue // the other notifications: progress, logs
+			continue // the other notifications: progress
 		}
 
 		if msg.Method != "" { // a request from the server
@@ -1217,6 +1242,29 @@ func (c *Client) read(out io.Reader) {
 	}
 }
 
+// logMessage hands a server's log or message to logf, its type ahead of an
+// error's or a warning's text.
+func (c *Client) logMessage(params json.RawMessage) {
+	var p struct {
+		Type    int    `json:"type"`
+		Message string `json:"message"`
+	}
+	if c.logf == nil || json.Unmarshal(params, &p) != nil {
+		return
+	}
+
+	switch p.Type {
+	case 1:
+		p.Message = "error: " + p.Message
+	case 2:
+		p.Message = "warning: " + p.Message
+	}
+
+	for line := range strings.SplitSeq(strings.TrimRight(p.Message, "\n"), "\n") {
+		c.logf(line)
+	}
+}
+
 // fail wakes every caller when the server goes away.
 func (c *Client) fail(err error) {
 	c.mu.Lock()
@@ -1224,6 +1272,9 @@ func (c *Client) fail(err error) {
 
 	if c.dead == nil {
 		c.dead = fmt.Errorf("language server stopped: %w", err)
+		if c.logf != nil {
+			c.logf(c.dead.Error())
+		}
 	}
 
 	for id, ch := range c.pend {

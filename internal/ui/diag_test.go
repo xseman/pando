@@ -228,8 +228,8 @@ func TestProblemsList(t *testing.T) {
 
 	m.Update(cmd())
 
-	if m.pk == nil || m.pk.title != "Problems" || m.pk.count() != 3 {
-		t.Fatalf("the list: %+v", m.pk)
+	if m.probs == nil || m.probs.title != "Problems" || m.probs.count() != 3 {
+		t.Fatalf("the list: %+v", m.probs)
 	}
 
 	out := ansi.Strip(checkWidths(t, m))
@@ -247,7 +247,7 @@ func TestProblemsList(t *testing.T) {
 
 	// The open list follows its problems, the selected one kept, and closes
 	// with the last.
-	m.pk.l.sel = 2 // the warning, under its file and the error: the worst first
+	m.probs.l.sel = 2 // the warning, under its file and the error: the worst first
 
 	_, cmd = m.Update(diagMsg{path: m.diags[path][1:]})
 
@@ -258,13 +258,13 @@ func TestProblemsList(t *testing.T) {
 
 	m.Update(batch[1]())
 
-	if at, ok := m.pk.selected(); m.pk.count() != 2 || !ok || at.msg != "declared and not used: x" {
-		t.Fatalf("the list now, the warning still selected: %d, %+v", m.pk.count(), at)
+	if at, ok := m.probs.selected(); m.probs.count() != 2 || !ok || at.msg != "declared and not used: x" {
+		t.Fatalf("the list now, the warning still selected: %d, %+v", m.probs.count(), at)
 	}
 
 	m.Update(diagMsg{path: nil})
 
-	if m.pk != nil {
+	if m.probs != nil {
 		t.Fatal("no problems left, the list closes")
 	}
 }
@@ -394,7 +394,7 @@ func TestDiagFailureShows(t *testing.T) {
 	_, cmd := n.Update(keyMsg("ctrl+shift+m"))
 	n.Update(cmd())
 
-	if n.pk == nil || !n.showsPreview() || n.pv.path != path {
-		t.Fatalf("with no file open, the list opens on the first problem's: pk %v, preview %q", n.pk != nil, n.pv.path)
+	if n.probs == nil || n.ptab != ptProblems || !n.termOpen() {
+		t.Fatalf("the list opens in the panel's Problems: %v, tab %d", n.probs != nil, n.ptab)
 	}
 }

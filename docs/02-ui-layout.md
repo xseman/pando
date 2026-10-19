@@ -144,12 +144,41 @@ to Editor Area_ waits for a file.
 `mainH()`, and a border over its strip, the rule under it and the strip's empty
 part are a sash for `terminal_height`; the border and the rule light heavy while
 the mouse rests on it or drags. `panelTopH` counts the three rows.
-`left` or `right` makes it a column holding only `viewTerm`.
+`left` or `right` makes it a column holding only `viewTerm`, its tabs too.
 
-Like the session's, the strip has the buttons (`termButtons`: maximize and ✕
-under the editor, ✕ closing the shell in a column) always shown and a rule
-under it, `termStripH` rows over the screen; a column has no header row. Each
-worktree keeps its panel maximized or not, a restart too (`terminals`' `max`).
+The strip holds the panel's tabs (`panel.go`, `panelChips`: Terminal,
+Problems with their count, Output; short titles in a strip too
+narrow for them), the active one bold and marked on the rule under it, then
+the buttons (`termButtons`: on the Terminal `+` and the select, then ⋮ the
+tab's menu and where the panel goes,
+maximize and ✕ under the editor, ✕ closing the shell in a column), always
+shown, `termStripH` rows over the body; a column has no header row and
+keeps the tabs. Each worktree keeps its panel maximized or not, a restart
+too (`terminals`' `max`).
+
+```text
+ Terminal   Problems 3   Output              +  1: fish ▾  ⋯  □  ✕
+ ────────                                          └ the select: every shell,
+ ~ $ make test                                       New Terminal, Kill Terminal…
+ ok   ./...
+```
+
+| Tab        | Body                                                   | Opened by                      |
+| ---------- | ------------------------------------------------------ | ------------------------------ |
+| Terminal   | the shell shown, the others behind the select          | ``ctrl+` ``, `ctrl+j`, `5`     |
+| Problems   | every file's problems (`m.probs`, a `peek`)            | `ctrl+shift+m`, the status bar |
+| Output     | servers' stderr and logs, every error flashed (`out`)  | `ctrl+shift+u`                 |
+
+- `ptab` is the tab; `showPanel` opens the panel on one, focused. On the
+  Terminal the keyboard is the shell's (`termFocused`); on the others it is
+  a list's, and pando's keys work (`panelKey`).
+- The shells are VS Code's select (`termSelect`: `N: name ▾`, `N ▾` in a
+  strip under 60 cells; `termPick` its list, the one shown checked), the
+  screen the panel's whole width. The last shell gone shuts the panel only
+  on the Terminal tab.
+- A row under the mouse lights in every tab (`panelHover`, `hover_bg`).
+- Problems take the whole width, no source beside them. The References
+  open inline in the editor instead (`04-preview.md`).
 
 ## Short of room
 

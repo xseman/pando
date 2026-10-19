@@ -76,8 +76,11 @@ checkout.
 
 - `ctrl+]` cycles focus; inside a session every other key goes to its program.
 - `1`–`4` and `6` open Explorer, Source Control, Spaces, Search and GitHub.
-- ``ctrl+` ``, `ctrl+j` or `5` toggles the Terminal panel; `ctrl+shift+↑`
-  maximizes it.
+- ``ctrl+` ``, `ctrl+j` or `5` toggles the bottom panel; `ctrl+shift+↑`
+  maximizes it. Its tabs: Terminal (`+` a new shell, the select beside it picks
+  one or kills it),
+  Problems (`ctrl+shift+m`) and Output
+  (`ctrl+shift+u`: the language servers' logs and every error in full).
 - A session beside a file: the button at the right end of either's tab strip
   maximizes it over the whole editor area, and restores the pair. Each
   session keeps it while you are in another, a restart too.

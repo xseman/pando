@@ -1919,24 +1919,24 @@ func TestTerminalPanel(t *testing.T) {
 	}
 
 	out := strings.Split(checkWidths(t, m), "\n")
-	if !strings.Contains(out[m.mainH()+1], "bash") || strings.Trim(ansi.Strip(out[m.mainH()]), "│─ ") != "" {
-		t.Fatalf("the panel's tabs sit under its border: %q", out[m.mainH():m.mainH()+2])
+	if !strings.Contains(out[m.mainH()+1], "Terminal   Problems   Output") || strings.Trim(ansi.Strip(out[m.mainH()]), "│─ ") != "" ||
+		!strings.Contains(out[m.mainH()+1], "1: bash ▾") {
+		t.Fatalf("the panel's tabs sit under its border, the shell shown in a select: %q", out[m.mainH():m.mainH()+panelTopH+2])
 	}
 	// Terminal sessions stay out of the Agents view and the main strip.
 	if len(m.agentSessions()) != 1 || m.agentSessions()[0].ID == "t1" {
 		t.Fatalf("agent sessions = %+v", m.agentSessions())
 	}
 
-	// The strip is drawn and clicked with one width: + sits where it is drawn.
-	tabs := m.termTabs(m.termStripW())
-
-	plus := tabs[len(tabs)-1]
-	if !plus.plus || plus.x == 0 {
-		t.Fatalf("strip tabs = %+v", tabs)
+	// The + before the select opens a shell.
+	plus, _ := hit(m.termButtons(), 0)
+	for _, a := range m.termButtons() {
+		if a.g == icAdd {
+			plus = a
+		}
 	}
 
-	c := m.mainX()
-	if cmd := m.mouse(tea.MouseClickMsg{X: c + 1 + plus.x, Y: m.mainH() + 1, Button: tea.MouseLeft}); cmd == nil {
+	if cmd := m.mouse(tea.MouseClickMsg{X: m.mainX() + plus.x + 1, Y: m.mainH() + 1, Button: tea.MouseLeft}); cmd == nil {
 		t.Fatal("clicking + in the bottom panel opens a shell")
 	}
 
@@ -4105,7 +4105,7 @@ func TestSashHover(t *testing.T) {
 	press(m, "ctrl+j")
 
 	_, c := m.layout()
-	x, y := c.x+c.w-8, m.mainH()+1 // past the tabs, before the ✕
+	x, y := c.x+c.w/2+20, m.mainH()+1 // past the tabs, before the buttons
 	m.Update(tea.MouseMotionMsg{X: x + m.bord(), Y: y + m.bord()})
 
 	if m.sashAt != termSash {

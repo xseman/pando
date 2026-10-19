@@ -37,6 +37,7 @@ type lspPool struct {
 	servers map[string]*lsp.Client
 	failed  map[string]error
 	sink    lsp.Sink
+	log     func(src, line string) // every server's stderr and log messages, by source; nil drops them
 }
 
 var errOtherRoot = errors.New("the workspace changed")
@@ -91,21 +92,24 @@ func (p *lspPool) server(root, path, lang string, argv []string, asked bool) (*l
 		return c, nil
 	}
 
-	c, err := lsp.Start(root, argv, opts, p.sink) // outside the lock: starting takes seconds
+	var logf lsp.Logger
+
+	if p.log != nil {
+		src := "lsp:" + filepath.Base(argv[0])
+		logf = func(line string) { p.log(src, line) }
+	}
+
+	c, err := lsp.Start(root, argv, opts, p.sink, logf) // outside the lock: starting takes seconds
 	if err != nil {
 		if _, look := exec.LookPath(argv[0]); look != nil && argv[0] == "typescript-language-server" {
 			err = fmt.Errorf("%w: npm i -g typescript-language-server, or TypeScript 7 in the project", err)
 		}
 
-		p.mu.Lock()
-		if p.root == root {
-			if p.failed == nil {
-				p.failed = map[string]error{}
-			}
-
-			p.failed[key] = err
+		if p.log != nil {
+			p.log("lsp:"+filepath.Base(argv[0]), err.Error())
 		}
-		p.mu.Unlock()
+
+		p.fail(root, key, err)
 
 		return nil, err
 	}
@@ -127,6 +131,23 @@ func (p *lspPool) server(root, path, lang string, argv []string, asked bool) (*l
 	p.servers[key] = c
 
 	return c, nil
+}
+
+// fail notes why the server for key would not start, while root is still
+// the workspace.
+func (p *lspPool) fail(root, key string, err error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.root != root {
+		return
+	}
+
+	if p.failed == nil {
+		p.failed = map[string]error{}
+	}
+
+	p.failed[key] = err
 }
 
 // clients are the servers running now.
@@ -593,9 +614,7 @@ func (m *Model) onLSP(msg lspMsg) tea.Cmd {
 		title = "Definitions"
 	}
 
-	m.openPeek(title, msg.locs)
-
-	return nil
+	return m.openPeek(title, msg.locs)
 }
 
 // openLocation opens a server's location, translating its UTF-16 columns

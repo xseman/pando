@@ -3464,8 +3464,13 @@ func (m *Model) termCols() int {
 	return w
 }
 
-// termFocused reports the keyboard in the Terminal, under the editor or in a column.
+// termFocused reports the keyboard in the Terminal, under the editor or in
+// a column, on its Terminal tab: the panel's other tabs are lists.
 func (m *Model) termFocused() bool {
+	if m.ptab != ptTerm {
+		return false
+	}
+
 	if m.focus == onPanel {
 		return true
 	}
@@ -3591,6 +3596,8 @@ func (m *Model) clearTerm(id string) tea.Cmd {
 	return m.fetchScreen()
 }
 
+// termBody is the shell's screen: the panel's body past the column of
+// shells.
 func (m *Model) termBody() (w, h int) {
 	if n := m.termRows(); n > 0 { // the panel under the editor
 		return max(m.mainW(), 1), max(n-panelTopH, 1) // the border, the tab strip and its rule
@@ -3640,65 +3647,32 @@ func (m *Model) termShowing() bool {
 }
 
 // termPanelLines are the bottom panel: a border, a strip of its tabs and
-// buttons, the rule under it, then the terminal screen, spanning the editor
-// area like VS Code's panel. The border, the strip's empty part and the rule
-// are the panel's sash.
+// buttons, the rule under it, then the tab's body, spanning the editor area
+// like VS Code's panel. The border, the strip's empty part and the rule are
+// the panel's sash: in the bottom panel the rule lights heavy while the
+// mouse rests on the panel's edge or drags it.
 func (m *Model) termPanelLines(w, h int) []string {
-	st := dim
-	if m.focus == onPanel {
-		st = accent
-	}
-
-	left, tabs := []seg{sg(" "+icTerminal.s()+" ", st)}, m.termTabs(m.termStripW())
-	if len(tabs) > 0 {
-		left = append([]seg{sg(" ", plain)}, tabSegs(tabs, m.overTab, m.overX)...)
-	}
-
-	btns, _ := m.actSegs(m.termButtons(), m.mainX(), m.mainH()+1)
-	m.noteStrip(tabs, newTermTip, "Kill Terminal…", m.mainX(), m.mainH()+1, w)
-
-	title := m.stripMark(row(w, nil, left, btns...), stripTerm, 1) // the tabs start past a space
-
 	top := ruleRow(w, nil)
 	if st, ok := m.sashStyle(termSash); ok {
 		top = ruleRow(w, nil, st)
 	}
 
-	return append([]string{top, title, m.termRule(w, 1)}, m.termScreen(w, h-panelTopH)...)
+	strip := m.panelStrip(w, panelTabX, m.mainX(), m.mainH()+1)
+
+	return append([]string{top, strip, m.panelRule(w, panelTabX, m.mainX(), m.mainH()+1)}, m.panelBody(w, h-panelTopH)...)
 }
 
-// termLines are the panel in a column: its tab strip and buttons, the rule,
-// then the terminal screen.
+// termLines are the panel in a column: its strip, the rule, then the tab's
+// body.
 func (m *Model) termLines(w, h int) []string {
 	i := m.colOf(viewTerm)
-	btns, _ := m.actSegs(m.termButtons(), m.colRect(i).x, m.barH(i))
-	tabs := m.termTabs(m.termStripW())
-	m.noteStrip(tabs, newTermTip, "Kill Terminal…", m.colRect(i).x, m.barH(i), w)
-	strip := m.stripMark(row(w, nil, tabSegs(tabs, m.overTab, m.overX), btns...), stripTerm, 0)
+	strip := m.panelStrip(w, panelTabX, m.colRect(i).x, m.barH(i))
 
-	return append([]string{strip, m.termRule(w, 0)}, m.termScreen(w, h-termStripH)...)
+	return append([]string{strip, m.panelRule(w, panelTabX, m.colRect(i).x, m.barH(i))}, m.panelBody(w, h-termStripH)...)
 }
 
-// termRule is the line under the Terminal's strip, its tabs starting x cells in.
-// In the bottom panel it is the sash's: it lights heavy while the mouse rests on
-// the panel's edge or drags it.
-func (m *Model) termRule(w, x int) string {
-	var marks []ruleMark
-
-	for _, t := range m.termTabs(m.termStripW()) {
-		if !t.plus {
-			marks = append(marks, ruleMark{x + t.x, t.w, t.active, t.id == m.overTab})
-		}
-	}
-
-	if m.termRows() > 0 {
-		if st, ok := m.sashStyle(termSash); ok {
-			return ruleRow(w, marks, st)
-		}
-	}
-
-	return ruleRow(w, marks)
-}
+// panelTabX is where the panel's tabs start in its strip.
+const panelTabX = 1
 
 // termW is the width of the Terminal's strip: the editor area's, or its column's.
 func (m *Model) termW() int {
@@ -3714,6 +3688,15 @@ func (m *Model) termW() int {
 // a column's shell closes.
 func (m *Model) termButtons() []rowAction {
 	var acts []rowAction
+
+	if m.ptab == ptTerm { // VS Code's: a new shell, and the shell shown as a select
+		acts = append(acts, rowAction{g: icAdd, tip: newTermTip, run: func(m *Model) tea.Cmd { return m.newTerm() }})
+		if sel := m.termSelect(); sel != "" {
+			acts = append(acts, rowAction{g: glyph{"select", sel, sel, sel}, tip: "Terminals", run: func(m *Model) tea.Cmd { return m.termPick() }})
+		}
+	}
+
+	acts = append(acts, rowAction{g: icEllipsis, tip: "More Actions…", run: func(m *Model) tea.Cmd { return m.panelMenu() }})
 
 	if m.termRows() > 0 {
 		acts = append(acts,
@@ -3774,33 +3757,6 @@ func (m *Model) termStripW() int {
 	}
 
 	return max(m.colRect(m.colOf(viewTerm)).w-m.termBtnW(), 1)
-}
-
-// termStripMouse switches, closes or opens a shell from the panel's strip,
-// and picks a shell's tab up to drag it along.
-func (m *Model) termStripMouse(x int, button tea.MouseButton) tea.Cmd {
-	for _, t := range m.termTabs(m.termStripW()) {
-		if x < t.x || x >= t.x+t.w {
-			continue
-		}
-
-		switch {
-		case t.plus:
-			return m.newTerm()
-		case button == tea.MouseRight:
-			return m.sessionMenu(t.id)
-		case button == tea.MouseMiddle || (t.active && x >= t.x+t.w-tabCloseW):
-			return m.confirmKill(t.id)
-		case button == tea.MouseLeft:
-			m.grabTab(stripTerm, t.id, x)
-		}
-
-		m.tv.id, m.tv.scroll = t.id, 0
-
-		return m.fetchScreen()
-	}
-
-	return nil
 }
 
 // focusTerminal opens the terminal when it is shut and puts the keyboard in it.
