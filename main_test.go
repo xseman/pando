@@ -340,3 +340,12 @@ func TestParse(t *testing.T) {
 		}
 	}
 }
+
+// TestNested refuses the TUI inside a session pando runs.
+func TestNested(t *testing.T) {
+	t.Setenv("PANDO_SESSION", "s1")
+
+	if err := run(nil); err == nil || !strings.Contains(err.Error(), "already inside pando") {
+		t.Fatalf("pando in a session: %v", err)
+	}
+}

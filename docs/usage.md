@@ -428,6 +428,8 @@ TUIs already open.
 polls. The API covers sessions, workspaces, projects and settings; diffs and
 commits are git's. A session gets `PANDO_SESSION`, so an agent inside one can
 drive pando too: `pando skill` prints [the agent guide](../skills/pando/SKILL.md).
+Inside one, a pando terminal's shell too, `pando` and `pando DIR` refuse to
+open a second TUI in the first; `pando FILE[:LINE]` opens the file in it.
 
 ## Instances
 

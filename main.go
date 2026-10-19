@@ -87,6 +87,22 @@ func main() {
 	}
 }
 
+// tui opens the TUI on dir, with file open. Inside a session pando runs, a
+// pando terminal's shell among them, it would draw itself inside its own
+// screen: it hands file to that pando instead, else refuses.
+func tui(dir, file string) error {
+	id := os.Getenv("PANDO_SESSION")
+
+	switch {
+	case id == "":
+		return ui.Run(dir, file)
+	case file != "":
+		return proto.Call("focus", proto.FocusParams{Open: file}, nil)
+	}
+
+	return fmt.Errorf("already inside pando (session %s): pando open FILE opens a file in it", id)
+}
+
 func run(args []string) error {
 	args, err := instance(args)
 	if err != nil {
@@ -94,7 +110,7 @@ func run(args []string) error {
 	}
 
 	if len(args) == 0 {
-		return ui.Run("", "") // no directory: the workspace shown last reopens
+		return tui("", "") // no directory: the workspace shown last reopens
 	}
 
 	cmd, rest := args[0], args[1:]
@@ -176,14 +192,15 @@ func run(args []string) error {
 	}
 
 	// Not a command: pando DIR adds DIR to the projects and opens it, pando
-	// FILE[:LINE[:COL]] the directory holding FILE, with FILE open.
+	// FILE[:LINE[:COL]] the directory holding FILE, with FILE open; inside a
+	// session the pando it runs in opens FILE.
 	if len(rest) == 0 {
 		if st, err := os.Stat(cmd); err == nil && st.IsDir() {
-			return ui.Run(abs(cmd), "")
+			return tui(abs(cmd), "")
 		}
 
 		if path := ui.FileOf(cmd); path != "" {
-			return ui.Run(filepath.Dir(abs(path)), abs(cmd))
+			return tui(filepath.Dir(abs(path)), abs(cmd))
 		}
 
 		if strings.ContainsRune(cmd, filepath.Separator) || cmd == "." || cmd == ".." {
