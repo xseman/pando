@@ -2295,10 +2295,14 @@ func TestDiffLineMenu(t *testing.T) {
 	if dels, adds := m.pv.changedLines(m); !maps.Equal(dels, map[int]bool{2: true}) || !maps.Equal(adds, map[int]bool{2: true, 3: true}) {
 		t.Fatalf("three lines: dels=%v adds=%v", dels, adds)
 	}
-	// A right click inside the selection keeps it and opens the menu.
+	// A right click inside the selection keeps it and opens the menu, its
+	// groups apart.
 	click(m, m.mainX()+m.pv.gutter()+2, 3, tea.MouseRight)
 
-	if m.modal == nil || m.pv.anchor == nil || !slices.Equal(labels(m), []string{"Stage Selected Ranges", "Revert Selected Ranges…", "Open File at This Line", "Toggle Collapse Unchanged Regions", "Copy", "Go to Line…", "Edit in $EDITOR"}) {
+	if m.modal == nil || m.pv.anchor == nil || !slices.Equal(labels(m), []string{
+		"Stage Selected Ranges", "Revert Selected Ranges…", "", "Copy", "", "Select All", "", "Find", "Go to Line…",
+		"", "Open File at This Line", "Toggle Collapse Unchanged Regions", "Edit in $EDITOR",
+	}) {
 		t.Fatalf("menu = %v, selection kept = %v", m.modal, m.pv.anchor != nil)
 	}
 
@@ -2319,7 +2323,7 @@ func TestDiffLineMenu(t *testing.T) {
 	m.pv.entry = git.Entry{Path: "new.ts", Letter: 'U'}
 	m.pv.menu(m, 0, 0)
 
-	if labels(m)[0] != "Open File at This Line" || labels(m)[1] != "Copy" {
+	if labels(m)[0] != "Copy" || slices.Contains(labels(m), "Stage Selected Ranges") {
 		t.Fatalf("untracked files have no stage/revert actions: %v", labels(m))
 	}
 }
@@ -2802,5 +2806,37 @@ func TestOverlayBoxWideRunes(t *testing.T) {
 				t.Fatalf("box at %d, row %d: width %d: %q", x, i, w, ansi.Strip(l))
 			}
 		}
+	}
+}
+
+// An editable file's context menu groups its items as VS Code's does, in
+// square corners at the pointer; its Copy copies rather than types a y.
+func TestEditorMenuGroups(t *testing.T) {
+	m, _ := editorModel(t, "a.txt", "one\ntwo\n")
+	m.pv.menu(m, 50, 5)
+
+	want := []string{
+		"Go to Symbol…", "", "Format Document", "Toggle Line Comment", "", "Undo", "Redo", "", "Cut", "Copy", "Paste",
+		"", "Select All", "", "Find", "Replace", "Go to Line…", "", "Save File", "Save As…", "Edit in $EDITOR",
+	}
+	if got := labels(m); !slices.Equal(got, want) {
+		t.Fatalf("menu %q", got)
+	}
+
+	if out := checkWidths(t, m); !strings.Contains(out, "┌") || !strings.Contains(out, "┘") {
+		t.Fatalf("a context menu's corners:\n%s", out)
+	}
+
+	choose(t, m, "Copy")
+
+	if got := m.pv.buf.text(); got != "one\ntwo" {
+		t.Fatalf("Copy typed: %q", got)
+	}
+
+	m.modal = nil
+	runCommand(t, m, "editor.goToLine") // a centered box keeps its round corners
+
+	if out := checkWidths(t, m); !strings.Contains(out, "╭") {
+		t.Fatalf("a picker's corners:\n%s", out)
 	}
 }

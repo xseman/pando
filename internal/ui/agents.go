@@ -3548,13 +3548,17 @@ func (m *Model) termMenu(x, y int) tea.Cmd {
 		return nil
 	}
 
-	m.modal = newMenu("", x, y,
-		item{label: "Copy All", run: func(*Model) tea.Cmd { return copyTerminal(id) }},
-		item{label: "Paste", run: func(m *Model) tea.Cmd { return m.pasteInto(id) }},
-		item{label: "Clear", run: func(m *Model) tea.Cmd { return m.clearTerm(id) }},
-		item{label: "Rename…", run: func(m *Model) tea.Cmd { return m.renameSession(id) }},
-		item{label: "Kill Terminal…", run: func(m *Model) tea.Cmd { return m.confirmKill(id) }},
-		item{label: "Toggle Size to Content Width", hint: "M-z", run: func(m *Model) tea.Cmd { return m.toggleTermWide() }})
+	m.modal = newMenu("", x, y, menuGroups(
+		[]item{
+			{label: "Copy All", run: func(*Model) tea.Cmd { return copyTerminal(id) }},
+			{label: "Paste", run: func(m *Model) tea.Cmd { return m.pasteInto(id) }},
+		},
+		[]item{{label: "Clear", run: func(m *Model) tea.Cmd { return m.clearTerm(id) }}},
+		[]item{
+			{label: "Rename…", run: func(m *Model) tea.Cmd { return m.renameSession(id) }},
+			{label: "Kill Terminal…", run: func(m *Model) tea.Cmd { return m.confirmKill(id) }},
+		},
+		[]item{{label: "Toggle Size to Content Width", hint: "M-z", run: func(m *Model) tea.Cmd { return m.toggleTermWide() }}})...)
 
 	return nil
 }

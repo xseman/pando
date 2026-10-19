@@ -4046,74 +4046,104 @@ func (p *preview) items(m *Model) []item {
 	key := func(k rune) func(*Model) tea.Cmd {
 		return func(m *Model) tea.Cmd { return m.pv.key(m, tea.KeyPressMsg{Code: k, Text: string(k)}) }
 	}
+	edit, file := p.editable(), p.kind == pvFile && !p.untitled()
 
-	var items []item
+	var review, code, format, history, clip, find, more []item
 
 	if p.kind == pvDiff && p.meta != nil && p.entry.Letter != 'U' && p.entry.Letter != '!' {
 		switch {
 		case p.entry.Staged:
-			items = append(items, item{label: "Unstage Selected Ranges", run: func(m *Model) tea.Cmd { return m.pv.applyLines(m, git.UnstageLines) }})
+			review = append(review, item{label: "Unstage Selected Ranges", run: func(m *Model) tea.Cmd { return m.pv.applyLines(m, git.UnstageLines) }})
 		default:
-			items = append(items,
+			review = append(review,
 				item{label: "Stage Selected Ranges", run: func(m *Model) tea.Cmd { return m.pv.applyLines(m, git.StageLines) }},
 				item{label: "Revert Selected Ranges…", run: func(m *Model) tea.Cmd { return m.pv.confirmRevert(m) }})
 		}
 	}
 
 	if p.kind == pvGH && p.gh != nil {
-		items = append(items, p.ghItems()...)
+		review = append(review, p.ghItems()...)
 	}
 
-	items = append(items, p.conflictItems()...)
-	if p.kind == pvFile && p.editable() {
-		items = append(items, item{label: "Format Document", hint: "^⇧i", run: func(m *Model) tea.Cmd { return m.pv.formatDoc(m) }})
+	review = append(review, p.conflictItems()...)
+
+	if _, argv := m.lspCommand(p.path); p.kind == pvFile && len(argv) > 0 {
+		code = append(code,
+			item{label: "Go to Definition", hint: "f12", run: func(m *Model) tea.Cmd { return m.lspGo(false) }},
+			item{label: "Find References", hint: "⇧f12", run: func(m *Model) tea.Cmd { return m.lspGo(true) }})
+	}
+
+	if file {
+		code = append(code, item{label: "Go to Symbol…", hint: "^⇧o", run: func(m *Model) tea.Cmd { return m.gotoSymbol("@") }})
 	}
 
 	if _, argv := m.lspCommand(p.path); p.kind == pvFile && len(argv) > 0 {
-		items = append(items,
-			item{label: "Go to Definition", hint: "f12", run: func(m *Model) tea.Cmd { return m.lspGo(false) }},
-			item{label: "Find References", hint: "⇧f12", run: func(m *Model) tea.Cmd { return m.lspGo(true) }},
-			item{label: "Show Hover", hint: "^k", run: func(m *Model) tea.Cmd { return m.showHover() }},
+		code = append(code,
+			item{label: "Rename Symbol…", hint: "F2", run: func(m *Model) tea.Cmd { return m.lspRename() }},
 			item{label: "Quick Fix…", hint: "^.", run: func(m *Model) tea.Cmd { return m.lspActions() }},
-			item{label: "Rename Symbol…", hint: "F2", run: func(m *Model) tea.Cmd { return m.lspRename() }})
+			item{label: "Show Hover", hint: "^k", run: func(m *Model) tea.Cmd { return m.showHover() }})
+	}
+
+	if edit {
+		format = []item{
+			{label: "Format Document", hint: "^⇧i", run: func(m *Model) tea.Cmd { return m.pv.formatDoc(m) }},
+			{label: "Toggle Line Comment", hint: "^/", run: func(m *Model) tea.Cmd { return m.pv.toggleComment(m) }},
+		}
+		history = []item{
+			{label: "Undo", hint: "^z", run: func(m *Model) tea.Cmd { return m.pv.history(m, true) }},
+			{label: "Redo", hint: "^y", run: func(m *Model) tea.Cmd { return m.pv.history(m, false) }},
+		}
+		clip = append(clip, item{label: "Cut", hint: "^x", run: editorChord('x', tea.ModCtrl)})
+	}
+
+	clip = append(clip, item{label: "Copy", hint: "^c", run: editorChord('c', tea.ModCtrl)})
+	if edit {
+		clip = append(clip, item{label: "Paste", hint: "^v", run: func(m *Model) tea.Cmd { m.focus = onMain; return pasteClipboard }})
+	}
+
+	find = append(find, item{label: "Find", hint: "^f", run: editorChord('f', tea.ModCtrl)})
+	if edit {
+		find = append(find, item{label: "Replace", hint: "^h", run: editorChord('h', tea.ModCtrl)})
+	}
+
+	find = append(find, item{label: "Go to Line…", hint: "^g", run: func(m *Model) tea.Cmd { return m.gotoLineQuery(":") }})
+
+	if edit {
+		more = append(more,
+			item{label: "Save File", hint: "^s", run: func(m *Model) tea.Cmd { return m.pv.save(m, false) }},
+			item{label: "Save As…", run: func(m *Model) tea.Cmd { return m.saveAsPrompt(m.edIdx, nil) }})
 	}
 
 	if p.meta != nil {
-		items = append(items, item{label: "Open File at This Line", hint: "O", run: func(m *Model) tea.Cmd { return m.pv.openHere(m) }})
+		more = append(more, item{label: "Open File at This Line", hint: "O", run: func(m *Model) tea.Cmd { return m.pv.openHere(m) }})
 	}
 
 	if p.fileDiff() {
-		items = append(items, item{label: "Toggle Collapse Unchanged Regions", hint: "z", run: key('z')})
+		more = append(more, item{label: "Toggle Collapse Unchanged Regions", hint: "z", run: key('z')})
 	}
 
 	if p.kind == pvFile && isMarkdown(p.path) {
-		items = append(items,
+		more = append(more,
 			item{label: "Toggle Rendered Markdown", hint: "^⇧v", run: func(m *Model) tea.Cmd { return m.toggleRendered() }},
-			item{label: "Markdown Side by Side", hint: "M-v", run: func(m *Model) tea.Cmd {
-				return m.pv.key(m, tea.KeyPressMsg{Code: 'v', Mod: tea.ModAlt})
-			}})
-	}
-
-	if p.editable() {
-		items = append(items,
-			item{label: "Save File", hint: "^s", run: func(m *Model) tea.Cmd { return m.pv.save(m, false) }},
-			item{label: "Save As…", run: func(m *Model) tea.Cmd { return m.saveAsPrompt(m.edIdx, nil) }},
-			item{label: "Undo", hint: "^z", run: func(m *Model) tea.Cmd { return m.pv.history(m, true) }},
-			item{label: "Redo", hint: "^y", run: func(m *Model) tea.Cmd { return m.pv.history(m, false) }},
-			item{label: "Toggle Line Comment", hint: "^/", run: func(m *Model) tea.Cmd { return m.pv.toggleComment(m) }})
-	}
-
-	items = append(items, item{label: "Copy", hint: "^c", run: key('y')},
-		item{label: "Go to Line…", hint: "^g", run: func(m *Model) tea.Cmd { return m.gotoLineQuery(":") }})
-	if p.kind == pvFile && !p.untitled() {
-		items = append(items, item{label: "Go to Symbol…", hint: "^⇧o", run: func(m *Model) tea.Cmd { return m.gotoSymbol("@") }})
+			item{label: "Markdown Side by Side", hint: "M-v", run: editorChord('v', tea.ModAlt)})
 	}
 
 	if p.kind != pvShow && !p.fromGH() && !p.untitled() {
-		items = append(items, item{label: "Edit in $EDITOR", hint: "e", run: key('e')})
+		more = append(more, item{label: "Edit in $EDITOR", hint: "e", run: key('e')})
 	}
 
-	return items
+	// VS Code's groups: going somewhere in the code, changing it, history,
+	// the clipboard, the selection, finding; the file's own last.
+	return menuGroups(review, code, format, history, clip, []item{{label: "Select All", hint: "^a", run: editorChord('a', tea.ModCtrl)}}, find, more)
+}
+
+// editorChord runs a key in the editor, as its key would with the keyboard
+// there.
+func editorChord(code rune, mod tea.KeyMod) func(*Model) tea.Cmd {
+	return func(m *Model) tea.Cmd {
+		m.focus = onMain
+		return m.pv.key(m, tea.KeyPressMsg{Code: code, Mod: mod})
+	}
 }
 
 // keyItems are the editor's commands for the palette and [keys] alone, most
@@ -4123,16 +4153,9 @@ func (p *preview) keyItems(_ *Model) []item {
 		return nil
 	}
 
-	chord := func(code rune, mod tea.KeyMod) func(*Model) tea.Cmd {
-		return func(m *Model) tea.Cmd {
-			m.focus = onMain
-			return m.pv.key(m, tea.KeyPressMsg{Code: code, Mod: mod})
-		}
-	}
+	chord := editorChord
 
 	items := []item{
-		{label: "Find", hint: "^f", run: chord('f', tea.ModCtrl)},
-		{label: "Select All", hint: "^a", run: chord('a', tea.ModCtrl)},
 		{label: "Toggle Word Wrap", hint: "M-z", run: chord('z', tea.ModAlt)},
 		{label: "Change Indentation…", run: func(m *Model) tea.Cmd { return m.indentPicker() }}, // the status bar's Tab Size
 		{label: "Expand Selection", hint: "M-⇧→", run: chord(tea.KeyRight, tea.ModAlt|tea.ModShift)},
@@ -4175,8 +4198,6 @@ func (p *preview) keyItems(_ *Model) []item {
 
 	if p.editable() {
 		items = append(items,
-			item{label: "Replace", hint: "^h", run: chord('h', tea.ModCtrl)},
-			item{label: "Cut", hint: "^x", run: chord('x', tea.ModCtrl)},
 			item{label: "Duplicate Line", hint: "^d", run: chord('d', tea.ModCtrl)},
 			item{label: "Copy Line Up", hint: "M-⇧↑", run: chord(tea.KeyUp, tea.ModAlt|tea.ModShift)},
 			item{label: "Copy Line Down", hint: "M-⇧↓", run: chord(tea.KeyDown, tea.ModAlt|tea.ModShift)},

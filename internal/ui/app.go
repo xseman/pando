@@ -2056,8 +2056,7 @@ func (m *Model) tabMenu(v view, x, y int) tea.Cmd {
 		items = append(items, item{label: "Merge into Next Column", run: func(m *Model) tea.Cmd { return m.mergeView(v) }})
 	}
 
-	items = append(items, item{label: "Hide Sidebar", hint: "b", run: func(m *Model) tea.Cmd { return m.hide(i) }})
-	m.modal = newMenu(viewTitles[v], x, y, items...)
+	m.modal = newMenu(viewTitles[v], x, y, menuGroups(items, []item{{label: "Hide Sidebar", hint: "b", run: func(m *Model) tea.Cmd { return m.hide(i) }}})...)
 
 	return nil
 }

@@ -2748,9 +2748,9 @@ func TestTerminalMenu(t *testing.T) {
 
 	_, c := m.layout()
 	y := m.mainH() + 3
-	m.Update(tea.MouseClickMsg{X: c.x + 5, Y: y, Button: tea.MouseRight})
+	m.Update(tea.MouseClickMsg{X: c.x + 5, Y: y, Button: tea.MouseRight}) // on the screen
 
-	if m.modal == nil || !slices.Equal(labels(m), []string{"Copy All", "Paste", "Clear", "Rename…", "Kill Terminal…", "Toggle Size to Content Width"}) {
+	if m.modal == nil || !slices.Equal(labels(m), []string{"Copy All", "Paste", "", "Clear", "", "Rename…", "Kill Terminal…", "", "Toggle Size to Content Width"}) {
 		t.Fatalf("menu %+v", m.modal)
 	}
 

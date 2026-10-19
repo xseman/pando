@@ -1553,12 +1553,19 @@ func (md *modal) view(m *Model) (string, int, int) {
 	label, tw := md.toggle()
 	title = ansi.Truncate(title, max(iw-tw, 0), "…")
 
-	top := dim.Render("╭") + bold.Render(title) + dim.Render(strings.Repeat("─", max(iw-tw-ansi.StringWidth(title), 0)))
+	// A menu at the pointer has square corners, as an editor's context menu;
+	// a centered picker keeps the round ones.
+	tl, tr, bl, br := "╭", "╮", "╰", "╯"
+	if md.x >= 0 && !md.hasInput() {
+		tl, tr, bl, br = "┌", "┐", "└", "┘"
+	}
+
+	top := dim.Render(tl) + bold.Render(title) + dim.Render(strings.Repeat("─", max(iw-tw-ansi.StringWidth(title), 0)))
 	if tw > 0 {
 		top += dim.Render(" ^t ") + fg(pal.headerAccent).Render(label) + " "
 	}
 
-	lines := []string{top + dim.Render("╮")}
+	lines := []string{top + dim.Render(tr)}
 	side := dim.Render("│")
 
 	if md.hasInput() {
@@ -1612,7 +1619,7 @@ func (md *modal) view(m *Model) (string, int, int) {
 		lines = append(lines, side+r+side)
 	}
 
-	lines = append(lines, dim.Render("╰"+strings.Repeat("─", iw)+"╯"))
+	lines = append(lines, dim.Render(bl+strings.Repeat("─", iw)+br))
 
 	return strings.Join(lines, "\n"), x, y
 }
