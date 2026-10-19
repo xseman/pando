@@ -24,7 +24,6 @@ import (
 	"github.com/alecthomas/chroma/v2"
 	"github.com/alecthomas/chroma/v2/formatters"
 	"github.com/alecthomas/chroma/v2/lexers"
-	"github.com/alecthomas/chroma/v2/styles"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/xseman/pando/internal/db"
 	"github.com/xseman/pando/internal/git"
@@ -1382,15 +1381,10 @@ func render(kind, path, raw string, dark bool) (styled, plainLines []string, met
 	}
 
 	if lexer != nil {
-		style := styles.Get("github")
-		if dark {
-			style = styles.Get("github-dark")
-		}
-
 		var b strings.Builder
 
 		it, err := chroma.Coalesce(lexer).Tokenise(nil, strings.Join(plainLines, "\n"))
-		if err == nil && formatters.Get("terminal16m").Format(&b, style, it) == nil {
+		if err == nil && formatters.Get("terminal16m").Format(&b, syntaxStyle(dark), refine(lexer, it)) == nil {
 			if hl := strings.Split(b.String(), "\n"); len(hl) >= len(plainLines) {
 				styled = hl[:len(plainLines)]
 			}

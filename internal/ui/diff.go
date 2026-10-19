@@ -10,7 +10,6 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/alecthomas/chroma/v2"
-	"github.com/alecthomas/chroma/v2/styles"
 )
 
 // lineMeta describes one preview row of a diff.
@@ -182,15 +181,14 @@ func tokenLines(lexer chroma.Lexer, lines []string, dark bool) [][]tok {
 		return out
 	}
 
-	style := styles.Get("github")
-	if dark {
-		style = styles.Get("github-dark")
-	}
+	style := syntaxStyle(dark)
 
 	it, err := chroma.Coalesce(lexer).Tokenise(nil, strings.Join(lines, "\n"))
 	if err != nil {
 		return out
 	}
+
+	it = refine(lexer, it)
 
 	hl := make([][]tok, len(lines))
 	i := 0
