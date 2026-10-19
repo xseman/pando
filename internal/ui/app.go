@@ -163,6 +163,7 @@ type Model struct {
 	ticks       int
 	clock       int      // counter behind recent
 	files       []string // files opened, most recent first, for quick open
+	open        string   // the FILE[:LINE[:COL]] pando was started on, which Init opens
 	hidden      [2]bool  // per side, left and right: folded into a rail
 	unfold      [2]bool  // per side: opened by hand while squeezed, so it stays open until the next resize
 	preview     bool     // main shows the preview instead of the session
@@ -299,7 +300,7 @@ type (
 // Run connects to (or starts) the daemon and runs the TUI. dir is the
 // directory pando was started with; empty means none was given, and the
 // workspace shown last opens instead.
-func Run(dir string) error {
+func Run(dir, open string) error {
 	if err := proto.EnsureDaemon(); err != nil {
 		return err
 	}
@@ -347,6 +348,8 @@ func Run(dir string) error {
 	}
 
 	m := New(st, wss, ss, ws, events)
+	m.open = open
+
 	if fam := terminalFont(); st.Settings.Icons == "nerd" && fam != "" && !nerdFamily(fam) {
 		m.flash("terminal font lacks Nerd Font icons · pando doctor", true)
 	}
@@ -489,8 +492,15 @@ func (m *Model) look() {
 // stream and the first loads.
 func (m *Model) Init() tea.Cmd {
 	// m.pv is the editor New restored for the workspace; its content loads here.
-	return tea.Batch(waitEvent(m.events), tick(), tea.RequestBackgroundColor, tea.RequestForegroundColor,
-		m.refreshGit(), m.pv.load(m), m.loadDrafts(), loadUpdate(), m.ensureTerm(), m.gh.shown(m), m.loadGHUser(), m.diagIn.waitDiags())
+	cmds := []tea.Cmd{
+		waitEvent(m.events), tick(), tea.RequestBackgroundColor, tea.RequestForegroundColor,
+		m.refreshGit(), m.pv.load(m), m.loadDrafts(), loadUpdate(), m.ensureTerm(), m.gh.shown(m), m.loadGHUser(), m.diagIn.waitDiags(),
+	}
+	if m.open != "" { // over the restored editor, whose answer is then for another
+		cmds = append(cmds, m.openSpec(m.open))
+	}
+
+	return tea.Batch(cmds...)
 }
 
 // ghUserMsg is who gh is signed in as, which `gh api user` tells once.
@@ -3188,7 +3198,7 @@ func (m *Model) onEvent(ev proto.Event) tea.Cmd {
 		}
 
 		if f.Open != "" {
-			cmds = append(cmds, m.openFile(f.Open, false))
+			cmds = append(cmds, m.openSpec(f.Open))
 		}
 
 		return tea.Batch(cmds...)

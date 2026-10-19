@@ -395,6 +395,53 @@ func (m *Model) openLine(path string, line, col int) tea.Cmd {
 	return m.openFileAt(path, line-1, displayCol(fileLine(path, line-1), max(col-1, 0)), 0, false)
 }
 
+// openSpec opens FILE[:LINE[:COL]], as pando FILE and pando open take it: a
+// file whose own name ends that way opens whole.
+func (m *Model) openSpec(spec string) tea.Cmd {
+	if _, err := os.Stat(spec); err == nil {
+		return m.openFile(spec, false)
+	}
+
+	path, line, col := splitLoc(spec)
+
+	return m.openLine(path, line, col)
+}
+
+// FileOf is the file a FILE[:LINE[:COL]] argument names, "" when it names
+// none: a directory, or no such file.
+func FileOf(spec string) string {
+	path := spec
+	if _, err := os.Stat(spec); err != nil {
+		path, _, _ = splitLoc(spec)
+	}
+
+	if st, err := os.Stat(path); err == nil && st.Mode().IsRegular() {
+		return path
+	}
+
+	return ""
+}
+
+// locSuffix is a :LINE or :LINE:COL at the end of a path.
+var locSuffix = regexp.MustCompile(`:(\d{1,9})(?::(\d{1,9}))?$`)
+
+// splitLoc cuts a :LINE or :LINE:COL suffix off a path, 1-based as
+// compilers print them and VS Code's code -g takes them; 0 for what it
+// leaves out.
+func splitLoc(s string) (path string, line, col int) {
+	sm := locSuffix.FindStringSubmatchIndex(s)
+	if len(sm) == 0 || sm[0] == 0 {
+		return s, 0, 0
+	}
+
+	line, _ = strconv.Atoi(s[sm[2]:sm[3]])
+	if sm[4] >= 0 {
+		col, _ = strconv.Atoi(s[sm[4]:sm[5]])
+	}
+
+	return s[:sm[0]], line, col
+}
+
 // searchLink looks for a path printed relative to somewhere else: the one
 // file of the worktree whose path ends in it opens at its line, as VS Code's
 // terminal does; otherwise quick open lists the candidates.

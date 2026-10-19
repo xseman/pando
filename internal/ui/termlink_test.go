@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -346,3 +347,99 @@ func TestTerminalLinkCwd(t *testing.T) {
 		t.Fatalf("and so is its release: %+v", in.Mouse)
 	}
 }
+
+// splitLoc cuts what a compiler prints after a path; a name with nothing
+// to cut stays whole.
+func TestSplitLoc(t *testing.T) {
+	for in, want := range map[string]struct {
+		path      string
+		line, col int
+	}{
+		"a.go":               {"a.go", 0, 0},
+		"a.go:12":            {"a.go", 12, 0},
+		"a.go:12:5":          {"a.go", 12, 5},
+		"/x/y z.go:3:1":      {"/x/y z.go", 3, 1},
+		`C:\x\a.go:7`:        {`C:\x\a.go`, 7, 0},
+		"a.go:":              {"a.go:", 0, 0},
+		":12":                {":12", 0, 0},
+		"a.go:x":             {"a.go:x", 0, 0},
+		"a.go:9999999999":    {"a.go:9999999999", 0, 0}, // no line number that long
+		"a:b.go:2":           {"a:b.go", 2, 0},
+		"notes.txt:1:2:3":    {"notes.txt:1", 2, 3},
+		"https://x.dev:8080": {"https://x.dev", 8080, 0},
+	} {
+		if path, line, col := splitLoc(in); path != want.path || line != want.line || col != want.col {
+			t.Errorf("splitLoc(%q) = %q %d %d, want %+v", in, path, line, col, want)
+		}
+	}
+}
+
+// FuzzSplitLoc checks the path is what the argument starts with, and the
+// rest is exactly :LINE or :LINE:COL.
+func FuzzSplitLoc(f *testing.F) {
+	for _, s := range []string{"a.go:12:5", "a.go", ":1", "x:0:0", "a.go:012"} {
+		f.Add(s)
+	}
+
+	f.Fuzz(func(t *testing.T, s string) {
+		path, line, col := splitLoc(s)
+		if !strings.HasPrefix(s, path) || line < 0 || col < 0 {
+			t.Fatalf("%q: %q %d %d", s, path, line, col)
+		}
+
+		rest := s[len(path):]
+		if rest == "" {
+			if line != 0 || col != 0 {
+				t.Fatalf("%q: a line with nothing cut", s)
+			}
+
+			return
+		}
+
+		l, c, two := strings.Cut(rest[1:], ":")
+		if n, err := strconv.Atoi(l); rest[0] != ':' || err != nil || n != line || path == "" {
+			t.Fatalf("%q: cut %q, line %d", s, rest, line)
+		}
+
+		if n, err := strconv.Atoi(c); two && (err != nil || n != col) || !two && col != 0 {
+			t.Fatalf("%q: cut %q, col %d", s, rest, col)
+		}
+	})
+}
+
+// pando FILE:LINE:COL and pando open open the file there; a file whose name
+// ends that way opens whole.
+func TestOpenSpec(t *testing.T) {
+	m := testModelSized(t, 120, 30)
+	path := filepath.Join(m.ws, "a.go")
+	mustWrite(t, path, "package a\n\nfunc\tA() {}\n")
+
+	if FileOf(path+":3:6") != path || FileOf(m.ws) != "" || FileOf(path+"x:1") != "" {
+		t.Fatal("FileOf names the wrong file")
+	}
+
+	open := func(spec string) {
+		t.Helper()
+
+		for _, msg := range runAll(m.openSpec(spec)) {
+			if pm, ok := msg.(previewMsg); ok {
+				m.Update(pm)
+			}
+		}
+	}
+
+	open(path + ":3:6") // after the tab: a compiler counts it as one column
+
+	if m.pv.path != path || m.pv.rawPos(m.pv.cur) != (pos{2, 5}) {
+		t.Fatalf("opened %s at %+v", m.pv.path, m.pv.rawPos(m.pv.cur))
+	}
+
+	odd := filepath.Join(m.ws, "notes:2")
+	mustWrite(t, odd, "x\n")
+	open(odd)
+
+	if m.pv.path != odd {
+		t.Fatalf("opened %s, want the file named so", m.pv.path)
+	}
+}
+

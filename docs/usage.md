@@ -407,6 +407,10 @@ pando session read fix --lines 120
 pando call METHOD '{"json":"params"}'                # raw API
 ```
 
+`pando FILE:LINE:COL` opens the project holding FILE with the file at that
+place, as compilers print it; `pando open FILE:LINE:COL` shows it in the
+TUIs already open.
+
 `--wait` blocks until the session is idle, blocked or exited, so nothing
 polls. The API covers sessions, workspaces, projects and settings; diffs and
 commits are git's. A session gets `PANDO_SESSION`, so an agent inside one can

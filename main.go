@@ -35,6 +35,7 @@ const usage = `pando — terminal sidebar with agent sessions
 
   pando                         open the TUI in the project opened last
   pando DIR                     add DIR to the projects and open it
+  pando FILE[:LINE[:COL]]       open FILE at LINE and COL in the project holding it
   pando serve                   run the daemon in the foreground
   pando stop                    stop the daemon (sessions are respawned next start)
   pando doctor                  show the config path, the UI icons and the fonts that draw them
@@ -52,7 +53,7 @@ const usage = `pando — terminal sidebar with agent sessions
   pando session keys ID KEY...  named keys, e.g. esc ctrl+c shift+tab
   pando session wait ID [--until idle|blocked|running|exited] [--match RE] [--timeout MS]
   pando session read ID [--scrollback] [--lines N]
-  pando open FILE               show FILE in every attached TUI
+  pando open FILE[:LINE[:COL]]  show FILE in every attached TUI
   pando set KEY VALUE           change a setting from config.toml, e.g. pando set icons ascii
 
 ID is a session id, the name "session new --name" or "session rename" gave it,
@@ -93,7 +94,7 @@ func run(args []string) error {
 	}
 
 	if len(args) == 0 {
-		return ui.Run("") // no directory: the workspace shown last reopens
+		return ui.Run("", "") // no directory: the workspace shown last reopens
 	}
 
 	cmd, rest := args[0], args[1:]
@@ -150,7 +151,7 @@ func run(args []string) error {
 		return selfUpdate()
 	case "open":
 		if len(rest) != 1 {
-			return errors.New("open FILE")
+			return errors.New("open FILE[:LINE[:COL]]")
 		}
 
 		return proto.Call("focus", proto.FocusParams{Open: abs(rest[0])}, nil)
@@ -174,10 +175,15 @@ func run(args []string) error {
 		return session(rest)
 	}
 
-	// Not a command: pando DIR adds DIR to the projects and opens it.
+	// Not a command: pando DIR adds DIR to the projects and opens it, pando
+	// FILE[:LINE[:COL]] the directory holding FILE, with FILE open.
 	if len(rest) == 0 {
 		if st, err := os.Stat(cmd); err == nil && st.IsDir() {
-			return ui.Run(abs(cmd))
+			return ui.Run(abs(cmd), "")
+		}
+
+		if path := ui.FileOf(cmd); path != "" {
+			return ui.Run(filepath.Dir(abs(path)), abs(cmd))
 		}
 
 		if strings.ContainsRune(cmd, filepath.Separator) || cmd == "." || cmd == ".." {

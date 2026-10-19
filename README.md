@@ -83,6 +83,7 @@ Needs git. Optional: `gh` for GitHub, `rg` for search, `sqlite3` (3.37+),
 
 ```sh
 pando ~/code/app   # add a project and open it; plain `pando` reopens the last
+pando main.go:42:5 # the project holding main.go, the file open at line 42
 ```
 
 | Key      | Does                                                           |
