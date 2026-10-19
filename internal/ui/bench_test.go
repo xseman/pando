@@ -107,6 +107,42 @@ func BenchmarkTypeLargeFile(b *testing.B) {
 	}
 }
 
+// largeMarkdown is an editable changelog of 4900 lines open beside its
+// rendering, the cursor at line 4000.
+func largeMarkdown(tb testing.TB) *Model {
+	tb.Helper()
+
+	var b strings.Builder
+
+	for i := range 700 {
+		fmt.Fprintf(&b, "## v1.%d.0\n\n- Fixed *the* `thing` %d, see [#%d](https://x.y/%d)\n- Added **more** of it\n- Changed a b c\n\n", i, i, i, i)
+	}
+
+	m, _ := editorModel(tb, "CHANGELOG.md", b.String())
+	drainInputs(m)
+	m.Update(tea.WindowSizeMsg{Width: 220, Height: 55})
+	m.pv.setMarkdown(m, 2)
+	m.pv.cur = pos{4000, 5}
+
+	return m
+}
+
+// BenchmarkTypeMarkdown types a letter into largeMarkdown and deletes it,
+// each drawn: the line highlighted again, the file parsed again and the one
+// block it changed laid out again.
+func BenchmarkTypeMarkdown(b *testing.B) {
+	m := largeMarkdown(b)
+
+	b.ReportAllocs()
+
+	for b.Loop() {
+		m.Update(keyMsg("x"))
+		_ = m.View()
+		m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+		_ = m.View()
+	}
+}
+
 // BenchmarkViewFile draws this package's largest source file, highlighted,
 // beside the session.
 func BenchmarkViewFile(b *testing.B) {
@@ -156,7 +192,7 @@ func TestAllocBudgets(t *testing.T) {
 		t.Skip("-race drops sync.Pool items: the counts vary")
 	}
 
-	session, file, large := benchModel(t), benchModel(t), largeFile(t)
+	session, file, large, md := benchModel(t), benchModel(t), largeFile(t), largeMarkdown(t)
 	openApp(t, file)
 
 	for _, c := range []struct {
@@ -172,6 +208,12 @@ func TestAllocBudgets(t *testing.T) {
 			_ = large.View()
 			large.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 			_ = large.View()
+		}},
+		{"typing in a large Markdown file", 78000, func() {
+			md.Update(keyMsg("x"))
+			_ = md.View()
+			md.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+			_ = md.View()
 		}},
 		{"streaming turn", 1090, func() {
 			session.Update(eventMsg{Kind: "screen", ID: "s1"})

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"charm.land/lipgloss/v2"
 	"github.com/alecthomas/chroma/v2"
@@ -239,33 +240,62 @@ func paint(toks []tok, bg, wordBg color.Color, word [2]int, hasWord bool) string
 				continue
 			}
 
-			st := lipgloss.NewStyle()
-			if t.e.Colour.IsSet() {
-				st = st.Foreground(lipgloss.Color(t.e.Colour.String()))
+			tbg := bg
+			if hasWord && pos+a >= word[0] && pos+a < word[1] {
+				tbg = wordBg
 			}
 
-			if t.e.Bold == chroma.Yes {
-				st = st.Bold(true)
-			}
-
-			if t.e.Italic == chroma.Yes {
-				st = st.Italic(true)
-			}
-
-			switch {
-			case hasWord && pos+a >= word[0] && pos+a < word[1]:
-				st = st.Background(wordBg)
-			case bg != nil:
-				st = st.Background(bg)
-			}
-
-			b.WriteString(st.Render(string(rs[a:z])))
+			st := tokenStyle(t.e, tbg)
+			b.WriteString(st.on)
+			b.WriteString(string(rs[a:z]))
+			b.WriteString(st.off)
 		}
 
 		pos += len(rs)
 	}
 
 	return b.String()
+}
+
+// tokenKey is what paint styles a token by.
+type tokenKey struct {
+	e  chroma.StyleEntry
+	bg color.Color
+}
+
+// tokenStyles holds tokenStyle by tokenKey: built and rendered per token, the
+// style was a quarter of laying out Markdown's code blocks.
+var tokenStyles sync.Map
+
+// tokenStyle is a token's colour, weight and slant over bg.
+func tokenStyle(e chroma.StyleEntry, bg color.Color) mdStyle {
+	k := tokenKey{e, bg}
+	if v, ok := tokenStyles.Load(k); ok {
+		ms, _ := v.(mdStyle)
+		return ms
+	}
+
+	st := lipgloss.NewStyle()
+	if e.Colour.IsSet() {
+		st = st.Foreground(lipgloss.Color(e.Colour.String()))
+	}
+
+	if e.Bold == chroma.Yes {
+		st = st.Bold(true)
+	}
+
+	if e.Italic == chroma.Yes {
+		st = st.Italic(true)
+	}
+
+	if bg != nil {
+		st = st.Background(bg)
+	}
+
+	ms := sgr(st)
+	tokenStyles.Store(k, ms)
+
+	return ms
 }
 
 // renderDiff styles parsed rows VS Code style: syntax colors per file over

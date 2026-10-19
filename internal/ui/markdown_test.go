@@ -252,3 +252,30 @@ func TestMarkdownCodeBackground(t *testing.T) {
 		t.Fatalf("md_code_bg %s is not a soft grey", hexColor(pal.mdCodeBg))
 	}
 }
+
+// FuzzMarkdownBlocks holds the blocks a layout keeps to the layout they
+// stand for: an edited document laid out with the blocks of the one before
+// is the document laid out afresh.
+func FuzzMarkdownBlocks(f *testing.F) {
+	f.Add(sampleMD, uint(40), "x")
+	f.Add(sampleMD, uint(0), "```\n")
+	f.Add("[a][r]\n\ntext\n\n[r]: http://x\n", uint(len("[a][r]\n\ntext\n\n[")), "s")
+	f.Add("- a\n\n- b\n\npara\n", uint(len("- a\n\n- b\n\n")), "  ")
+	f.Add("1. a\n2. b\n\n| h | i |\n|---|---|\n| 1 | 2 |\n", uint(3), "\n\n")
+	f.Add("text\n===\n\n> q\n\n    code\n", uint(5), "-")
+
+	f.Fuzz(func(t *testing.T, src string, at uint, insert string) {
+		at = min(at, uint(len(src)))
+		edited := src[:at] + insert + src[at:]
+
+		var c mdBlocks
+
+		c.render(src, 60, true)
+		gotS, gotP := c.render(edited, 60, true)
+
+		wantS, wantP := renderMarkdown(edited, 60, true)
+		if !slices.Equal(gotP, wantP) || !slices.Equal(gotS, wantS) {
+			t.Fatalf("%q after %q:\n got %q\nwant %q", edited, src, gotP, wantP)
+		}
+	})
+}

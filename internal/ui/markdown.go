@@ -2,15 +2,18 @@ package ui
 
 import (
 	"fmt"
+	"image/color"
+	"slices"
 	"strings"
+	"sync"
 
 	"charm.land/lipgloss/v2"
-	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	east "github.com/yuin/goldmark/extension/ast"
+	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 )
 
@@ -28,6 +31,72 @@ func mdt(s string, st lipgloss.Style) mdText {
 }
 
 func (a mdText) add(b mdText) mdText { return mdText{a.s + b.s, a.p + b.p} }
+
+// mdStyle is a style's SGR on and off around a run of text, which wrap
+// writes instead of rendering each word: lipgloss styles an underlined or
+// struck-through text a rune at a time, and was most of laying out a file.
+type mdStyle struct{ on, off string }
+
+// sgrKey is what lipgloss styles text by, all but layout.
+type sgrKey struct {
+	bold, italic, strike, reverse, blink, faint bool
+	ul                                          lipgloss.Underline
+	fg, bg, ulColor                             color.Color
+}
+
+// sgrs holds sgr by sgrKey: a style is built again for every run.
+var sgrs sync.Map
+
+// sgr is st's mdStyle; st styles text only, without width, padding or borders.
+func sgr(st lipgloss.Style) mdStyle {
+	k := sgrKey{
+		st.GetBold(), st.GetItalic(), st.GetStrikethrough(), st.GetReverse(), st.GetBlink(), st.GetFaint(),
+		st.GetUnderlineStyle(), st.GetForeground(), st.GetBackground(), st.GetUnderlineColor(),
+	}
+	if v, ok := sgrs.Load(k); ok {
+		ms, _ := v.(mdStyle)
+		return ms
+	}
+
+	on, off := renderSides(st)
+	ms := mdStyle{on, off}
+	sgrs.Store(k, ms)
+
+	return ms
+}
+
+// mdLine is a line wrap builds, a style left open while the words after
+// it share it.
+type mdLine struct {
+	s, p strings.Builder
+	open mdStyle
+}
+
+func (l *mdLine) add(s string, st mdStyle) {
+	if s == "" {
+		return
+	}
+
+	if st != l.open {
+		l.s.WriteString(l.open.off)
+		l.s.WriteString(st.on)
+		l.open = st
+	}
+
+	l.s.WriteString(s)
+	l.p.WriteString(s)
+}
+
+// take is the line, and an empty one to go on with.
+func (l *mdLine) take() mdText {
+	l.s.WriteString(l.open.off)
+	t := mdText{l.s.String(), l.p.String()}
+	l.s.Reset()
+	l.p.Reset()
+	l.open = mdStyle{}
+
+	return t
+}
 
 // mdTok is an inline run in one style; hard is a hard line break. padL and
 // padR put a cell of the run's own background before its first word and
@@ -52,13 +121,98 @@ type mdRenderer struct {
 // mdMargin cells of air on either side. ponytail: images show their alt text
 // and HTML stays source.
 func renderMarkdown(src string, w int, dark bool) (styled, plain []string) {
+	var c mdBlocks
+	return c.render(src, w, dark)
+}
+
+// mdBlocks keeps the layout of a document's top-level blocks by their
+// source, so that laying it out again after an edit renders only the blocks
+// the edit touched: what is left is the parse, a third of the whole.
+type mdBlocks struct {
+	key  mdKey
+	done map[string]mdBlock
+}
+
+// mdKey is what a block's layout depends on besides its source: the width,
+// the colours, and the link references the whole document defines.
+type mdKey struct {
+	w    int
+	dark bool
+	pal  palette
+	refs string
+}
+
+type mdBlock struct{ styled, plain []string }
+
+// render is renderMarkdown with the blocks c kept from the last call.
+func (c *mdBlocks) render(src string, w int, dark bool) (styled, plain []string) {
 	margin := mdText{}
 	if w >= 3*mdMargin+20 {
 		margin, w = mdText{blank(mdMargin), blank(mdMargin)}, w-mdMargin // the right margin; the prefix takes the left
 	}
 
 	r := &mdRenderer{src: []byte(src), w: max(w, 10), dark: dark}
-	r.children(mdParser.Parse(text.NewReader(r.src)), margin, margin, false)
+	pc := parser.NewContext()
+	doc := mdParser.Parse(text.NewReader(r.src), parser.WithContext(pc))
+
+	refs := pc.References()
+
+	labels := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		labels = append(labels, string(ref.Label()))
+	}
+
+	slices.Sort(labels)
+
+	if key := (mdKey{r.w, dark, pal, strings.Join(labels, "\x00")}); key != c.key {
+		c.key, c.done = key, nil
+	}
+
+	// A block is its lines up to the next block's: the same lines parse to
+	// the same block, since one starts where no block above is left open.
+	var starts []int
+
+	for b := doc.FirstChild(); b != nil; b = b.NextSibling() {
+		at := b.Pos()
+		if at >= 0 {
+			at = strings.LastIndexByte(src[:at], '\n') + 1
+		}
+
+		starts = append(starts, at)
+	}
+
+	done := make(map[string]mdBlock, len(c.done))
+	i := 0
+
+	for b := doc.FirstChild(); b != nil; b, i = b.NextSibling(), i+1 {
+		if i > 0 {
+			r.line(margin, mdText{})
+		}
+
+		end := len(src)
+		if j := slices.IndexFunc(starts[i+1:], func(at int) bool { return at >= 0 }); j >= 0 {
+			end = starts[i+1+j]
+		}
+
+		if starts[i] < 0 || end <= starts[i] { // no source of its own to know it by
+			r.block(b, margin, margin)
+			continue
+		}
+
+		key := src[starts[i]:end]
+		if blk, ok := c.done[key]; ok {
+			r.styled, r.plain = append(r.styled, blk.styled...), append(r.plain, blk.plain...)
+			done[key] = blk
+
+			continue
+		}
+
+		n := len(r.styled)
+		r.block(b, margin, margin)
+		done[key] = mdBlock{slices.Clone(r.styled[n:]), slices.Clone(r.plain[n:])}
+	}
+
+	c.done = done
 
 	return r.styled, r.plain
 }
@@ -249,13 +403,13 @@ func (r *mdRenderer) inline(n ast.Node, st lipgloss.Style) []mdTok {
 // wrap flows inline runs into lines at most width cells wide, breaking
 // between words; a word longer than a line is split.
 func (r *mdRenderer) wrap(toks []mdTok, first, rest mdText, width int) {
-	var cur mdText
+	var cur mdLine
 
 	used, space := 0, false
 	prefix := first
 	flush := func() {
-		r.line(prefix, cur)
-		prefix, cur, used = rest, mdText{}, 0
+		r.line(prefix, cur.take())
+		prefix, used = rest, 0
 	}
 
 	for _, t := range toks {
@@ -281,8 +435,10 @@ func (r *mdRenderer) wrap(toks []mdTok, first, rest mdText, width int) {
 			fields[len(fields)-1] += " "
 		}
 
+		st := sgr(t.st)
+
 		for i, word := range fields {
-			ww := ansi.StringWidth(word)
+			ww := strWidth(word)
 
 			sp := b2i((space || i > 0) && used > 0)
 			if used > 0 && used+sp+ww > width {
@@ -292,12 +448,14 @@ func (r *mdRenderer) wrap(toks []mdTok, first, rest mdText, width int) {
 			}
 
 			if sp == 1 {
-				gap := t.st
+				gap := st
 				if i == 0 && t.padL { // the space before a chip is not the chip's
-					gap = plain
+					gap = mdStyle{}
 				}
 
-				cur, used = cur.add(mdt(" ", gap)), used+1
+				cur.add(" ", gap)
+
+				used++
 			}
 
 			for used+ww > width {
@@ -306,13 +464,16 @@ func (r *mdRenderer) wrap(toks []mdTok, first, rest mdText, width int) {
 					break
 				}
 
-				cur, word = cur.add(mdt(part, t.st)), word[len(part):]
-				ww = ansi.StringWidth(word)
+				cur.add(part, st)
+				word = word[len(part):]
+				ww = strWidth(word)
 
 				flush()
 			}
 
-			cur, used = cur.add(mdt(word, t.st)), used+ww
+			cur.add(word, st)
+
+			used += ww
 			space = false
 		}
 
@@ -335,21 +496,16 @@ func (r *mdRenderer) code(lines *text.Segments, lang string, first, rest mdText,
 		src[i] = strings.TrimRight(expandTabs(string(seg.Value(r.src))), "\r\n")
 	}
 
-	lexer := lexers.Get(lang)
-	if lang == "" {
-		lexer = nil
-	}
+	toks := tokenLines(langLexer(lang), src, r.dark)
 
-	toks := tokenLines(lexer, src, r.dark)
-
-	bg := lipgloss.NewStyle().Background(pal.mdCodeBg)
+	bg := sgr(lipgloss.NewStyle().Background(pal.mdCodeBg))
 	for i, l := range src {
-		body, used := paint(toks[i], pal.mdCodeBg, nil, [2]int{}, false), ansi.StringWidth(l)+1
+		body, used := paint(toks[i], pal.mdCodeBg, nil, [2]int{}, false), strWidth(l)+1
 		if used > width {
 			body, l, used = ansi.Truncate(body, width-1, ""), ansi.Truncate(l, width-1, ""), width
 		}
 
-		r.line(first, mdText{bg.Render(" ") + body + bg.Render(blank(width-used)), " " + l})
+		r.line(first, mdText{bg.on + " " + bg.off + body + bg.on + blank(width-used) + bg.off, " " + l})
 		first = rest
 	}
 }

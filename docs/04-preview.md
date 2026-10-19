@@ -51,7 +51,10 @@ retypes chroma's tokens first, as VS Code's grammars tell them apart: a
 control keyword (`return`, `if`, `import`, …) is `KeywordPseudo`, magenta
 in Light+; in JavaScript and TypeScript, whose lexers call every name
 `NameOther`, a name before `(` is a function, a capitalized one a class, an
-all-caps one a constant.
+all-caps one a constant. Markdown lexes with `mdLexer`: chroma's rules and
+one more that takes a run of plain text whole, where chroma tries every rule
+at each character; the tokens are the same (`FuzzMarkdownLexer`), 5–15×
+faster.
 
 ## Text model
 
@@ -235,8 +238,11 @@ chroma code blocks on `md_code_bg`, images as `[image: alt]`, HTML as source.
 `markdown_width` caps the width (`mdWidth`); side by side uses its whole half,
 and both halves scroll by the same rows (`sideBody`), so what the rendering
 drops, a code block's fences, puts it a little ahead of the source. The
-rendering is cached per width; it is read, not
-edited, so it shows no cursor (`cursor`), as the status bar shows no Ln/Col.
+rendering is cached per width, and per top-level block (`mdBlocks`) by its
+source lines, the width, the colours and the document's link labels: an edit
+parses the file again but lays out only the blocks it changed
+(`FuzzMarkdownBlocks`). It is read, not edited, so it shows no cursor
+(`cursor`), as the status bar shows no Ln/Col.
 
 ## Folding
 

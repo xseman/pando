@@ -3,6 +3,8 @@ package ui
 import (
 	"image/color"
 	"math"
+	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -170,4 +172,57 @@ func contrast(a, b color.Color) float64 {
 	la, lb := luminance(a), luminance(b)
 
 	return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+}
+
+// FuzzMarkdownLexer holds mdLexer to chroma's own Markdown lexer: the same
+// tokens, each run of one type taken whole (Coalesce caps a token at 8 KiB).
+func FuzzMarkdownLexer(f *testing.F) {
+	for _, s := range []string{
+		"# Title\n\n## Sub\n\n- a *b* **c** ~~d~~ `e` [f](g) ![h](i)\n- [x] done\n1. one\n> quote\n",
+		"---\ntitle: x\n---\nbody @user #1 a\\*b <!-- note -->\n",
+		"```go\nfunc f() {}\n```\n```\nplain\n```\n",
+		" _a_ __b__ x*y* \t*z*\n\u00a0_w_ ~x~ <b>i</b>\n",
+		"---\n---\n", "---\nno end\n", "",
+	} {
+		f.Add(s)
+	}
+
+	for _, path := range []string{"../../README.md", "../../docs/usage.md"} {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			f.Fatal(err)
+		}
+
+		f.Add(string(b))
+	}
+
+	f.Fuzz(func(t *testing.T, text string) {
+		text = strings.ReplaceAll(text, "\r", "") // as render gives it
+		if got, want := runs(t, mdLexer, text), runs(t, lexers.Markdown, text); !slices.Equal(got, want) {
+			t.Fatalf("%q:\n got %q\nwant %q", text, got, want)
+		}
+	})
+}
+
+// runs is what lexer makes of text, a run of tokens of one type merged.
+func runs(t *testing.T, lexer chroma.Lexer, text string) []chroma.Token {
+	t.Helper()
+
+	it, err := lexer.Tokenise(nil, text)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var out []chroma.Token
+
+	for tok := it(); tok != chroma.EOF; tok = it() {
+		if n := len(out); n > 0 && out[n-1].Type == tok.Type {
+			out[n-1].Value += tok.Value
+			continue
+		}
+
+		out = append(out, tok)
+	}
+
+	return out
 }

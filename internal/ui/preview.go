@@ -43,7 +43,36 @@ func matchLexer(name string) chroma.Lexer {
 	}
 
 	l := lexers.Match(name)
+	if l == lexers.Markdown {
+		l = mdLexer
+	}
+
 	lexerCache.Store(name, l)
+
+	return l
+}
+
+// langLexers holds lexers.Get by a code block's language: for a name it has
+// no lexer by, chroma tries every lexer's file patterns, ~1 ms.
+var langLexers sync.Map
+
+// langLexer is lexers.Get(lang), asked once per name; nil for "".
+func langLexer(lang string) chroma.Lexer {
+	if lang == "" {
+		return nil
+	}
+
+	if l, ok := langLexers.Load(lang); ok {
+		lx, _ := l.(chroma.Lexer)
+		return lx
+	}
+
+	l := lexers.Get(lang)
+	if l == lexers.Markdown {
+		l = mdLexer
+	}
+
+	langLexers.Store(lang, l)
 
 	return l
 }
@@ -164,6 +193,7 @@ type preview struct {
 	mdW                           int // width mdLines were laid out for
 	mdLines                       []string
 	mdPlain                       []string
+	mdBlocks                      *mdBlocks      // mdLines by block, kept across edits
 	mdShown                       int            // width of the rendering in lines; 0 = lines hold the source
 	repo                          string         // rev: the file's repository
 	revs                          []git.Revision // rev: the file's history, newest first
@@ -3037,7 +3067,11 @@ func (p *preview) markdown(m *Model, w int) (styled, plain []string) {
 		if p.kind == pvGH && p.gh != nil { // a page of GitHub is laid out from its document, not rendered
 			p.mdLines, p.mdPlain = p.ghLayout(m, w)
 		} else {
-			p.mdLines, p.mdPlain = renderMarkdown(p.text(), w, m.dark)
+			if p.mdBlocks == nil {
+				p.mdBlocks = &mdBlocks{}
+			}
+
+			p.mdLines, p.mdPlain = p.mdBlocks.render(p.text(), w, m.dark)
 		}
 
 		p.mdW = w

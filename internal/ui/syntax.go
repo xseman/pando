@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/alecthomas/chroma/v2"
+	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/alecthomas/chroma/v2/styles"
 )
 
@@ -122,4 +123,65 @@ func nextType(toks []chroma.Token, i int) chroma.TokenType {
 	}
 
 	return chroma.Text
+}
+
+// mdLexer is chroma's Markdown lexer with one rule more, which takes a run of
+// text no other rule can start a match in as one token; chroma's tries every
+// rule at each character and spends ~80 ms on 1 000 lines. The tokens are
+// the same, which FuzzMarkdownLexer holds.
+var mdLexer chroma.Lexer = frontmatter{chroma.MustNewLexer(lexers.Markdown.Config(), markdownRules).SetRegistry(lexers.GlobalLexerRegistry)}
+
+// markdownRules are chroma's, lexers/markdown.go, with the run before the
+// catch-all. The run holds nothing a rule can start at: none of \ ` @ # ! [ <,
+// no space before * _ ~, no line end, after which the line rules start.
+func markdownRules() chroma.Rules {
+	return chroma.Rules{
+		"root": {
+			{Pattern: `<!--[\w\W]*?-->`, Type: chroma.CommentMultiline},
+			{Pattern: `^(#[^#].+\n)`, Type: chroma.ByGroups(chroma.GenericHeading)},
+			{Pattern: `^(#{2,6}.+\n)`, Type: chroma.ByGroups(chroma.GenericSubheading)},
+			{Pattern: `^(\s*)([*-] )(\[[ xX]\])( .+\n)`, Type: chroma.ByGroups(chroma.Text, chroma.Keyword, chroma.Keyword, chroma.UsingSelf("inline"))},
+			{Pattern: `^(\s*)([*-])(\s)(.+\n)`, Type: chroma.ByGroups(chroma.Text, chroma.Keyword, chroma.Text, chroma.UsingSelf("inline"))},
+			{Pattern: `^(\s*)([0-9]+\.)( .+\n)`, Type: chroma.ByGroups(chroma.Text, chroma.Keyword, chroma.UsingSelf("inline"))},
+			{Pattern: `^(\s*>\s)(.+\n)`, Type: chroma.ByGroups(chroma.Keyword, chroma.GenericEmph)},
+			{Pattern: "^(```\\n)([\\w\\W]*?)(^```$)", Type: chroma.ByGroups(chroma.String, chroma.Text, chroma.String)},
+			{Pattern: "^(```)(\\w+)(\\n)([\\w\\W]*?)(^```$)", Type: chroma.UsingByGroup(2, 4, chroma.String, chroma.String, chroma.String, chroma.Text, chroma.String)},
+			chroma.Include("inline"),
+		},
+		"inline": {
+			{Pattern: `<!--[\w\W]*?-->`, Type: chroma.CommentMultiline},
+			{Pattern: `\\.`, Type: chroma.Text},
+			{Pattern: `(\s)(\*|_)((?:(?!\2).)*)(\2)((?=\W|\n))`, Type: chroma.ByGroups(chroma.Text, chroma.GenericEmph, chroma.GenericEmph, chroma.GenericEmph, chroma.Text)},
+			{Pattern: `(\s)((\*\*|__).*?)\3((?=\W|\n))`, Type: chroma.ByGroups(chroma.Text, chroma.GenericStrong, chroma.GenericStrong, chroma.Text)},
+			{Pattern: `(\s)(~~[^~]+~~)((?=\W|\n))`, Type: chroma.ByGroups(chroma.Text, chroma.GenericDeleted, chroma.Text)},
+			{Pattern: "`[^`]+`", Type: chroma.LiteralStringBacktick},
+			{Pattern: `[@#][\w/:]+`, Type: chroma.NameEntity},
+			{Pattern: `(!?\[)([^]]+)(\])(\()([^)]+)(\))`, Type: chroma.ByGroups(chroma.Text, chroma.NameTag, chroma.Text, chroma.Text, chroma.NameAttribute, chroma.Text)},
+			{Pattern: "(?:[^\\s\\\\`@#!\\[<]|[ \\t](?![*_~]))+", Type: chroma.Text},
+			{Pattern: `.|\n`, Type: chroma.Text},
+		},
+	}
+}
+
+// frontmatter hands a file's leading YAML frontmatter to chroma's Markdown
+// lexer, which lexes it as YAML, and the rest to its own.
+type frontmatter struct{ chroma.Lexer }
+
+func (l frontmatter) Tokenise(opts *chroma.TokeniseOptions, text string) (chroma.Iterator, error) {
+	end := strings.Index(text, "\n---\n") + len("\n---\n")
+	if !strings.HasPrefix(text, "---\n") || end < len("\n---\n") {
+		return l.Lexer.Tokenise(opts, text)
+	}
+
+	head, err := lexers.Markdown.Tokenise(opts, text[:end])
+	if err != nil {
+		return nil, err
+	}
+
+	rest, err := l.Lexer.Tokenise(opts, text[end:])
+	if err != nil {
+		return nil, err
+	}
+
+	return chroma.Concaterator(head, rest), nil
 }
