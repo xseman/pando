@@ -5475,11 +5475,24 @@ func (m *Model) commands() []item {
 // overlayBox draws a box over the screen's lines at x, y.
 func (m *Model) overlayBox(lines, box []string, x, y int) {
 	for i, bl := range box {
-		if y+i < len(lines) {
-			ln := lines[y+i]
-			bw := ansi.StringWidth(bl)
-			lines[y+i] = ansi.Cut(ln, 0, x) + "\x1b[m" + bl + "\x1b[m" + ansi.Cut(ln, x+bw, m.w)
+		if y+i >= len(lines) {
+			continue
 		}
+
+		ln := lines[y+i]
+		bl = ansi.Truncate(bl, max(m.w-x, 0), "") // a box wider than the room left is cut at the edge
+		bw := ansi.StringWidth(bl)
+		// A wide rune the box's edge cuts in half: Cut drops it on the
+		// left and keeps it whole on the right, so its cell goes blank.
+		left := ansi.Cut(ln, 0, x)
+		left += strings.Repeat(" ", max(x-ansi.StringWidth(left), 0))
+
+		right := ansi.Cut(ln, x+bw, m.w)
+		if ansi.StringWidth(right) > m.w-x-bw {
+			right = " " + ansi.Cut(ln, x+bw+1, m.w)
+		}
+
+		lines[y+i] = left + "\x1b[m" + bl + "\x1b[m" + right
 	}
 }
 

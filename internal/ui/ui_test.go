@@ -2774,3 +2774,22 @@ func TestStillEventKeepsFrame(t *testing.T) {
 		t.Fatal("the screen it asked for is drawn")
 	}
 }
+
+// A box over wide runes keeps every row the window's width: a rune its edge
+// cuts in half leaves a blank cell, and a box wider than the room left is
+// cut at the screen's edge.
+func TestOverlayBoxWideRunes(t *testing.T) {
+	m := testModelSized(t, 12, 6)
+	box := []string{"[ab]", "[cd]"}
+
+	for x := range 12 {
+		lines := []string{"ａｂｃｄｅｆ", "aｂｃｄｅｆb"}
+		m.overlayBox(lines, box, x, 0)
+
+		for i, l := range lines {
+			if w := ansi.StringWidth(l); w != 12 {
+				t.Fatalf("box at %d, row %d: width %d: %q", x, i, w, ansi.Strip(l))
+			}
+		}
+	}
+}
