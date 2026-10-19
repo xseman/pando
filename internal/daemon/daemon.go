@@ -123,6 +123,10 @@ func New(configDir, stateDir, dataDir string) (*Daemon, error) {
 	if d.state.SessionViews == nil {
 		d.state.SessionViews = map[string]proto.SessionView{}
 	}
+	// What a removed workspace had open goes with it: nothing else drops it.
+	maps.DeleteFunc(d.state.Editors, func(ws string, _ proto.Editors) bool { return gone(ws) })
+	maps.DeleteFunc(d.state.Terminals, func(ws string, _ proto.Terminal) bool { return gone(ws) })
+	maps.DeleteFunc(d.state.SessionViews, func(ws string, _ proto.SessionView) bool { return gone(ws) })
 
 	c, err := loadConfig(d.cfgPath)
 
@@ -821,6 +825,14 @@ func (d *Daemon) reloadConfig() {
 	d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID, d.state.ResumeJob, d.state.ResumeEnv, d.state.Databases = c.Settings, c.Agents, c.Resume, c.ResumeID, c.ResumeJob, c.ResumeEnv, c.Databases
 	d.mu.Unlock()
 	d.broadcast(proto.Event{Kind: "state"})
+}
+
+// gone reports whether path does not exist; one that cannot be checked
+// counts as there.
+func gone(path string) bool {
+	_, err := os.Stat(path)
+
+	return errors.Is(err, os.ErrNotExist)
 }
 
 func modTime(path string) time.Time {

@@ -219,9 +219,9 @@ tick, on leaving the workspace and on quitting.
 | `worktrees`      | per project, worktree order from `workspace.move`               |
 | `sessions`       | session specs a restarted daemon respawns                       |
 | `drafts`         | per repository, the commit message; `""`                        |
-| `editors`        | per workspace, the tab strip; `null` or empty `open`            |
-| `terminals`      | per workspace, panel `open`, the shell `tab`, `max`; `null`     |
-| `session_views`  | per workspace, `position`, `width` (0: half), `max`; `null`     |
+| `editors`        | per workspace, the tab strip; `null`, empty `open`, gone        |
+| `terminals`      | per workspace, panel `open`, `tab`, `max`; `null`/gone          |
+| `session_views`  | per workspace, `position`, `width` (0 half), `max`; `null`/gone |
 | `last_workspace` | reopened when pando starts outside a repository                 |
 | `spaces_folded`  | folded Spaces headings, paths and `time:…`; sent whole          |
 | `spaces_pinned`  | pinned Spaces session ids, in the order pinned; sent whole      |
@@ -237,7 +237,8 @@ tick, on leaving the workspace and on quitting.
 `editors` keeps files, not diffs: 0-based cursor, top row, `md` (0 source, 1
 rendered, 2 both); no `path` is untitled. `terminals` and `session_views` are
 sent with `terminal_open`, `session_position` and `left`/`right`, the fallback
-for a worktree without an entry.
+for a worktree without an entry. "Gone": a workspace no longer on disk when
+the daemon starts.
 
 ## Drafts
 

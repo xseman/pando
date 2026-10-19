@@ -627,6 +627,28 @@ func TestInstanceState(t *testing.T) {
 	}
 }
 
+// TestStateDropsGoneWorkspaces forgets the tabs, Terminal panel and session
+// view of a workspace removed while the daemon was down, and keeps a draft.
+func TestStateDropsGoneWorkspaces(t *testing.T) {
+	cfg, ws, gone := t.TempDir(), t.TempDir(), filepath.Join(t.TempDir(), "removed")
+	mustWrite(t, filepath.Join(cfg, "state.json"), `{
+		"drafts": {"`+gone+`": "unsaved"},
+		"editors": {"`+ws+`": {}, "`+gone+`": {}},
+		"terminals": {"`+ws+`": {"open": true}, "`+gone+`": {"open": true}},
+		"session_views": {"`+ws+`": {}, "`+gone+`": {}}
+	}`)
+
+	d, err := New(cfg, cfg, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	st := d.state
+	if _, ok := st.Editors[gone]; ok || len(st.Editors) != 1 || len(st.Terminals) != 1 || len(st.SessionViews) != 1 || st.Drafts[gone] != "unsaved" {
+		t.Fatalf("editors %v, terminals %v, session views %v, drafts %v", st.Editors, st.Terminals, st.SessionViews, st.Drafts)
+	}
+}
+
 // TestDatabasesConfig adds, renames and drops a [databases] entry through
 // state.set, as the Databases view's connection form does.
 func TestDatabasesConfig(t *testing.T) {
