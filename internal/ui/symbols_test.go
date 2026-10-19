@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -133,4 +134,30 @@ func TestMarkdownSymbols(t *testing.T) {
 	if rows := labels(m); len(rows) != 5 || m.modal.l.sel != 3 {
 		t.Fatalf("rows %q, sel %d (Linux holds the cursor)", rows, m.modal.l.sel)
 	}
+}
+
+// Go to Line and Go to Symbol put the cursor back on esc only in the file
+// they were opened over: one pando open showed meanwhile keeps its own,
+// which the old cursor may lie past the end of.
+func TestGotoLineCancelAfterAnotherFile(t *testing.T) {
+	m, _ := editorModel(t, "a.go", strings.Repeat("x\n", 20))
+	m.pv.gotoLine(m, 15, 0)
+	m.gotoLineQuery(":")
+
+	short := filepath.Join(m.ws, "b.go")
+	mustWrite(t, short, "y\n")
+
+	for _, msg := range runAll(m.openSpec(short)) {
+		if pm, ok := msg.(previewMsg); ok {
+			m.Update(pm)
+		}
+	}
+
+	press(m, "esc")
+
+	if m.pv.path != short || m.pv.cur.line != 0 {
+		t.Fatalf("esc put %s's cursor on line %d", filepath.Base(m.pv.path), m.pv.cur.line)
+	}
+
+	checkWidths(t, m)
 }

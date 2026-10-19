@@ -72,12 +72,16 @@ func (m *Model) openSymbols(msg symbolsMsg) tea.Cmd {
 		query = md.input.Value() // typed on in quick open while the server answered
 	}
 
-	cur, top, left, anchor := p.cur, p.top, p.left, p.anchor
+	cur, top, left, anchor, id := p.cur, p.top, p.left, p.anchor, p.id()
+	mine := func(m *Model) bool { return m.pv.id() == id } // not another file opened under the box since
 
 	items := make([]item, len(msg.syms))
 	for i, s := range msg.syms {
 		items[i] = item{label: s.Name, hint: s.Container, group: lsp.KindName(s.Kind), run: func(m *Model) tea.Cmd {
-			m.pv.showSymbol(m, s)
+			if mine(m) {
+				m.pv.showSymbol(m, s)
+			}
+
 			return nil
 		}}
 	}
@@ -88,7 +92,11 @@ func (m *Model) openSymbols(msg symbolsMsg) tea.Cmd {
 	md.input.CursorEnd()
 	md.refilter()
 	md.move = func(m *Model) { md.disp[md.l.sel].run(m) }
-	md.cancel = func(m *Model) { m.pv.cur, m.pv.top, m.pv.left, m.pv.anchor = cur, top, left, anchor }
+	md.cancel = func(m *Model) {
+		if mine(m) {
+			m.pv.cur, m.pv.top, m.pv.left, m.pv.anchor = cur, top, left, anchor
+		}
+	}
 	md.change = func(m *Model, v string) tea.Cmd {
 		if strings.HasPrefix(v, "@") {
 			return nil
@@ -134,8 +142,14 @@ func (m *Model) gotoLineQuery(query string) tea.Cmd {
 		return flash("open a file first", true)
 	}
 
-	cur, top, left, anchor := p.cur, p.top, p.left, p.anchor
-	back := func(m *Model) { m.pv.cur, m.pv.top, m.pv.left, m.pv.anchor, m.pv.rangeHi = cur, top, left, anchor, 0 }
+	cur, top, left, anchor, id := p.cur, p.top, p.left, p.anchor, p.id()
+	back := func(m *Model) {
+		if m.pv.id() != id { // another file opened under the box, by pando open or an agent: its cursor is its own
+			return
+		}
+
+		m.pv.cur, m.pv.top, m.pv.left, m.pv.anchor, m.pv.rangeHi = cur, top, left, anchor, 0
+	}
 	last, side := p.lastLine()+1, func(l int) lineMeta { return lineMeta{b: l} }
 
 	if p.meta != nil { // a diff goes by the file's lines, as its status bar counts; a deleted file's by its old ones
