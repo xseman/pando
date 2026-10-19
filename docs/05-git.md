@@ -118,6 +118,12 @@ load: an untracked file or one in conflict has none. Its quick diff's
 Stage Change rewrites the staged text with one change (`StageChange`,
 `hash-object` and `update-index --cacheinfo`, as staging selected lines).
 
+The status bar's blame (`BlameLine`) is `git blame --porcelain -L n,n
+--contents -` from the file's folder, the editor's text on stdin, so a line
+typed since is the zero hash (`Hash` ""). The editor asks once the cursor
+rests 250 ms on a line (`noteBlame`), again when the line, its text or the
+staged text moves; a click opens the commit (`openShow`).
+
 ## Branches
 
 ```text

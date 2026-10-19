@@ -59,8 +59,10 @@ Needs git. Optional: `gh` for GitHub, `rg` for search, `sqlite3` (3.37+),
   unfolded in place, changes marked on the scrollbar and stepped through
   (`]` `[`), a file's revisions stepped through like GitLens.
 - **Editor**: undo, find & replace, suggestions, format on save, vim mode,
-  unsaved drafts that survive a restart, language servers with their
-  problems underlined, listed (`ctrl+shift+m`) and stepped through (`F8`).
+  `.editorconfig` and detected indentation, the line's git blame in the
+  status bar, unsaved drafts that survive a restart, language servers with
+  hover, parameter hints and their problems underlined, listed
+  (`ctrl+shift+m`) and stepped through (`F8`).
 - **Explorer and Search**: git decorations, VS Code's context menu, quick
   open, workspace search & replace.
 - **GitHub**: with `gh` installed, pull requests, issues and notifications as

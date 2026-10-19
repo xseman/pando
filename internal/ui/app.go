@@ -244,6 +244,7 @@ type Model struct {
 	probDeco   map[string]probDeco
 	diagSeen   editSeen
 	diagSeq    int
+	blame      blameState // the cursor's line's blame, for the status bar
 	diagBusy   bool
 	diagWarned map[string]bool
 	diagOn     bool                   // lsp_diagnostics as noteDiags last saw it
@@ -2564,7 +2565,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	m.still = stillEvent(msg)
 
-	return m, tea.Batch(cmd, m.noteEdits(), m.noteGutter(), m.animate(), m.spinLater())
+	return m, tea.Batch(cmd, m.noteEdits(), m.noteGutter(), m.noteBlame(), m.animate(), m.spinLater())
 }
 
 // stillEvent reports a daemon event whose handling only asks for what
@@ -2927,6 +2928,12 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.onCompTick(msg)
 	case compMsg:
 		m.pv.onComp(msg)
+		return m, nil
+
+	case blameTickMsg:
+		return m, m.onBlameTick(msg.seq)
+	case blameMsg:
+		m.onBlame(msg)
 		return m, nil
 
 	case hoverTickMsg:
@@ -4838,6 +4845,8 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 	// An item is one or more segments: a shimmering label is several.
 	var items [][]seg
 
+	blameAt := -1 // the blame's item, the first to go when the bar is full
+
 	addSegs := func(tip string, run func(m *Model) tea.Cmd, ss ...seg) {
 		items, runs, tips = append(items, ss), append(runs, run), append(tips, tip)
 	}
@@ -4868,6 +4877,12 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 
 	if m.showsPreview() && m.pv.tbl != nil && m.pv.tbl.column() != "" { // the cursor's column, where a file's cursor is
 		add(" "+m.pv.tbl.column()+" ", dim, "", nil)
+	}
+
+	if text, tip, run, ok := m.blameItem(); ok {
+		blameAt = len(items)
+
+		add(text, dim, tip, run)
 	}
 
 	if m.showsPreview() && m.pv.md != 1 && !m.pv.side(m) && m.pv.kind != pvTable { // a side-by-side diff keeps its cursor line
@@ -4901,6 +4916,10 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 
 	if chip, run := m.updateChip(); chip != nil {
 		addSegs(map[string]string{"available": "Install pando v" + m.upd.Latest, "ready": "Restart to Update"}[m.upd.State], run, chip...)
+	}
+
+	if used := segsWidth(left) + segsWidth(slices.Concat(items...)); blameAt >= 0 && used > w {
+		items, runs, tips = slices.Delete(items, blameAt, blameAt+1), slices.Delete(runs, blameAt, blameAt+1), slices.Delete(tips, blameAt, blameAt+1)
 	}
 
 	x, hot := w, -1

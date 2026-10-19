@@ -345,6 +345,8 @@ column and a blob are read only.
 - Indentation follows the file: its `.editorconfig`, else what its lines show,
   else `tab_size` and `insert_spaces`; the status bar's Tab Size changes the
   file's own.
+- The status bar names who last changed the cursor's line and when (`Not
+  Committed Yet` for a line typed since); a click opens the commit.
 
 ![a sloppy Go file typed into an untitled buffer, saved with path completion, and tidied by gofmt on the way to disk](demo/edit.gif)
 
