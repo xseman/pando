@@ -249,7 +249,10 @@ typing in files with a language; `ctrl+space` anywhere.
 `format.go` pipes the text through the `[format]` tool (stdin to stdout, 10 s
 timeout, on the update loop); `setText` swaps only differing lines. A failing
 tool changes nothing. `format_on_save` runs it in `save`. `commandFor` picks
-by extension, language id, then defaults (`gofmt`).
+by extension, language id, then defaults (`gofmt`). A file with none and a
+language server goes to `textDocument/formatting` (`lspFormat`), with the
+file's indentation, waiting at most 3 s on the update loop: a server still
+starting formats the next time.
 
 ## Language servers
 

@@ -664,7 +664,7 @@ func (p *preview) save(m *Model, force bool) tea.Cmd {
 
 	note := ""
 
-	if m.st.Settings.FmtSave && len(m.formatCommand(p.path)) > 0 {
+	if m.st.Settings.FmtSave && m.canFormat(p.path) {
 		if err := p.format(m); err != nil { // the file is saved unformatted, as VS Code saves it
 			note = " — " + err.Error()
 		}

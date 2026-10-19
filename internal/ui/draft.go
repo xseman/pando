@@ -265,7 +265,7 @@ func (m *Model) saveAs(i int, path string, then func(m *Model) tea.Cmd) tea.Cmd 
 	p.path, p.name, p.draft, p.cell = path, "", "", nil
 	note := ""
 
-	if onScreen && m.st.Settings.FmtSave && len(m.formatCommand(path)) > 0 {
+	if onScreen && m.st.Settings.FmtSave && m.canFormat(path) {
 		if err := p.format(m); err != nil { // saved unformatted, as VS Code saves it
 			note = " — " + err.Error()
 		}

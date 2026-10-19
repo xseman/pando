@@ -26,6 +26,23 @@ func (m *Model) formatCommand(path string) []string {
 	return argv
 }
 
+// canFormat reports a formatter for a file: a tool, or its language server
+// when one is installed, so format_on_save stays quiet without it.
+func (m *Model) canFormat(path string) bool {
+	if len(m.formatCommand(path)) > 0 {
+		return true
+	}
+
+	_, argv := m.lspCommand(path)
+	if len(argv) == 0 {
+		return false
+	}
+
+	_, err := exec.LookPath(argv[0])
+
+	return err == nil
+}
+
 // noFormatter says what to put in config.toml for a file pando cannot format.
 func noFormatter(path string) error {
 	ext := strings.TrimPrefix(filepath.Ext(path), ".")
@@ -73,12 +90,20 @@ func (p *preview) format(m *Model) error {
 		return errors.New("open a file first")
 	}
 
-	argv := m.formatCommand(p.path)
-	if len(argv) == 0 {
+	var out string
+
+	var err error
+
+	switch argv := m.formatCommand(p.path); {
+	case len(argv) > 0:
+		out, err = runFormatter(argv, p.path, p.text())
+	case !m.canFormat(p.path):
 		return noFormatter(p.path)
+	default:
+		spaces, size := m.indentOf(p)
+		out, err = m.lspFormat(p.path, p.text(), size, spaces)
 	}
 
-	out, err := runFormatter(argv, p.path, p.text())
 	if err != nil {
 		return err
 	}
@@ -86,6 +111,43 @@ func (p *preview) format(m *Model) error {
 	p.setText(m, out)
 
 	return nil
+}
+
+// lspFormatWait is how long Format Document waits for a language server.
+const lspFormatWait = 3 * time.Second
+
+// lspFormat formats text with the file's language server, for a file
+// [format] has no tool for: VS Code's default formatter is the language's
+// own. ponytail: it waits on the update loop, as runFormatter does, at most
+// lspFormatWait; a server still starting formats the next time.
+func (m *Model) lspFormat(path, text string, size int, spaces bool) (string, error) {
+	lang, argv := m.lspCommand(path)
+	root, pool := m.ws, &m.lsps
+
+	type result struct {
+		text string
+		err  error
+	}
+
+	done := make(chan result, 1) // a server too slow answers into it, unread
+
+	go func() {
+		c, err := pool.get(root, path, lang, argv)
+		if err != nil {
+			done <- result{err: err}
+			return
+		}
+
+		out, err := c.Format(path, text, size, spaces)
+		done <- result{out, err}
+	}()
+
+	select {
+	case r := <-done:
+		return r.text, r.err
+	case <-time.After(lspFormatWait):
+		return "", fmt.Errorf("%s is still busy: format again in a moment", argv[0])
+	}
 }
 
 // setText puts formatted text into the editor. Only the lines that actually

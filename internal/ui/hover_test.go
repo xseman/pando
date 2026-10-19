@@ -160,3 +160,39 @@ func TestSignatureHelp(t *testing.T) {
 	}
 }
 
+// A file [format] has no tool for formats with its language server, with
+// the file's own indentation.
+func TestFormatWithServer(t *testing.T) {
+	m, path := serverModel(t, "a.zz", "a  \n\tb\t\n")
+	m.pv.ind = indent{style: "space", size: 2}
+
+	if !m.canFormat(path) {
+		t.Fatal("a server formats")
+	}
+
+	fire(m, m.pv.formatDoc(m))
+
+	if got := m.pv.buf.text(); got != "a\n  b" {
+		t.Fatalf("formatted %q (%s)", got, m.msg)
+	}
+}
+
+// A language server that is not installed formats nothing: format_on_save
+// saves quietly, as it did before servers formatted.
+func TestFormatServerMissing(t *testing.T) {
+	m, path := editorModel(t, "a.zz", "a  \n")
+	m.st.Settings.LSP = map[string][]string{"zz": {"no-such-language-server"}}
+	m.st.Settings.FmtSave = true
+
+	if m.canFormat(path) {
+		t.Fatal("a server not installed formats")
+	}
+
+	press(m, "x")
+
+	for _, msg := range runAll(m.pv.save(m, false)) {
+		if f, ok := msg.(flashMsg); ok && (f.err || f.text != "saved a.zz") {
+			t.Fatalf("save said %q", f.text)
+		}
+	}
+}
