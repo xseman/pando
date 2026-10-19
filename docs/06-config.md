@@ -174,11 +174,11 @@ A file indents as its `.editorconfig` says, then as its lines show, then as
 `tab_size` and `insert_spaces` say, VS Code's `editor.detectIndentation`
 with the EditorConfig extension:
 
-| Source          | Gives                                                                                  |
-| --------------- | -------------------------------------------------------------------------------------- |
-| `.editorconfig` | `indent_style`, `indent_size`, `tab_width`; the nearest file wins, up to `root = true` |
-| its lines       | tabs or spaces, by what more lines start with; a level's spaces, by the commonest step |
-| the status bar  | Tab Size: the file's own until it closes; a reload keeps it                            |
+| Source          | Gives                                                                                    |
+| --------------- | ---------------------------------------------------------------------------------------- |
+| `.editorconfig` | `indent_style`, `indent_size`, `tab_width`; the nearest file wins, up to `root = true`   |
+| its lines       | tabs or spaces, by what more lines start with; a level's spaces, by the commonest step   |
+| the status bar  | Tab Size: the file's own until it closes, a reload keeps it; Auto goes back to the above |
 
 Other `.editorconfig` keys (`end_of_line`, `trim_trailing_whitespace`, …)
 are not read.

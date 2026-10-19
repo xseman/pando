@@ -417,8 +417,12 @@ func (f *connForm) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 // click is a click at cell cx past the frame of row k: the row takes the
 // keyboard, and on Type a click on ‹ turns it back, elsewhere on the value
 // on; on Save one flips it, as ← and → do.
-func (f *connForm) click(k, cx int) tea.Cmd {
+func (f *connForm) click(_ *Model, k, cx int) tea.Cmd {
 	const value = 11 // " ", the label padded to 9, " "
+
+	if k >= len(f.rows()) { // the URL, the rule or the test's line
+		return nil
+	}
 
 	cmd := f.move(k - f.at)
 
@@ -461,6 +465,10 @@ func boxStyles(st textinput.Styles) textinput.Styles {
 // height is the box's rows, its frame included: the rows, the URL, a rule
 // and the test's line.
 func (f *connForm) height() int { return len(f.rows()) + 5 }
+
+// size is placed as if PostgreSQL's, the tallest kind, so the top stays put
+// as the kind turns.
+func (f *connForm) size() (w, h, placed int) { return 72, f.height(), (&connForm{}).height() }
 
 // lines draws the form w cells wide.
 func (f *connForm) lines(w int) []string {

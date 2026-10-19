@@ -71,11 +71,16 @@ vrow{line, from, to}   screen rows; wrapped when wrap is on
 - A file's own indentation (`p.ind`, `indent.go`) is read in the load's
   command, with the render: `editorConfig` over `detectIndent`, field by
   field; `indentOf` puts it over `insert_spaces` and `tab_size`. The status
-  bar's picker sets it `picked`, which a reload keeps. The tab key inserts
-  spaces or a tab by it.
+  bar's Tab Size opens the indentation dialog (`indentForm`, a `formBox`):
+  Apply sets it `picked`, which a reload keeps; Auto reads it again
+  (`fileIndent`) and drops `picked`. Without a file the dialog sets the
+  settings and has no Auto. The tab key inserts spaces or a tab by it.
 - `render_whitespace`: `blankMarks` picks `·`/`→` per rune, `markBlanks`
   paints them over the styled line. Files only.
-- The gutter's lane after the numbers marks lines against the file's staged
+- The cursor's line is lit the whole width, its number bold, in
+  `line_highlight_bg` (`lineHi`): files shown as text, not while text is
+  selected; a diff tint, a conflict or Go to Line's line wins.
+- The gutter's first column, before the numbers, marks lines against the file's staged
   text (`base`, read with each load), VS Code's quick diff (`gutter.go`):
   `lineChanges` diffs by Myers' algorithm the lines between a common prefix
   and suffix (`editScript`, at most `maxEdits`), in a command after each edit

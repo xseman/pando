@@ -278,10 +278,15 @@ Editors, session tabs and Terminal shells share `strip.go`.
 ## Modals
 
 One at a time (`Model.modal`): menu, picker (fuzzy), prompt, dialog
-(`newDialog`), or the Databases view's connection form (`modal.form`). Centered on the screen, or anchored (`x`, `y`) where the
+(`newDialog`), or a form (`modal.form`, a `formBox`: the Databases view's
+connection form, the indentation, the folder picker). Centered on the screen, or anchored (`x`, `y`) where the
 thing it acts on is, as rename over a symbol and a table's prompt over its
 cell; `area` keeps a box to some columns, a table's to the editor area, off a
-session docked beside it.
+session docked beside it. A menu at the pointer has square corners, a
+centered box round ones. A context menu's groups are `menuGroups`, a rule
+between them; the editor's go as VS Code's: the code (definition,
+references, symbol, rename, quick fix, hover), formatting, undo, the
+clipboard, Select All, find, then the file's own.
 
 ```text
 ╭ Select a branch or tag to checkout ─────────╮

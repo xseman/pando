@@ -1004,11 +1004,45 @@ type modal struct {
 	hover    int                              // a dialog's button under the pointer, -1 for none
 	pattern  string                           // the query as the labels show it matched
 	l        list
-	x, y     int       // anchor; x < 0 centers
-	form     *connForm // the New or Edit Connection form, which the box is instead of a list
+	x, y     int     // anchor; x < 0 centers
+	form     formBox // a form the box is instead of a list: New or Edit Connection, the indentation
 	// area is the screen columns [from, to) the box stays in: a table's keep
 	// to the editor area, off a session docked beside it. Zero is the screen.
 	area [2]int
+}
+
+// choices draws options in a row, a segmented control: the chosen one bold
+// on a background, the selection's while the row has the keyboard, the
+// rest dim. xs are where each starts, for a click.
+func choices(opts []string, sel int, focused bool) (segs []seg, xs []int) {
+	at := 0
+
+	for i, o := range opts {
+		st := dim
+		if i == sel {
+			st = bold.Background(ifElse(focused, pal.selBg, pal.hoverBg))
+			if focused && pal.selFg != nil {
+				st = st.Foreground(pal.selFg)
+			}
+		}
+
+		segs, xs = append(segs, sgOwn(" "+o+" ", st)), append(xs, at)
+		at += ansi.StringWidth(o) + 2
+	}
+
+	return segs, xs
+}
+
+// formBox is a form a modal holds instead of a list, drawing itself and
+// taking its keys, clicks and pastes.
+type formBox interface {
+	// size is the box's width and rows, its frame included, and the rows it
+	// is placed for: a form that grows keeps its top where its tallest has it.
+	size() (w, h, placed int)
+	lines(w int) []string
+	key(m *Model, k tea.KeyPressMsg) tea.Cmd
+	click(m *Model, r, cx int) tea.Cmd // row r inside the frame, any of them; cell cx past it
+	paste(msg tea.PasteMsg) tea.Cmd
 }
 
 // inputStyles paints a text input on the input box background.
@@ -1450,9 +1484,11 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 		x0, x1 = md.area[0], md.area[1]
 	}
 
-	if md.form != nil { // its top stays put as the kind turns: placed as if PostgreSQL's, the tallest
-		w, h = min(72, x1-x0-2), md.form.height()
-		return x0 + (x1-x0-w)/2, max((m.h-(&connForm{}).height())/3, 0), w, h, 0
+	if md.form != nil { // its top stays put as it grows: placed as if at its tallest
+		fw, fh, placed := md.form.size()
+		w, h = min(fw, x1-x0-2), fh
+
+		return x0 + (x1-x0-w)/2, max((m.h-placed)/3, 0), w, h, 0
 	}
 
 	if md.dialog {
@@ -1866,8 +1902,8 @@ func (md *modal) mouse(m *Model, msg tea.MouseMsg) tea.Cmd {
 	if _, click := msg.(tea.MouseClickMsg); md.form != nil && click { // outside closes it, a row takes the keyboard
 		if r := mo.Y - y - 1; !inside {
 			md.dismiss(m)
-		} else if r >= 0 && r < len(md.form.rows()) {
-			return md.form.click(r, mo.X-x-1)
+		} else if r >= 0 {
+			return md.form.click(m, r, mo.X-x-1)
 		}
 
 		return nil

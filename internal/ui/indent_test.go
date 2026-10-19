@@ -6,6 +6,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -165,8 +166,7 @@ func TestFileIndentation(t *testing.T) {
 		m.statusMouse(ansi.StringWidth(s[:i]) + 1)
 	}
 	click("Tab Size")
-	choose(t, m, "Indent Using Tabs")
-	choose(t, m, "8")
+	press(m, "up", "right", "8", "enter") // Tabs, 8 wide
 
 	if tabW != 8 || string(m.pv.plain[1]) != "        b()" {
 		t.Fatalf("picked 8: tab width %d, %q", tabW, string(m.pv.plain[1]))
@@ -253,4 +253,75 @@ func FuzzDetectIndent(f *testing.F) {
 			t.Fatalf("%q: no line is indented, yet %+v", text, got)
 		}
 	})
+}
+
+// The indentation dialog: spaces or tabs and a width in rows of choices,
+// picked with the keys or the mouse; Apply makes them the file's own, Auto
+// gives the file its own back, esc changes nothing. Without a file it
+// sets the defaults, and has no Auto.
+func TestIndentDialog(t *testing.T) {
+	t.Cleanup(func() { tabW = 4 })
+
+	m, path := editorModel(t, "a.yml", "a:\n  b: 1\n")
+	mustWrite(t, filepath.Join(filepath.Dir(path), ".editorconfig"), "[*.yml]\nindent_style = space\nindent_size = 2\n")
+
+	m.indentPicker()
+
+	out := checkWidths(t, m)
+	for _, want := range []string{"Editor Indentation", "Spaces", "Tabs", " 1 ", " 8 ", "Cancel", "Auto", "Apply"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("dialog lacks %q:\n%s", want, out)
+		}
+	}
+
+	press(m, "esc")
+
+	if m.modal != nil || m.pv.ind.picked {
+		t.Fatal("esc changed the indentation")
+	}
+
+	// The mouse: Tabs, then 6, then Apply.
+	m.indentPicker()
+
+	clickOn := func(label string) {
+		t.Helper()
+
+		for y, l := range strings.Split(checkWidths(t, m), "\n") {
+			if i := strings.Index(l, label); i >= 0 {
+				click(m, ansi.StringWidth(l[:i])+1, y, tea.MouseLeft)
+				return
+			}
+		}
+
+		t.Fatalf("no %q on screen", label)
+	}
+	clickOn(" Tabs ")
+	clickOn(" 6 ")
+	clickOn(" Apply ")
+
+	if m.modal != nil || m.pv.ind != (indent{"tab", 6, true}) || tabW != 6 {
+		t.Fatalf("after Apply: %+v, tab width %d", m.pv.ind, tabW)
+	}
+
+	// Auto: the .editorconfig again, no longer picked.
+	m.indentPicker()
+	press(m, "a")
+
+	if m.pv.ind != (indent{"space", 2, false}) || tabW != 2 {
+		t.Fatalf("after Auto: %+v, tab width %d", m.pv.ind, tabW)
+	}
+
+	// No file: the defaults, without Auto.
+	m.pv = preview{}
+	m.indentPicker()
+
+	if out := checkWidths(t, m); !strings.Contains(out, "Default Indentation") || strings.Contains(out, "Auto") {
+		t.Fatalf("defaults dialog:\n%s", out)
+	}
+
+	press(m, "up", "left", "3", "enter")
+
+	if !m.st.Settings.Spaces || m.st.Settings.TabSize != 3 {
+		t.Fatalf("settings %v %d", m.st.Settings.Spaces, m.st.Settings.TabSize)
+	}
 }

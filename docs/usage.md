@@ -347,8 +347,8 @@ column and a blob are read only.
 - `ctrl+shift+i` formats, `ctrl+s` too with `format_on_save`. Go uses `gofmt`,
   a file with no `[format]` tool its language server.
 - Indentation follows the file: its `.editorconfig`, else what its lines show,
-  else `tab_size` and `insert_spaces`; the status bar's Tab Size changes the
-  file's own.
+  else `tab_size` and `insert_spaces`; the status bar's Tab Size opens a
+  dialog that changes the file's own (Auto goes back to what the file says).
 - The status bar names who last changed the cursor's line and when (`Not
   Committed Yet` for a line typed since); a click opens the commit.
 

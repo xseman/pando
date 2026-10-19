@@ -746,8 +746,7 @@ func TestStatusBarEditorItems(t *testing.T) {
 	}
 
 	click("Tab Size")
-	choose(t, m, "Indent Using Spaces")
-	choose(t, m, "2")
+	press(m, "up", "left", "2", "enter") // Spaces, 2 wide
 
 	// The file takes it as its own, as VS Code's model does: the settings stay.
 	if m.pv.ind != (indent{"space", 2, true}) || m.st.Settings.Spaces || tabW != 2 {
@@ -761,7 +760,11 @@ func TestStatusBarEditorItems(t *testing.T) {
 	m.modal = nil
 	runCommand(t, m, "editor.changeIndentation")
 
-	if m.modal == nil || m.modal.title != "Select Action" {
+	if m.modal == nil {
+		t.Fatal("editor.changeIndentation opened nothing")
+	}
+
+	if _, ok := m.modal.form.(*indentForm); !ok {
 		t.Fatalf("editor.changeIndentation opened %+v", m.modal)
 	}
 

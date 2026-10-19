@@ -5713,51 +5713,35 @@ func (m *Model) indentLabel() string {
 	return fmt.Sprintf("Tab Size: %d", size)
 }
 
-// indentPicker is VS Code's indentation menu: indent with spaces or with
-// tabs, then how wide. A file takes it as its own, as VS Code's model does;
-// a revision has none, so it sets the settings.
+// indentPicker is the indentation dialog: spaces or tabs, how wide. A file
+// takes it as its own, as VS Code's model does, and Auto gives it its own
+// back (its .editorconfig, else its lines); a revision has none, so it sets
+// the settings.
 func (m *Model) indentPicker() tea.Cmd {
-	size := func(spaces bool) func(m *Model) tea.Cmd {
-		return func(m *Model) tea.Cmd {
-			items := make([]item, 8)
-			for i := range items {
-				n := i + 1
+	spaces, size := m.indentation()
+	f := &indentForm{title: "Default Indentation", spaces: spaces, width: min(size, len(indentSizes)), at: indentSize}
 
-				hint := ""
-				if n == m.tabWidth() {
-					hint = "current"
-				}
+	f.apply = func(m *Model, spaces bool, n int) tea.Cmd {
+		return m.setSettings(map[string]any{"tab_size": n, "insert_spaces": spaces})
+	}
 
-				items[i] = item{label: strconv.Itoa(n), hint: hint, run: func(m *Model) tea.Cmd {
-					if m.pv.kind == pvFile {
-						m.pv.ind = indent{style: ifElse(spaces, "space", "tab"), size: n, picked: true}
-						m.saveSpot() // the tab keeps it
+	if m.pv.kind == pvFile {
+		f.title = "Editor Indentation"
+		f.apply = func(m *Model, spaces bool, n int) tea.Cmd {
+			m.pv.ind = indent{style: ifElse(spaces, "space", "tab"), size: n, picked: true}
+			m.saveSpot() // the tab keeps it
 
-						return m.syncTabs()
-					}
+			return m.syncTabs()
+		}
+		f.reset = func(m *Model) tea.Cmd {
+			m.pv.ind = fileIndent(m.pv.path, m.pv.text())
+			m.saveSpot()
 
-					return m.setSettings(map[string]any{"tab_size": n, "insert_spaces": spaces})
-				}}
-			}
-
-			m.modal = newPicker("Select Tab Size", items)
-
-			return nil
+			return m.syncTabs()
 		}
 	}
 
-	using := func(spaces bool) string {
-		if is, _ := m.indentation(); spaces == is {
-			return "current"
-		}
-
-		return ""
-	}
-
-	m.modal = newPicker("Select Action", []item{
-		{label: "Indent Using Spaces", hint: using(true), run: size(true)},
-		{label: "Indent Using Tabs", hint: using(false), run: size(false)},
-	})
+	m.modal = &modal{form: f, x: -1}
 
 	return nil
 }

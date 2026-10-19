@@ -1111,7 +1111,7 @@ func TestConnFormNew(t *testing.T) {
 	m, _ := connModel(t)
 	press(m, "n")
 
-	f := m.modal.form
+	f := formOf(m)
 	if f == nil || f.old != "" {
 		t.Fatalf("no form: %+v", m.modal)
 	}
@@ -1205,7 +1205,7 @@ func TestConnFormEditAndRemove(t *testing.T) {
 	})
 
 	m.db.editConn(m, "local")
-	f := m.modal.form
+	f := formOf(m)
 
 	if f.url() != "postgres://app@db.lan:6543/app?sslmode=require" || f.in[cfOptions].Value() != "sslmode=require" || f.in[cfName].Value() != "local" {
 		t.Fatalf("prefilled: %s %q", f.url(), f.in[cfName].Value())
@@ -1259,7 +1259,7 @@ func TestConnFormRenameKeyring(t *testing.T) {
 	})
 
 	m.db.editConn(m, "a")
-	m.modal.form.in[cfName].SetValue("b")
+	formOf(m).in[cfName].SetValue("b")
 
 	_, cmd := m.Update(keyMsg("enter"))
 	for _, msg := range runAll(cmd) {
@@ -1296,8 +1296,8 @@ func TestConnFormWrittenPassword(t *testing.T) {
 	m.st.Databases["q"] = "postgres://app@h:5432/db?password=s3cretQ&sslmode=disable"
 	m.db.editConn(m, "q")
 
-	if out := checkWidths(t, m); strings.Contains(out, "s3cretQ") || m.modal.form.in[cfOptions].Value() != "sslmode=disable" {
-		t.Fatalf("the password shows: %q\n%s", m.modal.form.in[cfOptions].Value(), out)
+	if out := checkWidths(t, m); strings.Contains(out, "s3cretQ") || formOf(m).in[cfOptions].Value() != "sslmode=disable" {
+		t.Fatalf("the password shows: %q\n%s", formOf(m).in[cfOptions].Value(), out)
 	}
 
 	press(m, "enter")
@@ -1314,7 +1314,7 @@ func TestConnFormKinds(t *testing.T) {
 
 	m.db.editConn(m, "my")
 
-	if f := m.modal.form; connKinds[f.kind].label != "MySQL" || f.url() != "mysql://root@127.0.0.1:3306/test" {
+	if f := formOf(m); connKinds[f.kind].label != "MySQL" || f.url() != "mysql://root@127.0.0.1:3306/test" {
 		t.Fatalf("edited: %s %s", connKinds[f.kind].label, f.url())
 	}
 }
@@ -1428,10 +1428,10 @@ func TestPasswordPromptWaits(t *testing.T) {
 	m.db.objs["prod"] = &dbObjs{}
 
 	press(m, "n")
-	form := m.modal.form
+	form := formOf(m)
 	_, cmd := m.Update(dbObjsMsg{id: "prod", target: m.st.Databases["prod"], gen: m.db.gen, err: db.ErrPassword})
 
-	if m.modal == nil || m.modal.form != form || cmd == nil {
+	if m.modal == nil || formOf(m) != form || cmd == nil {
 		t.Fatalf("the prompt took over the form: %+v", m.modal)
 	}
 
@@ -1494,7 +1494,7 @@ func TestConnFormIPv6(t *testing.T) {
 	m, _ := connModel(t)
 	press(m, "n")
 
-	f := m.modal.form
+	f := formOf(m)
 	f.in[cfHost].SetValue("::1")
 
 	if got := f.url(); got != "postgres://[::1]:5432" {
@@ -1528,11 +1528,11 @@ func TestConnFormUntilRestart(t *testing.T) {
 
 	m.db.editConn(m, "k")
 
-	if f := m.modal.form; f.in[cfPassword].Placeholder != "unchanged when empty" || !f.keep {
+	if f := formOf(m); f.in[cfPassword].Placeholder != "unchanged when empty" || !f.keep {
 		t.Fatalf("form: %q keep %v", f.in[cfPassword].Placeholder, f.keep)
 	}
 
-	m.modal.form.keep = false // Save: Until restart
+	formOf(m).keep = false // Save: Until restart
 
 	_, cmd := m.Update(keyMsg("enter"))
 	for _, msg := range runAll(cmd) {
@@ -1552,7 +1552,7 @@ func TestConnFormBlurredText(t *testing.T) {
 	m, _ := connModel(t)
 	press(m, "n")
 
-	for _, l := range m.modal.form.lines(72) {
+	for _, l := range formOf(m).lines(72) {
 		if strings.Contains(l, "\x1b[37m") || strings.Contains(l, ";37m") {
 			t.Fatalf("a box draws in ANSI 7: %q", ansi.Strip(l))
 		}
@@ -1564,7 +1564,7 @@ func TestConnFormMouse(t *testing.T) {
 	m, _ := connModel(t)
 	press(m, "n")
 
-	f := m.modal.form
+	f := formOf(m)
 	x, y, _, _, _ := m.modal.rect(m)
 	value := x + 1 + 11 // the frame, the label
 
@@ -1645,4 +1645,15 @@ func TestConsole(t *testing.T) {
 	if args := "-h db.io -u me -D shop --default-character-set=utf8mb4"; string(first) != "pw|"+args || string(again) != "|"+args+" -p" {
 		t.Fatalf("mariadb: %q, then %q", first, again)
 	}
+}
+
+// formOf is the connection form the modal holds, nil for none.
+func formOf(m *Model) *connForm {
+	if m.modal == nil {
+		return nil
+	}
+
+	f, _ := m.modal.form.(*connForm)
+
+	return f
 }
