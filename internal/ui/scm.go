@@ -1526,9 +1526,9 @@ func (s *scmView) edge(root string) lipgloss.Style {
 func (s *scmView) frameRow(i, w int) string {
 	switch {
 	case i+1 < len(s.rows) && s.rows[i+1].kind == rowMsg:
-		return frameLine(w, 1, "▁", s.edge(s.rows[i].root))
+		return frameLine(w, "▁", s.edge(s.rows[i].root))
 	case i > 0 && s.rows[i-1].kind == rowMsg:
-		return frameLine(w, 1, "▔", s.edge(s.rows[i].root))
+		return frameLine(w, "▔", s.edge(s.rows[i].root))
 	}
 
 	return blank(w)

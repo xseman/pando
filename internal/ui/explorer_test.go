@@ -254,7 +254,7 @@ func TestFindInFolderQuotesGlobs(t *testing.T) {
 
 	include := globQuote("app/[id]") + "/**"
 	for _, e := range engines {
-		files, _, err := runSearch(context.Background(), root, searchOpts{query: "needle", include: include}, e)
+		files, _, err := runSearch(context.Background(), root, searchOpts{query: "needle", include: include}, e, nil)
 
 		var got []string
 		for _, f := range files {

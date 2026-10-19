@@ -282,21 +282,27 @@ own tab shows their count in its row (`icTabs`).
 ## Search
 
 Workspace search 250 ms after the last key, capped at `maxSearchMatches`.
-Engine: `rg --json`, else `git grep`, else `grep -rnIZ`.
+Engine: `rg --json --max-columns=1000 --max-columns-preview`, else `git
+grep`, else `grep -rnIZ`. The results show while it runs: `runSearch`
+hands over the matches so far, sorted, at once and then every
+`searchBatch` (100 ms), the latest only (`waitSearch`); the selection stays
+on its line.
 
 ```text
-  ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
- ▾▏ query                       Aa ab .* ▕   ▾ opens replace (ctrl+h)
-  ▏ replace                        AB ⇄ ▕   AB preserve case, ⇄ replace all
-  ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔   one frame round both
-    files to include                        ⋯ opens include / exclude
-  ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
-  ▏ e.g. *.ts, src/**                   ▕
-  ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
- 2 results in 1 file              tree  ⋯   tree groups by folder
- ▾ main.go                             [2]
-     println("hello world")                ⏎ opens with the match selected
+ ▾ ❱ query                    Aa ab .*   ▾ opens replace (ctrl+h); ❱ in the accent with the keyboard
+   ❱ replace                      AB ⇄   AB preserve case, ⇄ replace all
+ ──────────────────────────────────── ▾   ▾ opens include / exclude (ctrl+i)
+   include ❱ e.g. *.ts, src/**
+   exclude ❱ e.g. **/dist
+  2 results in 1 file               tree  tree groups by folder; Searching… while it runs
+ ─────────────────────────────────────
+ ▾ main.go                             2
+   12: println("hello world")             the line number; ⏎ opens with the match selected
 ```
+
+Matches are marked in `match_bg` (yellow on the light theme), their text
+in `match_fg` where a theme gives one (the terminal theme), as in the
+references peek.
 
 `r` replaces the selected line or file, `R` all after asking. A file changed
 since the search is refused; there is no undo.

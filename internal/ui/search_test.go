@@ -36,7 +36,7 @@ func TestSearchEngines(t *testing.T) {
 			{searchOpts{query: "("}, "sub/b.go:1"},
 			{searchOpts{query: "hello", include: "*.go"}, "sub/b.go:1"},
 		} {
-			files, _, err := runSearch(context.Background(), root, c.o, e)
+			files, _, err := runSearch(context.Background(), root, c.o, e, nil)
 
 			var got []string
 			for _, f := range files {
@@ -48,12 +48,12 @@ func TestSearchEngines(t *testing.T) {
 			}
 		}
 
-		files, _, _ := runSearch(context.Background(), root, searchOpts{query: "hello"}, e)
+		files, _, _ := runSearch(context.Background(), root, searchOpts{query: "hello"}, e, nil)
 		if len(files) == 0 || len(files[0].lines) != 2 || !slices.Equal(files[0].lines[1].ranges, [][2]int{{4, 9}, {10, 15}}) || files[0].lines[1].line != 3 {
 			t.Errorf("%s: match ranges %+v", e, files)
 		}
 
-		if _, _, err := runSearch(context.Background(), root, searchOpts{query: "(", regex: true}, e); err == nil {
+		if _, _, err := runSearch(context.Background(), root, searchOpts{query: "(", regex: true}, e, nil); err == nil {
 			t.Errorf("%s: an invalid regex reports an error", e)
 		}
 	}
@@ -73,7 +73,7 @@ func TestSearchView(t *testing.T) {
 		t.Fatal("typing schedules a search")
 	}
 
-	m.Update(m.sr.onTick(m, m.sr.gen)())
+	searchNow(m)
 
 	out := checkWidths(t, m)
 	if !strings.Contains(out, "1 result in 1 file") || !strings.Contains(out, "package x") || !strings.Contains(out, "x.go") {
@@ -87,7 +87,7 @@ func TestSearchView(t *testing.T) {
 	}
 
 	rc := m.colRect(m.colOf(viewSearch))
-	click(m, rc.x+m.sr.toggles(rc.w, &m.sr.query)[2].x+1, m.bodyTop(viewSearch)+1, tea.MouseLeft) // the query row, under its frame
+	click(m, rc.x+m.sr.toggles(rc.w, &m.sr.query)[2].x+1, m.bodyTop(viewSearch), tea.MouseLeft) // the query row, the first
 
 	if !m.sr.regex || !m.sr.busy {
 		t.Fatal("clicking .* turns on regex and searches again")
@@ -113,7 +113,7 @@ func TestSearchReplace(t *testing.T) {
 	mustWrite(t, path, "foo bar\nfoo foo\n")
 	press(m, "4")
 	press(m, "f", "o", "o")
-	m.Update(m.sr.onTick(m, m.sr.gen)())
+	searchNow(m)
 	press(m, "ctrl+h")
 
 	if !m.sr.replace.Focused() {
@@ -159,7 +159,7 @@ func TestSearchTreeAndExclude(t *testing.T) {
 	mustGit(t, root, "init", "-q")
 
 	for _, e := range []string{"git", "grep"} {
-		files, _, err := runSearch(context.Background(), root, searchOpts{query: "hello", exclude: "*.txt"}, e)
+		files, _, err := runSearch(context.Background(), root, searchOpts{query: "hello", exclude: "*.txt"}, e, nil)
 
 		var got []string
 		for _, f := range files {
@@ -244,5 +244,108 @@ func TestSearchPreserveCaseKey(t *testing.T) {
 
 	if !m.sr.editing() || !m.sr.preserveCase {
 		t.Fatalf("M-p in the query box: editing %v, preserve case %v", m.sr.editing(), m.sr.preserveCase)
+	}
+}
+
+// searchNow runs the search the query waits for and hands Update every
+// batch, the last included.
+func searchNow(m *Model) {
+	cmd := m.sr.onTick(m, m.sr.gen)
+	for {
+		msg, _ := cmd().(searchMsg)
+		m.Update(msg)
+
+		if !msg.partial {
+			return
+		}
+
+		cmd = waitSearch(msg.ch)
+	}
+}
+
+// runSearch hands over what it found so far while the engine runs, sorted
+// as the end result is, each batch a part of the next, the last one whole.
+func TestSearchBatches(t *testing.T) {
+	root := t.TempDir()
+	for i := range 400 {
+		mustWrite(t, filepath.Join(root, fmt.Sprintf("d%03d", i/50), fmt.Sprintf("f%03d.txt", i)), strings.Repeat("needle\n", 3)) // 1200 matches, under maxSearchMatches
+	}
+
+	var batches [][]searchFile
+
+	files, _, err := runSearch(context.Background(), root, searchOpts{query: "needle"}, "grep", func(fs []searchFile) { batches = append(batches, fs) })
+	if err != nil || len(files) != 400 {
+		t.Fatalf("%d files (%v)", len(files), err)
+	}
+
+	if len(batches) == 0 || len(batches[0]) == 0 {
+		t.Fatal("the first match makes no batch")
+	}
+
+	for _, b := range batches {
+		if !slices.IsSortedFunc(b, func(a, c searchFile) int { return strings.Compare(a.path, c.path) }) || len(b) > len(files) {
+			t.Fatalf("a batch of %d, unsorted or too many", len(b))
+		}
+	}
+}
+
+// A batch while the search runs keeps the selection on its line and the
+// search busy; the last one ends it.
+func TestSearchKeepsSelection(t *testing.T) {
+	m := testModel(t)
+	press(m, "4", "x")
+
+	gen, ch := m.sr.gen, make(chan searchMsg, 1)
+	b := searchFile{path: "b.go", count: 1, lines: []searchLine{{line: 7, text: "x"}}}
+	c := searchFile{path: "c.go", count: 1, lines: []searchLine{{line: 3, text: "x"}}}
+
+	m.Update(searchMsg{gen: gen, files: []searchFile{c}, partial: true, ch: ch})
+	m.sr.l.sel = 1 // c.go's line 3
+
+	a := searchFile{path: "a.go", count: 1, lines: []searchLine{{line: 1, text: "x"}}}
+	if _, cmd := m.Update(searchMsg{gen: gen, files: []searchFile{a, b, c}, partial: true, ch: ch}); cmd == nil || !m.sr.busy {
+		t.Fatal("a batch while the search runs stops waiting")
+	}
+
+	if r := m.sr.rows()[m.sr.l.sel]; m.sr.files[r.file].path != "c.go" || r.line != 0 {
+		t.Fatalf("the selection moved to %+v", r)
+	}
+
+	m.Update(searchMsg{gen: gen, files: []searchFile{a, b, c}, ch: ch})
+
+	if m.sr.busy || !strings.Contains(checkWidths(t, m), "3: x") {
+		t.Fatalf("the last batch: busy %v\n%s", m.sr.busy, checkWidths(t, m))
+	}
+}
+
+// The rule under the boxes shows the files to include and exclude; the
+// summary's button turns the list into a tree; a match shows its line.
+func TestSearchHeader(t *testing.T) {
+	m := testModel(t)
+	press(m, "4", "p", "a", "c", "k")
+	searchNow(m)
+
+	rc, top := m.colRect(m.colOf(viewSearch)), m.bodyTop(viewSearch)
+
+	if out := checkWidths(t, m); !strings.Contains(out, "❱ pack") || !strings.Contains(out, "1: package x") {
+		t.Fatalf("header and match:\n%s", out)
+	}
+
+	click(m, rc.x+rc.w-2, top+m.sr.ruleY(), tea.MouseLeft)
+
+	if out := checkWidths(t, m); !m.sr.showDetails || !strings.Contains(out, "include ❱") || !strings.Contains(out, "exclude ❱") {
+		t.Fatalf("the rule's ▾ opens include and exclude:\n%s", out)
+	}
+
+	click(m, rc.x+m.sr.ruleY()+12, top+m.sr.ruleY()+1, tea.MouseLeft)
+
+	if !m.sr.include.Focused() {
+		t.Fatal("a click on include gives it the keyboard")
+	}
+
+	click(m, rc.x+rc.w-3, top+m.sr.headH()-2, tea.MouseLeft)
+
+	if !m.sr.tree {
+		t.Fatal("the summary's button turns the list into a tree")
 	}
 }

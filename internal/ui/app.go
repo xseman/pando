@@ -2865,8 +2865,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case searchTickMsg:
 		return m, m.sr.onTick(m, int(msg))
 	case searchMsg:
-		m.sr.onResult(msg)
-		return m, nil
+		return m, m.sr.onResult(msg)
 
 	case ghMsg:
 		m.gh.onMsg(m, msg)

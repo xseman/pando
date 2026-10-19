@@ -55,6 +55,8 @@ type (
 		files     []searchFile
 		truncated bool
 		err       error
+		partial   bool           // more comes on ch while the search runs
+		ch        chan searchMsg // where the search's next batch arrives
 	}
 )
 
@@ -185,10 +187,14 @@ func (s *searchView) clear() {
 	s.l = list{sel: -1}
 }
 
-// headH is the rows above the results: the query box framed with the
-// replace box when open, the framed include/exclude boxes under their labels
-// when open, and the summary.
-func (s *searchView) headH() int { return 4 + b2i(s.showReplace) + 8*b2i(s.showDetails) }
+// headH is the rows above the results: the query, the replacement when
+// open, a rule, the files to include and exclude when open, the summary
+// and a rule.
+func (s *searchView) headH() int { return 4 + b2i(s.showReplace) + 2*b2i(s.showDetails) }
+
+// ruleY is the row of the rule under the boxes, whose ▾ shows the files to
+// include and exclude.
+func (s *searchView) ruleY() int { return 1 + b2i(s.showReplace) }
 
 // rows lists the result rows: files with their matching lines, grouped under
 // directories in tree mode.
@@ -295,7 +301,7 @@ func (s *searchView) toggles(w int, box *textinput.Model) []rowAction {
 		}
 	}
 
-	layoutRight(acts, w-3, 1) // " ▕ " follows the buttons
+	layoutRight(acts, w-1, 1) // a blank ends the row
 
 	return acts
 }
@@ -328,16 +334,59 @@ func (s *searchView) onTick(m *Model, gen int) tea.Cmd {
 	s.re = matcher(o)
 	root := m.ws
 
-	return func() tea.Msg {
-		//nolint:contextcheck // searchEngine only probes: exec.LookPath takes no context and git.Root has no context form.
-		files, truncated, err := runSearch(ctx, root, o, searchEngine(root))
-		return searchMsg{gen: gen, files: files, truncated: truncated, err: err}
+	// The results so far arrive while rg runs, the latest only: put drops a
+	// batch nobody took yet for the newer one, the last of all included.
+	ch := make(chan searchMsg, 1)
+	put := func(msg searchMsg) {
+		select {
+		case <-ch:
+		default:
+		}
+
+		ch <- msg
 	}
+
+	go func() {
+		//nolint:contextcheck // searchEngine only probes: exec.LookPath takes no context and git.Root has no context form.
+		files, truncated, err := runSearch(ctx, root, o, searchEngine(root), func(files []searchFile) {
+			put(searchMsg{gen: gen, files: files, partial: true, ch: ch})
+		})
+		put(searchMsg{gen: gen, files: files, truncated: truncated, err: err, ch: ch})
+	}()
+
+	return waitSearch(ch)
 }
 
-func (s *searchView) onResult(msg searchMsg) {
+// waitSearch is the search's next batch.
+func waitSearch(ch chan searchMsg) tea.Cmd { return func() tea.Msg { return <-ch } }
+
+// onResult shows a batch of results, the selection kept on its line; a
+// batch while the search runs waits for the next.
+func (s *searchView) onResult(msg searchMsg) tea.Cmd {
 	if msg.gen != s.gen {
-		return
+		return nil
+	}
+
+	at, line := "", 0
+
+	if rows := s.rows(); s.l.sel >= 0 && s.l.sel < len(rows) && rows[s.l.sel].file >= 0 {
+		f := s.files[rows[s.l.sel].file]
+		if at = f.path; rows[s.l.sel].line >= 0 {
+			line = f.lines[rows[s.l.sel].line].line
+		}
+	}
+
+	s.files, s.truncated, s.err = msg.files, msg.truncated, ""
+	if msg.err != nil {
+		s.err = msg.err.Error()
+	}
+
+	s.l.sel = slices.IndexFunc(s.rows(), func(r srRow) bool {
+		return r.file >= 0 && s.files[r.file].path == at && (line == 0 && r.line < 0 || r.line >= 0 && s.files[r.file].lines[r.line].line == line)
+	})
+
+	if msg.partial {
+		return waitSearch(msg.ch)
 	}
 
 	if s.cancel != nil {
@@ -346,13 +395,11 @@ func (s *searchView) onResult(msg searchMsg) {
 
 	s.busy, s.cancel = false, nil
 
-	s.files, s.truncated, s.err = msg.files, msg.truncated, ""
-	if msg.err != nil {
-		s.err = msg.err.Error()
-	}
-
-	s.l = list{sel: -1}
+	return nil
 }
+
+// searchBatch is how often a running search shows what it found so far.
+const searchBatch = 100 * time.Millisecond
 
 // searchEngine picks ripgrep, git grep inside a repository, or grep.
 func searchEngine(root string) string {
@@ -419,8 +466,10 @@ func matcher(o searchOpts) *regexp.Regexp {
 }
 
 // runSearch finds o.query under root and returns matches by file, sorted by
-// path; truncated reports that maxSearchMatches stopped it.
-func runSearch(ctx context.Context, root string, o searchOpts, engine string) ([]searchFile, bool, error) {
+// path; truncated reports that maxSearchMatches stopped it. partial, when
+// not nil, gets the matches so far, sorted the same, at once and then at
+// most every searchBatch while the engine runs.
+func runSearch(ctx context.Context, root string, o searchOpts, engine string, partial func([]searchFile)) ([]searchFile, bool, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -428,7 +477,7 @@ func runSearch(ctx context.Context, root string, o searchOpts, engine string) ([
 
 	switch engine {
 	case "rg":
-		args = []string{"rg", "--json", "--no-config", "--no-messages", "--ignore-case"}
+		args = []string{"rg", "--json", "--no-config", "--no-messages", "--ignore-case", "--max-columns=1000", "--max-columns-preview"}
 		if o.caseSens {
 			args[4] = "--case-sensitive"
 		}
@@ -507,6 +556,20 @@ func runSearch(ctx context.Context, root string, o searchOpts, engine string) ([
 	re := matcher(o)
 	byPath := map[string]*searchFile{}
 	total, truncated := 0, false
+
+	var sent time.Time
+
+	sorted := func() []searchFile {
+		files := make([]searchFile, 0, len(byPath))
+		for _, f := range byPath {
+			files = append(files, *f)
+		}
+
+		slices.SortFunc(files, func(a, b searchFile) int { return strings.Compare(a.path, b.path) })
+
+		return files
+	}
+
 	sc := bufio.NewScanner(out)
 	sc.Buffer(make([]byte, 64*1024), 4*1024*1024)
 
@@ -534,6 +597,12 @@ func runSearch(ctx context.Context, root string, o searchOpts, engine string) ([
 
 			break
 		}
+
+		if partial != nil && time.Since(sent) >= searchBatch {
+			partial(sorted())
+
+			sent = time.Now()
+		}
 	}
 
 	err = cmd.Wait()
@@ -550,14 +619,7 @@ func runSearch(ctx context.Context, root string, o searchOpts, engine string) ([
 		}
 	}
 
-	files := make([]searchFile, 0, len(byPath))
-	for _, f := range byPath {
-		files = append(files, *f)
-	}
-
-	slices.SortFunc(files, func(a, b searchFile) int { return strings.Compare(a.path, b.path) })
-
-	return files, truncated, err
+	return sorted(), truncated, err
 }
 
 // parseSearchLine reads one output line: rg's JSON, or grep's
@@ -619,37 +681,25 @@ func parseSearchLine(engine string, b []byte, re *regexp.Regexp) (string, search
 }
 
 func (s *searchView) lines(m *Model, w, h int) []string {
-	frame := func(glyph string, focused bool) string {
-		if focused {
-			return frameLine(w, 2, glyph, fg(pal.accent))
-		}
-
-		return frameLine(w, 2, glyph, fg(pal.inputBorder))
-	}
-
-	top := s.query.Focused() || s.replace.Focused()
-
-	out := []string{frame("▁", top), s.inputRow(m, &s.query, w)}
+	out := []string{s.inputRow(m, &s.query, w, "")}
 	if s.showReplace {
-		out = append(out, s.inputRow(m, &s.replace, w))
+		out = append(out, s.inputRow(m, &s.replace, w, ""))
 	}
 
-	out = append(out, frame("▔", top))
+	out = append(out, row(w, nil, []seg{sg(" "+strings.Repeat("─", max(w-4, 0)), fg(pal.inputBorder))}, sg(ifElse(s.showDetails, "▾", "◂")+" ", dim)))
 
 	if s.showDetails {
-		in, ex := s.include.Focused(), s.exclude.Focused()
-		out = append(out, row(w, nil, []seg{sg("   files to include", dim)}), frame("▁", in), s.inputRow(m, &s.include, w), frame("▔", in),
-			row(w, nil, []seg{sg("   files to exclude", dim)}), frame("▁", ex), s.inputRow(m, &s.exclude, w), frame("▔", ex))
+		out = append(out, s.inputRow(m, &s.include, w, "include"), s.inputRow(m, &s.exclude, w, "exclude"))
 	}
 
-	out = append(out, s.summary(m, w))
+	out = append(out, s.summary(m, w), row(w, nil, []seg{sg(" "+strings.Repeat("─", max(w-2, 0)), fg(pal.inputBorder))}))
 
 	switch y, x := m.hoverRow(viewSearch), m.mouseCol(viewSearch); {
-	case y == 1 && x < 2:
+	case y == 0 && x < 2:
 		m.tip = "Toggle Replace  ^h"
-	case y == len(out)-1 && x >= w-3:
+	case y == s.ruleY() && x >= w-3:
 		m.tip = "Toggle Files to Include  ^i"
-	case y == len(out)-1 && x >= w-6:
+	case y == len(out)-2 && x >= w-4:
 		m.tip = ifElse(s.tree, "View as List  t", "View as Tree  t")
 	}
 
@@ -665,16 +715,10 @@ func (s *searchView) lines(m *Model, w, h int) []string {
 	})...)
 }
 
-// inputRow is a one-row input box: a chevron opening the replacement on the
-// query row, the text with room to breathe, then the box's toggles.
-func (s *searchView) inputRow(m *Model, in *textinput.Model, w int) string {
-	box := lipgloss.NewStyle().Background(pal.inputBg)
-
-	edge := fg(pal.inputBorder).Background(pal.inputBg)
-	if in.Focused() {
-		edge = fg(pal.accent).Background(pal.inputBg)
-	}
-
+// inputRow is a one-row prompt: the query's chevron opening the
+// replacement, or a label, then ❱ (the accent while it has the keyboard),
+// the text, and the box's toggles.
+func (s *searchView) inputRow(m *Model, in *textinput.Model, w int, label string) string {
 	var acts []rowAction
 
 	tw := 0
@@ -685,33 +729,35 @@ func (s *searchView) inputRow(m *Model, in *textinput.Model, w int) string {
 			tw += a.w
 		}
 
-		if a, ok := hit(acts, m.mouseCol(viewSearch)); ok && m.hoverRow(viewSearch) == 1+b2i(in == &s.replace) {
+		if a, ok := hit(acts, m.mouseCol(viewSearch)); ok && m.hoverRow(viewSearch) == b2i(in == &s.replace) {
 			m.tip = a.tip
 		}
 	}
 
-	field := w - 7 - tw
+	lead := "   "
+
+	switch {
+	case in == &s.query: // the chevron opens and closes the replacement
+		lead = " " + chevron(s.showReplace)
+	case label != "":
+		lead = "   " + label + " "
+	}
+
+	prompt := dim
+	if in.Focused() {
+		prompt = fg(pal.accent)
+	}
+
+	field := w - ansi.StringWidth(lead) - 2 - tw - 1
 	if field < 1 {
 		return blank(w)
 	}
 
-	in.SetStyles(inputStyles(m.dark))
+	in.SetStyles(boxStyles(textinput.DefaultStyles(m.dark)))
 	in.SetWidth(field)
 
-	text := realCaret(in.View())
-	if pad := field - ansi.StringWidth(text); pad > 0 {
-		text += box.Render(blank(pad))
-	} else {
-		text = ansi.Truncate(text, field, "")
-	}
-
-	lead := "  "
-	if in == &s.query { // the chevron opens and closes the replacement
-		lead = " " + chevron(s.showReplace)[:len(chevron(s.showReplace))-1]
-	}
-
 	var b strings.Builder
-	b.WriteString(lead + edge.Render("▏") + box.Render(" ") + text)
+	b.WriteString(dim.Render(lead) + prompt.Render("❱ ") + fit(realCaret(in.View()), field))
 
 	on := []bool{s.caseSens, s.word, s.regex}
 	if in == &s.replace {
@@ -719,15 +765,15 @@ func (s *searchView) inputRow(m *Model, in *textinput.Model, w int) string {
 	}
 
 	for i, a := range acts {
-		st := box.Faint(true)
+		st := dim
 		if on[i] {
 			st = lipgloss.NewStyle().Background(pal.accent).Foreground(pal.buttonFg)
 		}
 
-		b.WriteString(box.Render(" ") + st.Render(a.g.s()))
+		b.WriteString(" " + st.Render(a.g.s()))
 	}
 
-	b.WriteString(box.Render(" ") + edge.Render("▕") + " ")
+	b.WriteString(" ")
 
 	return b.String()
 }
@@ -775,7 +821,7 @@ func (s *searchView) summary(m *Model, w int) string {
 		mode = icList
 	}
 
-	return row(w, nil, left, sg(" "+mode.s()+" ", dim), sg(icEllipsis.s()+" ", dim))
+	return row(w, nil, left, sg(" "+mode.s()+" ", dim))
 }
 
 func plural(n int, word string) string {
@@ -812,8 +858,9 @@ func (s *searchView) renderRow(m *Model, r srRow, w int, selected, hovered bool,
 
 	ln := f.lines[r.line]
 	with, _ := s.replacing()
+	num := strconv.Itoa(ln.line) + ": " // the line, as the editor counts it
 
-	return row(w, bg, append(append(lead, sg("  ", plain)), matchSegs(ln, w-5-2*r.depth, base, s.replPreview(ln, with))...))
+	return row(w, bg, append(append(lead, sg("  ", plain), sg(num, dim)), matchSegs(ln, w-5-2*r.depth-len(num), base, s.replPreview(ln, with))...))
 }
 
 // replPreview is what each match of ln becomes, nil when replace is off.
@@ -974,7 +1021,7 @@ func matchSegs(ln searchLine, w int, base lipgloss.Style, repl func(a, b int) st
 		segs = append(segs, sg("…", dim))
 	}
 
-	hl := base.Background(pal.matchBg)
+	hl := matchStyle(base)
 
 	at := start
 	for _, r := range ln.ranges {
@@ -1243,10 +1290,8 @@ func (s *searchView) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 
 	w := m.bodyW(viewSearch)
 
-	switch {
-	case y == 0: // the frame above the boxes
-		return nil
-	case y == 1:
+	switch ry := s.ruleY(); {
+	case y == 0:
 		if x < 2 {
 			return s.toggleReplace()
 		}
@@ -1259,7 +1304,7 @@ func (s *searchView) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 
 		return s.query.Focus()
 
-	case y == 2 && s.showReplace:
+	case y == 1 && s.showReplace:
 		if a, ok := hit(s.toggles(w, &s.replace), x); ok {
 			return a.run(m)
 		}
@@ -1268,28 +1313,34 @@ func (s *searchView) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 
 		return s.replace.Focus()
 
-	case s.showDetails && y >= hh-8 && y <= hh-6: // the include box and its frame
-		s.blur()
-		return s.include.Focus()
-
-	case s.showDetails && y >= hh-4 && y <= hh-2:
-		s.blur()
-		return s.exclude.Focus()
-
-	case y == hh-1: // the summary row: list/tree and the details toggle
-		switch {
-		case x >= w-3:
+	case y == ry: // the rule: its ▾ shows the files to include and exclude
+		if x >= w-3 {
 			s.showDetails = !s.showDetails
 			if !s.showDetails {
 				s.include.Blur()
 				s.exclude.Blur()
 			}
+		}
 
-		case x >= w-6:
+		return nil
+
+	case s.showDetails && y == ry+1:
+		s.blur()
+		return s.include.Focus()
+
+	case s.showDetails && y == ry+2:
+		s.blur()
+		return s.exclude.Focus()
+
+	case y == hh-2: // the summary: list or tree
+		if x >= w-4 {
 			s.tree = !s.tree
 			s.l = list{sel: -1}
 		}
 
+		return nil
+
+	case y < hh:
 		return nil
 	}
 

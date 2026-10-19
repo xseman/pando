@@ -254,14 +254,14 @@ func framedBox(in *textinput.Model, w int, focused, dark bool) []string {
 	text := ansi.Truncate(realCaret(in.View()), field, "")
 	text += box.Render(blank(field - ansi.StringWidth(text)))
 
-	return []string{frameLine(w, 1, "▁", edge), " " + side.Render("▏") + box.Render(" "+text+" ") + side.Render("▕") + " ", frameLine(w, 1, "▔", edge)}
+	return []string{frameLine(w, "▁", edge), " " + side.Render("▏") + box.Render(" "+text+" ") + side.Render("▕") + " ", frameLine(w, "▔", edge)}
 }
 
 // frameLine is the row above (▁) or below (▔) an input box whose ▏ edge
-// sits at column x and whose ▕ one cell before the row's end: with the edges
+// sits at column 1 and whose ▕ one cell before the row's end: with the edges
 // it frames the box in one thin line, as VS Code's input.border does.
-func frameLine(w, x int, glyph string, st lipgloss.Style) string {
-	return blank(x) + st.Render(strings.Repeat(glyph, max(w-x-1, 0))) + blank(min(w, 1))
+func frameLine(w int, glyph string, st lipgloss.Style) string {
+	return blank(1) + st.Render(strings.Repeat(glyph, max(w-2, 0))) + blank(min(w, 1))
 }
 
 // hoverBox puts pre-styled lines in a box by the mouse, under the pointer, or
