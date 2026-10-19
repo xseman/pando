@@ -75,7 +75,7 @@ config.toml edited ───────────┘  └─ "state" event �
 | `terminal_height`      | `12`        | bottom panel rows                                                              |
 | `terminal_open`        | `false`     | panel state for a worktree without its own: the last set                       |
 | `shell`                | `""`        | command every terminal opens: [Shell](#shell)                                  |
-| `session_position`     | `right`     | `right`, `left` (a column), `editor` (over the editor area, with a file open)  |
+| `session_position`     | `editor`    | `editor` (a tab over the editor area, beside the files'), `right`, `left`     |
 | `session_highlight`    | `tint`      | waiting, done or failed session: `tint` (pulsing), `steady`, `off`             |
 | `spaces_sort`          | `created`   | `created`, `updated` (last input or change of state)                           |
 | `spaces_group`         | `workspace` | `workspace`, `time` (Today, Yesterday, …)                                      |

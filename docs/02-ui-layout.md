@@ -109,13 +109,22 @@ side: vertBar, actW wide, one actH-row block per chip, ⚙ at the bottom
 
 ## Session column
 
-The agent session is `viewSession`. `session_position` is `right` (default),
-`left` (a column; unsized, half the editor area) or `editor` (over the editor
-area; opening a file docks it back, `sessSide`). With no editor open it is
-never over the editor: it docks beside the empty one (`dockBare`), and _Move
-to Editor Area_ waits for a file.
+The agent session is `viewSession`. `session_position` is `editor` (default:
+over the editor area, a tab in its strip) or `right` / `left` (a column;
+unsized, half the editor area).
 
-- Dropped mid-editor it takes the editor area. Widened past `minEditor` (40)
+- Over the editor area each session opened from Spaces has a tab after the
+  files' (`stripSessions`, `sessTabs`, not saved; the one shown stays), the
+  one shown with its shell tabs and a `+` (`editorTabs`). Opening a file
+  keeps it there; the file's tab or `alt+N` brings the file forward. Its ✕
+  (`closeSessTab`) closes the tab, the session running on, and shows the
+  session before it when no file is open; a shell tab's ✕ kills it.
+- Its tab dragged to the editor area's right or left quarter docks it there
+  (`sessTabClick` starts the title's `dragTab`, `sessionDrop`); docked, its
+  tab leaves the strip for the column's own. Short of room the column comes
+  back as its tab and docks again once there is room (`cramped`, below).
+
+- Its column dropped mid-editor goes back to a tab. Widened past `minEditor` (40)
   cells of editor it is maximized (`toggleMax`): restoring docks its column
   again at the width it was picked up at. Narrowed below `snapHide` (10) it closes
   (`hideSession`) and keeps running.
@@ -294,7 +303,9 @@ Model.mouse
 
 ## Tab strips
 
-Editors, session tabs and Terminal shells share `strip.go`.
+Editors, session tabs and Terminal shells share `strip.go`. The editor
+area has one strip, the files' tabs then the sessions' over it; a docked
+session's column has its own.
 
 - `tabChip`: active bold, others dim, neither on a fill (`hover_bg` under
   the mouse, `overTab`), each followed by a `▏` in `tab_border`

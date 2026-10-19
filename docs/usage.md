@@ -93,8 +93,10 @@ checkout.
 
 ## Sessions
 
-- A session opens in a column beside the editor. Drag it to the other side,
-  over the editor, or off screen to hide it; it keeps running.
+- A session opens as a tab over the editor area, beside your files' tabs.
+  Drag its tab to the right or left edge to dock it in a column beside the
+  editor; short of room it comes back among the tabs until there is room.
+  Its ✕, or a column dragged off screen, hides it; it keeps running.
 - A session re-roots Explorer and Source Control to its worktree; Explorer
   selects the file its editor shows and comes to the front of its column
   (`auto_reveal`), as for any file or change opened, or tab picked. A file

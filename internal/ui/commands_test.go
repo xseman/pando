@@ -3328,80 +3328,136 @@ func TestClosingTabKeepsAnotherFocused(t *testing.T) {
 	}
 }
 
-// A session opens in a column of its own beside the editor, the default;
-// moving it to the editor area is remembered as session_position.
-func TestSessionOpensDocked(t *testing.T) {
+// TestSessionOverEditorTabs: a session opens over the editor area as a tab beside the
+// files', the default. Opening a file keeps its tab; a click shows it again.
+// Its tab dragged to the editor area's right edge docks it in a column of
+// its own; short of room it comes back among the tabs, and docks again when
+// the room does. Its ✕ closes the tab, the session running on.
+func TestSessionOverEditorTabs(t *testing.T) {
 	m := testModelSized(t, 140, 30)
 	m.st.Settings.SessPos, m.sess = "", "" // the shipped default, nothing on screen
 	rows := m.ag.rows(m)
 	k := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agSession })
 	m.ag.activate(m, &rows[k])
 
-	i := m.colOf(viewSession)
-	if i < 0 || m.side(i) != 1 || m.showsSession() {
-		t.Fatalf("docked right: col %d, over main %v", i, m.showsSession())
+	tab := func(id string) (edTab, bool) {
+		for _, t := range m.editorTabs(m.mainW()) {
+			if t.id == id {
+				return t, true
+			}
+		}
+
+		return edTab{}, false
 	}
 
-	if _, c := m.layout(); m.colRect(i).w < c.w-2 || m.colRect(i).w > c.w+2 {
-		t.Fatalf("half the editor area: session %d, editor %d", m.colRect(i).w, c.w)
+	if st, ok := tab("s1"); !m.showsSession() || m.sessDocked() || !ok || !st.active {
+		t.Fatalf("over the editor area, its tab active: over %v, docked %v, tab %+v", m.showsSession(), m.sessDocked(), st)
 	}
 
-	checkWidths(t, m)
-	m.undockSession()
-
-	if m.sessDocked() || !m.showsSession() || m.st.Settings.SessPos != "editor" {
-		t.Fatalf("moved to the editor area: docked %v, session_position %q", m.sessDocked(), m.st.Settings.SessPos)
-	}
-
-	m.splitTo(viewSession, 0)
-
-	if m.side(m.colOf(viewSession)) != 0 || m.st.Settings.SessPos != "left" {
-		t.Fatalf("docked left: session_position %q", m.st.Settings.SessPos)
-	}
-	// Stretched over the editor again, opening a file docks it back on its side.
-	m.undockSession()
 	fire(m, m.openFile(filepath.Join(m.ws, "README.md"), false))
 	fire(m, m.pv.load(m))
 
-	j := m.colOf(viewSession)
-	if j < 0 || m.side(j) != 0 || m.showsSession() || !m.showsPreview() {
-		t.Fatalf("a file docks it beside the editor: col %d, over main %v", j, m.showsSession())
+	if st, ok := tab("s1"); m.sessDocked() || !m.showsPreview() || !ok || st.active || len(m.editors) != 1 {
+		t.Fatalf("a file opens in front, the session's tab beside it: docked %v, tab %+v", m.sessDocked(), st)
 	}
 
-	if out := checkWidths(t, m); !strings.Contains(out, "# hi") {
-		t.Fatalf("the file shows beside the session:\n%s", out)
-	}
-}
+	st, _ := tab("s1")
+	click(m, m.mainX()+st.x+1, 0, tea.MouseLeft)
 
-// TestSessionDocksOverBareEditor: a session placed over the editor area docks
-// to its side while no editor is open, the empty editor beside it, so it
-// never stands maximized over nothing; with a file open it may cover it, and
-// closing the last file docks it again.
-func TestSessionDocksOverBareEditor(t *testing.T) {
-	m := testModelSized(t, 140, 30) // session_position "editor", no file open
-	m.Update(focusSessionMsg("s1"))
-
-	if !m.sessDocked() || m.showsSession() || m.st.Settings.SessPos != "right" || m.st.SessionViews[m.ws].Position != "right" {
-		t.Fatalf("no file: docked %v, over main %v, position %q", m.sessDocked(), m.showsSession(), m.st.Settings.SessPos)
+	if !m.showsSession() || m.pv.kind == "" {
+		t.Fatal("a click on its tab shows the session, the file waiting in its tab")
 	}
 
-	if out := checkWidths(t, m); !strings.Contains(out, "No editor open") {
-		t.Fatalf("the empty editor shows beside the session:\n%s", out)
+	ft := m.editorTabs(m.mainW())[0]
+	click(m, m.mainX()+ft.x+1, 0, tea.MouseLeft)
+
+	if m.showsSession() || !m.showsPreview() {
+		t.Fatal("a click on the file's tab shows the file again")
 	}
 
-	fire(m, m.openFile(filepath.Join(m.ws, "README.md"), false))
-	m.undockSession()
-	m.Update(focusSessionMsg("s1"))
+	// The session's tab, the file in front, goes back to the tab it was on.
+	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s1t", Workspace: m.ws, Agent: tabAgent, Parent: "s1"}, Status: "idle"})
+	m.lastTab["s1"] = "s1t"
 
-	if m.sessDocked() || !m.showsSession() {
-		t.Fatalf("over a file it stays: docked %v", m.sessDocked())
+	st, _ = tab("s1")
+	click(m, m.mainX()+st.x+1, 0, tea.MouseLeft)
+
+	if m.sess != "s1t" {
+		t.Fatalf("its tab shows the tab it was on: %q", m.sess)
 	}
 
-	m.closeEditor(m.edIdx)
+	// Every tab is drawn where a click finds it, past the session's + too.
+	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: m.ws, Agent: "claude"}, Status: "idle"})
+	m.openSessTab("s2")
+
+	if _, ok := tab("s2"); !ok {
+		t.Fatal("a second session's tab")
+	}
+
+	strip := ansi.Strip(m.editorStrip(m.mainW()))
+
+	for _, et := range m.editorTabs(m.mainW()) {
+		if got := ansi.Cut(strip, et.x, et.x+et.w); got != ansi.Strip(et.label) {
+			t.Fatalf("tab drawn at %d: %q, want %q", et.x, got, ansi.Strip(et.label))
+		}
+	}
+
+	ft = m.editorTabs(m.mainW())[0]
+	click(m, m.mainX()+ft.x+1, 0, tea.MouseLeft)
+	m.Update(sessionsMsg(slices.DeleteFunc(slices.Clone(m.sessions), func(s proto.Session) bool { return s.ID == "s1t" })))
+	m.sess = "s1"
+	m.preview = true
+
+	st, _ = tab("s1")
+	click(m, m.mainX()+st.x+1, 0, tea.MouseLeft)
+
+	checkWidths(t, m)
+
+	// Dragged to the right edge it docks there.
+	st, _ = tab("s1")
+	m.Update(tea.MouseClickMsg{X: m.mainX() + st.x + 1, Y: 0, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: m.mainX() + m.mainW() - 2, Y: 6, Button: tea.MouseLeft})
+
+	if out := checkWidths(t, m); !strings.Contains(out, "Dock Right") {
+		t.Fatalf("the drop target says where it goes:\n%s", out)
+	}
+
+	m.Update(tea.MouseReleaseMsg{X: m.mainX() + m.mainW() - 2, Y: 6, Button: tea.MouseLeft})
+
+	if i := m.colOf(viewSession); i < 0 || m.side(i) != 1 || m.st.Settings.SessPos != "right" {
+		t.Fatalf("docked right: col %d, session_position %q", i, m.st.Settings.SessPos)
+	}
+
+	if _, ok := tab("s1"); ok || !m.showsPreview() {
+		t.Fatal("docked, its tab leaves the editor's strip; the file shows")
+	}
+
+	// Short of room it joins the tabs; the room back, it docks again.
+	m.Update(tea.WindowSizeMsg{Width: 90, Height: 30})
+
+	if _, ok := tab("s1"); m.sessDocked() || !ok {
+		t.Fatalf("narrow: docked %v, among the tabs %v", m.sessDocked(), ok)
+	}
+
+	checkWidths(t, m)
 	m.Update(tea.WindowSizeMsg{Width: 140, Height: 30})
 
-	if len(m.editors) != 0 || !m.sessDocked() {
-		t.Fatalf("the last file closed, it docks: %d editors, docked %v", len(m.editors), m.sessDocked())
+	if _, ok := tab("s1"); !m.sessDocked() || ok {
+		t.Fatalf("wide again: docked %v, among the tabs %v", m.sessDocked(), ok)
+	}
+
+	// Back over the editor area; its ✕ closes the tab, the session runs on.
+	m.undockSession()
+
+	st, ok := tab("s1")
+	if !ok || !st.active || m.st.Settings.SessPos != "editor" {
+		t.Fatalf("undocked: tab %+v, session_position %q", st, m.st.Settings.SessPos)
+	}
+
+	click(m, m.mainX()+st.x+st.w-2, 0, tea.MouseLeft)
+
+	if _, ok := tab("s1"); ok || m.sess != "" || !m.showsPreview() || m.session("s1") == nil {
+		t.Fatalf("✕: tab %v, session %q, file shown %v", ok, m.sess, m.showsPreview())
 	}
 }
 
@@ -3409,7 +3465,7 @@ func TestSessionDocksOverBareEditor(t *testing.T) {
 // whole editor area to one and restores the pair.
 func TestMaximizeSessionAndFile(t *testing.T) {
 	m := testModelSized(t, 140, 30)
-	m.st.Settings.SessPos, m.sess = "", "" // the shipped default: a column on the right
+	m.st.Settings.SessPos, m.sess = "right", "" // a column on the right
 	rows := m.ag.rows(m)
 	k := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agSession })
 	m.ag.activate(m, &rows[k])
@@ -3478,8 +3534,8 @@ func TestMaximizeSessionAndFile(t *testing.T) {
 // The session's column follows Spaces to the other sidebar, unless it has the
 // editor area to itself.
 func TestSessionFollowsSpaces(t *testing.T) {
-	m := testModelSized(t, 180, 30)        // room for the editor beside both on one side
-	m.st.Settings.SessPos, m.sess = "", "" // the shipped default, nothing on screen
+	m := testModelSized(t, 180, 30)             // room for the editor beside both on one side
+	m.st.Settings.SessPos, m.sess = "right", "" // a column on the right, nothing on screen
 	rows := m.ag.rows(m)
 	m.ag.activate(m, &rows[slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agSession })])
 
@@ -3525,7 +3581,7 @@ func TestSessionFollowsSpaces(t *testing.T) {
 // does; the session runs on and comes back at the width it had.
 func TestSessionDraggedShutCloses(t *testing.T) {
 	m := testModelSized(t, 140, 30)
-	m.st.Settings.SessPos, m.sess = "", ""
+	m.st.Settings.SessPos, m.sess = "right", ""
 	m.openSession("s1")
 
 	i := m.colOf(viewSession)
@@ -3563,7 +3619,7 @@ func TestSessionDraggedShutCloses(t *testing.T) {
 // last set anywhere.
 func TestSessionViewPerWorkspace(t *testing.T) {
 	m := testModelSized(t, 140, 30)
-	m.st.Settings.SessPos, m.sess = "", ""
+	m.st.Settings.SessPos, m.sess = "right", ""
 	first, other := m.ws, t.TempDir()
 	m.wss = append(m.wss, proto.Workspace{Path: other, Project: first, Branch: "feat"})
 	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: other, Agent: "shell"}, Status: "idle"})
@@ -3612,7 +3668,7 @@ func TestSessionViewPerWorkspace(t *testing.T) {
 // column is on screen, so claiming the workspace has none would be a lie.
 func TestWelcomeNamesWhatIsMissing(t *testing.T) {
 	m := testModelSized(t, 140, 30)
-	m.st.Settings.SessPos, m.sess = "", ""
+	m.st.Settings.SessPos, m.sess = "right", ""
 
 	if out := checkWidths(t, m); !strings.Contains(out, "No session in this workspace.") {
 		t.Fatal("no session: the main area should say so")
@@ -4541,4 +4597,34 @@ func TestSpacesPinnedPane(t *testing.T) {
 
 	m.Update(tea.MouseReleaseMsg{X: x, Y: top + p.h + 1, Button: tea.MouseLeft})
 	checkWidths(t, m)
+}
+
+// TestKilledSessionClosesPanel: a session killed with a tab and a panel
+// shell of its own hands over to none of them, which die with it, so the
+// panel closes with its last shell instead of starting one under a tab
+// about to go.
+func TestKilledSessionClosesPanel(t *testing.T) {
+	m := testModelSized(t, 140, 30)
+	tab := proto.Session{SessionSpec: proto.SessionSpec{ID: "s1t", Workspace: m.ws, Agent: tabAgent, Parent: "s1"}, Status: "idle"}
+	shell := proto.Session{SessionSpec: proto.SessionSpec{ID: "p1", Workspace: m.ws, Agent: termAgent, Parent: "s1", Cmd: []string{"/bin/sh"}}, Status: "idle"}
+	m.Update(sessionsMsg{m.sessions[0], tab, shell})
+	m.Update(focusSessionMsg("s1"))
+	m.showPanel(ptTerm) // ctrl+j would be the session's
+	drainInputs(m)
+
+	if !m.termOpen() || m.tv.id != "p1" {
+		t.Fatalf("the panel shows the session's shell: open %v, %q", m.termOpen(), m.tv.id)
+	}
+
+	m.Update(sessionsMsg{tab, shell}) // the session goes first, its tab and shell after
+
+	if m.sess == "s1t" {
+		t.Fatal("handed over to its own tab, which dies with it")
+	}
+
+	m.Update(sessionsMsg{})
+
+	if m.termOpen() {
+		t.Fatalf("the last shell gone, the panel stays open on %q", m.tv.id)
+	}
 }

@@ -2850,38 +2850,45 @@ func (m *Model) ensureTerm() tea.Cmd {
 	return m.newTerm()
 }
 
+// sessLabel is session s's tab label in a strip with room cells for tabs,
+// and its tip when the label cuts its name.
+func (m *Model) sessLabel(s proto.Session, active bool, room int) (label, tip string) {
+	// A shell's screen says nothing about an agent's state: a server
+	// printing logs would read as working. Only an agent shows a glyph, one
+	// started by hand in a tab or a terminal too.
+	glyph := ""
+
+	if s.Agent != termAgent && s.Agent != tabAgent || m.runsAgent(s) {
+		g, _ := sessionGlyph(s)
+		glyph = m.spin(g, s) + " "
+	}
+
+	name, end := m.fx.text("sess:"+s.ID, sessionName(s)), " "+tabClose(active)
+	// A name too long for the strip on its own is cut, so every tab, the
+	// active one above all, can show; its tip has it whole.
+	frame := ansi.StringWidth(" "+glyph+end) + tabGap
+	if ansi.StringWidth(name) > room-frame {
+		name = ansi.Truncate(name, max(room-frame, 1), "…")
+	}
+
+	if full := fullName(s); full != sessionName(s) || ansi.StringWidth(full) > room-frame {
+		tip = full
+	}
+
+	return " " + glyph + name + end, tip
+}
+
 func (m *Model) tabsFor(w int, sessions []proto.Session, active string) []sessTab {
 	room := w - 3 // the + keeps its place after the tabs
 
 	labels, tips, widths, total, at := make([]string, len(sessions)), make([]string, len(sessions)), make([]int, len(sessions)), 0, -1
 
 	for i, s := range sessions {
-		// A shell's screen says nothing about an agent's state: a server
-		// printing logs would read as working. Only an agent shows a glyph,
-		// one started by hand in a tab or a terminal too.
-		glyph := ""
-
-		if s.Agent != termAgent && s.Agent != tabAgent || m.runsAgent(s) {
-			g, _ := sessionGlyph(s)
-			glyph = m.spin(g, s) + " "
-		}
-
-		name, end := m.fx.text("sess:"+s.ID, sessionName(s)), " "+tabClose(s.ID == active)
 		if s.ID == active {
 			at = i
 		}
-		// A name too long for the strip on its own is cut, so every tab,
-		// the active one above all, can show; its tip has it whole.
-		frame := ansi.StringWidth(" "+glyph+end) + tabGap
-		if ansi.StringWidth(name) > room-frame {
-			name = ansi.Truncate(name, max(room-frame, 1), "…")
-		}
 
-		if full := fullName(s); full != sessionName(s) || ansi.StringWidth(full) > room-frame {
-			tips[i] = full
-		}
-
-		labels[i] = " " + glyph + name + end
+		labels[i], tips[i] = m.sessLabel(s, s.ID == active, room)
 		widths[i] = ansi.StringWidth(labels[i])
 		total += widths[i] + tabGap
 	}

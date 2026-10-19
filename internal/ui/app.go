@@ -211,14 +211,15 @@ type Model struct {
 	sashAt    sash      // the divider under the mouse, noSash for none
 	sashSince time.Time // when the mouse came onto it
 	mouseAt   time.Time
-	tip       string    // the name and key of the button under the mouse in the frame being drawn
-	tipDue    time.Time // when the tipWakeMsg on its way comes, zero for none
-	tipSeen   time.Time // when a tip was last drawn: moving on, the next one shows at once
-	tipOff    time.Time // a key or a click puts the tip away until the pointer moves
-	frame     *frame    // the columns while View draws, which asks for them row by row; nil otherwise
-	drawn     *tea.View // the last frame View drew, which a still message gets again
-	still     bool      // the last message changed nothing on screen (stillEvent)
-	index     struct {  // workspace file list for quick open and the Files filter
+	tip       string              // the name and key of the button under the mouse in the frame being drawn
+	sessTabs  map[string][]string // each workspace's sessions opened over the editor area, their tabs in its strip: roots, in the order opened
+	tipDue    time.Time           // when the tipWakeMsg on its way comes, zero for none
+	tipSeen   time.Time           // when a tip was last drawn: moving on, the next one shows at once
+	tipOff    time.Time           // a key or a click puts the tip away until the pointer moves
+	frame     *frame              // the columns while View draws, which asks for them row by row; nil otherwise
+	drawn     *tea.View           // the last frame View drew, which a still message gets again
+	still     bool                // the last message changed nothing on screen (stillEvent)
+	index     struct {            // workspace file list for quick open and the Files filter
 		ws    string
 		files []string
 		at    time.Time
@@ -1115,19 +1116,19 @@ func (m *Model) colRect(i int) rect {
 // panelH is a panel's height: everything above the status bar.
 func (m *Model) panelH() int { return max(m.h-1, 1) }
 
-// sessPos is where a session opens: a column of its own on that side, or
-// "editor", over the editor area.
+// sessPos is where a session opens: "editor", over the editor area as a tab
+// beside the files' (the default), or a column of its own on that side.
 func (m *Model) sessPos() string {
 	pos := m.st.Settings.SessPos
 	if v, ok := m.st.SessionViews[m.ws]; ok {
 		pos = v.Position // the workspace's own, over the last one set anywhere
 	}
 
-	if pos == "editor" || pos == "left" {
+	if pos == "right" || pos == "left" {
 		return pos
 	}
 
-	return "right"
+	return "editor"
 }
 
 // sessView is where the workspace's session shows and how wide: its own, or
@@ -1962,31 +1963,16 @@ func (m *Model) undockSession() tea.Cmd {
 	return tea.Batch(cmd, m.fetchScreen())
 }
 
-// sessSide is the side a session docks to: the one session_position names, or
-// where its remembered column sits when it has the editor area.
-func (m *Model) sessSide() int {
-	switch m.sessPos() {
-	case "left":
-		return 0
-	case "right":
-		return 1
-	}
-
-	listed := func(cs proto.Columns) bool {
-		return slices.ContainsFunc(cs, func(c proto.Column) bool { return slices.Contains(c.Views, viewKeys[viewSession]) })
-	}
-	if listed(m.st.Settings.Left) && !listed(m.st.Settings.Right) {
-		return 0
-	}
-
-	return 1
-}
-
 // hideSession takes the session off the screen; it runs on in the background
 // and comes back from Agents or its tab.
 func (m *Model) hideSession() tea.Cmd {
 	if m.sessFocused() { // its column goes: the editor takes the keyboard
 		m.focus = onMain
+	}
+
+	if m.sessTabs != nil { // its tab goes with it
+		r := m.rootOf(m.sess)
+		m.sessTabs[m.ws] = slices.DeleteFunc(slices.Clone(m.sessTabs[m.ws]), func(id string) bool { return id == r })
 	}
 
 	m.sess, m.term = "", term{}
@@ -2004,7 +1990,7 @@ func (m *Model) sessionTitleMenu() tea.Cmd {
 
 	var place []item // where the session's view sits, then its name, then the ways to end it
 
-	if m.sessDocked() && len(m.editors) > 0 { // over an empty editor it would dock again (dockBare)
+	if m.sessDocked() {
 		place = append(place, item{label: "Move to Editor Area", run: func(m *Model) tea.Cmd { return m.undockSession() }})
 	}
 
@@ -2504,6 +2490,7 @@ func (m *Model) switchSession(id string) tea.Cmd {
 	// Before the workspace switch, which keeps a session of its workspace
 	// rather than picking one — and the Terminal panel follows the session.
 	m.sess, m.preview = id, false
+	m.openSessTab(id)
 
 	if m.lastTab == nil {
 		m.lastTab = map[string]string{}
@@ -2567,7 +2554,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	_, cmd := m.update(msg)
 	m.maxed = m.maxed && m.sess != "" && m.sessPos() != "editor" // nothing left to share the editor area with
-	cmd = tea.Batch(cmd, m.dockBare())
 
 	if m.cramped() != cramped {
 		m.followCramp(focus, v, inSess)
@@ -2589,22 +2575,6 @@ func stillEvent(msg tea.Msg) bool {
 	e, ok := msg.(eventMsg)
 
 	return ok && (e.Kind == "screen" || e.Kind == "state" || e.Kind == "sessions" || e.Kind == "workspaces")
-}
-
-// dockBare docks a session over an empty editor area to its side: with no
-// editor open it has nothing to cover, and the empty editor shows beside it.
-// The keyboard stays where it was; a session with no room beside the editor
-// stays over it.
-func (m *Model) dockBare() tea.Cmd {
-	if m.sess == "" || len(m.editors) > 0 || m.sessPos() != "editor" || m.drag != nil || m.crampedBy(m.sessionSplit(m.sessSide())) {
-		return nil
-	}
-
-	focus := m.focus
-	cmd := m.splitTo(viewSession, m.sessSide())
-	m.focus = focus
-
-	return cmd
 }
 
 // followCramp follows the session in or out of the editor area for room: in
@@ -2750,9 +2720,15 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if prev := m.session(m.sess); prev != nil && !slices.ContainsFunc(msg, func(s proto.Session) bool { return s.ID == prev.ID }) {
 			m.flash(sessionName(*prev)+" session closed", false)
 			// Before the list is replaced: a closed tab hands over to its
-			// neighbour in the session, a closed session to one of the space.
-			if next = nextTab(m.tabsOf(m.rootOf(m.sess)), m.sess, msg); next == "" {
-				next = nextTab(m.spaceSessions(), m.rootOf(m.sess), msg)
+			// neighbour in the session, a closed session to one of the space;
+			// never to its own tabs, which die with it.
+			root := m.rootOf(m.sess)
+			if slices.ContainsFunc(msg, func(s proto.Session) bool { return s.ID == root }) {
+				next = nextTab(m.tabsOf(root), m.sess, msg)
+			}
+
+			if next == "" {
+				next = nextTab(m.spaceSessions(), root, msg)
 			}
 
 			m.sess, m.term = "", term{}
@@ -3617,18 +3593,10 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 	strip := m.stripH()
 	if strip > 0 && mo.Y == 0 {
 		m.setOver(stripEditor, mo.X-c.x)
-
-		if m.showsSession() {
-			m.setOver(stripSession, mo.X-c.x)
-		}
 	}
 
-	if strip > 0 && click && mo.Y == 0 && (mo.Button == tea.MouseLeft || mo.Button == tea.MouseMiddle || mo.Button == tea.MouseRight && m.showsSession()) {
-		if m.showsSession() {
-			return m.sessionStripMouse(mo.X-c.x, mo)
-		}
-
-		return m.stripMouse(mo.X-c.x, mo.Button)
+	if strip > 0 && click && mo.Y == 0 && (mo.Button == tea.MouseLeft || mo.Button == tea.MouseMiddle || mo.Button == tea.MouseRight) {
+		return m.stripMouse(mo.X-c.x, mo)
 	}
 
 	if m.showsSession() {
@@ -5115,10 +5083,7 @@ func (m *Model) editorLines(w int) []string {
 	}
 
 	out := make([]string, 0, m.h)
-	switch {
-	case m.showsSession():
-		out = append(out, m.sessionStrip(w), m.sessionRule(w))
-	case m.stripH() > 0:
+	if m.stripH() > 0 { // the files' and the sessions' tabs, one strip
 		out = append(out, m.editorStrip(w), m.editorRule(w))
 	}
 
@@ -5266,7 +5231,7 @@ func (m *Model) viewItems() []item {
 		}
 
 		items = append(items, item{label: "Close Session View", run: func(m *Model) tea.Cmd { return m.hideSession() }})
-		if m.sessDocked() && len(m.editors) > 0 {
+		if m.sessDocked() {
 			items = append(items, item{label: "Move Session to Editor Area", run: func(m *Model) tea.Cmd { return m.undockSession() }})
 		}
 

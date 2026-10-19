@@ -145,11 +145,11 @@ func runesLines(plain [][]rune) []string {
 }
 
 // TestPasteIntoDockedSession: the terminal's own paste (ctrl+shift+v)
-// reaches a session docked in a column of its own, the default, as it does
+// reaches a session docked in a column of its own, as it does
 // one over the editor, the Terminal and an editor.
 func TestPasteIntoDockedSession(t *testing.T) {
 	m := testModelSized(t, 140, 30)
-	m.st.Settings.SessPos, m.sess = "", "" // the shipped default: a column on the right
+	m.st.Settings.SessPos, m.sess = "right", "" // a column on the right
 	rows := m.ag.rows(m)
 	k := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agSession })
 	m.ag.activate(m, &rows[k])

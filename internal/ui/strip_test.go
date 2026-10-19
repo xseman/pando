@@ -189,9 +189,10 @@ func TestDragEditorTab(t *testing.T) {
 	}
 }
 
-// TestDragSessionTab reorders a session's tabs by a drag: the
-// session's own tab stays first and never picks up, a drop over it lands
-// right after it, and the release tells the daemon.
+// TestDragSessionTab reorders a session's tabs by a drag in the editor
+// area's strip: the session's own tab stays first and picks up to dock
+// instead, a drop over it lands right after it, and the release tells the
+// daemon.
 func TestDragSessionTab(t *testing.T) {
 	m := testModel(t)
 	drainInputs(m)
@@ -213,7 +214,7 @@ func TestDragSessionTab(t *testing.T) {
 	}
 
 	at := func(id string) (x, w int) {
-		for _, t := range m.sessionTabs(m.sessW()) {
+		for _, t := range m.editorTabs(m.mainW()) {
 			if t.id == id {
 				return m.mainX() + t.x, t.w
 			}
@@ -225,11 +226,13 @@ func TestDragSessionTab(t *testing.T) {
 	}
 
 	x, _ := at("s1")
-	click(m, x+1, 0, tea.MouseLeft)
+	m.Update(tea.MouseClickMsg{X: x + 1, Y: 0, Button: tea.MouseLeft})
 
-	if m.sess != "s1" || m.drag != nil {
-		t.Fatalf("the session's own tab shows but does not pick up: %q, %+v", m.sess, m.drag)
+	if m.sess != "s1" || m.drag == nil || m.drag.kind != dragTab {
+		t.Fatalf("the session's own tab shows and picks up to dock, not to move: %q, %+v", m.sess, m.drag)
 	}
+
+	m.Update(tea.MouseReleaseMsg{X: x + 1, Y: 0, Button: tea.MouseLeft})
 
 	x, _ = at("t3")
 	m.Update(tea.MouseClickMsg{X: x + 1, Y: 0, Button: tea.MouseLeft})
@@ -238,7 +241,7 @@ func TestDragSessionTab(t *testing.T) {
 	m.Update(tea.MouseMotionMsg{X: x + 1, Y: 0, Button: tea.MouseLeft})
 
 	x1, _ := at("t1")
-	if got := markAt(m.sessionStrip(m.sessW())); m.drag.slot != 0 || got != x1-m.mainX()-tabGap {
+	if got := markAt(m.editorStrip(m.mainW())); m.drag.slot != 0 || got != x1-m.mainX()-tabGap {
 		t.Fatalf("over the session's own tab the mark sits before t1: slot %d, column %d", m.drag.slot, got)
 	}
 

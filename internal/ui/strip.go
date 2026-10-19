@@ -31,14 +31,26 @@ func (m *Model) stripTabs(s int) []stripTab {
 	var out []stripTab
 
 	switch s {
-	case stripEditor:
+	case stripEditor: // the files' tabs; a session's drags to dock
 		for _, t := range m.editorTabs(m.mainW()) {
-			out = append(out, stripTab{id: m.editors[t.i].id(), x: t.x, w: t.w})
+			if t.i >= 0 {
+				out = append(out, stripTab{id: m.editors[t.i].id(), x: t.x, w: t.w})
+			}
 		}
 
 		return out
 
 	case stripSession:
+		if m.showsSession() { // over the editor area, in its strip
+			for _, t := range m.editorTabs(m.mainW()) {
+				if t.id != "" && t.id != m.rootOf(m.sess) && m.rootOf(t.id) == m.rootOf(m.sess) {
+					out = append(out, stripTab{id: t.id, x: t.x, w: t.w})
+				}
+			}
+
+			return out
+		}
+
 		for _, t := range m.sessionTabs(m.sessW()) {
 			if !t.plus && t.id != m.rootOf(m.sess) {
 				out = append(out, stripTab{id: t.id, x: t.x, w: t.w})
@@ -105,7 +117,7 @@ func (m *Model) tabUnder(s, x int) (id string, onClose bool) {
 	if s == stripEditor {
 		for _, t := range m.editorTabs(m.mainW()) {
 			if x >= t.x && x < t.x+t.w {
-				return m.editors[t.i].id(), t.active && x >= t.x+t.w-tabCloseW
+				return m.tabID(t), t.active && !t.plus && x >= t.x+t.w-tabCloseW
 			}
 		}
 
