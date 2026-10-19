@@ -235,8 +235,8 @@ func TestMarkdownWidth(t *testing.T) {
 	}
 }
 
-// Code in rendered Markdown, blocks and inline alike, sits on md_code_bg: a
-// soft grey on the light theme, where the input background is all but white.
+// Code in rendered Markdown, blocks and inline alike, sits on md_code_bg: on
+// the light theme a grey a shade off the white, Simple Light's code blocks'.
 func TestMarkdownCodeBackground(t *testing.T) {
 	t.Cleanup(func() { applyLook("vscode", true, "ascii", nil) })
 	applyLook("vscode-light", false, "ascii", nil)
@@ -248,7 +248,7 @@ func TestMarkdownCodeBackground(t *testing.T) {
 		t.Fatalf("inline code %q, block %q: want the grey %s", styled[0], styled[2], grey)
 	}
 
-	if r, g, b, _ := pal.mdCodeBg.RGBA(); r>>8 > 0xf0 || r>>8 < 0xe0 || r != g || b < g {
+	if r, g, b, _ := pal.mdCodeBg.RGBA(); r>>8 > 0xf8 || r>>8 < 0xe0 || r != g || b < g {
 		t.Fatalf("md_code_bg %s is not a soft grey", hexColor(pal.mdCodeBg))
 	}
 }

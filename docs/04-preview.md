@@ -46,10 +46,11 @@ format and size (`image.DecodeConfig`: PNG, JPEG, GIF) or the type
 `http.DetectContentType` sniffs, and its size on disk.
 
 Code colors follow the terminal's background (`syntaxStyle`): github-dark
-on a dark one, VS Code's Light+ (`lightPlus`) on a light one. `refine`
-retypes chroma's tokens first, as VS Code's grammars tell them apart: a
-control keyword (`return`, `if`, `import`, …) is `KeywordPseudo`, magenta
-in Light+; in JavaScript and TypeScript, whose lexers call every name
+on a dark one, Simple Light's (`simpleLightCode`) on a light one: variables
+blue, strings green, numbers brown, comments grey, keywords bold, the rest
+the text's own. `refine` retypes chroma's tokens first, as VS Code's
+grammars tell them apart: a control keyword (`return`, `if`, `import`, …)
+is `KeywordPseudo`; in JavaScript and TypeScript, whose lexers call every name
 `NameOther`, a name before `(` is a function, a capitalized one a class, an
 all-caps one a constant. Markdown lexes with `mdLexer`: chroma's rules and
 one more that takes a run of plain text whole, where chroma tries every rule

@@ -1837,8 +1837,8 @@ func TestThemes(t *testing.T) {
 	m.dark = false
 	m.look()
 
-	if !pal.light || !strings.Contains(m.View().Content, bgParams(vscodeLight.buttonBg)) {
-		t.Fatal("light terminals get VS Code Light's Commit button")
+	if !pal.light || !strings.Contains(m.View().Content, bgParams(simpleLight.barBg)) {
+		t.Fatal("light terminals get Simple Light's status bar")
 	}
 
 	m.setSettings(map[string]any{"color_theme": "vscode-dark"})

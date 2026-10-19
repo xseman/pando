@@ -195,6 +195,11 @@ accent = "#ff8800"
 sel_bg = "8"           # an ANSI color number
 ```
 
+`vscode-dark` is VS Code's Dark 2026; `vscode-light` is Simple Light
+(github.com/xseman/simple-light), its Zed theme's code colors, its VS Code
+theme's for the rest; git states take ttt's default-light colors, diffs and
+the cursor's line pando's own.
+
 Overrides survive a theme switch; invalid ones are skipped. Keys (`colorKeys`):
 
 - git: `modified` `untracked` `added` `renamed` `deleted` `conflict` `ignored`

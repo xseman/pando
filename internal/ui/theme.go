@@ -57,9 +57,9 @@ func hex(s string) color.Color { return lipgloss.Color(s) }
 func ansi16(n int) color.Color { return lipgloss.Color(strconv.Itoa(n)) }
 
 var (
-	// vscodeDark and vscodeLight are VS Code's Dark 2026 and Light 2026: flat
-	// neutral greys, a teal (dark) or blue (light) accent, translucent
-	// list colors flattened over the editor and sidebar backgrounds.
+	// vscodeDark is VS Code's Dark 2026: flat neutral greys, a teal accent,
+	// translucent list colors flattened over the editor and sidebar
+	// backgrounds.
 	vscodeDark = palette{
 		modified: hex("#e5ba7d"), untracked: hex("#73c991"), added: hex("#73c991"), renamed: hex("#73c991"),
 		deleted: hex("#f48771"), conflict: hex("#f48771"), ignored: hex("#8c8c8c"),
@@ -84,34 +84,40 @@ var (
 		lineNumber: hex("#6e7681"), lineNumberActive: hex("#cccccc"), descFg: hex("#9d9d9d"),
 		barBg: hex("#191a1b"),
 	}
-	vscodeLight = palette{
-		light:    true,
-		modified: hex("#895503"), untracked: hex("#587c0c"), added: hex("#587c0c"), renamed: hex("#587c0c"), // VS Code Light's gitDecoration colors: modified apart from added
-		deleted: hex("#ad0707"), conflict: hex("#ad0707"), ignored: hex("#8e8e90"),
-		selBg: hex("#d6d6d8"), selUnfocusedBg: hex("#e7e7e8"), hoverBg: hex("#e6e6e9"), selFg: hex("#202020"),
-		accent: hex("#0069cc"), headerAccent: hex("#0069cc"),
-		// VS Code Light's solid button with RGB white text; ANSI white is grey on light profiles.
-		buttonBg: hex("#0069cc"), buttonFg: hex("#ffffff"), buttonHoverBg: hex("#0056a6"), buttonSep: hex("#5c9fe0"),
-		mutedButtonBg: hex("#e4e4e7"), mutedButtonFg: hex("#6f6f73"),
-		inputBorder: hex("#d8d8d8"), inputBg: hex("#f7f7fa"), sectionBg: hex("#f0f0f3"), badgeBg: hex("#0069cc"), badgeFg: hex("#ffffff"),
-		keycapBg: hex("#eaeaea"), keycapFg: hex("#202020"),
-		// Matches in yellow, as Light+'s code colors read on it: the one selected deeper.
-		textSelBg: hex("#bfd9f2"), matchBg: hex("#ffdd00"), wordHiBg: hex("#d9e9f7"),
-		rangeHiBg: hex("#eaeaea"), findMatchBg: hex("#fff2b3"), findHitBg: hex("#ffdd00"), lineHiBg: hex("#f2f2f2"),
+	// simpleLight is Simple Light (github.com/xseman/simple-light), the
+	// author's VS Code and Zed theme on Light Modern: black text, few
+	// colors, blue for what is focused. Zed's values where its theme names
+	// one (the scrollbar), VS Code's for the rest; diffs and the cursor's
+	// line keep pando's own.
+	simpleLight = palette{
+		light: true,
+		// Git states as ttt's default-light colors them: modified amber, added green, deleted red.
+		modified: hex("#9e6a03"), untracked: hex("#1b7a2a"), added: hex("#1b7a2a"), renamed: hex("#1b7a2a"),
+		deleted: hex("#c72a2a"), conflict: hex("#c586c0"), ignored: hex("#888888"),
+		selBg: hex("#e8e8e8"), selUnfocusedBg: hex("#f0f0f0"), hoverBg: hex("#f2f2f2"), selFg: hex("#000000"),
+		accent: hex("#005fb8"), headerAccent: hex("#005fb8"),
+		// The solid button with RGB white text; ANSI white is grey on light profiles.
+		buttonBg: hex("#005fb8"), buttonFg: hex("#ffffff"), buttonHoverBg: hex("#0258a8"), buttonSep: hex("#669fd4"),
+		mutedButtonBg: hex("#e5e5e5"), mutedButtonFg: hex("#3b3b3b"),
+		inputBorder: hex("#c4c4c4"), inputBg: hex("#ffffff"), sectionBg: hex("#f8f8f8"), badgeBg: hex("#cccccc"), badgeFg: hex("#3b3b3b"),
+		keycapBg: hex("#eaeaea"), keycapFg: hex("#3b3b3b"),
+		// Matches in yellow, the one selected deeper.
+		textSelBg: hex("#bed6ed"), matchBg: hex("#ffdd00"), wordHiBg: hex("#d6ebff"),
+		rangeHiBg: hex("#eaeaea"), findMatchBg: hex("#fff4b0"), findHitBg: hex("#ffdd00"), lineHiBg: hex("#f2f2f2"),
+		// pando's own diff colors, not Simple Light's.
 		diffDelBg: hex("#f3dada"), diffDelWordBg: hex("#e2a8a8"), diffAddBg: hex("#e6ecdb"), diffAddWordBg: hex("#c5d1aa"),
 		diffDelMark: hex("#ad0707"), diffAddMark: hex("#587c0c"), diffModMark: hex("#2090d3"), // VS Code light's modified gutter: yellow fades on white
 		mergeCurrentHeadBg: hex("#a0e4d7"), mergeCurrentBg: hex("#d9f4ef"), mergeIncomingHeadBg: hex("#a0d3ff"), mergeIncomingBg: hex("#d9edff"),
 		mergeCommonHeadBg: hex("#c0c0c0"), mergeCommonBg: hex("#e6e6e6"),
-		ok: hex("#388a34"), warn: hex("#9e6a03"), errc: hex("#ad0707"), attention: hex("#652d90"),
+		ok: hex("#2ea043"), warn: hex("#9a5a00"), errc: hex("#c5000b"), attention: hex("#862f95"),
 		blockedBg: hex("#edd4d4"), doneBg: hex("#e2d9e8"),
 		blockedSoftBg: hex("#f6e8e8"), doneSoftBg: hex("#efeaf3"),
-		// A softer slider than VS Code's #8a8a8a, over a track barely off the white.
-		sliderBg: hex("#c4c4c4"), sliderHoverBg: hex("#b4b4b4"), sliderActiveBg: hex("#a4a4a4"), rulerBorder: hex("#f0f1f2"), trackBg: hex("#f6f6f7"),
-		tabBorder: hex("#d0d0d6"), panelBorder: hex("#949494"),
-		sashHover: hex("#5c9fe0"), whitespace: hex("#d0d0d4"), indentGuide: hex("#a9a9a9"), mdCode: hex("#800000"), mdCodeBg: hex("#ededf0"),
-		// The cursor's line number a shade darker than the rest, not 2026's navy.
-		lineNumber: hex("#6e7681"), lineNumberActive: hex("#3c4048"), descFg: hex("#6f6f73"),
-		barBg: hex("#f8f8f8"), // Light Modern's, a shade off the white where 2026's #fafafd barely shows
+		// Zed's slider over no track: a rule down it, its border.
+		sliderBg: hex("#c1c1c1"), sliderHoverBg: hex("#929292"), sliderActiveBg: hex("#666666"), rulerBorder: hex("#e5e5e5"),
+		tabBorder: hex("#d0d0d6"), panelBorder: hex("#c4c4c4"),
+		sashHover: hex("#5c9fe0"), whitespace: hex("#d3d3d3"), indentGuide: hex("#919191"), mdCode: hex("#ab6526"), mdCodeBg: hex("#f8f8f8"),
+		lineNumber: hex("#6e7681"), lineNumberActive: hex("#171184"), descFg: hex("#616161"),
+		barBg: hex("#f8f8f8"),
 	}
 	// terminalPal inherits the terminal profile's ANSI colors. Diff tints stay
 	// RGB: an ANSI background would collide with remapped syntax colors.
@@ -224,7 +230,7 @@ func applyLook(theme string, dark bool, icons string, colors map[string]string) 
 	case theme == "vscode-dark", theme != "vscode-light" && dark:
 		pal, lookDark = vscodeDark, true
 	default:
-		pal, lookDark = vscodeLight, false
+		pal, lookDark = simpleLight, false
 	}
 
 	keys := pal.colorKeys()

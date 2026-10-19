@@ -10,41 +10,41 @@ import (
 	"github.com/alecthomas/chroma/v2/styles"
 )
 
-// lightPlus is VS Code's Light+ code colors as a chroma style: control flow
-// magenta, other keywords blue, types teal, functions brown, names dark
-// blue, strings dark red, comments green. No background and no text color:
-// the terminal's show through.
-var lightPlus = chroma.MustNewStyle("light-plus", chroma.StyleEntries{
-	chroma.Comment:               "#008000",
-	chroma.CommentPreproc:        "#0000ff",
-	chroma.Keyword:               "#0000ff",
-	chroma.KeywordPseudo:         "#af00db", // keyword.control, which refine sorts out
-	chroma.KeywordNamespace:      "#af00db",
-	chroma.KeywordType:           "#267f99",
-	chroma.Name:                  "#001080",
-	chroma.NameFunction:          "#795e26",
-	chroma.NameDecorator:         "#795e26",
-	chroma.NameClass:             "#267f99",
-	chroma.NameNamespace:         "#267f99",
-	chroma.NameBuiltin:           "#267f99",
-	chroma.NameException:         "#267f99",
-	chroma.NameBuiltinPseudo:     "#0000ff",
-	chroma.NameConstant:          "#0070c1",
-	chroma.NameTag:               "#800000",
-	chroma.NameAttribute:         "#e50000",
-	chroma.LiteralString:         "#a31515",
-	chroma.LiteralStringRegex:    "#811f3f",
-	chroma.LiteralStringEscape:   "#ee0000",
-	chroma.LiteralStringInterpol: "#0000ff",
-	chroma.LiteralNumber:         "#098658",
-	chroma.OperatorWord:          "#0000ff",
-	chroma.GenericHeading:        "bold #800000",
-	chroma.GenericSubheading:     "bold #800000",
-	chroma.GenericStrong:         "bold",
-	chroma.GenericEmph:           "italic",
-	chroma.GenericInserted:       "#098658",
-	chroma.GenericDeleted:        "#a31515",
-	chroma.Error:                 "#cd3131",
+// simpleLightCode is Simple Light's code colors as a chroma style, its Zed
+// theme's: variables blue, strings green, numbers brown, comments grey,
+// keywords bold, the rest the text's own. No background and no text color:
+// the terminal's show through. noinherit keeps a name that is no variable
+// (a function, a type, a key) off Name's blue.
+var simpleLightCode = chroma.MustNewStyle("simple-light", chroma.StyleEntries{
+	chroma.Comment:               "#969696",
+	chroma.CommentPreproc:        "noinherit",
+	chroma.Keyword:               "bold",
+	chroma.KeywordType:           "noinherit",
+	chroma.KeywordConstant:       "noinherit",
+	chroma.Name:                  "#0052a3",
+	chroma.NameFunction:          "noinherit",
+	chroma.NameClass:             "noinherit",
+	chroma.NameNamespace:         "noinherit",
+	chroma.NameBuiltin:           "noinherit",
+	chroma.NameBuiltinPseudo:     "noinherit bold",
+	chroma.NameException:         "noinherit",
+	chroma.NameDecorator:         "noinherit",
+	chroma.NameConstant:          "noinherit",
+	chroma.NameTag:               "noinherit",
+	chroma.NameAttribute:         "noinherit",
+	chroma.NameLabel:             "noinherit",
+	chroma.NameProperty:          "noinherit",
+	chroma.NameEntity:            "noinherit",
+	chroma.LiteralString:         "#007744",
+	chroma.LiteralStringInterpol: "noinherit",
+	chroma.LiteralNumber:         "#9c6b00",
+	chroma.GenericHeading:        "bold #aa3731",
+	chroma.GenericSubheading:     "bold #aa3731",
+	chroma.GenericStrong:         "bold #448c27",
+	chroma.GenericEmph:           "italic #448c27",
+	chroma.GenericInserted:       "#007744",
+	chroma.GenericDeleted:        "#c5000b",
+	chroma.Error:                 "#c5000b",
 })
 
 // syntaxStyle is the code colors for a dark or a light terminal.
@@ -53,7 +53,7 @@ func syntaxStyle(dark bool) *chroma.Style {
 		return styles.Get("github-dark")
 	}
 
-	return lightPlus
+	return simpleLightCode
 }
 
 // controlWords are the keywords VS Code colors as keyword.control: what

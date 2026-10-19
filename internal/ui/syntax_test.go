@@ -35,35 +35,40 @@ func colorOf(t *testing.T, styled []string, word string) string {
 	return ""
 }
 
-// A light terminal's code takes VS Code's Light+ colors: control flow
-// magenta, keywords blue, strings dark red, comments green; in JavaScript
-// a call or a definition brown, a class teal. A dark one keeps github-dark.
-func TestLightPlusColors(t *testing.T) {
+// A light terminal's code takes Simple Light's colors: variables blue,
+// strings green, numbers brown, comments grey, keywords bold; a function,
+// a type, a class and a constant the text's own. A dark one keeps
+// github-dark.
+func TestSimpleLightColors(t *testing.T) {
 	js := "import { LitElement } from \"lit\";\n// a comment\nclass AppModal extends LitElement {\n  createRenderRoot() {\n    return this.MAX_SIZE + 42;\n  }\n}\n"
-	goSrc := "package a\n\nfunc A() int {\n\tfmt.Println(\"x\")\n\treturn 1\n}\n"
+	goSrc := "package a\n\nfunc A(x int) int {\n\tfmt.Println(\"x\")\n\treturn x + 1\n}\n"
 
 	for _, c := range []struct {
-		path, src, word, hex string
+		path, src, word, want string // want: a color, "bold", or "" for the text's own
 	}{
-		{"a.js", js, "import", "#af00db"},
-		{"a.js", js, "from", "#af00db"},
-		{"a.js", js, "return", "#af00db"},
-		{"a.js", js, "class", "#0000ff"},
-		{"a.js", js, "extends", "#0000ff"},
-		{"a.js", js, `"lit"`, "#a31515"},
-		{"a.js", js, "// a comment", "#008000"},
-		{"a.js", js, "createRenderRoot", "#795e26"},
-		{"a.js", js, "AppModal", "#267f99"},
-		{"a.js", js, "MAX_SIZE", "#0070c1"},
-		{"a.js", js, "42", "#098658"},
-		{"a.go", goSrc, "func", "#0000ff"},
-		{"a.go", goSrc, "return", "#af00db"},
-		{"a.go", goSrc, "int", "#267f99"},
-		{"a.go", goSrc, "Println", "#795e26"},
+		{"a.js", js, "import", "bold"},
+		{"a.js", js, "class", "bold"},
+		{"a.js", js, `"lit"`, "#007744"},
+		{"a.js", js, "// a comment", "#969696"},
+		{"a.js", js, "createRenderRoot", ""},
+		{"a.js", js, "AppModal", ""},
+		{"a.js", js, "MAX_SIZE", ""},
+		{"a.js", js, "42", "#9c6b00"},
+		{"a.go", goSrc, "func", "bold"},
+		{"a.go", goSrc, "return", "bold"},
+		{"a.go", goSrc, "A", ""},
+		{"a.go", goSrc, "x", "#0052a3"},
+		{"a.go", goSrc, "int", ""},
+		{"a.go", goSrc, "Println", ""},
 	} {
 		styled, _, _, _ := render(pvFile, c.path, c.src, false)
-		if got := colorOf(t, styled, c.word); !strings.Contains(got, fgParams(hex(c.hex))) {
-			t.Errorf("%s %q: %q, want %s", c.path, c.word, got, c.hex)
+
+		got := colorOf(t, styled, c.word)
+		switch {
+		case c.want == "bold" && (!strings.Contains(got, "[1m") && !strings.Contains(got, "[1;") || strings.Contains(got, "38;2")),
+			c.want == "" && strings.Contains(got, "38;2"),
+			strings.HasPrefix(c.want, "#") && !strings.Contains(got, fgParams(hex(c.want))):
+			t.Errorf("%s %q: %q, want %q", c.path, c.word, got, c.want)
 		}
 	}
 
@@ -73,20 +78,21 @@ func TestLightPlusColors(t *testing.T) {
 	}
 }
 
-// Every Light+ color reads on white at 4.5:1, and at 3:1 on the light
-// theme's find highlights.
-func TestLightPlusContrast(t *testing.T) {
+// Every Simple Light code color reads on white at 4:1 and at 3:1 on the
+// light theme's find highlights, but comments, which the theme keeps faint
+// on purpose.
+func TestSimpleLightContrast(t *testing.T) {
 	applyLook("vscode-light", false, "ascii", nil)
 	t.Cleanup(func() { applyLook("vscode", true, "ascii", nil) })
 
-	for _, tt := range lightPlus.Types() {
-		e := lightPlus.Get(tt)
-		if !e.Colour.IsSet() {
+	for _, tt := range simpleLightCode.Types() {
+		e := simpleLightCode.Get(tt)
+		if !e.Colour.IsSet() || tt.InCategory(chroma.Comment) {
 			continue
 		}
 
 		c := hex(e.Colour.String())
-		for bg, least := range map[color.Color]float64{hex("#ffffff"): 4.5, pal.findHitBg: 3, pal.findMatchBg: 3, pal.matchBg: 3} {
+		for bg, least := range map[color.Color]float64{hex("#ffffff"): 4, pal.findHitBg: 3, pal.findMatchBg: 3, pal.matchBg: 3} {
 			if r := contrast(c, bg); r < least {
 				t.Errorf("%v %s on %v: %.2f, want %.1f", tt, e.Colour, bg, r, least)
 			}
