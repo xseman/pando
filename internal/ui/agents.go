@@ -954,27 +954,36 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		tabs := m.tabsOf(r.s.ID)
 		glyph, c := groupGlyph(tabs)
 
-		// A selected row, as the session on screen usually is, still pulses
-		// for a tab out of view: the tint on the bright beat, the selection on
-		// the other.
-		sel := bg != nil
-		for _, t := range tabs {
-			if hl := m.highlight(t); hl != nil && (bg == nil || sel && m.pulses(t) && m.blinkOn) {
-				bg = hl
-			}
-		}
-
-		nameSt := base
+		// The session on screen: the accent's bar in the gutter's first cell
+		// and its name in the accent, as VS Code marks the active item. One
+		// that needs you says so in its status, in its symbol's color, bold
+		// on the pulse's beat; no row is tinted, so none reads as selected.
+		nameSt, lead := base, []seg{gutter}
 		if m.rootOf(m.sess) == r.s.ID {
-			nameSt = nameSt.Bold(true).Underline(true)
+			nameSt = nameSt.Foreground(pal.headerAccent).Bold(true)
+			gutter.s = strings.TrimPrefix(gutter.s, " ") // the pin's own blank before it
+			lead = []seg{sg("▎", fg(pal.headerAccent)), gutter}
 		}
 
-		status := r.s.Status
-		switch {
+		top := r.s
+		if len(tabs) > 0 {
+			top = slices.MinFunc(tabs, func(a, b proto.Session) int { return sessionRank(a) - sessionRank(b) })
+		}
+
+		status, statusSt := r.s.Status, dim
+		switch state := sessionState(top); {
+		case state == "blocked":
+			status = "input"
+		case state == "done":
+			status = "done"
 		case r.s.Status == "exited":
 			status = fmt.Sprintf("exit %d", r.s.ExitCode)
 		case r.s.Shell:
 			status = "shell"
+		}
+
+		if tint, _ := sessionTint(top); tint != nil && m.st.Settings.SessHi != "off" {
+			statusSt = fg(c).Bold(m.pulses(top) && m.blinkOn)
 		}
 
 		if m.st.Settings.SpGroup == "time" && !r.pinned { // no project tree to say where it runs
@@ -993,13 +1002,13 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		// A name the row cuts, at 32 cells or at the column's edge, shows
 		// whole in a tip.
 		g, after, right := m.spin(glyph, tabs...), titleAfter(r.s), " "+status+" "
-		if full := fullName(r.s); y == hover && !onPin && (full != sessionName(r.s) || ansi.StringWidth(gutter.s+conn+g+full+after+right) > rw) {
+		if full := fullName(r.s); y == hover && !onPin && (full != sessionName(r.s) || 3+ansi.StringWidth(conn+g+full+after+right) > rw) {
 			m.tip = full + after
 		}
 
-		left := append([]seg{gutter, sg(conn, dim), sg(g, fg(c))}, m.fx.segs("sess:"+r.s.ID, sessionName(r.s), nameSt)...)
+		left := append(append(lead, sg(conn, dim), sg(g, fg(c))), m.fx.segs("sess:"+r.s.ID, sessionName(r.s), nameSt)...)
 
-		return row(rw, bg, append(left, sg(after, nameSt)), sg(right, dim))
+		return row(rw, bg, append(left, sg(after, nameSt)), sg(right, statusSt))
 	}
 
 	var out []string

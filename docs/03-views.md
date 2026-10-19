@@ -173,10 +173,14 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
   in a shell tab or a Terminal panel tab too (`runsAgent`, its `Program`):
   a shell's screen reads like an agent's, so a server's logs would show as
   working.
-- `session_highlight` tints blocked, exited and done rows (`sessionTint`);
+- `session_highlight` tints blocked, exited and done tabs (`sessionTint`);
   the tint pulses until the session is clicked or shown (`pulses`). A
-  session row carries its tabs' tint; selected, it still pulses for one.
-  `"steady"` drops the pulse, `"off"` the tint.
+  Spaces row is never tinted, so none reads as selected: its status says
+  `input`, `done` or `exit N` in its symbol's color, bold on the pulse's
+  beat, for its tabs too. `"steady"` drops the pulse, `"off"` the tint and
+  the color.
+- The session on screen has the accent's `▎` in its row's first cell and
+  its name in the accent (`header_accent`).
 - `sounds = true` plays `sound_request` / `sound_done` for sessions out of
   view (`sound.go`).
 - A restart brings each session's agent back

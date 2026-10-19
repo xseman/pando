@@ -223,10 +223,10 @@ func (c *config) encode() []byte {
 	kv("The shell every terminal opens - a session, a session's tab, the Terminal panel - as a\n"+
 		"command with its arguments, e.g. \"fish\" or \"zsh -l\". \"\" opens the [agents] shell preset,\n"+
 		"else your login shell. One that is missing or fails at once falls back on bash.", "shell", s.Shell)
-	kv("Where a session opens: \"right\" or \"left\" (a column of its own beside the editor)\nor \"editor\" (over the editor area).", "session_position", s.SessPos)
+	kv("Where a session opens: \"editor\" (a tab over the editor area, beside the files')\nor \"right\" or \"left\" (a column of its own beside the editor).", "session_position", s.SessPos)
 	kv("A session that waits for an answer, finished unseen or ended with an error: \"tint\"\n"+
-		"its row and tab in its symbol's color and pulse until it is clicked (colors blocked_bg,\n"+
-		"done_bg and their _soft_bg), \"steady\" to tint without the pulse, or \"off\".", "session_highlight", s.SessHi)
+		"its tab, and color its status in Spaces, in its symbol's color and pulse until it is clicked\n"+
+		"(colors blocked_bg, done_bg and their _soft_bg), \"steady\" to tint without the pulse, or \"off\".", "session_highlight", s.SessHi)
 	kv("Spaces: sessions sorted by \"created\" or \"updated\" (last input or change of state),\n"+
 		"grouped by \"workspace\" (project and worktree) or \"time\" (Today, Yesterday, …), and\n"+
 		"the states left out: blocked, running, done, idle, exited.", "spaces_sort", s.SpSort)

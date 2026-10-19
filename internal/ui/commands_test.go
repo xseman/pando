@@ -251,9 +251,9 @@ func TestAgentsTreeAndSounds(t *testing.T) {
 	}
 }
 
-// TestSessionHighlight tints a session that waits (×), finished unseen (✓)
-// or failed (✕) in its symbol's color, on its Spaces row, its tab and a
-// folded project holding it. The tint pulses between two shades until the
+// TestSessionHighlight tints the tab of a session that waits (×), finished
+// unseen (✓) or failed (✕) in its symbol's color; its Spaces row says so in
+// its status instead, untinted. The tint pulses between two shades until the
 // session is clicked, and stays steady while the state lasts; a new state
 // pulses again. "steady" never pulses, "off" drops it, and the session on
 // screen needs none.
@@ -268,9 +268,15 @@ func TestSessionHighlight(t *testing.T) {
 
 	shades := func() (full, soft bool) {
 		checkWidths(t, m)
-		out := m.View().Content // with its colors
+		hl := m.highlight(m.sessions[1])
 
-		return strings.Contains(out, bgParams(pal.blockedBg)), strings.Contains(out, bgParams(pal.blockedSoftBg))
+		return hl == pal.blockedBg, hl == pal.blockedSoftBg
+	}
+
+	spaces := strings.Join(m.ag.lines(m, 40, 20), "\n")
+	if strings.Contains(spaces, bgParams(pal.blockedBg)) || strings.Contains(spaces, bgParams(pal.blockedSoftBg)) ||
+		!strings.Contains(ansi.Strip(spaces), "input") || !strings.Contains(ansi.Strip(spaces), "done") {
+		t.Fatalf("Spaces says the state in its status, untinted:\n%s", spaces)
 	}
 
 	// A new state pulses: the ticker runs and flips the shade.
@@ -286,7 +292,7 @@ func TestSessionHighlight(t *testing.T) {
 		}
 	}
 
-	if !strings.Contains(m.View().Content, bgParams(pal.doneBg)) && !strings.Contains(m.View().Content, bgParams(pal.doneSoftBg)) {
+	if hl := m.highlight(m.sessions[2]); hl != pal.doneBg && hl != pal.doneSoftBg {
 		t.Fatal("a done session is tinted in the attention color")
 	}
 
@@ -4275,9 +4281,10 @@ func TestTerminalPanelPerWorkspace(t *testing.T) {
 	}
 }
 
-// TestTabPulseOnSelectedRow: a tab out of view coming to a state pulses on
+// TestTabPulseOnSelectedRow: a tab out of view coming to a state shows on
 // its session's Spaces row even while that row is selected, as the session
-// on screen usually is; the selection shows on the pulse's other beat.
+// on screen usually is: its status says input, bold on the pulse's beat, the
+// row keeps the selection's background and the accent's bar.
 func TestTabPulseOnSelectedRow(t *testing.T) {
 	m := testModel(t)
 	m.st.Settings.SessHi = "tint"
@@ -4304,14 +4311,14 @@ func TestTabPulseOnSelectedRow(t *testing.T) {
 
 	m.blinkOn = true
 
-	if !strings.Contains(row(), bgParams(pal.blockedBg)) {
-		t.Fatalf("the selected row hides its blocked tab's pulse: %q", row())
+	if r := row(); !strings.Contains(ansi.Strip(r), "input") || !strings.Contains(r, "\x1b[1;") || strings.Contains(r, bgParams(pal.blockedBg)) || !strings.Contains(r, "▎") {
+		t.Fatalf("the selected row: input, bold on the beat, untinted, the active bar: %q", r)
 	}
 
 	m.blinkOn = false
 
-	if strings.Contains(row(), bgParams(pal.blockedSoftBg)) {
-		t.Fatalf("the other beat shows the selection: %q", row())
+	if r := row(); strings.Contains(r, bgParams(pal.blockedSoftBg)) || !strings.Contains(ansi.Strip(r), "input") {
+		t.Fatalf("the other beat: %q", r)
 	}
 
 	m.acknowledge("t1")
