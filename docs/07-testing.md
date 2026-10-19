@@ -82,6 +82,13 @@ go test -run xxx -fuzz FuzzParseStatus -fuzztime 30s ./internal/git
 Each asserts an invariant, e.g. every `parseStatus` path is a substring of
 the input. Crashers in `testdata/fuzz/` replay in `go test`: commit them.
 
+## Language servers in tests
+
+`fakeLSP` (`lspfake_test.go`) is the test binary as a language server, with
+`PANDO_FAKE_LSP` set: `serverModel` points `[lsp]` at `os.Args[0]`. It
+answers hover, signature help inside `A(` and formatting; `deliver` hands
+Update the answers among a command's messages.
+
 ## Benchmarks
 
 Bubble Tea calls `View` after every `Update`, on the event loop: its cost

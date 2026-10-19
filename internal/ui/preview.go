@@ -142,8 +142,10 @@ type preview struct {
 	top        int    // first visible screen row
 	hl         []rune // the word under the cursor, painted wherever else it stands
 	comp       completion
-	left       int // horizontal scroll in cells when not wrapping
-	wide       int // cells of the widest line, measured with the rows while not wrapping
+	hov        hover   // the language server's hover, by the pointer or under the cursor
+	sig        sigHelp // the parameter hints of the call being typed
+	left       int     // horizontal scroll in cells when not wrapping
+	wide       int     // cells of the widest line, measured with the rows while not wrapping
 	cur        pos
 	anchor     *pos // selection start; nil = no selection
 	reveal     bool // center the cursor once the content loads
@@ -3089,7 +3091,7 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 	header = row(w, nil, left, right...)
 
 	p.probs = m.probsOf(p)
-	if t := p.probTip; t != nil && m.mouseX == t.x && m.mouseY == t.y { // VS Code's hover over a squiggle
+	if t := p.probTip; t != nil && m.mouseX == t.x && m.mouseY == t.y && !p.hoverShown(m) { // VS Code's hover over a squiggle; a server's hover holds it
 		m.tip = t.text
 	}
 
@@ -4007,6 +4009,7 @@ func (p *preview) items(m *Model) []item {
 		items = append(items,
 			item{label: "Go to Definition", hint: "f12", run: func(m *Model) tea.Cmd { return m.lspGo(false) }},
 			item{label: "Find References", hint: "⇧f12", run: func(m *Model) tea.Cmd { return m.lspGo(true) }},
+			item{label: "Show Hover", hint: "^k", run: func(m *Model) tea.Cmd { return m.showHover() }},
 			item{label: "Quick Fix…", hint: "^.", run: func(m *Model) tea.Cmd { return m.lspActions() }},
 			item{label: "Rename Symbol…", hint: "F2", run: func(m *Model) tea.Cmd { return m.lspRename() }})
 	}
@@ -4386,8 +4389,14 @@ func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		return p.composeKey(m, k)
 	}
 
+	p.hov = hover{seq: p.hov.seq + 1} // a key puts the hover away, as VS Code's
+
 	if cmd, ok := p.compKey(m, k); ok {
 		return cmd
+	}
+
+	if p.sigKey(k) {
+		return nil
 	}
 
 	if cmd, ok := p.findKey(m, k); ok {
@@ -4413,7 +4422,7 @@ func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	// and the commands single letters used to run live on ⌃ keys, the context
 	// menu and the palette.
 	if cmd, ok := p.editKey(m, k); ok {
-		return tea.Batch(cmd, p.afterEdit(m, k))
+		return tea.Batch(cmd, p.afterEdit(m, k), p.sigAfter(m, k))
 	}
 
 	p.typed = false // not an edit: the cursor moves on its own from here
@@ -4521,6 +4530,8 @@ func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		return m.lspGo(false)
 	case "shift+f12":
 		return m.lspGo(true)
+	case "ctrl+k": // VS Code's ⌃k ⌃i, a chord pando has no room for
+		return m.showHover()
 	case "alt+v": // side by side; VS Code's ⌃k v is a chord pando has no room for
 		if p.kind == pvFile && isMarkdown(p.path) {
 			return p.toggleMarkdown(m, 2)
@@ -4618,6 +4629,8 @@ func (p *preview) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 
 	if click {
 		p.closeComp()
+		p.closeSig()
+		p.hov = hover{seq: p.hov.seq + 1}
 		p.typed = false // the cursor is being put somewhere on purpose
 	}
 
@@ -4731,6 +4744,13 @@ func (p *preview) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 				g, _ := sevMark(pr.sev)
 				p.probTip = &tipAt{g + " " + pr.msg, mo.X, mo.Y}
 			}
+		}
+	}
+
+	if _, move := msg.(tea.MouseMotionMsg); move && mo.Button == tea.MouseNone && p.kind == pvFile {
+		np := p.posAt(w, x, y)
+		if cmd := p.hoverMove(m, np, y >= 0 && y < h && x >= p.gutter() && !p.scrollOnly(m) && !p.split(m)); cmd != nil {
+			return cmd
 		}
 	}
 

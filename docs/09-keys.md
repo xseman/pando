@@ -111,6 +111,7 @@ Editable files and read-only views (diff, revision, rendering):
 | `ctrl+f`, `ctrl+h`                   | find, replace                                            |
 | `F3` `shift+F3`                      | next, previous match with the find box closed            |
 | `F12`, `shift+F12`, `F2`             | go to definition, references, rename symbol              |
+| `ctrl+k`                             | the language server's hover for the word at the cursor   |
 | `ctrl+.` `alt+⏎`                     | quick fix                                                |
 | `ctrl+shift+i`                       | format document                                          |
 | `alt+z`                              | word wrap                                                |
@@ -120,6 +121,7 @@ Editable files and read-only views (diff, revision, rendering):
 Editable only:
 
 - `⏎`, `tab`, `⌫`, `del`: type; `⏎` keeps the indent, `tab` follows the file's indentation
+- `(` `,`: the call's parameter hints, active parameter in bold; `esc` closes them
 - `ctrl+z`, `ctrl+y` `ctrl+shift+z`: undo, redo
 - `ctrl+x`, `ctrl+v`: cut (the line without a selection), paste
 - `ctrl+shift+k`: delete the line or selection

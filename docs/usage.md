@@ -352,9 +352,10 @@ column and a blob are read only.
 ![a README as source, rendered in place, then both side by side scrolling together](demo/markdown.gif)
 
 **Language servers.** `F12` definition, `shift+F12` references, `ctrl+.` code
-actions, `F2` rename, `ctrl+shift+o` symbols, completions. Go and TypeScript
-work once `gopls` or `typescript-language-server` is on the `PATH`; others go
-in `[lsp]` and `[format]`
+actions, `F2` rename, `ctrl+shift+o` symbols, completions, the hover (the
+pointer resting on a name, or `ctrl+k`), parameter hints as you type a call.
+Go and TypeScript work once `gopls` or `typescript-language-server` is on
+the `PATH`; others go in `[lsp]` and `[format]`
 ([06-config.md](06-config.md#language-servers-and-formatters)).
 
 **Problems.** With `lsp_diagnostics` (on by default) a file's server starts as

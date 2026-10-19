@@ -16,8 +16,14 @@ import (
 // would otherwise land where the person running them pastes. It also takes
 // gh and sqlite3 away, CI's runners have them: every layout would grow a
 // GitHub and a Databases view on a machine with them and not without; their
-// own tests put them back.
+// own tests put them back. With fakeLSPEnv set the binary is a language
+// server for the tests that start one.
 func TestMain(m *testing.M) {
+	if os.Getenv(fakeLSPEnv) != "" {
+		fakeLSP()
+		return
+	}
+
 	for _, k := range []string{"WAYLAND_DISPLAY", "DISPLAY"} {
 		_ = os.Unsetenv(k) // unset on a machine without them already
 	}

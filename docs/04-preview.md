@@ -254,8 +254,9 @@ by extension, language id, then defaults (`gofmt`).
 ## Language servers
 
 `internal/lsp` covers definition, references, rename, documentSymbol,
-completion, codeAction (with resolve and executeCommand) and diagnostics,
-pushed or pulled (`diagnosticProvider`: TypeScript 7).
+completion, hover, signatureHelp, formatting, codeAction (with resolve and
+executeCommand) and diagnostics, pushed or pulled (`diagnosticProvider`:
+TypeScript 7).
 
 ```text
 F12, shift+F12 ─▶ lspGo ─▶ tea.Cmd ─▶ lspPool.get(root, path, lang, argv)
@@ -304,6 +305,15 @@ F12, shift+F12 ─▶ lspGo ─▶ tea.Cmd ─▶ lspPool.get(root, path, lang, 
   headings) without a server.
 - The references peek (`peek.go`) sits under the editor: the selected hit's
   source left, hits grouped by file right.
+- Hover (`hover.go`): a pointer resting `tipDelay` on a word (with `tips`)
+  asks through `lspPool.background`, `ctrl+k` through `get`; `seq` drops a
+  stale answer. The box renders the Markdown (`renderMarkdown`, its margins
+  cut, cached per width), by the pointer, the problem there on top, or under
+  the cursor. Any key or click puts it away, the pointer leaving the word too.
+- Parameter hints (`sigHelp`): `(` and `,` ask for `signatureHelp`, every
+  edit while they show asks again, an answer of none or a key that is not an
+  edit closes them, `esc` too. The active parameter is found in the label by
+  name or by its UTF-16 offsets; the box sits above the cursor's line.
 
 ## Tables
 

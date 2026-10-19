@@ -2929,6 +2929,14 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.pv.onComp(msg)
 		return m, nil
 
+	case hoverTickMsg:
+		return m, m.askHover(msg.seq)
+	case hoverMsg:
+		return m, m.onHover(msg)
+	case sigMsg:
+		m.pv.onSig(msg)
+		return m, nil
+
 	case actionsMsg:
 		return m, m.onActions(msg)
 	case appliedMsg:
@@ -4139,7 +4147,15 @@ func (m *Model) View() tea.View {
 		m.overlayBox(lines, box, x, y)
 	}
 
+	if box, x, y, ok := m.pv.sigBox(m); ok && m.modal == nil {
+		m.overlayBox(lines, box, x, y)
+	}
+
 	if box, x, y, ok := m.pv.compBox(m); ok && m.modal == nil {
+		m.overlayBox(lines, box, x, y)
+	}
+
+	if box, x, y, ok := m.pv.hoverBox(m); ok && m.modal == nil {
 		m.overlayBox(lines, box, x, y)
 	}
 
@@ -5161,7 +5177,7 @@ var hotkeys = map[view][][2]string{
 
 var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4 6 7", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"M-t", "agents"}, {"^tab", "editors"}, {"^⇧pgup ^⇧pgdn", "move tab"}, {"^f", "find"}, {"^⇧m", "problems"}, {"M-, M-.", "back/forward"}, {"[ ]", "sessions"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"esc q", "quit"}}
 
-var previewKeys = [][2]string{{"↑↓", "move"}, {"⇧↑↓", "select"}, {"^a", "all"}, {"y", "copy"}, {"s", "split diff"}, {"m", "stage/revert lines"}, {"] [", "next, prev change"}, {"} {", "next, prev file"}, {"F8 ⇧F8", "next, prev problem"}, {"w", "wrap"}, {"^f", "find"}, {"^h", "replace"}, {"^g", "go to line"}, {"f12", "definition"}, {"⇧f12", "references"}, {"^.", "code action"}, {"e", "edit"}, {"q", "close"}}
+var previewKeys = [][2]string{{"↑↓", "move"}, {"⇧↑↓", "select"}, {"^a", "all"}, {"y", "copy"}, {"s", "split diff"}, {"m", "stage/revert lines"}, {"] [", "next, prev change"}, {"} {", "next, prev file"}, {"F8 ⇧F8", "next, prev problem"}, {"w", "wrap"}, {"^f", "find"}, {"^h", "replace"}, {"^g", "go to line"}, {"f12", "definition"}, {"⇧f12", "references"}, {"^k", "hover"}, {"^.", "code action"}, {"e", "edit"}, {"q", "close"}}
 
 // keyRows lays key/description pairs out in two keycap columns.
 func keyRows(pairs [][2]string) []item {
