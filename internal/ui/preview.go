@@ -1297,8 +1297,13 @@ func (p *preview) fetch(full bool) (string, error) {
 		n, _ := f.Read(buf)
 
 		buf = buf[:n]
-		if bytes.IndexByte(buf[:min(n, 8000)], 0) >= 0 {
-			return "", errors.New("binary file")
+		if bytes.IndexByte(buf[:min(n, 8000)], 0) >= 0 { // a card instead, drawn as an error is: no text, no editing
+			size := int64(n)
+			if st, err := f.Stat(); err == nil {
+				size = st.Size()
+			}
+
+			return "", errors.New(strings.Join(binaryCard(p.path, buf, size), "\n"))
 		}
 
 		s := string(buf)
@@ -3109,8 +3114,15 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 		return header, p.tbl.body(m, w, h), footer
 	}
 
-	if p.err != "" {
-		return header, []string{"", dim.Render("  " + p.err)}, footer
+	if p.err != "" { // a card's first line, the file's name, in the text's color
+		lines := strings.Split(p.err, "\n")
+
+		body = []string{""}
+		for i, l := range lines {
+			body = append(body, ifElse(i == 0 && len(lines) > 1, plain, dim).Render("  "+l))
+		}
+
+		return header, body, footer
 	}
 
 	if !p.ready {

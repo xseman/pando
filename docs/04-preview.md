@@ -36,7 +36,18 @@ editable, and `editable` also refuses a truncated file and a rendering.
 `parseDiff`/`renderDiff` for the rest); `onLoad` drops an answer whose `id`
 no longer matches. A file over 1 MiB or 5000 lines loads truncated and
 read-only. Every 2 s tick, `reloadIfLive` reloads a clean `file` or `diff`;
-unsaved text wins over the disk.
+unsaved text wins over the disk. A file with a NUL in its first 8000 bytes
+is a card instead (`binaryCard`, shown as an error is): its name, an image's
+format and size (`image.DecodeConfig`: PNG, JPEG, GIF) or the type
+`http.DetectContentType` sniffs, and its size on disk.
+
+Code colors follow the terminal's background (`syntaxStyle`): github-dark
+on a dark one, VS Code's Light+ (`lightPlus`) on a light one. `refine`
+retypes chroma's tokens first, as VS Code's grammars tell them apart: a
+control keyword (`return`, `if`, `import`, …) is `KeywordPseudo`, magenta
+in Light+; in JavaScript and TypeScript, whose lexers call every name
+`NameOther`, a name before `(` is a function, a capitalized one a class, an
+all-caps one a constant.
 
 ## Text model
 
