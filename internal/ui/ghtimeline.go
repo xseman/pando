@@ -254,9 +254,9 @@ func ghAgo(when time.Time) string {
 	case d < time.Minute:
 		return "now"
 	case d < time.Hour:
-		return strconv.Itoa(int(d.Minutes())) + " minutes ago"
+		return plural(int(d.Minutes()), "minute") + " ago"
 	case d < 24*time.Hour:
-		return strconv.Itoa(int(d.Hours())) + " hours ago"
+		return plural(int(d.Hours()), "hour") + " ago"
 	case d < 48*time.Hour:
 		return "yesterday"
 	case d < 30*24*time.Hour:
