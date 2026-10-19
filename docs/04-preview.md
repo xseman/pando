@@ -220,7 +220,8 @@ inline                                side by side (diff_view = "split")
   Ranges and Revert Selected Ranges… (asks first, `confirmRevert`), a staged
   diff Unstage Selected Ranges. `changedLines` picks the lines (a selection
   ending at column 0 drops that line; none means the change under the
-  cursor, its deletion with its additions, as VS Code's), then
+  cursor, its deletion with its additions, as VS Code's; side by side, whose
+  cursor is a row, the cursor's row), then
   `git.ApplyLines` ([05-git.md](05-git.md)).
 - `←`/`→` in the header walk the file's history, `H` picks a revision. Each
   step is a `rev` diff, entry 0 the uncommitted change.

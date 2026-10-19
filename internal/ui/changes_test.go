@@ -500,6 +500,28 @@ func TestDiffReloadKeepsPlace(t *testing.T) {
 	}
 }
 
+// TestSplitCursorRow stages and reverts the cursor's row in a side-by-side
+// diff, whose cursor is a whole row, where the inline diff takes the whole
+// change under its cursor.
+func TestSplitCursorRow(t *testing.T) {
+	m := testModelSized(t, 160, 30)
+	m.pv = preview{kind: pvDiff, root: m.ws, path: "f.go", entry: git.Entry{Path: "f.go", Letter: 'M'}}
+	m.preview, m.focus = true, onMain
+	loadDiff(m, pvDiff, "diff --git a/f.go b/f.go\n--- a/f.go\n+++ b/f.go\n@@ -1,2 +1,5 @@\n a\n+x\n+y\n+z\n b\n")
+
+	press(m, "]") // the change, its first line
+
+	if _, adds := m.pv.changedLines(m); len(adds) != 3 {
+		t.Fatalf("inline, the whole change: %v", adds)
+	}
+
+	m.st.Settings.DiffView = "split"
+
+	if dels, adds := m.pv.changedLines(m); !m.pv.split(m) || len(dels) != 0 || len(adds) != 1 {
+		t.Fatalf("side by side, the cursor's row: dels %v adds %v", dels, adds)
+	}
+}
+
 // TestDiffCursorChange stages and reverts the whole change under a cursor
 // with no selection, its deletion with its addition, as VS Code's Stage
 // Selected Ranges does; the status bar and Go to Line count the file's

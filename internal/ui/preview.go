@@ -4527,7 +4527,7 @@ func (p *preview) changedLines(m *Model) (dels, adds map[int]bool) {
 	}
 
 	a, b, ok := p.selection()
-	if ok && p.split(m) {
+	if p.split(m) { // its cursor is a row: with nothing selected, that row
 		rows := splitRows(p.meta)
 		ra, rz := p.splitRange(rows)
 
