@@ -2321,7 +2321,7 @@ func (m *Model) headerActions(s int, v view, w int) []titleAction {
 	}
 
 	if m.barH(s) == 0 && bw == 0 { // no activity bar to hold the gear
-		add(icGear, settingsTip, func(m *Model) tea.Cmd { m.modal = settingsModal(m); return nil })
+		add(icGear, settingsTip, func(m *Model) tea.Cmd { return m.manageMenu(m.mouseX, m.mouseY+1) })
 	}
 
 	x := w
@@ -2335,8 +2335,8 @@ func (m *Model) headerActions(s int, v view, w int) []titleAction {
 	return acts
 }
 
-// settingsTip is the tip of the gear that opens the settings.
-const settingsTip = "Open Settings  ^,"
+// settingsTip is the tip of the gear that opens the Manage menu.
+const settingsTip = "Manage  F10"
 
 // viewTip names view v and its key, for its activity bar chip.
 func viewTip(v view) string { return strings.TrimSpace(viewTitles[v] + "  " + showKeys[v]) }
@@ -3314,8 +3314,7 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 	case "ctrl+p":
 		return m.loadIndex(true)
 	case ",":
-		m.modal = settingsModal(m)
-		return nil
+		return m.openSettings()
 
 	case "?":
 		m.modal = helpModal(m.hasGH, m.hasDB)
@@ -3745,7 +3744,7 @@ func (m *Model) vertBarMouse(s int, mo tea.Mouse, y int, click bool) tea.Cmd {
 	}
 
 	if y >= m.panelH()-actH && mo.Button == tea.MouseLeft {
-		m.modal = settingsModal(m)
+		return m.manageMenu(mo.X, mo.Y)
 	}
 
 	return nil
@@ -3789,8 +3788,7 @@ func (m *Model) sideMouse(s int, rc rect, msg tea.MouseMsg) tea.Cmd {
 		}
 
 		if x >= rc.w-ansi.StringWidth(gearLabel()) {
-			m.modal = settingsModal(m)
-			return nil
+			return m.manageMenu(mo.X, mo.Y+1)
 		}
 
 		for _, t := range m.tabs(s) {
@@ -4893,7 +4891,7 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 		add(text, dim, tip, run)
 	}
 
-	if m.showsPreview() && m.pv.md != 1 && !m.pv.side(m) && m.pv.kind != pvTable { // a side-by-side diff keeps its cursor line
+	if m.showsPreview() && m.pv.md != 1 && !m.pv.side(m) && m.pv.kind != pvTable && m.pv.kind != pvSettings { // a side-by-side diff keeps its cursor line
 		// VS Code's editor items: the cursor, going to a line; a file's
 		// indentation, changing it. A rendering has no cursor to show.
 		c := m.pv.at()
@@ -5055,9 +5053,9 @@ func (m *Model) stripH() int {
 
 // headH is the rows of header under the tab strip: none for a session, whose
 // name is its tab's, nor for a file with breadcrumbs off, whose buttons are in
-// the strip; else 1.
+// the strip, nor for the Settings, named by their tab; else 1.
 func (m *Model) headH() int {
-	if m.showsSession() || m.stripH() > 0 && m.pv.pathHeader() && !m.st.Settings.Crumbs {
+	if m.showsSession() || m.stripH() > 0 && (m.pv.pathHeader() && !m.st.Settings.Crumbs || m.pv.kind == pvSettings) { // the tab names Settings
 		return 0
 	}
 
@@ -5202,9 +5200,9 @@ var hotkeys = map[view][][2]string{
 	viewDB:     {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"n", "new connection"}, {"e D", "edit/remove"}, {"c y", "copy name/path"}, {"r", "refresh"}, {"C", "collapse"}, {"^f", "filter"}},
 }
 
-var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4 6 7", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"M-t", "agents"}, {"^tab", "editors"}, {"^⇧pgup ^⇧pgdn", "move tab"}, {"^f", "find"}, {"^⇧m", "problems"}, {"M-, M-.", "back/forward"}, {"[ ]", "sessions"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"esc q", "quit"}}
+var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4 6 7", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"M-t", "agents"}, {"^tab", "editors"}, {"^⇧pgup ^⇧pgdn", "move tab"}, {"^f", "find"}, {"^⇧m", "problems"}, {"^⇧u", "output"}, {"M-, M-.", "back/forward"}, {"[ ]", "sessions"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"F10", "manage"}, {"esc q", "quit"}}
 
-var previewKeys = [][2]string{{"↑↓", "move"}, {"⇧↑↓", "select"}, {"^a", "all"}, {"y", "copy"}, {"s", "split diff"}, {"m", "stage/revert lines"}, {"] [", "next, prev change"}, {"} {", "next, prev file"}, {"F8 ⇧F8", "next, prev problem"}, {"w", "wrap"}, {"^f", "find"}, {"^h", "replace"}, {"^g", "go to line"}, {"f12", "definition"}, {"⇧f12", "references"}, {"^k", "hover"}, {"^.", "code action"}, {"e", "edit"}, {"q", "close"}}
+var previewKeys = [][2]string{{"↑↓", "move"}, {"⇧↑↓", "select"}, {"^a", "all"}, {"y", "copy"}, {"s", "split diff"}, {"m", "stage/revert lines"}, {"] [", "next, prev change"}, {"} {", "next, prev file"}, {"F8 ⇧F8", "next, prev problem"}, {"^⇧[ ^⇧]", "fold, unfold"}, {"w", "wrap"}, {"^f", "find"}, {"^h", "replace"}, {"^g", "go to line"}, {"f12", "definition"}, {"⇧f12", "references"}, {"^k", "hover"}, {"^.", "code action"}, {"e", "edit"}, {"q", "close"}}
 
 // keyRows lays key/description pairs out in two keycap columns.
 func keyRows(pairs [][2]string) []item {
@@ -5235,114 +5233,6 @@ func keyRows(pairs [][2]string) []item {
 }
 
 func heading(s string) item { return item{label: bold.Render(s), styled: true} }
-
-// settingsItems are the Settings modal's toggles, grouped under headings.
-func settingsItems(m *Model) []item {
-	onOff := func(b bool) string {
-		if b {
-			return "on"
-		}
-
-		return "off"
-	}
-	s := m.st.Settings
-
-	theme := s.Theme
-	if theme == "" {
-		theme = "vscode"
-	}
-
-	return []item{
-		heading("Appearance"),
-		{label: "Color theme", hint: theme, run: func(m *Model) tea.Cmd {
-			next := themeNames[(slices.Index(themeNames, theme)+1)%len(themeNames)]
-			return m.setSettings(map[string]any{"color_theme": next})
-		}},
-		{label: "Icons", hint: s.Icons, run: func(m *Model) tea.Cmd {
-			next := iconSets[(slices.Index(iconSets, m.st.Settings.Icons)+1)%len(iconSets)]
-			return m.setSettings(map[string]any{"icons": next})
-		}},
-		{label: "Activity bar", hint: map[bool]string{true: "side", false: "top"}[m.sideBar()], run: func(m *Model) tea.Cmd {
-			next := "side"
-			if m.sideBar() {
-				next = "top"
-			}
-
-			return tea.Batch(m.setSettings(map[string]any{"activity_bar": next}), m.fetchScreen())
-		}},
-		{label: "Panel borders", hint: onOff(s.Borders), run: func(m *Model) tea.Cmd {
-			return tea.Batch(m.setSettings(map[string]any{"panel_borders": !m.st.Settings.Borders}), m.fetchScreen())
-		}},
-		{label: "Tooltips", hint: onOff(s.Tips), run: func(m *Model) tea.Cmd { return m.setSettings(map[string]any{"tooltips": !m.st.Settings.Tips}) }},
-		{},
-		heading("Explorer"),
-		{label: "Hidden files", hint: onOff(s.Hidden), run: func(m *Model) tea.Cmd { return m.setSettings(map[string]any{"hidden": !m.st.Settings.Hidden}) }},
-		{label: "Git decorations", hint: onOff(s.GitDeco), run: func(m *Model) tea.Cmd {
-			return tea.Batch(m.setSettings(map[string]any{"git_deco": !m.st.Settings.GitDeco}), m.refreshGit())
-		}},
-		{label: "Sort files by", hint: cmp.Or(s.ExSort, "name"), run: toggleSort},
-		{label: "Auto reveal", hint: onOff(s.Reveal), run: func(m *Model) tea.Cmd { return m.setSettings(map[string]any{"auto_reveal": !m.st.Settings.Reveal}) }},
-		{},
-		heading("Source Control"),
-		{label: "Git changes as tree", hint: onOff(s.GitTree), run: func(m *Model) tea.Cmd {
-			return m.setSettings(map[string]any{"git_tree": !m.st.Settings.GitTree})
-		}},
-		{label: "Diff view", hint: map[bool]string{true: "split", false: "inline"}[s.DiffView == "split"], run: func(m *Model) tea.Cmd { return m.toggleDiffView() }},
-		{label: "Diff whole file", hint: onOff(s.DiffFull), run: func(m *Model) tea.Cmd { return m.toggleDiffFull() }},
-		{},
-		heading("Editor"),
-		{label: "Format on save", hint: onOff(s.FmtSave), run: func(m *Model) tea.Cmd {
-			return m.setSettings(map[string]any{"format_on_save": !m.st.Settings.FmtSave})
-		}},
-		{label: "Diagnostics", hint: onOff(s.Diags), run: func(m *Model) tea.Cmd {
-			return m.setSettings(map[string]any{"lsp_diagnostics": !m.st.Settings.Diags})
-		}},
-		{label: "Vim mode", hint: onOff(s.Vim), run: func(m *Model) tea.Cmd {
-			return m.setSettings(map[string]any{"vim_mode": !m.st.Settings.Vim})
-		}},
-		{label: "Breadcrumbs", hint: onOff(s.Crumbs), run: func(m *Model) tea.Cmd {
-			return m.setSettings(map[string]any{"breadcrumbs": !m.st.Settings.Crumbs})
-		}},
-		{label: "Word wrap", hint: onOff(s.Wrap), run: func(m *Model) tea.Cmd { return m.toggleWrap() }},
-		{label: "Render whitespace", hint: cmp.Or(s.Blanks, "none"), run: func(m *Model) tea.Cmd {
-			next := blankModes[(slices.Index(blankModes, cmp.Or(m.st.Settings.Blanks, "none"))+1)%len(blankModes)]
-			return m.setSettings(map[string]any{"render_whitespace": next})
-		}},
-		{label: "Markdown width", hint: mdWidthHint(s.MDWidth), run: func(m *Model) tea.Cmd {
-			next := mdWidths[(slices.Index(mdWidths, m.st.Settings.MDWidth)+1)%len(mdWidths)]
-			return m.setSettings(map[string]any{"markdown_width": next})
-		}},
-		{label: "Editor limit", hint: edLimitHint(s.EdLimit), run: func(m *Model) tea.Cmd {
-			next := edLimits[(slices.Index(edLimits, m.st.Settings.EdLimit)+1)%len(edLimits)]
-			return m.setSettings(map[string]any{"editor_limit": next})
-		}},
-		{},
-		heading("Sessions"),
-		{label: "Claude in background", hint: onOff(s.ClaudeBg), run: func(m *Model) tea.Cmd {
-			return m.setSettings(map[string]any{"claude_background": !m.st.Settings.ClaudeBg})
-		}},
-	}
-}
-
-func settingsModal(m *Model) *modal {
-	build := func(m *Model) []item {
-		items := settingsItems(m)
-
-		v := viewFiles
-		if m.focus != onMain {
-			v, _ = m.viewOn(m.focus)
-		}
-
-		items = append(items, item{}, heading("Hotkeys"))
-		items = append(items, keyRows(hotkeys[v])...)
-
-		return append(items, item{label: dim.Render("click/⏎ toggle · esc close"), styled: true})
-	}
-	md := newMenu("Settings", -1, 0, build(m)...)
-	md.build, md.keep = build, true
-
-	return md
-}
 
 // viewItems are the commands that belong to no view.
 func (m *Model) viewItems() []item {
@@ -5399,7 +5289,7 @@ func (m *Model) viewItems() []item {
 		{label: "Focus Next Panel", hint: "^]", run: func(m *Model) tea.Cmd { m.cycleFocus(); return m.fetchScreen() }},
 		{label: "Focus Sidebar", hint: "^0", run: func(m *Model) tea.Cmd { return m.focusSidebar() }},
 		{label: "Toggle Sidebars", hint: "^b", run: func(m *Model) tea.Cmd { return m.toggleSidebars() }},
-		{label: "Open Settings", hint: "^,", run: func(m *Model) tea.Cmd { m.modal = settingsModal(m); return nil }},
+		{label: "Open Settings", hint: "^,", run: func(m *Model) tea.Cmd { return m.openSettings() }},
 		{label: "Keyboard Shortcuts", hint: "?", run: func(m *Model) tea.Cmd { m.modal = helpModal(m.hasGH, m.hasDB); return nil }},
 		{label: "Quit", hint: "q", run: func(m *Model) tea.Cmd { return m.confirmQuit() }},
 	}...)
@@ -5434,40 +5324,113 @@ func (m *Model) viewItems() []item {
 func (m *Model) commands() []item {
 	var items []item
 
-	add := func(category string, its []item) {
-		for _, it := range its {
+	for _, c := range m.categories() {
+		for _, it := range c.items {
 			if it.run == nil || it.styled {
 				continue
 			}
 
-			label, run := category+": "+it.label, it.run
+			label, run := c.name+": "+it.label, it.run
 			it.label, it.detail = label, ""
 			it.run = func(m *Model) tea.Cmd { m.lastCommand = label; return run(m) }
 			items = append(items, it)
 		}
 	}
-	add("View", m.viewItems())
-	add("Explorer", m.ex.items(m))
-	add("Git", m.scm.items(m))
-	add("Agents", m.ag.items(m))
-	add("Search", m.sr.items(m))
+
+	return items
+}
+
+// category is one of the palette's groups of commands.
+type category struct {
+	name  string
+	items []item
+}
+
+// categories are the palette's commands by group, in its order.
+func (m *Model) categories() []category {
+	cs := []category{
+		{"View", m.viewItems()},
+		{"Explorer", m.ex.items(m)},
+		{"Git", m.scm.items(m)},
+		{"Agents", m.ag.items(m)},
+		{"Search", m.sr.items(m)},
+	}
 
 	if m.hasGH {
-		add("GitHub", m.gh.items(m))
+		cs = append(cs, category{"GitHub", m.gh.items(m)})
 	}
 
 	if m.hasDB {
-		add("Databases", m.db.items(m))
+		cs = append(cs, category{"Databases", m.db.items(m)})
 	}
 
 	if m.showsPreview() {
-		add("Editor", append(m.pv.items(m), m.pv.keyItems(m)...))
+		cs = append(cs, category{"Editor", append(m.pv.items(m), m.pv.keyItems(m)...)})
 	}
 
-	add("Preferences", settingsItems(m))
-	add("Pando", m.updateItems())
+	return append(cs, category{"Preferences", settingsItems(m)}, category{"Pando", m.updateItems()})
+}
 
-	return items
+// manageMenu is the gear's menu, F10's too, at x, y: VS Code's Manage, then
+// each of the palette's categories, a menu of its own in the same place.
+func (m *Model) manageMenu(x, y int) tea.Cmd {
+	items := []item{
+		{label: "Command Palette", hint: "^⇧p", run: func(m *Model) tea.Cmd { return m.commandPalette() }},
+		{label: "Settings", hint: "^,", run: func(m *Model) tea.Cmd { return m.openSettings() }},
+		{label: "Keyboard Shortcuts", hint: "?", run: func(m *Model) tea.Cmd { m.modal = helpModal(m.hasGH, m.hasDB); return nil }},
+		{sep: true},
+	}
+
+	for _, c := range m.categories() {
+		if !slices.ContainsFunc(c.items, func(it item) bool { return it.run != nil }) {
+			continue
+		}
+
+		name := c.name
+		items = append(items, item{label: name, hint: "›", run: func(m *Model) tea.Cmd { return m.manageSub(name, x, y) }})
+	}
+
+	return m.menuOf(items, x, y)
+}
+
+// manageSub is category name's menu in the Manage menu's place: its first
+// row, ← too, goes back there. A setting that is on has its check, and the
+// Preferences change in place, the menu staying open on them.
+func (m *Model) manageSub(name string, x, y int) tea.Cmd {
+	back := func(m *Model) tea.Cmd {
+		cmd := m.manageMenu(x, y)
+		m.modal.focus(slices.IndexFunc(m.modal.disp, func(it item) bool { return it.label == name }))
+
+		return cmd
+	}
+
+	build := func(m *Model) []item {
+		var sub []item
+
+		for _, c := range m.categories() {
+			if c.name == name {
+				sub = c.items
+			}
+		}
+
+		for i, it := range sub {
+			switch it.hint {
+			case "on":
+				sub[i].hint = "✓"
+			case "off":
+				sub[i].hint = ""
+			}
+		}
+
+		return append([]item{{label: "‹ " + name, hint: "←", run: back}, {sep: true}}, sub...)
+	}
+
+	m.menuOf(build(m), x, y)
+	m.modal.back = back
+	m.modal.keep, m.modal.build = name == "Preferences", build
+	m.modal.focus(min(2, len(m.modal.disp)-1)) // the first of its own, past the way back
+
+	return nil
 }
 
 // overlayBox draws a box over the screen's lines at x, y.

@@ -462,7 +462,14 @@ start; without any the view does not exist.
 A view's `items()` feeds its context menu. The palette (`ctrl+shift+p`, `F1`)
 lists `commands()`: each view's `items()` plus `viewItems`, `settingsItems`,
 `updateItems` and the editor's `keyItems`, labels prefixed "Category: ", the
-last used first.
+last used first. Both come from `categories()`, which also builds ⚙'s Manage
+menu (`manageMenu`, `F10`): Command Palette, Settings, Keyboard Shortcuts,
+then one row per category (`→` too) opening its items as a menu in the
+same place (`manageSub`): its first row `‹ Category`, `←` too (`modal.back`),
+goes back, on the category it came from. A setting that is on is checked
+(✓); Preferences change in place, the menu staying open (`modal.keep`,
+rebuilt). No menu bar: it would cost a row on every screen, and `alt+`
+mnemonics are the shell's.
 
 `commandID` turns a label into its `[keys]` id: "Git: Switch Branch…" →
 `git.switchBranch`. Renaming a label changes the id and silently breaks user

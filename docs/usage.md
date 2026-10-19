@@ -384,8 +384,11 @@ started before this setting existed needs `pando stop` to know it.
 
 ## Settings, keys, updates
 
-Settings live in `config.toml`, commented in the file. `ctrl+,` edits them,
-grouped as Appearance, Explorer, Source Control, Editor and Sessions,
+Settings live in `config.toml`, commented in the file. `ctrl+,` (or ⚙ →
+Settings; ⚙ and `F10` open the Manage menu, every command by category)
+opens them in a tab, its sections Appearance, Explorer, Source Control,
+Editor and Sessions across the top, each setting a checkbox or a dropdown
+that applies at once,
 `pando set KEY VALUE` changes one from a shell, and every change applies live
 in every attached TUI. Keys remap in its `[keys]` table, by command id
 ([06-config.md](06-config.md#keys)); every default key:

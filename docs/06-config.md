@@ -100,7 +100,9 @@ Desktop: freedesktop `complete.oga`, `dialog-information.oga`.
 
 A new setting: a tagged `proto.Settings` field, its default in
 `defaultConfig` (`internal/daemon/config.go`), a `kv` line in `encode` (which
-rewrites the file: no line, never saved), a `settingsItems` toggle if any.
+rewrites the file: no line, never saved), a row in `settingsTable`
+(`internal/ui/settings.go`) if Settings shows it: a `checkbox`, or a
+dropdown with its `opts`.
 
 ## Tables
 

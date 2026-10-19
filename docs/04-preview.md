@@ -21,16 +21,17 @@ storage: [06-config.md](06-config.md).
 One `preview` struct (`preview.go`) serves every kind. Only `pvFile` is
 editable, and `editable` also refuses a truncated file and a rendering.
 
-| kind     | Content                                        | Opened by                          |
-| -------- | ---------------------------------------------- | ---------------------------------- |
-| `file`   | a file, chroma-highlighted; or an untitled one | Explorer ⏎, quick open, search hit |
-| `diff`   | working tree or index diff of one file         | Source Control ⏎ / `o`             |
-| `show`   | a whole commit, `git show`                     | a drawer line (hash)               |
-| `rev`    | what one revision changed in the open file     | header `←` `→`, `H`                |
-| `cmp`    | one file of a range, `git diff RANGE -- file`  | a Compare drawer file              |
-| `gh`     | a pull request or issue, buttons in the header | GitHub ⏎                           |
-| `ghdiff` | a pull request's changes, `gh pr diff`         | GitHub `d`                         |
-| `table`  | a table or a view of a database, as a grid     | Databases ⏎                        |
+| kind       | Content                                        | Opened by                          |
+| ---------- | ---------------------------------------------- | ---------------------------------- |
+| `file`     | a file, chroma-highlighted; or an untitled one | Explorer ⏎, quick open, search hit |
+| `diff`     | working tree or index diff of one file         | Source Control ⏎ / `o`             |
+| `show`     | a whole commit, `git show`                     | a drawer line (hash)               |
+| `rev`      | what one revision changed in the open file     | header `←` `→`, `H`                |
+| `cmp`      | one file of a range, `git diff RANGE -- file`  | a Compare drawer file              |
+| `gh`       | a pull request or issue, buttons in the header | GitHub ⏎                           |
+| `ghdiff`   | a pull request's changes, `gh pr diff`         | GitHub `d`                         |
+| `table`    | a table or a view of a database, as a grid     | Databases ⏎                        |
+| `settings` | Settings: sections, checkboxes, dropdowns      | `ctrl+,`, ⚙ Settings, `,`          |
 
 `load` runs `fetch` and `render` in a `tea.Cmd` (chroma for files,
 `parseDiff`/`renderDiff` for the rest); `onLoad` drops an answer whose `id`

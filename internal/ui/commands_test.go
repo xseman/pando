@@ -2278,11 +2278,10 @@ func TestVSCodeKeys(t *testing.T) {
 
 	press(m, "ctrl+,")
 
-	if m.modal == nil || m.modal.title != "Settings" {
-		t.Fatalf("ctrl+, opens settings: %+v", m.modal)
+	if m.pv.kind != pvSettings || m.modal != nil {
+		t.Fatalf("ctrl+, opens the Settings tab: %q, modal %v", m.pv.kind, m.modal)
 	}
 
-	m.modal = nil
 	press(m, "ctrl+1")
 
 	if m.focus != onMain {
@@ -3054,12 +3053,12 @@ func TestActivityBarAir(t *testing.T) {
 	}
 
 	click(m, rc.x+rc.w-ansi.StringWidth(gearLabel()), 0, tea.MouseLeft)
+	choose(t, m, "Settings")
 
-	if m.modal == nil || m.modal.title != "Settings" {
-		t.Fatalf("gear at its left edge: %+v", m.modal)
+	if m.pv.kind != pvSettings {
+		t.Fatalf("gear at its left edge opened %q", m.pv.kind)
 	}
 	// A narrow sidebar tightens the chips rather than run into the gear.
-	m.modal = nil
 	m.setColWidth(0, 22)
 
 	tabs = m.tabs(0)

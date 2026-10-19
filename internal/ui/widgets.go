@@ -982,8 +982,9 @@ const recentGroup = "recently opened"
 type modal struct {
 	title     string
 	items     []item
-	build     func(m *Model) []item // rebuilds items after run when keep is set
-	disp      []item                // rows as shown: filtered, ranked, grouped in tree mode
+	build     func(m *Model) []item  // rebuilds items after run when keep is set
+	back      func(m *Model) tea.Cmd // a submenu's way back to its parent: ← and its first row
+	disp      []item                 // rows as shown: filtered, ranked, grouped in tree mode
 	input     textinput.Model
 	filter    bool
 	lineQuery bool // a trailing ":12:5" is a position, not part of the match
@@ -1513,7 +1514,7 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 
 	w = ansi.StringWidth(md.title) + 6
 	for _, it := range md.items {
-		w = max(w, ansi.StringWidth(it.label)+ansi.StringWidth(it.inline)+ansi.StringWidth(it.hint)+6)
+		w = max(w, ansi.StringWidth(it.label)+ansi.StringWidth(it.inline)+ansi.StringWidth(it.hint)+6+b2i(it.hint != "")) // two blanks before a hint
 	}
 
 	if md.hasInput() {
@@ -1806,13 +1807,17 @@ func (md *modal) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	}
 
 	if !md.hasInput() {
-		switch k.String() {
-		case "k":
+		switch s := k.String(); {
+		case s == "k":
 			md.step(-1, rows)
-		case "j":
+		case s == "j":
 			md.step(1, rows)
-		case "q":
+		case s == "q":
 			m.modal = nil
+		case (s == "left" || s == "h" || s == "backspace") && md.back != nil:
+			return md.back(m)
+		case (s == "right" || s == "l") && md.l.sel >= 0 && md.l.sel < len(md.disp) && md.disp[md.l.sel].hint == "›": // into a submenu
+			return md.choose(m, md.l.sel)
 		}
 
 		return nil

@@ -102,7 +102,7 @@ var keybindings = []keybinding{
 	}},
 	{keys: []string{"ctrl+shift+`"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return tea.Batch(m.openTerminalPanel(), m.newTerm()) }},
 	{keys: []string{"ctrl+b"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.toggleSidebars() }},
-	{keys: []string{"ctrl+,"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { m.modal = settingsModal(m); return nil }},
+	{keys: []string{"ctrl+,"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.openSettings() }},
 	{keys: []string{"ctrl+shift+e"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.showView(viewFiles) }},
 	{keys: []string{"ctrl+shift+g"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.showView(viewGit) }},
 	{keys: []string{"ctrl+shift+h"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd {
@@ -124,6 +124,7 @@ var keybindings = []keybinding{
 	// Everywhere but a terminal, where these are the shell's or the app's:
 	// ⌃⏎ a newline to an agent, F1 help, ⇧⌃v a paste, ⌃s the terminal's own.
 	{keys: []string{"f1"}, when: ctxNotTerm, run: func(m *Model, _ string) tea.Cmd { return m.commandPalette() }},
+	{keys: []string{"f10"}, when: ctxNotTerm, run: func(m *Model, _ string) tea.Cmd { return m.manageMenu(0, 0) }},
 	{keys: []string{"ctrl+shift+v"}, when: ctxNotTerm, run: func(m *Model, _ string) tea.Cmd { return m.toggleRendered() }},
 	{keys: []string{"ctrl+enter"}, when: ctxNotTerm, run: func(m *Model, _ string) tea.Cmd {
 		if m.pv.composing { // the box at the end of a page of GitHub: its text is sent, not the staged changes

@@ -315,11 +315,74 @@ func TestActivityBarHeaderFooter(t *testing.T) {
 	if !strings.Contains(m.View().Content, bgParams(pal.hoverBg)) {
 		t.Fatal("hovered row is not highlighted")
 	}
-	// The gear opens settings with hotkeys.
+	// The gear opens the Manage menu: the palette, the settings, the keys,
+	// then the palette's categories, each a menu of its own.
 	click(m, l.w-2, 0, tea.MouseLeft)
 
-	if m.modal == nil || m.modal.title != "Settings" || !slices.ContainsFunc(m.modal.items, func(it item) bool { return it.label == heading("Hotkeys").label }) {
-		t.Fatal("gear opens settings")
+	if m.modal == nil || !slices.Contains(labels(m), "Command Palette") || !slices.Contains(labels(m), "Git") {
+		t.Fatalf("the gear's menu: %v", m.modal != nil && slices.Contains(labels(m), "Git"))
+	}
+
+	checkWidths(t, m)
+	choose(t, m, "Git")
+
+	if m.modal == nil || !slices.Contains(labels(m), "Collapse All") {
+		t.Fatalf("Git's menu: %v", labels(m))
+	}
+
+	checkWidths(t, m)
+	choose(t, m, "Collapse All")
+
+	if m.modal != nil {
+		t.Fatal("running an item closes the menu")
+	}
+
+	click(m, l.w-2, 0, tea.MouseLeft)
+	choose(t, m, "Preferences")
+
+	if !slices.ContainsFunc(m.modal.disp, func(it item) bool { return it.label == "Tooltips" && it.hint == ifElse(m.st.Settings.Tips, "✓", "") }) {
+		t.Fatalf("a setting carries its check: %+v", m.modal.disp)
+	}
+
+	// A setting changes in place, the menu open on it, its check following.
+	tips := m.st.Settings.Tips
+	choose(t, m, "Tooltips")
+
+	if m.modal == nil || m.st.Settings.Tips == tips || !slices.ContainsFunc(m.modal.disp, func(it item) bool { return it.label == "Tooltips" && it.hint == ifElse(!tips, "✓", "") }) {
+		t.Fatalf("Tooltips flipped in place: %v, menu %v", m.st.Settings.Tips, m.modal != nil)
+	}
+
+	// ← goes back to the first menu, on the category it came from; its
+	// first row too.
+	press(m, "left")
+
+	if m.modal == nil || !slices.Contains(labels(m), "Command Palette") || m.modal.disp[m.modal.l.sel].label != "Preferences" {
+		t.Fatalf("back to Manage, on Preferences: %v", labels(m))
+	}
+
+	press(m, "right")
+
+	if !slices.Contains(labels(m), "‹ Preferences") {
+		t.Fatalf("→ opens the category: %v", labels(m))
+	}
+
+	choose(t, m, "‹ Preferences")
+
+	if !slices.Contains(labels(m), "Command Palette") {
+		t.Fatalf("its first row goes back: %v", labels(m))
+	}
+
+	m.modal = nil
+	press(m, "f10")
+
+	if m.modal == nil || !slices.Contains(labels(m), "Keyboard Shortcuts") {
+		t.Fatal("F10 opens the Manage menu")
+	}
+
+	choose(t, m, "Settings")
+
+	if m.pv.kind != pvSettings {
+		t.Fatal("Manage's Settings opens the Settings tab")
 	}
 
 	checkWidths(t, m)
@@ -364,16 +427,10 @@ func TestViewsModalsAndFocus(t *testing.T) {
 
 	checkWidths(t, m)
 
-	press(m, ",")
+	press(m, ",", "tab", "enter") // Settings, Explorer, Hidden files
 
-	for m.modal.disp[m.modal.l.sel].label != "Hidden files" {
-		press(m, "down")
-	}
-
-	press(m, "enter") // toggles hidden and stays open
-
-	if !m.st.Settings.Hidden || m.modal == nil || m.modal.disp[m.modal.l.sel].hint != "on" {
-		t.Fatalf("settings toggle: hidden=%v modal=%v", m.st.Settings.Hidden, m.modal)
+	if !m.st.Settings.Hidden || m.pv.kind != pvSettings || !strings.Contains(checkWidths(t, m), "[x]") {
+		t.Fatalf("settings toggle: hidden=%v kind=%q", m.st.Settings.Hidden, m.pv.kind)
 	}
 
 	press(m, "esc")
@@ -2265,7 +2322,9 @@ func TestSplitDiff(t *testing.T) {
 
 func TestMenuHover(t *testing.T) {
 	m := testModel(t)
-	press(m, ",")
+	none := func(*Model) tea.Cmd { return nil }
+	m.modal = newMenu("Settings", -1, 0, heading("Appearance"), item{label: "Theme", run: none}, item{label: "Icons", run: none},
+		item{}, heading("Hotkeys"), item{label: "Keys", run: none})
 	x, y, _, _, _ := m.modal.rect(m)
 	icons := slices.IndexFunc(m.modal.disp, func(it item) bool { return it.label == "Icons" })
 	m.Update(tea.MouseMotionMsg{X: x + 3, Y: y + 1 + icons})
@@ -2365,12 +2424,11 @@ func TestColumns(t *testing.T) {
 	m.Update(tea.MouseMotionMsg{X: 2, Y: 0})
 	acts := m.headerActions(0, viewAgents, 24) // …, ⚙ at the end
 	click(m, acts[len(acts)-1].x, 0, tea.MouseLeft)
+	choose(t, m, "Settings")
 
-	if m.modal == nil || m.modal.title != "Settings" {
-		t.Fatalf("the header gear opens settings: %+v", m.modal)
+	if m.pv.kind != pvSettings {
+		t.Fatalf("the header gear opened %q", m.pv.kind)
 	}
-
-	m.modal = nil
 
 	m.focus = 0
 	for _, want := range []int{1, onMain, 0} {

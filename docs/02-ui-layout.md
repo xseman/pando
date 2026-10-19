@@ -74,7 +74,8 @@ One terminal cursor, styled by the terminal unless an app asks otherwise:
 - Widths come from `wants`: the column's `width`, else the side default,
   else 32; at least 20.
 - A column shows its most recently shown tab (`recent`, `viewOn`).
-- A one-tab column has no activity bar; ⚙ moves into its header.
+- A one-tab column has no activity bar; ⚙ moves into its header. ⚙ opens
+  the Manage menu (`manageMenu`, see `03-views.md` Commands).
 - Move a view by dragging its tab or header title, or from its tab menu
   (`moveView`, `splitView`, `mergeView`, _Hide Sidebar_).
 

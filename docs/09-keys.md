@@ -32,12 +32,14 @@ T: also in a terminal; the rest are the shell's there.
 | ------------------------------------------------------ | ------------------------------------------------------- |
 | `ctrl+]` T                                             | cycle focus: left sidebar, main, panel, right sidebar   |
 | `ctrl+shift+p` T, `F1`                                 | command palette                                         |
+| `F10`                                                  | Manage menu (⚙): palette, settings, keys, categories    |
 | `ctrl+shift+e` `ctrl+shift+g` `ctrl+shift+f` T         | Explorer, Source Control, Search                        |
 | `ctrl+shift+h` T                                       | Search with replace                                     |
-| ``ctrl+` `` T, `ctrl+j`, `5` (list, diff)              | toggle the Terminal panel                               |
+| ``ctrl+` `` T, `ctrl+j`, `5` (list, diff)              | toggle the bottom panel                                 |
+| `ctrl+shift+u`                                         | the panel's Output                                      |
 | ``ctrl+shift+` `` T                                    | new shell in the panel                                  |
 | `ctrl+shift+↑` `ctrl+shift+↓` T                        | maximize, restore the panel                             |
-| `ctrl+b` T, `ctrl+,` T                                 | hide the sidebars, settings                             |
+| `ctrl+b` T, `ctrl+,` T                                 | hide the sidebars, the Settings tab                     |
 | `ctrl+0` `ctrl+1` T                                    | focus sidebar, editor                                   |
 | `alt+t` T                                              | go to a session or worktree (`@idle`, `!claude` narrow) |
 | `ctrl+pgup` `ctrl+pgdn` T, `ctrl+shift+tab` `ctrl+tab` | previous, next editor                                   |

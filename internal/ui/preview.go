@@ -85,8 +85,9 @@ type preview struct {
 	root   string
 	entry  git.Entry
 	rev    string
-	gh     *ghDoc // pvGH: the page's state, which its bar and buttons follow; nil until loaded
-	tbl    *table // pvTable: the grid, which the tab's copies share; nil until loaded
+	gh     *ghDoc        // pvGH: the page's state, which its bar and buttons follow; nil until loaded
+	tbl    *table        // pvTable: the grid, which the tab's copies share; nil until loaded
+	set    *settingsPage // pvSettings: its section and row, which the tab's copies share
 	// cell is the table cell an untitled editor holds the value of: ^s puts
 	// it back there as an edit, and no draft keeps it.
 	cell *cellRef
@@ -235,6 +236,8 @@ func (p *preview) fromGH() bool { return p.kind == pvGH || p.kind == pvGHDiff }
 // label is the header's name and dimmed context, VS Code style.
 func (p *preview) label(ws string) (name, context string) {
 	switch p.kind {
+	case pvSettings:
+		return p.name, ""
 	case pvTable:
 		context = p.path
 		if rel, err := filepath.Rel(ws, p.path); err == nil && !strings.HasPrefix(rel, "..") {
@@ -333,10 +336,10 @@ func sameFile(a, b preview) bool {
 func (p *preview) snapshot() preview {
 	return preview{
 		kind: p.kind, path: p.path, name: p.name, draft: p.draft, draftM: p.draftM,
-		root: p.root, entry: p.entry, rev: p.rev, gh: p.gh, folded: p.folded, compose: p.compose, tbl: p.tbl, cell: p.cell,
+		root: p.root, entry: p.entry, rev: p.rev, gh: p.gh, folded: p.folded, compose: p.compose, tbl: p.tbl, cell: p.cell, set: p.set,
 		repo: p.repo, revs: p.revs, revIdx: p.revIdx, md: p.md,
 		cur: p.cur, top: p.top, left: p.left, buf: p.buf, trunc: p.trunc, used: p.used,
-		transient: p.transient, open: p.open, ind: p.ind,
+		transient: p.transient, open: p.open, ind: p.ind, fold: folds{shut: slices.Clone(p.fold.shut)},
 	}
 }
 
@@ -1140,6 +1143,9 @@ func (p *preview) load(m *Model) tea.Cmd {
 	case p.kind == pvTable && p.tbl != nil && p.tbl.gen == 0: // read once: a tab shown again keeps its page and edits
 		return p.tbl.load(0, false)
 	case p.kind == pvTable:
+		return nil
+	case p.kind == pvSettings: // nothing to read: the settings are the model's
+		p.ready = true
 		return nil
 	}
 	// An untitled buffer has nothing on disk: it is its own source, so the
@@ -2974,7 +2980,7 @@ func (p *preview) buttons(m *Model, w int) []rowAction {
 		add(icHistory, "Open Changes with Revision…", tea.KeyPressMsg{Code: 'H', Text: "H"})
 	}
 
-	if !p.scrollOnly(m) { // last, so it keeps its place whatever else the kind shows
+	if !p.scrollOnly(m) && p.kind != pvSettings { // last, so it keeps its place whatever else the kind shows
 		acts = append(acts, rowAction{g: icWrap, tip: "Toggle Word Wrap  M-z", on: p.wrap, run: func(m *Model) tea.Cmd { return m.toggleWrap() }})
 	}
 
@@ -2989,7 +2995,9 @@ func (p *preview) hints(m *Model) string {
 		return fmt.Sprintf(" ⏎ show %d hidden lines  ↑↓ move  ] [ change%s  q close", p.gaps[p.at().line].n, ifElse(p.fileDiff(), "  z whole file", ""))
 	case p.kind == pvTable && p.tbl != nil:
 		return p.tbl.hints()
-	case m.pk != nil:
+	case p.kind == pvSettings:
+		return settingsHints()
+	case m.peekH() > 0: // the References inline have the keys
 		return " ↑↓ move  ←→ fold  ⏎ open  o open and stay  esc close"
 	case p.split(m) && p.kind == pvRev: // one file's history: nothing to stage, no other file
 		return " ↑↓ move  ] [ change  ⇧ select  s inline  q close"
@@ -3106,6 +3114,8 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 		switch {
 		case p.kind == pvTable:
 			left = append(left, sg(icTable.s()+" ", dim))
+		case p.kind == pvSettings:
+			left = append(left, sg(icGear.s()+" ", dim))
 		case p.kind != pvShow && !p.fromGH():
 			left = append(left, iconSeg(name, false, false))
 		}
@@ -3160,6 +3170,10 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 
 	if p.kind == pvTable && p.tbl != nil {
 		return header, p.tbl.body(m, w, h), footer
+	}
+
+	if p.kind == pvSettings && p.set != nil {
+		return header, p.set.body(m, w, h), footer
 	}
 
 	if p.err != "" { // a card's first line, the file's name, in the text's color
@@ -4039,8 +4053,11 @@ func (p *preview) openHere(m *Model) tea.Cmd {
 // items are the preview's commands. Diffs of tracked files stage, unstage
 // or revert the selected lines, like VS Code's Stage Selected Ranges.
 func (p *preview) items(m *Model) []item {
-	if p.kind == pvTable && p.tbl != nil {
+	switch {
+	case p.kind == pvTable && p.tbl != nil:
 		return p.tbl.items()
+	case p.kind == pvSettings:
+		return nil
 	}
 
 	key := func(k rune) func(*Model) tea.Cmd {
@@ -4149,7 +4166,7 @@ func editorChord(code rune, mod tea.KeyMod) func(*Model) tea.Cmd {
 // keyItems are the editor's commands for the palette and [keys] alone, most
 // with keys of their own: the context menu would only grow long with them.
 func (p *preview) keyItems(_ *Model) []item {
-	if p.kind == pvTable { // its items hold its keys
+	if p.kind == pvTable || p.kind == pvSettings { // its items hold its keys
 		return nil
 	}
 
@@ -4484,6 +4501,8 @@ func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		return nil
 	case p.kind == pvTable && p.tbl != nil:
 		return p.tbl.key(m, k)
+	case p.kind == pvSettings && p.set != nil:
+		return p.set.key(m, k)
 	}
 
 	if p.composing {
@@ -4791,6 +4810,10 @@ func (p *preview) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 
 	if p.kind == pvTable && p.tbl != nil && y >= 0 {
 		return p.tbl.mouse(m, msg, x, y)
+	}
+
+	if p.kind == pvSettings && p.set != nil && y >= 0 {
+		return p.set.mouse(m, msg, x, y)
 	}
 
 	if !p.ready || p.err != "" || len(p.plain) == 0 {
