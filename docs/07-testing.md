@@ -70,10 +70,11 @@ color is the point.
 
 ## Fuzzing
 
-Targets: `parseStatus`, `pickLines`, `ConflictText`, `parseSuggestion`, the
-merge message (`internal/git`); `Columns` JSON/TOML (`internal/proto`);
-transcript titles (`internal/daemon`); `checksum` (`internal/update`);
-`backgroundID` (`main`).
+Targets: `parseStatus`, `pickLines`, `ConflictText`, `parseSuggestion`,
+`parseBlame`, the merge message (`internal/git`); `parseSignature`
+(`internal/lsp`); `ecGlob`, `detectIndent`, `splitLoc`, terminal links
+(`internal/ui`); `Columns` JSON/TOML (`internal/proto`); transcript titles
+(`internal/daemon`); `checksum` (`internal/update`); `backgroundID` (`main`).
 
 ```sh
 go test -run xxx -fuzz FuzzParseStatus -fuzztime 30s ./internal/git
@@ -81,6 +82,20 @@ go test -run xxx -fuzz FuzzParseStatus -fuzztime 30s ./internal/git
 
 Each asserts an invariant, e.g. every `parseStatus` path is a substring of
 the input. Crashers in `testdata/fuzz/` replay in `go test`: commit them.
+
+## Chaos
+
+`TestChaos` drives the model from a seed with random keys, clicks, drags,
+wheels, resizes and opened files (ttt's chaos monkey): after every event no
+panic, and every row is the window's width. Commands are not run, so it
+reaches no daemon, timer or desktop; `PATH` gets a no-op `xdg-open`.
+
+```sh
+PANDO_CHAOS_SEED=7 PANDO_CHAOS_STEPS=5000 go test ./internal/ui -run TestChaos
+```
+
+A failure logs its seed and the 30 events before it; fix the bug, then pin it
+with a test of its own, as `TestOverlayBoxWideRunes` does.
 
 ## Language servers in tests
 
