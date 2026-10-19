@@ -4018,7 +4018,7 @@ func (m *Model) View() tea.View {
 			return fg(pal.accent)
 		}
 
-		return dim
+		return fg(pal.panelBorder)
 	}
 	status, _ := m.statusLine(m.w)
 
@@ -4160,7 +4160,8 @@ func (m *Model) View() tea.View {
 				t = ansi.Truncate(" "+p.title+" ", max(p.rc.w-2, 0), "…")
 			}
 
-			top.WriteString(edge(p).Render("┌─") + edge(p).Bold(m.focus == p.focus).Render(t) +
+			// The title keeps the text's shade, the lines go soft.
+			top.WriteString(edge(p).Render("┌─") + ifElse(m.focus == p.focus, edge(p).Bold(true), dim).Render(t) +
 				edge(p).Render(strings.Repeat("─", max(p.rc.w-1-ansi.StringWidth(t), 0))+"┐"))
 			bot.WriteString(edge(p).Render("└" + strings.Repeat("─", p.rc.w) + "┘"))
 		}
@@ -4185,7 +4186,7 @@ func (m *Model) divider(i int) string {
 		return st.Render("┃")
 	}
 
-	return dim.Render("│")
+	return fg(pal.panelBorder).Render("│")
 }
 
 // sash is a divider the mouse drags to resize: a column's edge toward the

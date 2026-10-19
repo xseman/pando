@@ -43,6 +43,7 @@ type palette struct {
 	sliderBg, sliderHoverBg, sliderActiveBg, rulerBorder                                                       color.Color // VS Code's scrollbarSlider at rest, hovered and held over the editor, and editorOverviewRuler.border, the same as activityBar.border
 	trackBg                                                                                                    color.Color // the scrollbar's track, a solid column; nil draws a thin rule in rulerBorder
 	tabBorder                                                                                                  color.Color // tab.border, a shade stronger for a terminal
+	panelBorder                                                                                                color.Color // panel_borders' frames and the dividers between columns, as soft as Claude Code's prompt rules
 	sashHover                                                                                                  color.Color // VS Code's sash.hoverBorder: a divider under a resting pointer, a shade off the accent it drags in; also the focused commit message box's frame and a GitHub comment's
 	whitespace                                                                                                 color.Color // VS Code's editorWhitespace.foreground: the · and → of render_whitespace; the inactive indent guides of the Explorer and the editor too, tree.inactiveIndentGuidesStroke's shade
 	indentGuide                                                                                                color.Color // VS Code's tree.indentGuidesStroke: the Explorer's active indent guide, the one around the selection, and the editor's around the cursor
@@ -77,7 +78,7 @@ var (
 		blockedBg: hex("#4f342e"), doneBg: hex("#3d3248"),
 		blockedSoftBg: hex("#35272a"), doneSoftBg: hex("#2b2733"),
 		sliderBg: hex("#606162"), sliderHoverBg: hex("#676869"), sliderActiveBg: hex("#6e6f70"), rulerBorder: hex("#2a2b2c"), trackBg: hex("#2a2b2c"),
-		tabBorder: hex("#3c3d40"),
+		tabBorder: hex("#3c3d40"), panelBorder: hex("#5f5f5f"),
 		sashHover: hex("#2c7092"), whitespace: hex("#3e3f40"), indentGuide: hex("#585858"), mdCode: hex("#ff7b72"), mdCodeBg: hex("#242526"),
 		lineNumber: hex("#6e7681"), lineNumberActive: hex("#cccccc"), descFg: hex("#9d9d9d"),
 	}
@@ -104,7 +105,7 @@ var (
 		blockedSoftBg: hex("#f6e8e8"), doneSoftBg: hex("#efeaf3"),
 		// A softer slider than VS Code's #8a8a8a, over a track barely off the white.
 		sliderBg: hex("#c4c4c4"), sliderHoverBg: hex("#b4b4b4"), sliderActiveBg: hex("#a4a4a4"), rulerBorder: hex("#f0f1f2"), trackBg: hex("#f6f6f7"),
-		tabBorder: hex("#d0d0d6"),
+		tabBorder: hex("#d0d0d6"), panelBorder: hex("#949494"),
 		sashHover: hex("#5c9fe0"), whitespace: hex("#d0d0d4"), indentGuide: hex("#a9a9a9"), mdCode: hex("#800000"), mdCodeBg: hex("#ededf0"),
 		// The cursor's line number a shade darker than the rest, not 2026's navy.
 		lineNumber: hex("#6e7681"), lineNumberActive: hex("#3c4048"), descFg: hex("#6f6f73"),
@@ -132,7 +133,7 @@ var (
 		blockedBg: vscodeDark.blockedBg, doneBg: vscodeDark.doneBg,
 		blockedSoftBg: vscodeDark.blockedSoftBg, doneSoftBg: vscodeDark.doneSoftBg,
 		sliderBg: ansi16(8), sliderHoverBg: ansi16(7), sliderActiveBg: ansi16(7), rulerBorder: ansi16(8),
-		tabBorder: ansi16(8),
+		tabBorder: ansi16(8), panelBorder: ansi16(8),
 		sashHover: ansi16(12), whitespace: ansi16(8), indentGuide: ansi16(7), mdCode: ansi16(9), mdCodeBg: ansi16(0),
 		lineNumber: ansi16(8),
 	}
@@ -192,7 +193,7 @@ func (p *palette) colorKeys() map[string]*color.Color {
 		"ok": &p.ok, "warn": &p.warn, "error": &p.errc, "attention": &p.attention,
 		"blocked_bg": &p.blockedBg, "done_bg": &p.doneBg, "blocked_soft_bg": &p.blockedSoftBg, "done_soft_bg": &p.doneSoftBg,
 		"scrollbar_slider": &p.sliderBg, "scrollbar_slider_hover": &p.sliderHoverBg, "scrollbar_slider_active": &p.sliderActiveBg, "overview_ruler_border": &p.rulerBorder, "scrollbar_track": &p.trackBg,
-		"tab_border": &p.tabBorder, "sash_hover": &p.sashHover, "whitespace": &p.whitespace, "indent_guide": &p.indentGuide,
+		"tab_border": &p.tabBorder, "panel_border": &p.panelBorder, "sash_hover": &p.sashHover, "whitespace": &p.whitespace, "indent_guide": &p.indentGuide,
 		"md_code": &p.mdCode, "md_code_bg": &p.mdCodeBg,
 		"line_number": &p.lineNumber, "line_number_active": &p.lineNumberActive, "description": &p.descFg,
 	}
