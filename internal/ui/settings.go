@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"image/color"
 	"slices"
+	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -147,7 +148,25 @@ func settingsTable() []setting {
 		},
 
 		checkbox("Sessions", "Claude", "Claude in background", "claude_background", func(m *Model) bool { return m.st.Settings.ClaudeBg }),
+		{
+			section: "Sessions", group: "Sleep", label: "Sleep after", opts: ints(sleepAfters, sleepHint),
+			get: func(m *Model) string { return sleepHint(m.st.Settings.Sleep) },
+			set: func(m *Model, v string) tea.Cmd {
+				return m.setSettings(map[string]any{"sleep_after": pick(sleepAfters, sleepHint, v)})
+			},
+		},
 	}
+}
+
+// sleepAfters are the minutes Settings cycles sleep_after through; 0 never.
+var sleepAfters = []int{0, 30, 60, 120, 240, 480}
+
+func sleepHint(n int) string {
+	if n <= 0 {
+		return "off"
+	}
+
+	return strconv.Itoa(n) + " min"
 }
 
 // next is the value after the setting's current one: on and off flip, a

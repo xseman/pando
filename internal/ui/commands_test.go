@@ -2951,7 +2951,7 @@ func TestSessionNames(t *testing.T) {
 
 	m.Update(tea.MouseClickMsg{X: m.mainX() + tabs[0].x + 1, Y: 0, Button: tea.MouseRight})
 
-	if m.modal == nil || !slices.Equal(labels(m), []string{"Rename…", "", "Kill Session…"}) {
+	if m.modal == nil || !slices.Equal(labels(m), []string{"Rename…", "", "Sleep Session", "Kill Session…"}) {
 		t.Fatalf("tab menu %+v", m.modal)
 	}
 

@@ -607,9 +607,11 @@ func agLabel(r agRow) string {
 // sessionGlyph is herdr's status symbol set: × blocked on a permission or a
 // question, ◐ working (in the accent's blue on a shell command), ✓ done
 // (idle, unseen since it finished), ○ idle, and ✕ for a process that exited
-// with a code.
+// with a code; ◌ asleep, nothing running until it is opened.
 func sessionGlyph(s proto.Session) (string, color.Color) {
 	switch {
+	case s.Status == "asleep":
+		return "◌ ", pal.ignored
 	case s.Status == "blocked":
 		return "× ", pal.errc
 	case s.Shell:
@@ -679,10 +681,10 @@ func (m *Model) spinLater() tea.Cmd {
 }
 
 // sessionState names what a session's symbol says: blocked, running,
-// exited, done (finished unseen) or idle.
+// asleep, exited, done (finished unseen) or idle.
 func sessionState(s proto.Session) string {
 	switch {
-	case s.Status == "blocked", s.Status == "running", s.Status == "exited":
+	case s.Status == "blocked", s.Status == "running", s.Status == "asleep", s.Status == "exited":
 		return s.Status
 	case s.Attention:
 		return "done"
@@ -781,6 +783,8 @@ func sessionRank(s proto.Session) int {
 		return 2
 	case s.Status == "idle":
 		return 3
+	case s.Status == "asleep":
+		return 5
 	}
 
 	return 4
@@ -1155,6 +1159,11 @@ func (a *agents) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 
 	case "x", "d", "delete":
 		return a.remove(m, r)
+	case "z":
+		if r != nil && r.kind == agSession {
+			return m.sleepSession(r.s.ID)
+		}
+
 	case "r":
 		return tea.Batch(loadState(), loadWorkspaces(), loadSessions())
 	case "m":
@@ -1752,6 +1761,10 @@ func (a *agents) items(m *Model) []item {
 		row = append(row,
 			item{label: "Rename Session…", hint: "R", run: func(m *Model) tea.Cmd { return m.renameSession(id) }},
 			item{label: m.pinLabel(id), hint: "p", run: func(m *Model) tea.Cmd { return m.togglePin(id) }})
+		if canSleep(r.s) {
+			row = append(row, item{label: "Sleep Session", hint: "z", run: func(m *Model) tea.Cmd { return m.sleepSession(id) }})
+		}
+
 		if !r.pinned && m.sessionsMovable() && len(m.siblings(id)) > 1 {
 			row = append(row,
 				item{label: "Move Session Up", hint: "M-↑", run: func(m *Model) tea.Cmd { return a.shiftSession(m, id, -1) }},
@@ -1770,7 +1783,7 @@ func (a *agents) menu(m *Model, x, y int) tea.Cmd { return m.menuOf(a.items(m), 
 
 // sessionStates are the states the Filter can leave out, in sessionRank's order.
 var sessionStates = []struct{ state, label string }{
-	{"blocked", "Blocked"}, {"running", "Working"}, {"done", "Done"}, {"idle", "Idle"}, {"exited", "Exited"},
+	{"blocked", "Blocked"}, {"running", "Working"}, {"done", "Done"}, {"idle", "Idle"}, {"exited", "Exited"}, {"asleep", "Asleep"},
 }
 
 // checked is a menu label with VS Code's check column: ✓ when on.
@@ -2876,11 +2889,63 @@ func cleanTitle(t string) string {
 
 // sessionMenu is a session tab's right click menu.
 func (m *Model) sessionMenu(id string) tea.Cmd {
+	end := []item{{label: "Kill Session…", run: func(m *Model) tea.Cmd { return m.confirmKill(id) }}}
+	if s := m.session(id); s != nil && canSleep(*s) {
+		end = slices.Insert(end, 0, item{label: "Sleep Session", run: func(m *Model) tea.Cmd { return m.sleepSession(id) }})
+	}
+
 	m.modal = newMenu("", m.mouseX, m.mouseY, menuGroups(
-		[]item{{label: "Rename…", run: func(m *Model) tea.Cmd { return m.renameSession(id) }}},
-		[]item{{label: "Kill Session…", run: func(m *Model) tea.Cmd { return m.confirmKill(id) }}})...)
+		[]item{{label: "Rename…", run: func(m *Model) tea.Cmd { return m.renameSession(id) }}}, end)...)
 
 	return nil
+}
+
+// canSleep reports a session that can be put to sleep: one with a process
+// to stop.
+func canSleep(s proto.Session) bool { return s.Status != "asleep" && s.Status != "exited" }
+
+// sleepSession puts session id to sleep, asking first while it works: the
+// turn stops, the conversation is kept.
+func (m *Model) sleepSession(id string) tea.Cmd {
+	s := m.session(id)
+	if s == nil || !canSleep(*s) {
+		return nil
+	}
+
+	run := func(*Model) tea.Cmd { return do("session.sleep", map[string]string{"id": id}) }
+	if s.Status != "running" {
+		return run(m)
+	}
+
+	m.modal = newDialog("Put "+sessionName(*s)+" to sleep? It is working: the turn stops, the conversation is kept.",
+		item{label: "Sleep Session", run: run}, cancelItem())
+
+	return nil
+}
+
+// wokeMsg is session.wake's answer for session id.
+type wokeMsg struct {
+	id  string
+	err error
+}
+
+// wake brings asleep session id back: its process starts again and its
+// agent continues the conversation. One wake at a time; keys typed into the
+// session meanwhile are dropped (term.key).
+func (m *Model) wake(id string) tea.Cmd {
+	if s := m.session(id); s == nil || s.Status != "asleep" || m.waking[id] {
+		return nil
+	}
+
+	if m.waking == nil {
+		m.waking = map[string]bool{}
+	}
+
+	m.waking[id] = true
+
+	return func() tea.Msg {
+		return wokeMsg{id, proto.Call("session.wake", map[string]string{"id": id}, nil)}
+	}
 }
 
 // renameSession names a session's tab; an empty name goes back to naming it by
@@ -2980,6 +3045,10 @@ func (m *Model) sessionHint() (string, lipgloss.Style) {
 	}
 
 	switch {
+	case m.waking[s.ID]:
+		return " waking… ", fg(pal.warn)
+	case s.Status == "asleep":
+		return " asleep · any key wakes it ", dim
 	case s.Status == "exited":
 		return fmt.Sprintf(" exited %d · x in Agents to close ", s.ExitCode), fg(pal.errc)
 	case m.term.scroll > 0:
@@ -3135,8 +3204,16 @@ func (t *term) key(m *Model, id string, k tea.KeyPressMsg) tea.Cmd {
 	key := k.Key()
 	t.hasSel = false
 
-	if s := m.session(id); id == "" || (s != nil && s.Status == "exited") {
+	s := m.session(id)
+	if id == "" || (s != nil && s.Status == "exited") {
 		return nil
+	}
+
+	// The key wakes it rather than reach a process not there; while it wakes,
+	// keys are dropped: typed ahead of the agent, they would garble the
+	// command that resumes it.
+	if s != nil && (s.Status == "asleep" || m.waking[id]) {
+		return m.wake(id)
 	}
 
 	t.scroll = 0

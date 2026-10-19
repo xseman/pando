@@ -177,6 +177,7 @@ type Model struct {
 	blinkOn     bool              // a pulsing tint is at its full shade
 	blinking    bool              // its ticker runs
 	spinWake    bool              // a spinMsg is on its way
+	waking      map[string]bool   // sessions a session.wake is on its way for
 	fx          effects           // text effects running, and what they compare against
 	events      <-chan proto.Event
 	inputs      chan proto.InputParams
@@ -2000,15 +2001,19 @@ func (m *Model) sessionTitleMenu() tea.Cmd {
 		place = append(place, item{label: "Dock Right", run: func(m *Model) tea.Cmd { return m.splitTo(viewSession, 1) }})
 	}
 
+	end := []item{{label: "Close (keeps running)", run: func(m *Model) tea.Cmd { return m.hideSession() }}}
+	if s := m.session(id); s != nil && canSleep(*s) {
+		end = append(end, item{label: "Sleep Session", run: func(m *Model) tea.Cmd { return m.sleepSession(id) }})
+	}
+
 	return m.menuOf(menuGroups(place,
 		[]item{
 			{label: "Rename…", run: func(m *Model) tea.Cmd { return m.renameSession(id) }},
 			{label: m.pinLabel(id), run: func(m *Model) tea.Cmd { return m.togglePin(id) }},
 		},
-		[]item{
-			{label: "Close (keeps running)", run: func(m *Model) tea.Cmd { return m.hideSession() }},
-			{label: "Kill Session…", run: func(m *Model) tea.Cmd { return m.confirmKill(id) }},
-		}), m.mouseX, m.mouseY)
+		append(end,
+			item{label: "Kill Session…", run: func(m *Model) tea.Cmd { return m.confirmKill(id) }},
+		)), m.mouseX, m.mouseY)
 }
 
 // menuOf opens items as a context menu at x, y.
@@ -2496,7 +2501,7 @@ func (m *Model) switchSession(id string) tea.Cmd {
 		m.maxed = slices.Contains(m.st.Maxed, id)
 	}
 
-	return tea.Batch(switched, m.ensureTerm(), m.fetchScreen(), m.refreshGit())
+	return tea.Batch(switched, m.ensureTerm(), m.fetchScreen(), m.refreshGit(), m.wake(id))
 }
 
 func (m *Model) session(id string) *proto.Session {
@@ -2652,6 +2657,11 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.ticks%15 == 0 {
 			cmds = append(cmds, loadWorkspaces())
 		}
+		// A session on screen is in use though it prints nothing: asked for
+		// now and then, the daemon sees it viewed and leaves it awake.
+		if m.ticks%15 == 0 && m.st.Settings.Sleep > 0 {
+			cmds = append(cmds, m.fetchScreen())
+		}
 
 		if m.filters[viewFiles].on && time.Since(m.index.at) > 10*time.Second {
 			cmds = append(cmds, m.loadIndex(false))
@@ -2755,6 +2765,15 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case screenMsg:
 		return m, m.onScreen(msg)
+	case wokeMsg:
+		delete(m.waking, msg.id)
+
+		if msg.err != nil {
+			return m, flash("session.wake: "+msg.err.Error(), true)
+		}
+
+		return m, tea.Batch(loadSessions(), m.fetchScreen())
+
 	case termTextMsg:
 		return m, m.onTermText(msg)
 	case gitMsg:
@@ -5130,7 +5149,7 @@ var hotkeys = map[view][][2]string{
 	viewFiles:  {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"n N", "new"}, {"R", "rename"}, {"D", "delete"}, {"s", "stage"}, {"e", "edit"}, {"^x ^c ^v", "cut/copy/paste"}, {".", "dotfiles"}, {"^f", "filter"}},
 	viewGit:    {{"↑↓", "move"}, {"⏎", "stage"}, {"o", "diff"}, {"t", "tree"}, {"c", "message"}, {"C", "commit"}, {"A", "suggest"}, {"S", "sync/publish"}, {"a u", "stage/unstage all"}, {"U", "stage untracked"}, {"O", "open file"}, {"B", "branch"}, {"d", "discard"}, {"^f", "filter"}},
 	viewSearch: {{"^f /", "query"}, {"^h", "replace"}, {"r R", "replace file/all"}, {"⏎", "open"}, {"↑↓", "move"}, {"←→", "fold"}, {"M-c", "case"}, {"M-w", "word"}, {"M-r", "regex"}, {"^r", "rerun"}, {"x", "clear"}, {"C", "collapse"}},
-	viewAgents: {{"↑↓", "move"}, {"M-↑↓", "reorder"}, {"⏎", "switch"}, {"n", "session"}, {"w", "worktree"}, {"a", "project"}, {"x", "kill"}, {"o", "view options"}, {"^f", "filter"}},
+	viewAgents: {{"↑↓", "move"}, {"M-↑↓", "reorder"}, {"⏎", "switch"}, {"n", "session"}, {"w", "worktree"}, {"a", "project"}, {"x", "kill"}, {"z", "sleep"}, {"o", "view options"}, {"^f", "filter"}},
 	viewGitHub: {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"d", "changes"}, {"o", "on github.com"}, {"y", "copy link"}, {"w", "worktree"}, {"x", "done"}, {"^r", "refresh"}, {"C", "collapse"}, {"^f", "filter"}},
 	viewDB:     {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"n", "new connection"}, {"e D", "edit/remove"}, {"c y", "copy name/path"}, {"r", "refresh"}, {"C", "collapse"}, {"^f", "filter"}},
 }
