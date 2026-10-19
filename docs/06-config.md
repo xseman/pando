@@ -198,12 +198,12 @@ Overrides survive a theme switch; invalid ones are skipped. Keys (`colorKeys`):
 - accent: `accent` `header_accent` `sash_hover`
 - buttons: `button_bg` `button_fg` `button_hover_bg` `button_sep` `muted_button_bg` `muted_button_fg`
 - inputs: `input_border` `input_bg` `badge_bg` `badge_fg` `keycap_bg` `keycap_fg`
-- editor: `text_sel_bg` `match_bg` `word_hi_bg` `range_hi_bg` `find_match_bg` `find_hit_bg` `whitespace` `line_number` `line_number_active`
+- editor: `text_sel_bg` `match_bg` `match_fg` `word_hi_bg` `range_hi_bg` `find_match_bg` `find_hit_bg` `line_highlight_bg` `whitespace` `line_number` `line_number_active`
 - diff: `diff_del_bg` `diff_del_word_bg` `diff_add_bg` `diff_add_word_bg` `diff_del_mark` `diff_add_mark` `diff_mod_mark`
 - merge: `merge_current_head_bg` `merge_current_bg` `merge_incoming_head_bg` `merge_incoming_bg` `merge_common_head_bg` `merge_common_bg`
 - status: `ok` `warn` `error` `attention`
 - sessions: `blocked_bg` `done_bg` `blocked_soft_bg` `done_soft_bg`
-- chrome: `tab_border` `scrollbar_slider` `scrollbar_slider_hover` `scrollbar_slider_active` `overview_ruler_border`
+- chrome: `tab_border` `scrollbar_slider` `scrollbar_slider_hover` `scrollbar_slider_active` `scrollbar_track` `overview_ruler_border`
 - Markdown: `md_code` `md_code_bg`
 
 ## state.json

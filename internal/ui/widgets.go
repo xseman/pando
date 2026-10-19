@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"image/color"
 	"maps"
-	"math"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -413,23 +412,18 @@ func (l *list) render(w, h, n int, rowFn func(i, w int) string) []string {
 }
 
 // renderBar is render with the scrollbar kept off the first skip lines, rows
-// that stay put while the rest scrolls; those get the bar's column too.
+// that stay put while the rest scrolls; those get the bar's column too. The
+// bar is the editor's: a slider over a solid track.
 func (l *list) renderBar(w, h, n, skip int, rowFn func(i, w int) string) []string {
 	out := make([]string, max(h, 0))
 	bar := n > h && w > 1
 	rw := w
-	thumb, thumbH := 0, 0
-	slider := plain // held: lit, as the active shade barely shows on a thin glyph
+
+	var cells []string
 
 	if bar { // the geometry a click on it reads back (listBar)
 		rw = w - 1
-		b := vbar{n - skip, h - skip, l.top}
-		thumb, thumbH = b.thumb()
-		thumb += skip
-
-		if !l.bar.held {
-			slider = fg(l.bar.slider(b))
-		}
+		cells = vbar{n - skip, h - skip, l.top}.cells(l.bar)
 	}
 
 	for y := range out {
@@ -444,11 +438,7 @@ func (l *list) renderBar(w, h, n, skip int, rowFn func(i, w int) string) []strin
 		}
 
 		if bar && y >= skip {
-			if y >= thumb && y < thumb+thumbH {
-				line += slider.Render("┃")
-			} else {
-				line += " "
-			}
+			line += cells[y-skip]
 		}
 
 		out[y] = line
@@ -491,8 +481,9 @@ func (b vbar) topAt(y int) int {
 }
 
 // cells are the bar's column, one cell a row: the slider shaded over the
-// rows in view, the track a thin border like the overview ruler's, and
-// blanks when everything fits.
+// rows in view, the track a solid column (scrollbar_track; a thin border
+// like the overview ruler's without one), and blanks when everything fits.
+// A background, not a block glyph: those seam at fractional scaling in VTE.
 func (b vbar) cells(s barState) []string {
 	out := make([]string, max(b.h, 0))
 	if !b.on() {
@@ -504,6 +495,9 @@ func (b vbar) cells(s barState) []string {
 	}
 
 	slider, track := lipgloss.NewStyle().Background(s.slider(b)).Render(" "), fg(pal.rulerBorder).Render("▏")
+	if pal.trackBg != nil {
+		track = lipgloss.NewStyle().Background(pal.trackBg).Render(" ")
+	}
 
 	ty, sh := b.thumb()
 	for i := range out {
@@ -538,19 +532,20 @@ func probMarks() markSet {
 // marked are the bar's cells with marks on them, as VS Code's overview
 // ruler draws a diff's changes (diffMarks) or a file's problems
 // (probMarks). kinds holds each of the b.n rows' bits; a run of marked rows
-// is one mark of the kinds in it. Each cell is two marks, its upper and
-// lower half, and row r lands on half r*2h/n (halfOf), so no mark is too
-// short to show. Where marks share a half the higher rank shows. On the
-// slider a mark is the cell's right half (▐), so the slider shows through
-// on the left as VS Code's translucent one does, at rest, hovered and
-// dragged.
+// is one mark of the kinds in it. Each cell is barSlots marks from top to
+// bottom, and row r lands on slot r*slots*h/n (slotOf), so no mark is too
+// short to show; where marks share a slot the higher rank shows. Off the
+// slider a cell is the block glyph and the two colors, of the track and its
+// marks, that draw its slots best (markCell); on the slider a mark is the
+// cell's right half (▐) in its own color, so the slider sinks into it and
+// still shows on the left, at rest, hovered and dragged.
 func (b vbar) marked(s barState, kinds []byte, set markSet) []string {
 	out := b.cells(s)
 	if !b.on() || len(kinds) != b.n {
 		return out
 	}
 
-	half := make([]byte, 2*b.h)
+	slot := make([]byte, barSlots*b.h)
 
 	for r := 0; r < len(kinds); {
 		if kinds[r] == 0 {
@@ -564,7 +559,7 @@ func (b vbar) marked(s barState, kinds []byte, set markSet) []string {
 		}
 
 		for i := from; i < r; i++ {
-			if at := &half[b.halfOf(i)]; set.rank[k] > set.rank[*at] {
+			if at := &slot[b.slotOf(i)]; set.rank[k] > set.rank[*at] {
 				*at = k
 			}
 		}
@@ -573,38 +568,130 @@ func (b vbar) marked(s barState, kinds []byte, set markSet) []string {
 	ty, sh := b.thumb()
 
 	for i := range b.h {
-		top, bot := half[2*i], half[2*i+1]
-
-		onSlider := i >= ty && i < ty+sh
-
-		switch {
-		case top == 0 && bot == 0:
+		cell := [barSlots]byte(slot[barSlots*i : barSlots*(i+1)])
+		if cell == ([barSlots]byte{}) {
 			continue
-		case onSlider:
-			sl := s.slider(b)
-			out[i] = fg(legible(set.cols[ifElse(set.rank[top] > set.rank[bot], top, bot)], sl)).Background(sl).Render("▐")
-
-		case top == bot:
-			out[i] = fg(set.cols[top]).Render("█")
-		case bot == 0:
-			out[i] = fg(set.cols[top]).Render("▀")
-		case top == 0:
-			out[i] = fg(set.cols[bot]).Render("▄")
-		default:
-			out[i] = fg(set.cols[top]).Background(set.cols[bot]).Render("▀")
 		}
+
+		if i >= ty && i < ty+sh {
+			top := byte(0)
+			for _, k := range cell {
+				if set.rank[k] > set.rank[top] {
+					top = k
+				}
+			}
+
+			out[i] = fg(set.cols[top]).Background(s.slider(b)).Render("▐")
+
+			continue
+		}
+
+		out[i] = markCell(cell, set)
 	}
 
 	return out
 }
 
-// halfOf is the half cell row r of the content is marked on: r*2h/n, kept
+// barSlots are the marks a scrollbar cell holds, top to bottom: the eighths
+// the block glyphs draw.
+const barSlots = 8
+
+// barGlyphs are the block glyphs a marked cell can be, with how many of its
+// slots the foreground fills, from the top (up) or from the bottom.
+var barGlyphs = []struct {
+	g  string
+	n  int
+	up bool
+}{{" ", 0, false}, {"▁", 1, false}, {"▂", 2, false}, {"▃", 3, false}, {"▄", 4, false}, {"▅", 5, false}, {"▆", 6, false}, {"▇", 7, false}, {"█", 8, false}, {"▔", 1, true}, {"▀", 4, true}}
+
+// markCell is the glyph and the two colors, each the track's (kind 0) or a
+// mark's, that show the cell's slots best: a mark drawn as another or the
+// track drawn as a mark costs 1, a mark drawn as track 3, a mark missing
+// from the cell altogether 100. Without a track color (the terminal theme)
+// the track is the terminal's own background and never a foreground.
+func markCell(cell [barSlots]byte, set markSet) string {
+	var have [4]bool
+	for _, k := range cell {
+		have[k] = true
+	}
+
+	type pick struct {
+		g     string
+		f, bg byte
+	}
+
+	var best pick
+
+	bestCost := -1
+
+	for f := range byte(4) {
+		for bg := range byte(4) {
+			if f != 0 && !have[f] || bg != 0 && !have[bg] || f == bg || f == 0 && pal.trackBg == nil {
+				continue
+			}
+
+			for _, gl := range barGlyphs {
+				var shown [4]bool
+
+				cost := 0
+
+				for j, want := range cell {
+					got := bg
+					if gl.up && j < gl.n || !gl.up && j >= barSlots-gl.n {
+						got = f
+					}
+
+					shown[got] = true
+
+					switch {
+					case got == want:
+					case want != 0 && got == 0:
+						cost += 3
+					default:
+						cost++
+					}
+				}
+
+				for k := 1; k < 4; k++ {
+					if have[k] && !shown[k] {
+						cost += 100
+					}
+				}
+
+				if bestCost < 0 || cost < bestCost {
+					best, bestCost = pick{gl.g, f, bg}, cost
+				}
+			}
+		}
+	}
+
+	return paintCell(best.g, best.f, best.bg, set)
+}
+
+// paintCell draws glyph g in kind f's color over kind bg's, kind 0 the
+// track's.
+func paintCell(g string, f, bg byte, set markSet) string {
+	col := func(k byte) color.Color { return ifElse(k == 0, pal.trackBg, set.cols[k]) }
+
+	st := lipgloss.NewStyle()
+	if c := col(bg); c != nil {
+		st = st.Background(c)
+	}
+
+	if g != " " {
+		st = st.Foreground(col(f))
+	}
+
+	return st.Render(g)
+}
+
+// slotOf is the slot row r of the content is marked on: r*slots*h/n, kept
 // on the slider while r is in view and off it while not, as thumb scales the
 // slider so its ends meet the track's.
-func (b vbar) halfOf(r int) int {
-	i := r * 2 * b.h / b.n
+func (b vbar) slotOf(r int) int {
+	i := r * barSlots * b.h / b.n
 	ty, sh := b.thumb()
-	lo, hi := 2*ty, 2*(ty+sh)-1
+	lo, hi := barSlots*ty, barSlots*(ty+sh)-1
 
 	switch {
 	case r >= b.top && r < b.top+b.h:
@@ -613,65 +700,22 @@ func (b vbar) halfOf(r int) int {
 		return max(min(i, lo-1), 0)
 	}
 
-	return min(max(i, hi+1), 2*b.h-1)
+	return min(max(i, hi+1), barSlots*b.h-1)
 }
 
-// legible is c moved away from bg until the two are 3:1 apart, WCAG's
-// contrast for a graphic: a mark on the slider, whose colors no theme pairs.
-func legible(c, bg color.Color) color.Color {
-	lighter := luminance(c) > luminance(bg) || luminance(c) == luminance(bg) && luminance(bg) < 0.5
-
-	for range 10 {
-		if contrast(c, bg) >= 3 {
-			break
-		}
-
-		c = ifElse(lighter, lipgloss.Lighten(c, 0.1), lipgloss.Darken(c, 0.2))
-	}
-
-	return c
-}
-
-// luminance is c's relative luminance, 0 for black to 1 for white.
-func luminance(c color.Color) float64 {
-	r, g, b, _ := c.RGBA()
-	lin := func(v uint32) float64 {
-		f := float64(v) / 0xffff
-		if f <= 0.04045 {
-			return f / 12.92
-		}
-
-		return math.Pow((f+0.055)/1.055, 2.4)
-	}
-
-	return 0.2126*lin(r) + 0.7152*lin(g) + 0.0722*lin(b)
-}
-
-// contrast is WCAG's contrast ratio of a and b, 1 to 21.
-func contrast(a, b color.Color) float64 {
-	la, lb := luminance(a), luminance(b)
-
-	return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
-}
-
-// hcells is the bar laid along a row, b.h cells: blanks underlined, the
-// slider's color over the columns in view and the track's border elsewhere.
-// A block glyph per cell (▀) seams at fractional scaling in VTE and a
-// background fills the whole row; an underline is one line across the run.
+// hcells is the bar laid along a row, b.h cells: a lower half block (▄)
+// a cell, in the slider's color over the columns in view and the track's
+// (scrollbar_track, else the ruler's) elsewhere; blanks when it all fits.
 func (b vbar) hcells(s barState) string {
 	if !b.on() {
 		return blank(max(b.h, 0))
 	}
 
-	slider := s.slider(b)
-
-	line := func(c color.Color, n int) string { // underlined spaces render one by one: render one
-		return strings.Repeat(lipgloss.NewStyle().Underline(true).UnderlineSpaces(true).UnderlineColor(c).Render(" "), max(n, 0))
-	}
-
+	track := ifElse(pal.trackBg != nil, pal.trackBg, pal.rulerBorder)
+	half := func(c color.Color, n int) string { return fg(c).Render(strings.Repeat("▄", max(n, 0))) }
 	x, sw := b.thumb()
 
-	return line(pal.rulerBorder, x) + line(slider, sw) + line(pal.rulerBorder, b.h-x-sw)
+	return half(track, x) + half(s.slider(b), sw) + half(track, b.h-x-sw)
 }
 
 // withBar fits lines to w-1 columns and puts b's column after them, h rows.

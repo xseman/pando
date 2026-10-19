@@ -333,7 +333,7 @@ func (p *preview) markAt(m *Model, y int) (int, bool) {
 	var starts []int
 
 	for r, k := range kinds {
-		if k == 0 || b.halfOf(r)/2 != y {
+		if k == 0 || b.slotOf(r)/barSlots != y {
 			continue
 		}
 

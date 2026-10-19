@@ -144,9 +144,12 @@ func (p *preview) vimAction(m *Model, key string, n int) tea.Cmd {
 	c := p.at()
 
 	switch key {
-	case "g": // gg, or the g of dgg
+	case "g", "z": // gg, or the g of dgg; the z of zc and the other fold keys
 		p.vim.pend = key
 		return nil
+
+	case "zc", "zo", "za", "zM", "zR": // vim's fold keys
+		return m.foldCmd(map[string]string{"zc": "fold", "zo": "unfold", "za": "toggle", "zM": "all", "zR": "none"}[key])
 
 	case "i", "a", "I", "A":
 		switch key {

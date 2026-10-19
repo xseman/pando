@@ -80,16 +80,16 @@ vrow{line, from, to}   screen rows; wrapped when wrap is on
   `lineChanges` diffs by Myers' algorithm the lines between a common prefix
   and suffix (`editScript`, at most `maxEdits`), in a command after each edit
   (`noteGutter`, keyed by buffer, edits and base); a change that only added is
-  `┃` added, one that also removed `┇` modified (VS Code's hatched bar), a
-  deletion `▾` on the line before it (`▴` on the first), in the scrollbar's
+  a thin bar `▎` added, one that also removed `▎` modified (the color tells
+  them apart), a deletion `▾` on the line before it (`▴` on the first), in the scrollbar's
   change colors. A file with staged changes is diffed against its committed
   text (`head`) too, VS Code's secondary quick diff: those marks, where no
   unstaged one is, take its secondary shade (upper case in `chg`, darker on a
   dark theme, lighter on a light one: `lookDark`). The scrollbar marks them
   as VS Code's overview ruler does (`fileBarChanges`, `diffMarks`) under the
   problems, which keep their cells; a click goes to one (`changeMarkAt`).
-- A click on a change's mark (`laneChange`, which `markHot` widens under the
-  pointer) or `alt+F3` opens the quick diff (`quickdiff.go`, `p.qd`), a zone
+- A click on a change's mark (`laneChange`: the mark's column and the one
+  after it; `markHot` widens the change under the pointer to `▌`) or `alt+F3` opens the quick diff (`quickdiff.go`, `p.qd`), a zone
   under the change as VS Code's: `rows` puts its rows after the line's own
   (`vrow{line: -1, from: k}`: header, diff, rule), so it scrolls with the
   text, and the editor keeps the keyboard. It renders the change with
@@ -192,15 +192,18 @@ inline                                side by side (diff_view = "split")
   (`findPlace`: the same row, else the next one shown), unless the cursor
   moved meanwhile. The status bar's Ln and Go to Line count the file's lines
   (`lineNo`).
-- The scrollbar marks changes (`barChanges`, `vbar.marked`): a cell is two
-  halves (`▀` `▄`), row r of the wrapped or side-by-side rows lands on half
-  r·2h/n, so none is too short. A change is a deletion (`diff_del_mark`), an
-  addition (`diff_add_mark`) or both, a line changed (`diff_mod_mark`, blue
-  as VS Code's gutter); in a shared half the rarer kind wins, deletion over
-  addition over both. On the slider a mark takes the right half (`▐`), so
-  the slider shows through, its color moved 3:1 apart from the slider's
-  (`legible`). A row in view is marked on the slider, one out of view off
-  it (`halfOf`): `thumb` scales apart.
+- The scrollbar marks changes (`barChanges`, `vbar.marked`): a cell is
+  eight slots (`barSlots`), row r of the wrapped or side-by-side rows lands
+  on slot r·8h/n, so none is too short. A change is a deletion
+  (`diff_del_mark`), an addition (`diff_add_mark`) or both, a line changed
+  (`diff_mod_mark`, yellow, blue on the light theme); in a shared slot the rarer kind wins, deletion
+  over addition over both. Off the slider `markCell` picks the block glyph
+  (`▁`…`█`, `▔`, `▀`) and the two colors, the track's and the marks', that
+  draw the cell's slots best: a mark drawn as track costs most, one missing
+  from the cell more still. On the slider a mark takes the right half (`▐`)
+  in its own color, so the slider sinks into it and still shows on the left.
+  A row in view is marked on the slider, one out of view off it (`slotOf`):
+  `thumb` scales apart.
 - A file's diff opens on its first change (`onLoad`, mid view when the
   whole file hides it); a reload, a tab coming back and a commit keep theirs.
 - The cursor is a whole diff line in both views. `m` (or `shift+F10`) opens the
@@ -221,6 +224,33 @@ glow's layout: `mdMargin` air (dropped under 26 cells), wrapping table cells,
 chroma code blocks on `md_code_bg`, images as `[image: alt]`, HTML as source.
 `markdown_width` caps the width (`mdWidth`); side by side uses its whole half
 so lines stay level. The rendering is cached per width.
+
+## Folding
+
+`filefold.go`: a file folds by indentation, VS Code's indentation folding.
+`foldRanges` gives each line the last line of the block it heads: the
+lines indented deeper than it up to the next that is not, blank lines
+inside, so a closing brace stays in view. `p.fold` keeps the folded
+headers (`shut`, sorted) and the ranges for the text at `key` (buffer,
+edits), worked out again only while a fold is shut or the pointer is over
+the gutter; a header that no longer heads a block opens.
+
+- `rows` skips a folded block's lines, which take its header's row
+  (`lineRow`): wrapping, the quick diff, the scrollbar and `posAt` follow.
+  The header ends in ` ⋯` (`whitespace`).
+- The gutter's lane after the numbers shows `▾` on every block while the
+  pointer is over the gutter (`gutHot`), `▸` on a folded one always (VS
+  Code's `showFoldingControls: mouseover`); a click there folds or unfolds.
+- `moved` steps over a folded block (`visibleLine`); `follow` opens any
+  block the cursor lands in, so Go to Line, find, a change, a symbol or a
+  definition shows it. Folding a block the cursor is in puts it on the
+  header.
+- `refresh` moves folds below an edit along (`shiftFolds`); one whose header
+  went with the edit goes.
+- `ctrl+shift+[` folds the innermost block at the cursor, `ctrl+shift+]`
+  unfolds the one it heads (they need the kitty keyboard protocol); the
+  palette has Fold, Unfold, Toggle Fold, Fold All, Unfold All, vim `zc` `zo`
+  `za` `zM` `zR`. Folds stay with the tab, not across a restart.
 
 ## Vim mode
 

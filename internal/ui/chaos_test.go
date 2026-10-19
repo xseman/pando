@@ -23,7 +23,7 @@ var chaosKeys = func() []tea.KeyPressMsg {
 		"shift+tab shift+f8 shift+f12 alt+up alt+down alt+z alt+v alt+shift+right alt+shift+left alt+, alt+. alt+t alt+enter " +
 		"ctrl+p ctrl+f ctrl+h ctrl+g ctrl+s ctrl+z ctrl+y ctrl+a ctrl+c ctrl+w ctrl+n ctrl+b ctrl+k ctrl+j ctrl+d ctrl+/ " +
 		"ctrl+. ctrl+space ctrl+shift+p ctrl+shift+f ctrl+shift+o ctrl+shift+m ctrl+shift+e ctrl+shift+g ctrl+0 ctrl+1 ctrl+] " +
-		"ctrl+pgdown ctrl+pgup ctrl+up ctrl+down ctrl+tab") {
+		"ctrl+pgdown ctrl+pgup ctrl+up ctrl+down ctrl+tab ctrl+shift+[ ctrl+shift+] ctrl+{ ctrl+}") {
 		ks = append(ks, keyMsg(s))
 	}
 

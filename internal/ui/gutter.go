@@ -113,22 +113,22 @@ func (p *preview) changeAt(line int) int {
 	})
 }
 
-// laneChange is the change under body cell (x, y) of the gutter's mark lane
-// and the cells either side, -1 for none.
+// laneChange is the change under body cell (x, y) of the gutter's mark,
+// its first column, and the cell after it, -1 for none.
 func (p *preview) laneChange(w, h, x, y int) int {
-	rows, gw := p.rows(w), p.gutter()
-	if y < 0 || y >= h || x < gw-3 || x >= gw || p.top+y >= len(rows) {
+	rows := p.rows(w)
+	if y < 0 || y >= h || x < 0 || x > numPad || p.top+y >= len(rows) {
 		return -1
 	}
 
 	return p.changeAt(rows[p.top+y].line)
 }
 
-// changeMark is line's mark in the gutter's lane, VS Code's: ┃ added, ┇
-// modified (its hatched bar), ▾ where lines were deleted after it (▴ before
-// the first), on a line's first row; a staged change's the same in VS
-// Code's secondary shade; the change under the pointer wider, █ and ▒;
-// none, a blank in st, else.
+// changeMark is line's mark in the gutter's first column: a thin bar ▎ on
+// a line added or changed, its color telling which, ▾ where lines were
+// deleted after it (▴ before the first), on a line's first row; a staged
+// change's the same in VS Code's secondary shade; the change under the
+// pointer wider, ▌, or bold; none, a blank in st, else.
 func (p *preview) changeMark(line int, first bool, st lipgloss.Style, none string) string {
 	if line >= len(p.chg) || p.chg[line] == 0 {
 		return none
@@ -145,9 +145,9 @@ func (p *preview) changeMark(line int, first bool, st lipgloss.Style, none strin
 
 	switch {
 	case k == 'a':
-		return st.Foreground(shade(pal.diffAddMark)).Render(ifElse(hot, "█", "┃"))
+		return st.Foreground(shade(pal.diffAddMark)).Render(ifElse(hot, "▌", "▎"))
 	case k == 'm':
-		return st.Foreground(shade(pal.diffModMark)).Render(ifElse(hot, "▒", "┇"))
+		return st.Foreground(shade(pal.diffModMark)).Render(ifElse(hot, "▌", "▎"))
 	case first:
 		return st.Foreground(shade(pal.diffDelMark)).Bold(hot).Render(ifElse(k == 'd', "▾", "▴"))
 	}
@@ -373,7 +373,7 @@ func (p *preview) changeMarkAt(m *Model, y int) bool {
 	var here []int
 
 	for r, vr := range vis {
-		if i := p.changeAt(vr.line); vr.line >= 0 && i >= 0 && b.halfOf(r)/2 == y && !slices.Contains(here, i) {
+		if i := p.changeAt(vr.line); vr.line >= 0 && i >= 0 && b.slotOf(r)/barSlots == y && !slices.Contains(here, i) {
 			here = append(here, i)
 		}
 	}

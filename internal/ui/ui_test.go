@@ -2433,26 +2433,37 @@ func TestGitSticky(t *testing.T) {
 		t.Fatalf("changes pane of %d rows is too short for the test", ch)
 	}
 
-	line := func(y int) string {
+	raw := func(y int) string { // row y of the column, colors and all
 		t.Helper()
-		return ansi.Cut(strings.Split(checkWidths(t, m), "\n")[top+y], 0, m.colRect(0).w)
+		checkWidths(t, m)
+
+		return ansi.Cut(strings.Split(m.View().Content, "\n")[top+y], 0, m.colRect(0).w)
 	}
+
+	line := func(y int) string { return ansi.Strip(raw(y)) }
 	if p := m.scm.pinned(0, ch); p != nil || !strings.Contains(line(6), "s00.go") {
 		t.Fatalf("unscrolled: pinned %v, row 6 %q", p, line(6))
 	}
 	// The scrollbar runs beside the files, not beside the message box and Commit.
+	slider := func(y int) bool {
+		return strings.Contains(raw(y), bgParams(pal.sliderBg)) || strings.Contains(raw(y), bgParams(pal.trackBg))
+	}
 	bar := func() {
 		t.Helper()
 
 		for y := range 6 {
-			if strings.Contains(line(y), "┃") {
+			if slider(y) {
 				t.Fatalf("top %d: scrollbar beside row %d %q", m.scm.tops[""], y, line(y))
 			}
 		}
 
-		if !slices.ContainsFunc(strings.Split(checkWidths(t, m), "\n")[top+6:top+ch], func(l string) bool { return strings.Contains(l, "┃") }) {
-			t.Fatalf("top %d: no scrollbar beside the files", m.scm.tops[""])
+		for y := 6; y < ch; y++ {
+			if slider(y) {
+				return
+			}
 		}
+
+		t.Fatalf("top %d: no scrollbar beside the files", m.scm.tops[""])
 	}
 	bar()
 	// A wheel step hides three files under the sticky rows, nothing else moves.
@@ -2483,9 +2494,9 @@ func TestGitSticky(t *testing.T) {
 		t.Fatalf("message box edges in %q", l)
 	}
 
-	raw := strings.Split(m.View().Content, "\n")[top+3]
-	if l := line(3); ansi.Cut(l, w-3, w-2) != "∨" || !strings.Contains(raw, icChevron.s()+" \x1b[m ") {
-		t.Fatalf("Commit button edge in %q (raw %q)", l, raw)
+	commit := strings.Split(m.View().Content, "\n")[top+3]
+	if l := line(3); ansi.Cut(l, w-3, w-2) != "∨" || !strings.Contains(commit, icChevron.s()+" \x1b[m ") {
+		t.Fatalf("Commit button edge in %q (raw %q)", l, commit)
 	}
 	// The sticky rows answer clicks as themselves: Commit with no message
 	// focuses the box, the section header folds its section.

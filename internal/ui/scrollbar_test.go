@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"image/color"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -76,9 +75,9 @@ func TestEditorScrollbar(t *testing.T) {
 	x, y0, h := m.mainX()+m.mainW()-1, 1+m.stripH(), m.pvH()
 
 	// The text stops a column short: the bar owns the last one, the slider at
-	// the top of it and the track's border below.
+	// the top of it and the solid track below.
 	lines := m.editorLines(m.mainW())
-	if first, last := lines[m.stripH()+1], ansi.Strip(lines[m.stripH()+h]); !strings.Contains(first, bgParams(pal.sliderBg)) || !strings.HasSuffix(last, "▏") {
+	if first, last := lines[m.stripH()+1], lines[m.stripH()+h]; !strings.Contains(first, bgParams(pal.sliderBg)) || !strings.Contains(last, bgParams(pal.trackBg)) {
 		t.Fatalf("body rows end in the bar: first %q, last %q", first, last)
 	}
 	// The pointer on the slider shades it, as VS Code's; on the track it does not.
@@ -138,7 +137,7 @@ func TestEditorHScrollbar(t *testing.T) {
 	y, x0 := 1+m.stripH()+h, m.mainX()+g
 
 	row := m.editorLines(m.mainW())[y]
-	if !strings.Contains(row, underParams(pal.sliderBg)) || !strings.Contains(row, underParams(pal.rulerBorder)) || strings.TrimSpace(ansi.Strip(row)) != "" {
+	if !strings.Contains(row, fgParams(pal.sliderBg)) || !strings.Contains(row, fgParams(pal.trackBg)) || strings.Trim(ansi.Strip(row), " ▄") != "" {
 		t.Fatalf("the row under the text is the bar: %q", ansi.Strip(row))
 	}
 
@@ -153,7 +152,7 @@ func TestEditorHScrollbar(t *testing.T) {
 		t.Fatal("the horizontal slider is the one held")
 	}
 
-	if !strings.Contains(m.View().Content, underParams(pal.sliderActiveBg)) {
+	if !strings.Contains(m.View().Content, fgParams(pal.sliderActiveBg)) {
 		t.Fatal("the held slider is drawn active")
 	}
 
@@ -217,12 +216,6 @@ func TestEditorHScrollbar(t *testing.T) {
 	if m.pv.wrap || m.hbarH() != 1 {
 		t.Fatalf("a state event carries word_wrap to the editor: wrap %v", m.pv.wrap)
 	}
-}
-
-// underParams is the SGR that colors an underline c, the horizontal bar's line.
-func underParams(c color.Color) string {
-	r, g, b, _ := c.RGBA()
-	return fmt.Sprintf("58;2;%d;%d;%d", r>>8, g>>8, b>>8)
 }
 
 // TestSessionScrollbar gives a session's scrollback the same bar: its last
@@ -392,7 +385,7 @@ func TestSourceControlScrollbar(t *testing.T) {
 	m.Update(tea.MouseMotionMsg{X: x, Y: y0})
 	checkWidths(t, m)
 
-	if !strings.Contains(m.View().Content, fgParams(pal.sliderHoverBg)) {
+	if !strings.Contains(m.View().Content, bgParams(pal.sliderHoverBg)) {
 		t.Fatal("the slider under the pointer is drawn hovered")
 	}
 
@@ -414,7 +407,9 @@ func TestSourceControlScrollbar(t *testing.T) {
 		t.Fatalf("track click: top %d, held %v", m.scm.tops[""], m.barActive(b.id))
 	}
 
-	if out := checkWidths(t, m); !strings.Contains(out, plain.Render("┃")) {
+	checkWidths(t, m)
+
+	if !strings.Contains(m.View().Content, bgParams(pal.sliderActiveBg)) {
 		t.Fatal("the held slider does not light")
 	}
 	// Dragged to the top and let go.

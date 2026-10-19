@@ -112,6 +112,7 @@ Editable files and read-only views (diff, revision, rendering):
 | `F3` `shift+F3`                      | next, previous match with the find box closed            |
 | `F12`, `shift+F12`, `F2`             | go to definition, references, rename symbol              |
 | `ctrl+k`                             | the language server's hover for the word at the cursor   |
+| `ctrl+shift+[` `ctrl+shift+]`        | fold the block at the cursor, unfold the one it heads    |
 | `ctrl+.` `alt+⏎`                     | quick fix                                                |
 | `ctrl+shift+i`                       | format document                                          |
 | `alt+z`                              | word wrap                                                |
@@ -170,8 +171,9 @@ in every mode.
 
 - normal: `h j k l 0 $ w b e gg G` with a count; `i a I A o O` insert; `x D C
   J p P u`, `ctrl+r` redo, `v` `V` visual, `/` find, `n` `N`, `:` go to line;
-  `d c y` over a motion (`dw`, `d$`, `dgg`) or doubled (`dd cc yy`); `esc`
-  with nothing pending closes the editor
+  `d c y` over a motion (`dw`, `d$`, `dgg`) or doubled (`dd cc yy`); `zc`
+  `zo` `za` fold, unfold, toggle, `zM` `zR` all; `esc` with nothing pending
+  closes the editor
 - visual: motions grow the selection, `o` swaps ends, `d x y c s` act on it
 - insert: the editor itself; `esc` back to normal
 

@@ -522,7 +522,7 @@ func TestClickWithMotionDoesNotSelectTheNextLine(t *testing.T) {
 // TestRenderWhitespace is render_whitespace, VS Code's modes: a space drawn
 // as ·, a tab as → over the four cells it takes, in the whitespace color.
 // TestIndentGuides draws VS Code's indent guides in the editor: a │ at each
-// level, on through a blank line inside a block, the block around the
+// level past the first, which would rule the code's left edge, on through a blank line inside a block, the block around the
 // cursor's in indent_guide's color, a selected one on the selection, and
 // render_whitespace's arrow beside it; a file indented by 2 spaces gets one
 // every 2 cells.
@@ -547,17 +547,17 @@ func TestIndentGuides(t *testing.T) {
 		return ""
 	}
 
-	rule := "│" + strings.Repeat(" ", tabW-1)
-	if y := row("y()"); !strings.Contains(ansi.Strip(y), rule+rule+"y()") || !strings.Contains(y, fgParams(pal.indentGuide)+"m│") {
-		t.Fatalf("two guides before y(), the if's lit: %q", y)
+	rule, top := "│"+strings.Repeat(" ", tabW-1), blank(tabW)
+	if y := row("y()"); !strings.Contains(ansi.Strip(y), top+rule+"y()") || !strings.Contains(y, fgParams(pal.indentGuide)+"m│") {
+		t.Fatalf("the if's guide before y(), lit, none at the top level: %q", y)
 	}
 
-	if !strings.Contains(ansi.Strip(row("}")), rule+"}") || strings.Contains(row(rule+"}"), fgParams(pal.indentGuide)+"m│") {
-		t.Fatal("the if's closing brace has the function's guide, not lit")
+	if !strings.Contains(ansi.Strip(row("}")), top+"}") || strings.Contains(ansi.Strip(row(top+"}")), "│"+strings.Repeat(" ", tabW-1)+"}") {
+		t.Fatal("the if's closing brace, at the top level, has no guide")
 	}
 
 	blankRow := ansi.Strip(rows[slices.IndexFunc(rows, func(r string) bool { return strings.Contains(ansi.Strip(r), "y()") })+1])
-	if !strings.Contains(blankRow, rule+"│") {
+	if !strings.Contains(blankRow, top+"│") {
 		t.Fatalf("the blank line inside the if carries its guides: %q", blankRow)
 	}
 
@@ -572,12 +572,12 @@ func TestIndentGuides(t *testing.T) {
 	m.st.Settings.Blanks = "all"
 	rows = strings.Split(m.View().Content, "\n")
 
-	if y := ansi.Strip(row("y()")); !strings.Contains(y, "│→  │→  y()") {
+	if y := ansi.Strip(row("y()")); !strings.Contains(y, "→   │→  y()") {
 		t.Fatalf("a guide takes its cell, a tab's arrow moving beside it: %q", y)
 	}
 
 	m, _ = editorModel(t, "a.ts", "function f() {\n  if (x) {\n    y();\n  }\n}\n")
-	if y := checkWidths(t, m); !strings.Contains(y, "│ │ y();") {
+	if y := checkWidths(t, m); !strings.Contains(y, "  │ y();") {
 		t.Fatalf("2 spaces, a guide every 2 cells:\n%s", y)
 	}
 }
@@ -625,7 +625,7 @@ func TestRenderWhitespace(t *testing.T) {
 	m.pv.anchor = nil
 
 	out := checkWidths(t, m)
-	if !strings.Contains(out, "│→  if·a··b·c·") { // the indent guide on the tab's first cell, its arrow beside
+	if !strings.Contains(out, "→   if·a··b·c·") { // the top level has no indent guide: the arrow on the tab's first cell
 		t.Fatalf("the editor draws the markers:\n%s", out)
 	}
 

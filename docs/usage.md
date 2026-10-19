@@ -318,9 +318,10 @@ column and a blob are read only.
 
 - Undo, find & replace, quick open (`ctrl+p`, recent files first,
   `:` line, `@` symbol), suggestions, merge-conflict _Accept_ actions.
+- The cursor's line is lit faintly across the editor, as VS Code's.
 - The gutter marks the lines changed since the file was staged, as VS Code's
-  does, while you type, in a lane after the line numbers: `┃` green added, `┇`
-  blue modified (VS Code's hatched bar), `▾` red where lines were deleted;
+  does, while you type, in a thin bar before the line numbers: `▎` green added,
+  yellow modified (blue on the light theme), `▾` red where lines were deleted;
   staged changes in a darker shade until committed; the scrollbar marks them
   too, under the problems, a click on a mark going there. The change under the
   pointer widens; a click on it (or `alt+F3`, `shift+alt+F3`) opens VS Code's
@@ -337,6 +338,9 @@ column and a blob are read only.
 - A file opened from Explorer, Search or Source Control takes the preview
   tab, in italics, which the next one replaces; an edit or a double click
   (on the file or the tab) keeps it, as in VS Code.
+- Code folds by indentation: `▾` beside every block while the pointer is
+  over the line numbers, a click (or `ctrl+shift+[` `]`, `zc` `zo`) folds it
+  behind `⋯`; the cursor steps over a folded block, a jump into one opens it.
 - `vim_mode = true` adds motions, operators and visual mode.
 - Unsaved text is kept as a draft and comes back with its tab; a file changed
   on disk is never overwritten silently.

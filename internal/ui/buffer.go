@@ -251,6 +251,8 @@ func (p *preview) unsaved() string {
 // inside a block comment or a raw string can leave the rest of it coloured
 // wrong until the file is saved and read again.
 func (p *preview) refresh(m *Model, from, oldTo, newTo int) {
+	p.shiftFolds(from, oldTo, newTo)
+
 	// ponytail: chroma costs about 1.5 ms a line when it is set up per line and
 	// about 50 ms for a thousand lines in one pass, so a change of more than a
 	// screenful takes the whole-file pass instead. 100 is where the two meet.

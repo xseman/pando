@@ -236,7 +236,7 @@ func TestScrollbarChangeMarks(t *testing.T) {
 
 		b, h := m.pv.bar(m), m.pvH()
 		x, y0 := m.mainX()+m.mainW()-1, 1+m.stripH()
-		marked := func(c string) bool { return strings.ContainsAny(ansi.Strip(c), "▀▄█▝▗▐") }
+		marked := func(c string) bool { return strings.ContainsAny(ansi.Strip(c), "▁▂▃▄▅▆▇█▔▀▐") }
 		cell := func(y int) string { // the bar's cell: its glyph and the last SGR before it, not those the cut carries along
 			c := ansi.Cut(m.editorLines(m.mainW())[m.stripH()+1+y], m.mainW()-1, m.mainW())
 			if g := strings.LastIndex(c, ansi.Strip(c)); g > 0 {
@@ -560,31 +560,16 @@ func TestDiffEdges(t *testing.T) {
 	}
 }
 
-// TestMarksOnTheSlider: in every theme and slider state a mark on the slider
-// stands 3:1 apart from it, and a change in view is marked on the slider, one
-// out of view off it, however the two scale.
+// TestMarksOnTheSlider: a change in view is marked on the slider, one out of
+// view off it, however the two scale.
 func TestMarksOnTheSlider(t *testing.T) {
-	defer applyLook("vscode", true, "ascii", nil)
-
-	for _, theme := range []string{"vscode-dark", "vscode-light", "terminal"} {
-		applyLook(theme, true, "ascii", nil)
-
-		for _, st := range []barState{{}, {over: true}, {held: true}} {
-			for _, c := range []color.Color{pal.diffDelMark, pal.diffAddMark, pal.diffModMark} {
-				if bg := st.slider(vbar{100, 10, 0}); contrast(legible(c, bg), bg) < 3 {
-					t.Errorf("%s %+v: a mark %v on the slider %v reads %.2f:1", theme, st, c, bg, contrast(legible(c, bg), bg))
-				}
-			}
-		}
-	}
-
 	for _, b := range []vbar{{2000, 38, 1480}, {2000, 38, 0}, {2000, 38, 1962}, {301, 27, 140}} {
 		ty, sh := b.thumb()
 
 		for r := range b.n {
-			on := b.halfOf(r)/2 >= ty && b.halfOf(r)/2 < ty+sh
+			on := b.slotOf(r)/barSlots >= ty && b.slotOf(r)/barSlots < ty+sh
 			if in := r >= b.top && r < b.top+b.h; in != on && (in || ty > 0 && ty+sh < b.h) {
-				t.Fatalf("%+v: row %d in view %v, marked on the slider %v (cell %d, slider %d+%d)", b, r, in, on, b.halfOf(r)/2, ty, sh)
+				t.Fatalf("%+v: row %d in view %v, marked on the slider %v (cell %d, slider %d+%d)", b, r, in, on, b.slotOf(r)/barSlots, ty, sh)
 			}
 		}
 	}
@@ -614,5 +599,70 @@ func TestNextChangeFromTheList(t *testing.T) {
 
 	if m.pv.at().line != first {
 		t.Fatalf("alt+shift+f5 went back to %d, want %d", m.pv.at().line, first)
+	}
+}
+
+// A marked cell draws its eighths with one block glyph and two colors, the
+// track's and its marks': a mark one slot high still shows, two marks in a
+// cell both show, the higher rank where they share a slot; on the slider a
+// mark keeps its own color, the slider sinking into it.
+func TestMarkCell(t *testing.T) {
+	applyLook("vscode", true, "ascii", nil)
+
+	set := diffMarks()
+	shows := func(c string, col color.Color) bool {
+		return strings.Contains(c, fgParams(col)) || strings.Contains(c, bgParams(col))
+	}
+
+	for _, c := range []struct {
+		cell [barSlots]byte
+		want []color.Color
+		g    string
+	}{
+		{[barSlots]byte{7: 2}, []color.Color{pal.diffAddMark}, "▁"},
+		{[barSlots]byte{2, 2, 2, 2, 2, 2, 2, 2}, []color.Color{pal.diffAddMark}, ""},
+		{[barSlots]byte{0: 1, 7: 2}, []color.Color{pal.diffDelMark, pal.diffAddMark}, ""},
+		{[barSlots]byte{0, 0, 0, 0, 3, 3, 3, 3}, []color.Color{pal.diffModMark}, ""}, // ▄, or ▀ in the track's color over the mark's
+	} {
+		got := markCell(c.cell, set)
+		for _, col := range c.want {
+			if !shows(got, col) {
+				t.Errorf("%v: %q lacks %v", c.cell, got, col)
+			}
+		}
+
+		if c.g != "" && ansi.Strip(got) != c.g {
+			t.Errorf("%v: glyph %q, want %q", c.cell, ansi.Strip(got), c.g)
+		}
+	}
+
+	// One changed line in 5000 still takes a slot, on its own cell.
+	kinds := make([]byte, 5000)
+	kinds[4200] = 2
+
+	b := vbar{5000, 30, 0}
+	cells := b.marked(barState{}, kinds, set)
+
+	marked := 0
+
+	for i, c := range cells {
+		if shows(c, pal.diffAddMark) {
+			marked++
+
+			if i != b.slotOf(4200)/barSlots {
+				t.Errorf("the mark on cell %d, its slot on %d", i, b.slotOf(4200)/barSlots)
+			}
+		}
+	}
+
+	if marked != 1 {
+		t.Fatalf("one changed line marks %d cells", marked)
+	}
+
+	// On the slider, the mark's own color over the slider's.
+	kinds[4200], kinds[3] = 0, 3
+
+	if c := b.marked(barState{}, kinds, set)[0]; !strings.Contains(c, fgParams(pal.diffModMark)) || !strings.Contains(c, bgParams(pal.sliderBg)) {
+		t.Fatalf("a mark on the slider: %q", c)
 	}
 }

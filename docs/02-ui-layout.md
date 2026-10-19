@@ -242,15 +242,20 @@ Model.mouse
 
 ## Scrollbars
 
-| Where                     | Bar                                                        |
-| ------------------------- | ---------------------------------------------------------- |
-| editor, session, Terminal | `vbar` in the last column, always reserved                 |
-| editor, word wrap off     | `hbar` row under the text while a line overflows (`hbarH`) |
-| sidebar lists             | thin `┃` (`listBar`); one per Source Control pane          |
+| Where                     | Bar                                                            |
+| ------------------------- | -------------------------------------------------------------- |
+| editor, session, Terminal | `vbar` in the last column, always reserved                     |
+| editor, word wrap off     | `hbar` row under the text while a line overflows (`hbarH`)     |
+| table, panel's Output     | a row under the rows while one overflows (`outputLog.hbar`)    |
+| sidebar lists             | the same `vbar` cells (`listBar`); one per Source Control pane |
 
 - Colors `scrollbar_slider`, `scrollbar_slider_hover`,
-  `scrollbar_slider_active` over an `overview_ruler_border` track; hover state
-  via `overBar` and `barState`.
+  `scrollbar_slider_active` over a solid `scrollbar_track` column (a thin
+  `overview_ruler_border` rule where a theme has none, the terminal one);
+  hover state via `overBar` and `barState`. A column's cells are
+  backgrounds, not block glyphs, which seam at fractional scaling in VTE; a
+  row's (`hcells`) are lower half blocks `▄`, track and slider as
+  foregrounds, a half-height bar. Shift+wheel or a tilt pans (`wheelX`).
 - Click grabs the slider or jumps to the track point; `dragScroll` follows.
   A diff's bar marks its changes (`vbar.marked`), on the slider too; a click
   on a mark off the slider goes to that change.

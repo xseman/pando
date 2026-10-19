@@ -30,15 +30,18 @@ type palette struct {
 	inputBorder, inputBg, sectionBg, badgeBg, badgeFg                            color.Color
 	keycapBg, keycapFg                                                           color.Color
 	textSelBg, matchBg, wordHiBg                                                 color.Color
+	matchFg                                                                      color.Color // a search match's text over matchBg; nil keeps the text's own
 	rangeHiBg, findMatchBg, findHitBg                                            color.Color // Go to Line's line; find's other and current matches
+	lineHiBg                                                                     color.Color // the cursor's line in a file, VS Code's editor.lineHighlightBackground; nil for none
 	diffDelBg, diffDelWordBg, diffAddBg, diffAddWordBg, diffDelMark, diffAddMark color.Color
-	diffModMark                                                                  color.Color // a line changed, on the scrollbar: VS Code Modern's blue, legible on the slider
+	diffModMark                                                                  color.Color // a line changed, in the gutter and on the scrollbar: yellow, apart from the added green and the text
 	// merge conflict blocks in an editor: VS Code's merge.*Background over the editor background
 	mergeCurrentHeadBg, mergeCurrentBg, mergeIncomingHeadBg, mergeIncomingBg, mergeCommonHeadBg, mergeCommonBg color.Color
 	ok, warn, errc, attention                                                                                  color.Color
 	blockedBg, doneBg                                                                                          color.Color // session_highlight: error and attention over the sidebar
 	blockedSoftBg, doneSoftBg                                                                                  color.Color // the other shade of their pulse
 	sliderBg, sliderHoverBg, sliderActiveBg, rulerBorder                                                       color.Color // VS Code's scrollbarSlider at rest, hovered and held over the editor, and editorOverviewRuler.border, the same as activityBar.border
+	trackBg                                                                                                    color.Color // the scrollbar's track, a solid column; nil draws a thin rule in rulerBorder
 	tabBorder                                                                                                  color.Color // tab.border, a shade stronger for a terminal
 	sashHover                                                                                                  color.Color // VS Code's sash.hoverBorder: a divider under a resting pointer, a shade off the accent it drags in; also the focused commit message box's frame and a GitHub comment's
 	whitespace                                                                                                 color.Color // VS Code's editorWhitespace.foreground: the · and → of render_whitespace; the inactive indent guides of the Explorer and the editor too, tree.inactiveIndentGuidesStroke's shade
@@ -65,15 +68,15 @@ var (
 		inputBorder: hex("#333536"), inputBg: hex("#242526"), sectionBg: hex("#202122"), badgeBg: hex("#307e9f"), badgeFg: hex("#ffffff"),
 		keycapBg: hex("#313233"), keycapFg: hex("#bfbfbf"),
 		textSelBg: hex("#245c73"), matchBg: hex("#1e4352"), wordHiBg: hex("#192d37"),
-		rangeHiBg: hex("#242526"), findMatchBg: hex("#1d3d4b"), findHitBg: hex("#255f77"),
+		rangeHiBg: hex("#242526"), findMatchBg: hex("#1d3d4b"), findHitBg: hex("#255f77"), lineHiBg: hex("#1f2021"),
 		diffDelBg: hex("#401d1d"), diffDelWordBg: hex("#562f2d"), diffAddBg: hex("#1b2d1d"), diffAddWordBg: hex("#274129"),
-		diffDelMark: hex("#f28772"), diffAddMark: hex("#72c892"), diffModMark: hex("#4daafc"),
+		diffDelMark: hex("#f28772"), diffAddMark: hex("#72c892"), diffModMark: hex("#e2c08d"),
 		mergeCurrentHeadBg: hex("#2f7366"), mergeCurrentBg: hex("#25403b"), mergeIncomingHeadBg: hex("#2f628f"), mergeIncomingBg: hex("#25394b"),
 		mergeCommonHeadBg: hex("#383838"), mergeCommonBg: hex("#282828"),
 		ok: hex("#72c892"), warn: hex("#cca700"), errc: hex("#f48771"), attention: hex("#ad80d7"),
 		blockedBg: hex("#4f342e"), doneBg: hex("#3d3248"),
 		blockedSoftBg: hex("#35272a"), doneSoftBg: hex("#2b2733"),
-		sliderBg: hex("#606162"), sliderHoverBg: hex("#676869"), sliderActiveBg: hex("#6e6f70"), rulerBorder: hex("#2a2b2c"),
+		sliderBg: hex("#606162"), sliderHoverBg: hex("#676869"), sliderActiveBg: hex("#6e6f70"), rulerBorder: hex("#2a2b2c"), trackBg: hex("#2a2b2c"),
 		tabBorder: hex("#3c3d40"),
 		sashHover: hex("#2c7092"), whitespace: hex("#3e3f40"), indentGuide: hex("#585858"), mdCode: hex("#ff7b72"), mdCodeBg: hex("#242526"),
 		lineNumber: hex("#6e7681"), lineNumberActive: hex("#cccccc"), descFg: hex("#9d9d9d"),
@@ -89,19 +92,22 @@ var (
 		mutedButtonBg: hex("#e4e4e7"), mutedButtonFg: hex("#6f6f73"),
 		inputBorder: hex("#d8d8d8"), inputBg: hex("#f7f7fa"), sectionBg: hex("#f0f0f3"), badgeBg: hex("#0069cc"), badgeFg: hex("#ffffff"),
 		keycapBg: hex("#eaeaea"), keycapFg: hex("#202020"),
-		textSelBg: hex("#bfd9f2"), matchBg: hex("#cce2f5"), wordHiBg: hex("#d9e9f7"),
-		rangeHiBg: hex("#eaeaea"), findMatchBg: hex("#e5f0fa"), findHitBg: hex("#a6cbed"),
+		// Matches in yellow, as Light+'s code colors read on it: the one selected deeper.
+		textSelBg: hex("#bfd9f2"), matchBg: hex("#ffdd00"), wordHiBg: hex("#d9e9f7"),
+		rangeHiBg: hex("#eaeaea"), findMatchBg: hex("#fff2b3"), findHitBg: hex("#ffdd00"), lineHiBg: hex("#f2f2f2"),
 		diffDelBg: hex("#f3dada"), diffDelWordBg: hex("#e2a8a8"), diffAddBg: hex("#e6ecdb"), diffAddWordBg: hex("#c5d1aa"),
-		diffDelMark: hex("#ad0707"), diffAddMark: hex("#587c0c"), diffModMark: hex("#005fb8"),
+		diffDelMark: hex("#ad0707"), diffAddMark: hex("#587c0c"), diffModMark: hex("#2090d3"), // VS Code light's modified gutter: yellow fades on white
 		mergeCurrentHeadBg: hex("#a0e4d7"), mergeCurrentBg: hex("#d9f4ef"), mergeIncomingHeadBg: hex("#a0d3ff"), mergeIncomingBg: hex("#d9edff"),
 		mergeCommonHeadBg: hex("#c0c0c0"), mergeCommonBg: hex("#e6e6e6"),
-		ok: hex("#388a34"), warn: hex("#b69500"), errc: hex("#ad0707"), attention: hex("#652d90"),
+		ok: hex("#388a34"), warn: hex("#9e6a03"), errc: hex("#ad0707"), attention: hex("#652d90"),
 		blockedBg: hex("#edd4d4"), doneBg: hex("#e2d9e8"),
 		blockedSoftBg: hex("#f6e8e8"), doneSoftBg: hex("#efeaf3"),
-		sliderBg: hex("#8a8a8a"), sliderHoverBg: hex("#818181"), sliderActiveBg: hex("#777777"), rulerBorder: hex("#f0f1f2"),
+		// A softer slider than VS Code's #8a8a8a, over a track barely off the white.
+		sliderBg: hex("#c4c4c4"), sliderHoverBg: hex("#b4b4b4"), sliderActiveBg: hex("#a4a4a4"), rulerBorder: hex("#f0f1f2"), trackBg: hex("#f6f6f7"),
 		tabBorder: hex("#d0d0d6"),
-		sashHover: hex("#5c9fe0"), whitespace: hex("#d0d0d4"), indentGuide: hex("#a9a9a9"), mdCode: hex("#c4314b"), mdCodeBg: hex("#ededf0"),
-		lineNumber: hex("#6e7681"), lineNumberActive: hex("#171184"), descFg: hex("#6f6f73"),
+		sashHover: hex("#5c9fe0"), whitespace: hex("#d0d0d4"), indentGuide: hex("#a9a9a9"), mdCode: hex("#800000"), mdCodeBg: hex("#ededf0"),
+		// The cursor's line number a shade darker than the rest, not 2026's navy.
+		lineNumber: hex("#6e7681"), lineNumberActive: hex("#3c4048"), descFg: hex("#6f6f73"),
 	}
 	// terminalPal inherits the terminal profile's ANSI colors. Diff tints stay
 	// RGB: an ANSI background would collide with remapped syntax colors.
@@ -114,11 +120,11 @@ var (
 		mutedButtonBg: ansi16(0), mutedButtonFg: ansi16(7),
 		inputBorder: ansi16(8), inputBg: ansi16(0), sectionBg: ansi16(0), badgeBg: ansi16(8), badgeFg: ansi16(15),
 		keycapBg: ansi16(8), keycapFg: ansi16(15),
-		textSelBg: ansi16(8), matchBg: ansi16(3), wordHiBg: ansi16(8),
+		textSelBg: ansi16(8), matchBg: ansi16(3), matchFg: ansi16(0), wordHiBg: ansi16(8),
 		rangeHiBg: ansi16(0), findMatchBg: ansi16(8), findHitBg: ansi16(3),
 		diffDelBg: vscodeDark.diffDelBg, diffDelWordBg: vscodeDark.diffDelWordBg,
 		diffAddBg: vscodeDark.diffAddBg, diffAddWordBg: vscodeDark.diffAddWordBg,
-		diffDelMark: vscodeDark.diffDelMark, diffAddMark: vscodeDark.diffAddMark, diffModMark: ansi16(12),
+		diffDelMark: vscodeDark.diffDelMark, diffAddMark: vscodeDark.diffAddMark, diffModMark: ansi16(3),
 		mergeCurrentHeadBg: vscodeDark.mergeCurrentHeadBg, mergeCurrentBg: vscodeDark.mergeCurrentBg,
 		mergeIncomingHeadBg: vscodeDark.mergeIncomingHeadBg, mergeIncomingBg: vscodeDark.mergeIncomingBg,
 		mergeCommonHeadBg: vscodeDark.mergeCommonHeadBg, mergeCommonBg: vscodeDark.mergeCommonBg,
@@ -156,6 +162,16 @@ var (
 	accent = lipgloss.NewStyle().Foreground(pal.headerAccent).Bold(true)
 )
 
+// matchStyle is base marking a search match: on match_bg, in match_fg when
+// a theme gives one.
+func matchStyle(base lipgloss.Style) lipgloss.Style {
+	if base = base.Background(pal.matchBg); pal.matchFg != nil {
+		base = base.Foreground(pal.matchFg)
+	}
+
+	return base
+}
+
 // colorKeys maps config.toml [colors] keys to the palette fields they override.
 func (p *palette) colorKeys() map[string]*color.Color {
 	return map[string]*color.Color{
@@ -166,8 +182,8 @@ func (p *palette) colorKeys() map[string]*color.Color {
 		"button_bg": &p.buttonBg, "button_fg": &p.buttonFg, "button_hover_bg": &p.buttonHoverBg, "button_sep": &p.buttonSep,
 		"muted_button_bg": &p.mutedButtonBg, "muted_button_fg": &p.mutedButtonFg,
 		"input_border": &p.inputBorder, "input_bg": &p.inputBg, "section_bg": &p.sectionBg, "badge_bg": &p.badgeBg, "badge_fg": &p.badgeFg,
-		"keycap_bg": &p.keycapBg, "keycap_fg": &p.keycapFg, "text_sel_bg": &p.textSelBg, "match_bg": &p.matchBg, "word_hi_bg": &p.wordHiBg,
-		"range_hi_bg": &p.rangeHiBg, "find_match_bg": &p.findMatchBg, "find_hit_bg": &p.findHitBg,
+		"keycap_bg": &p.keycapBg, "keycap_fg": &p.keycapFg, "text_sel_bg": &p.textSelBg, "match_bg": &p.matchBg, "match_fg": &p.matchFg, "word_hi_bg": &p.wordHiBg,
+		"range_hi_bg": &p.rangeHiBg, "find_match_bg": &p.findMatchBg, "find_hit_bg": &p.findHitBg, "line_highlight_bg": &p.lineHiBg,
 		"diff_del_bg": &p.diffDelBg, "diff_del_word_bg": &p.diffDelWordBg, "diff_add_bg": &p.diffAddBg,
 		"diff_add_word_bg": &p.diffAddWordBg, "diff_del_mark": &p.diffDelMark, "diff_add_mark": &p.diffAddMark, "diff_mod_mark": &p.diffModMark,
 		"merge_current_head_bg": &p.mergeCurrentHeadBg, "merge_current_bg": &p.mergeCurrentBg,
@@ -175,7 +191,7 @@ func (p *palette) colorKeys() map[string]*color.Color {
 		"merge_common_head_bg": &p.mergeCommonHeadBg, "merge_common_bg": &p.mergeCommonBg,
 		"ok": &p.ok, "warn": &p.warn, "error": &p.errc, "attention": &p.attention,
 		"blocked_bg": &p.blockedBg, "done_bg": &p.doneBg, "blocked_soft_bg": &p.blockedSoftBg, "done_soft_bg": &p.doneSoftBg,
-		"scrollbar_slider": &p.sliderBg, "scrollbar_slider_hover": &p.sliderHoverBg, "scrollbar_slider_active": &p.sliderActiveBg, "overview_ruler_border": &p.rulerBorder,
+		"scrollbar_slider": &p.sliderBg, "scrollbar_slider_hover": &p.sliderHoverBg, "scrollbar_slider_active": &p.sliderActiveBg, "overview_ruler_border": &p.rulerBorder, "scrollbar_track": &p.trackBg,
 		"tab_border": &p.tabBorder, "sash_hover": &p.sashHover, "whitespace": &p.whitespace, "indent_guide": &p.indentGuide,
 		"md_code": &p.mdCode, "md_code_bg": &p.mdCodeBg,
 		"line_number": &p.lineNumber, "line_number_active": &p.lineNumberActive, "description": &p.descFg,

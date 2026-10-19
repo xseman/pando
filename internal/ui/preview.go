@@ -134,6 +134,8 @@ type preview struct {
 	chg        []byte
 	chgKey     gutterKey
 	markHot    int        // the change under the pointer in the gutter, plus one; 0 for none
+	gutHot     bool       // the pointer is over the gutter, which shows the fold marks
+	fold       folds      // the file's folded blocks
 	qd         *quickDiff // the quick diff open under a change, nil for none
 	numW       int        // digits of the line-number gutter
 	ready      bool
@@ -1561,6 +1563,36 @@ func (p *preview) gutter() int {
 	return 0
 }
 
+// underlay is the color under a row's text, the whole width, nil for none:
+// the line Go to Line is about to go to, a conflict block, a GitHub page's
+// cursor (its row, as a list's), the cursor's line in a file, faintly.
+func (p *preview) underlay(line int) color.Color {
+	switch {
+	case line == p.rangeHi-1:
+		return pal.rangeHiBg
+	case p.conflictBg(line) != nil:
+		return p.conflictBg(line)
+	case p.kind == pvGH && line == p.cur.line && !p.composing:
+		return pal.hoverBg
+	case p.lineHi(line):
+		return pal.lineHiBg
+	}
+
+	return nil
+}
+
+// lineHi reports line drawn on the current line's background: the cursor's
+// in a file shown as text, while nothing is selected.
+func (p *preview) lineHi(line int) bool {
+	if pal.lineHiBg == nil || p.kind != pvFile || p.md == 1 || line != p.cur.line {
+		return false
+	}
+
+	_, _, sel := p.selection()
+
+	return !sel
+}
+
 // rowBg is a diff row's tint, or a merge conflict's, nil for other rows.
 func (p *preview) rowBg(line int) color.Color {
 	if line < len(p.meta) {
@@ -1578,6 +1610,10 @@ func (p *preview) gutterText(line int, first bool) string {
 		st = lineNumSt(line == p.cur.line)
 	}
 
+	if bg == nil && p.lineHi(line) {
+		bg = pal.lineHiBg
+	}
+
 	if bg != nil {
 		st = st.Background(bg)
 	}
@@ -1588,13 +1624,14 @@ func (p *preview) gutterText(line int, first bool) string {
 
 	pre, suf := renderSides(st)
 
+	// A file's change mark leads, in the margin before the numbers (numPad).
 	switch sp := pre + " " + suf; {
 	case !first && p.meta == nil: // a wrapped line's later rows keep its bar
-		return pre + blank(gw-2) + suf + p.changeMark(line, false, st, sp) + sp
+		return p.changeMark(line, false, st, sp) + pre + blank(gw-numPad) + suf
 	case !first:
 		return pre + blank(gw) + suf
 	case p.meta == nil:
-		return pre + blank(numPad) + fmt.Sprintf("%*d ", p.numW, line+1) + suf + p.changeMark(line, true, st, sp) + sp
+		return p.changeMark(line, true, st, sp) + pre + fmt.Sprintf("%*d ", p.numW, line+1) + suf + p.foldMark(line, pre, suf, sp) + sp
 	}
 
 	return diffGutter(p.meta[line], p.numW, bg)
@@ -1626,13 +1663,14 @@ func (p *preview) rows(w int) []vrow {
 		zone, zh = p.zoneLine(), p.qd.h
 	}
 
-	key := fmt.Sprint(tw*b2i(p.wrap), p.wrap, zone, zh) // the width breaks only wrapped lines
+	key := fmt.Sprint(tw*b2i(p.wrap), p.wrap, zone, zh, p.fold.gen) // the width breaks only wrapped lines
 	if p.vis != nil && p.visKey == key {
 		return p.vis
 	}
 
 	p.vis, p.visKey, p.lineRow, p.wide = p.vis[:0], key, make([]int, len(p.plain)), 0
-	for i, l := range p.plain {
+	for i := 0; i < len(p.plain); i++ {
+		l := p.plain[i]
 		p.lineRow[i] = len(p.vis)
 		from, cells := 0, 0
 
@@ -1655,6 +1693,14 @@ func (p *preview) rows(w int) []vrow {
 			for k := range zh {
 				p.vis = append(p.vis, vrow{-1, k, 0})
 			}
+		}
+
+		if e := p.shutEnd(i); e > i { // a folded block: its lines take its header's row
+			for j := i + 1; j <= e; j++ {
+				p.lineRow[j] = p.lineRow[i]
+			}
+
+			i = e
 		}
 	}
 
@@ -1691,6 +1737,8 @@ func (p *preview) follow(w, h int) {
 	}
 
 	p.cur.line = max(min(p.cur.line, p.lastLine()), 0) // edits can shorten the file
+	p.unfoldAt(p.cur.line)                             // a jump into a folded block shows it
+
 	if k := p.cursorRow(w); k < p.top {
 		p.top = k
 	} else if k >= p.top+h {
@@ -2202,7 +2250,7 @@ func (p *preview) guideRoom(vr vrow, marks []string) []string {
 		return marks
 	}
 
-	for k := range p.guide.lv[vr.line] {
+	for k := 1; k < p.guide.lv[vr.line]; k++ { // the top level has none (paintGuides)
 		if c := k * p.guide.unit; c < len(marks) {
 			if marks[c] == tabMark && c+1 < len(marks) && marks[c+1] == " " {
 				marks[c+1] = tabMark
@@ -2216,16 +2264,17 @@ func (p *preview) guideRoom(vr vrow, marks []string) []string {
 }
 
 // paintGuides draws row vr's indent guides over body, its cells start to
-// end: a │ at each level, the active one in indent_guide's color, a selected
-// one on the selection. A wrapped line's later rows start with its text and
-// have none.
+// end: a │ at each level past the first, the active one in indent_guide's
+// color, a selected one on the selection; the top level's would be a rule
+// down the code's left edge. A wrapped line's later rows start with its text
+// and have none.
 func (p *preview) paintGuides(body string, vr vrow, start, end, s0, s1 int) string {
 	g := p.guide
 	if vr.line >= len(g.lv) || vr.from > 0 {
 		return body
 	}
 
-	for k := range g.lv[vr.line] {
+	for k := 1; k < g.lv[vr.line]; k++ {
 		c := k * g.unit
 		if c < start || c >= end {
 			continue
@@ -2354,6 +2403,15 @@ func (p *preview) renderRow(vr vrow, w int) string {
 	}
 
 	outside := !ok || vr.line < a.line || vr.line > z.line
+	if vr.to == len(line) && p.shutEnd(vr.line) > vr.line { // a folded block's header ends in ⋯, VS Code's placeholder
+		line = append(line[:len(line):len(line)], ' ', '⋯')
+		styled += fg(pal.whitespace).Render(" ⋯")
+
+		if p.wrap {
+			end = min(start+cellsOf(line[vr.from:]), start+tw)
+		}
+	}
+
 	if outside && vr.to == len(line) && len(p.conf) > 0 {
 		// A conflict marker's note and actions follow its text, VS Code's
 		// decoration after-text and CodeLens in one row.
@@ -2412,16 +2470,12 @@ func (p *preview) renderRow(vr vrow, w int) string {
 	}
 
 	body := paintProbs(p.paintGuides(b.String(), vr, start, end, c0, c1), p.probs[vr.line], start)
-	if vr.line == p.rangeHi-1 { // the line Go to Line is about to go to, the whole width
-		body = underBg(body+blank(max(tw-ansi.StringWidth(body), 0)), pal.rangeHiBg)
-	} else if bg := p.conflictBg(vr.line); bg != nil { // a conflict block is tinted under its text
+	if bg := p.underlay(vr.line); bg != nil {
 		body = underBg(body+blank(max(tw-ansi.StringWidth(body), 0)), bg)
 	} else if bg := p.rowBg(vr.line); bg != nil { // tinted diff rows fill the width, like an editor
 		if used := ansi.StringWidth(body); used < tw {
 			body += lipgloss.NewStyle().Background(bg).Render(blank(tw - used))
 		}
-	} else if p.kind == pvGH && vr.line == p.cur.line && !p.composing { // a GitHub page's cursor: its row, as a list's
-		body = underBg(body+blank(max(tw-ansi.StringWidth(body), 0)), pal.hoverBg)
 	}
 
 	return p.gutterText(vr.line, vr.from == 0) + body
@@ -4098,6 +4152,15 @@ func (p *preview) keyItems(_ *Model) []item {
 			item{label: "Show Previous Change", hint: "⇧M-F3", run: func(m *Model) tea.Cmd { return m.showChange(m.pv.stepChange(m.pv.at().line, -1)) }})
 	}
 
+	if p.foldable() {
+		items = append(items,
+			item{label: "Fold", hint: "^⇧[", run: func(m *Model) tea.Cmd { return m.foldCmd("fold") }},
+			item{label: "Unfold", hint: "^⇧]", run: func(m *Model) tea.Cmd { return m.foldCmd("unfold") }},
+			item{label: "Toggle Fold", run: func(m *Model) tea.Cmd { return m.foldCmd("toggle") }},
+			item{label: "Fold All", run: func(m *Model) tea.Cmd { return m.foldCmd("all") }},
+			item{label: "Unfold All", run: func(m *Model) tea.Cmd { return m.foldCmd("none") }})
+	}
+
 	if p.diagPath() != "" {
 		items = append(items,
 			item{label: "Go to Next Problem", hint: "F8", run: func(m *Model) tea.Cmd { return m.gotoProblem(1) }},
@@ -4226,18 +4289,25 @@ func (p *preview) close(m *Model) {
 func (p *preview) moved(key string, h int) (pos, bool) {
 	c, last := p.at(), p.lastLine()
 
+	up, down := p.visibleLine(max(c.line-1, 0), -1), c.line // the lines either side, over folded blocks
+	if e := p.shutEnd(c.line); e > c.line {
+		down = e
+	}
+
+	down = min(down+1, last)
+
 	switch key {
 	case "up", "k":
-		return pos{max(p.cur.line-1, 0), p.cur.col}, true
+		return pos{up, p.cur.col}, true
 	case "down", "j":
-		return pos{min(p.cur.line+1, last), p.cur.col}, true
+		return pos{ifElse(p.hiddenBy(down) >= 0, c.line, down), p.cur.col}, true
 	case "left", "h":
 		if c.col > 0 {
 			return pos{c.line, c.col - 1}, true
 		}
 
 		if c.line > 0 {
-			return pos{c.line - 1, p.lineLen(c.line - 1)}, true
+			return pos{up, p.lineLen(up)}, true
 		}
 
 		return c, true
@@ -4247,8 +4317,8 @@ func (p *preview) moved(key string, h int) (pos, bool) {
 			return pos{c.line, c.col + 1}, true
 		}
 
-		if c.line < last {
-			return pos{c.line + 1, 0}, true
+		if down > c.line {
+			return pos{down, 0}, true
 		}
 
 		return c, true
@@ -4262,9 +4332,9 @@ func (p *preview) moved(key string, h int) (pos, bool) {
 	case "end", "$":
 		return pos{c.line, p.lineLen(c.line)}, true
 	case "pgup", "b":
-		return pos{max(c.line-h, 0), p.cur.col}, true
+		return pos{p.visibleLine(max(c.line-h, 0), -1), p.cur.col}, true
 	case "pgdown", "f", "space":
-		return pos{min(c.line+h, last), p.cur.col}, true
+		return pos{p.visibleLine(min(c.line+h, last), -1), p.cur.col}, true
 	case "g", "ctrl+home":
 		return pos{}, true
 	case "G", "ctrl+end":
@@ -4548,6 +4618,10 @@ func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		return m.lspGo(true)
 	case "ctrl+k": // VS Code's ⌃k ⌃i, a chord pando has no room for
 		return m.showHover()
+	case "ctrl+shift+[", "ctrl+{": // VS Code's Fold and Unfold; a terminal without the kitty protocol sends neither
+		return m.foldCmd("fold")
+	case "ctrl+shift+]", "ctrl+}":
+		return m.foldCmd("unfold")
 	case "alt+v": // side by side; VS Code's ⌃k v is a chord pando has no room for
 		if p.kind == pvFile && isMarkdown(p.path) {
 			return p.toggleMarkdown(m, 2)
@@ -4744,11 +4818,15 @@ func (p *preview) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 	if p.kind == pvFile && p.md != 1 { // the gutter's change lane, VS Code's: the change under the pointer widens, a click shows it or closes it
 		ci := p.laneChange(w, h, x, y)
 		if _, move := msg.(tea.MouseMotionMsg); move {
-			p.markHot = ci + 1
+			p.markHot, p.gutHot = ci+1, x >= 0 && x < p.gutter() && y >= 0 && y < h
 		}
 
 		if click && mo.Button == tea.MouseLeft && ci >= 0 {
 			return m.showChange(ci)
+		}
+
+		if click && mo.Button == tea.MouseLeft && p.foldClick(w, h, x, y) {
+			return nil
 		}
 	}
 

@@ -765,7 +765,7 @@ func (p *preview) probMarkAt(m *Model, y int) bool {
 	}
 
 	for r, vr := range vis {
-		if sps := p.probs[vr.line]; len(sps) > 0 && b.halfOf(r)/2 == y {
+		if sps := p.probs[vr.line]; len(sps) > 0 && b.slotOf(r)/barSlots == y {
 			p.gotoLine(m, vr.line, colAtCell(p.plain[vr.line], sps[0].from))
 			return true
 		}

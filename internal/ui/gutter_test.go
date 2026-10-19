@@ -98,10 +98,9 @@ func FuzzEditScript(f *testing.F) {
 	})
 }
 
-// TestGutterMarks draws the marks in the editor's gutter, in a lane of
-// their own after the line numbers, VS Code's: ┃ added, ┇ modified (its
-// hatched bar), ▾ deleted, in its colors; and works them out again after an
-// edit.
+// TestGutterMarks draws the marks in the editor's gutter, in its first
+// column before the line numbers: a thin bar ▎ added or modified, its color
+// telling which, ▾ deleted; and works them out again after an edit.
 func TestGutterMarks(t *testing.T) {
 	m, _ := editorModel(t, "a.go", "a\nB\nc\nnew\nd\n")
 	m.pv.base, m.pv.baseGen = []string{"a", "b", "c", "d", "e"}, 1
@@ -111,7 +110,7 @@ func TestGutterMarks(t *testing.T) {
 	}
 
 	out := m.View().Content
-	for _, want := range []string{" 2 ┇ B", " 4 ┃ new", " 5 ▾ d"} {
+	for _, want := range []string{"▎2   B", "▎4   new", "▾5   d"} {
 		if !strings.Contains(ansi.Strip(out), want) {
 			t.Fatalf("no %q in:\n%s", want, ansi.Strip(out))
 		}
@@ -145,7 +144,7 @@ func TestGutterMarks(t *testing.T) {
 		t.Fatalf("staged marks: %q", got)
 	}
 
-	if out := m.View().Content; !strings.Contains(ansi.Strip(out), " 4 ┃ new") || !strings.Contains(out, fgParams(lipgloss.Darken(pal.diffAddMark, 0.5))) {
+	if out := m.View().Content; !strings.Contains(ansi.Strip(out), "▎4   new") || !strings.Contains(out, fgParams(lipgloss.Darken(pal.diffAddMark, 0.5))) {
 		t.Fatalf("a staged line's bar in VS Code's darker shade:\n%s", out)
 	}
 }
@@ -170,10 +169,10 @@ func TestQuickDiff(t *testing.T) {
 	}
 	gutter()
 
-	x, y := m.mainX()+m.pv.gutter()-2, 1+m.stripH()+1 // the mark of line 2, B
+	x, y := m.mainX(), 1+m.stripH()+1 // the mark of line 2, B, in the gutter's first column
 	m.Update(tea.MouseMotionMsg{X: x, Y: y})
 
-	if !strings.Contains(ansi.Strip(m.View().Content), " 2 ▒ B") {
+	if !strings.Contains(ansi.Strip(m.View().Content), "▌2   B") {
 		t.Fatalf("the change under the pointer widens:\n%s", ansi.Strip(m.View().Content))
 	}
 
@@ -201,7 +200,7 @@ func TestQuickDiff(t *testing.T) {
 
 	for y, l := range strings.Split(out, "\n") {
 		if x := strings.Index(l, "Stage"); x >= 0 && strings.Contains(l, "1 of 2 changes") {
-			if !strings.Contains(strings.Split(out, "\n")[y-1], " 2 ▒ B") {
+			if !strings.Contains(strings.Split(out, "\n")[y-1], "▌2   B") {
 				t.Fatalf("the zone right under its change:\n%s", out)
 			}
 
@@ -257,7 +256,7 @@ func TestFileScrollbarChanges(t *testing.T) {
 	}
 
 	b, vis := m.pv.bar(m), m.pv.rows(m.pvW())
-	y := b.halfOf(slices.IndexFunc(vis, func(vr vrow) bool { return vr.line == 90 })) / 2
+	y := b.slotOf(slices.IndexFunc(vis, func(vr vrow) bool { return vr.line == 90 })) / barSlots
 	cell := func() string { // the scrollbar's cell on row y
 		row := strings.Split(m.View().Content, "\n")[1+m.stripH()+y]
 		return ansi.Cut(row, m.mainX()+m.pvW(), m.mainX()+m.pvW()+1)
@@ -279,5 +278,35 @@ func TestFileScrollbarChanges(t *testing.T) {
 
 	if !strings.Contains(cell(), fgParams(pal.errc)) {
 		t.Fatalf("a problem shows over the change: %q", cell())
+	}
+}
+
+// The cursor's line is lit faintly the whole width, its number too, as VS
+// Code's editor.lineHighlightBackground; not while text is selected, nor in
+// a diff.
+func TestLineHighlight(t *testing.T) {
+	m, _ := editorModel(t, "a.txt", "one\ntwo\nthree\n")
+	m.pv.gotoLine(m, 1, 0)
+
+	lit := func() (rows []string) {
+		checkWidths(t, m)
+
+		for _, l := range strings.Split(m.View().Content, "\n") {
+			if strings.Contains(l, bgParams(pal.lineHiBg)) {
+				rows = append(rows, ansi.Strip(l))
+			}
+		}
+
+		return rows
+	}
+
+	if rows := lit(); len(rows) != 1 || !strings.Contains(rows[0], "2   two") {
+		t.Fatalf("lit rows %q", rows)
+	}
+
+	press(m, "shift+down")
+
+	if rows := lit(); len(rows) != 0 {
+		t.Fatalf("a selection keeps rows %v lit", rows)
 	}
 }
