@@ -368,6 +368,10 @@ func (m *Model) setPreview(p preview) tea.Cmd {
 			p.tbl = e.tbl
 		}
 
+		if e := m.editors[i]; p.buf == nil { // its text, unsaved edits and all, and the indentation picked for it
+			p.buf, p.ind = e.buf, e.ind
+		}
+
 		m.editors[i], m.edIdx = p.snapshot(), i
 
 	case m.edIdx >= 0 && m.edIdx < len(m.editors) && sameFile(m.editors[m.edIdx], p):

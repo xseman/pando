@@ -443,3 +443,20 @@ func TestOpenSpec(t *testing.T) {
 	}
 }
 
+// Opening a file its tab already holds with unsaved edits, at a line (a
+// search hit, F12, a link, pando open FILE:LINE), keeps the edits.
+func TestReopenKeepsUnsaved(t *testing.T) {
+	m, path := editorModel(t, "a.go", "package a\n\nfunc A() {}\n")
+	m.pv.gotoLine(m, 2, 0)
+	press(m, "x")
+
+	for _, msg := range runAll(m.openSpec(path + ":1")) {
+		if pm, ok := msg.(previewMsg); ok {
+			m.Update(pm)
+		}
+	}
+
+	if !m.pv.dirty() || m.pv.buf.text() != "package a\n\nxfunc A() {}" || m.pv.cur.line != 0 {
+		t.Fatalf("dirty %v, line %d, text %q", m.pv.dirty(), m.pv.cur.line, m.pv.buf.text())
+	}
+}
