@@ -60,13 +60,9 @@ func TestChaos(t *testing.T) {
 
 		steps = n
 	}
-	// Nothing it does may reach the person's own pando or desktop: no
-	// daemon to call, no xdg-open to open a file with.
+	// Nothing it does may reach the person's desktop: no xdg-open to open a
+	// file with. TestMain keeps it off their daemon.
 	dir := t.TempDir()
-	for _, k := range []string{"PANDO_RUNTIME_DIR", "PANDO_CONFIG_DIR", "PANDO_DATA_DIR"} {
-		t.Setenv(k, filepath.Join(dir, k))
-	}
-
 	for _, tool := range []string{"xdg-open", "open"} {
 		mustWrite(t, filepath.Join(dir, "bin", tool), "#!/bin/sh\n")
 

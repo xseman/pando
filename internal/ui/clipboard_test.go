@@ -16,12 +16,22 @@ import (
 // would otherwise land where the person running them pastes. It also takes
 // gh and sqlite3 away, CI's runners have them: every layout would grow a
 // GitHub and a Databases view on a machine with them and not without; their
-// own tests put them back. With fakeLSPEnv set the binary is a language
-// server for the tests that start one.
+// own tests put them back. No call reaches the person's own daemon either:
+// pando's directories are a temporary one's. With fakeLSPEnv set the binary
+// is a language server for the tests that start one.
 func TestMain(m *testing.M) {
 	if os.Getenv(fakeLSPEnv) != "" {
 		fakeLSP()
 		return
+	}
+
+	dir, err := os.MkdirTemp("", "pu") // short: the socket path caps at ~104 bytes
+	if err != nil {
+		panic(err)
+	}
+
+	for _, k := range []string{"PANDO_RUNTIME_DIR", "PANDO_CONFIG_DIR", "PANDO_DATA_DIR"} {
+		_ = os.Setenv(k, filepath.Join(dir, k))
 	}
 
 	for _, k := range []string{"WAYLAND_DISPLAY", "DISPLAY"} {
@@ -35,7 +45,11 @@ func TestMain(m *testing.M) {
 	keyringSave = func(string, string) error { return nil }
 	keyringForget = func(string) {}
 
-	os.Exit(m.Run())
+	code := m.Run()
+
+	_ = os.RemoveAll(dir) // a leftover in the temp directory is harmless
+
+	os.Exit(code)
 }
 
 // fakeClipboard puts a wl-copy and wl-paste on PATH that keep the clipboard

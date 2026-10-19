@@ -1,8 +1,8 @@
 # Source Control: a working tree diff inline and side by side, reverting one
 # line of the change, staging the rest, the commit, then a merge that
 # conflicts: Merge Changes, the conflict resolved in the editor, Continue.
-# VHS cannot send ctrl+s: the demo binds save and Accept Incoming Change to
-# ctrl letters in its config.
+# VHS cannot send ctrl+s or alt+shift+→: the demo binds save, Accept Incoming
+# Change and Expand Selection to ctrl letters in its config.
 # Record with: make demo   (needs vhs v0.10 or v0.11, ttyd, ffmpeg and a Chrome)
 Output docs/demo/diff.gif
 
@@ -12,7 +12,7 @@ Require ttyd
 Source docs/demo/settings.tape
 Source docs/demo/setup.tape
 Type "bash $DEMO/merge.sh $REPO" Enter
-Type `cfg 30 ctrl+k=editor.saveFile ctrl+e=editor.acceptIncomingChange` Enter
+Type `cfg 30 ctrl+k=editor.saveFile ctrl+e=editor.acceptIncomingChange ctrl+t=editor.expandSelection` Enter
 Type "clear" Enter
 Type "pando" Enter
 Sleep 1500ms
@@ -33,10 +33,16 @@ Sleep 400ms
 Type "s"
 Sleep 1800ms
 
-# The cursor is a row of the diff: m on one line reverts just that line, after
-# asking.
-Down 4
-Sleep 1400ms
+# Back inline (s), where a row has its columns: Expand Selection (alt+shift+→,
+# ctrl+t here) takes the comment's line, and m on the selection reverts just
+# that line, after asking; with nothing selected, m takes the whole change
+# under the cursor, as VS Code's does.
+Type "s"
+Sleep 600ms
+Down
+Sleep 500ms
+Ctrl+t
+Sleep 900ms
 Type "m"
 Sleep 800ms
 Down
@@ -45,6 +51,10 @@ Enter
 Sleep 900ms
 Enter
 Sleep 1800ms
+
+# Side by side again for the rest.
+Type "s"
+Sleep 1200ms
 
 # ctrl+a selects what is left, m stages exactly what is selected.
 Ctrl+a
