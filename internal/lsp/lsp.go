@@ -1,6 +1,6 @@
 // Package lsp speaks just enough of the Language Server Protocol over stdio
-// for definitions, references, rename, symbols, completion, code actions and
-// diagnostics: initialize, the documents kept in sync, and a handful of
+// for definitions, references, rename, symbols, completion, hover, signature
+// help, formatting, code actions and diagnostics: initialize, the documents kept in sync, and a handful of
 // requests. No dependencies.
 package lsp
 
@@ -140,7 +140,15 @@ func (c *Client) initialize(root string, opts map[string]any) error {
 				"definition":         map[string]any{"linkSupport": true},
 				"references":         map[string]any{},
 				"rename":             map[string]any{},
-				"documentSymbol":     map[string]any{"hierarchicalDocumentSymbolSupport": true},
+				"hover":              map[string]any{"contentFormat": []string{"markdown", "plaintext"}},
+				"signatureHelp": map[string]any{
+					"signatureInformation": map[string]any{
+						"documentationFormat":  []string{"markdown", "plaintext"},
+						"parameterInformation": map[string]any{"labelOffsetSupport": true},
+					},
+				},
+				"formatting":     map[string]any{},
+				"documentSymbol": map[string]any{"hierarchicalDocumentSymbolSupport": true},
 				"completion": map[string]any{
 					"completionItem": map[string]any{"snippetSupport": true, "insertReplaceSupport": true},
 					"contextSupport": true,
@@ -497,7 +505,7 @@ func deleteFile(uri string) error {
 	return os.Remove(path)
 }
 
-// applyEdits splices edits into a file, last one first so earlier offsets hold.
+// applyEdits splices edits into a file.
 func applyEdits(path string, edits []textEdit) error {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -509,7 +517,11 @@ func applyEdits(path string, edits []textEdit) error {
 		return err
 	}
 
-	text := string(b)
+	return os.WriteFile(path, []byte(splice(string(b), edits)), st.Mode().Perm())
+}
+
+// splice applies edits to text, last one first so earlier offsets hold.
+func splice(text string, edits []textEdit) string {
 	slices.SortStableFunc(edits, func(a, b textEdit) int {
 		return cmp.Or(b.Range.Start.Line-a.Range.Start.Line, b.Range.Start.Character-a.Range.Start.Character)
 	})
@@ -526,7 +538,7 @@ func applyEdits(path string, edits []textEdit) error {
 		text = text[:a] + e.NewText + text[z:]
 	}
 
-	return os.WriteFile(path, []byte(text), st.Mode().Perm())
+	return text
 }
 
 // offsetOf is the byte offset of an LSP position in a file split on newlines.
@@ -567,6 +579,186 @@ func (c *Client) locations(method, path string, line, col int, ctx map[string]an
 	}
 
 	return parseLocations(raw), nil
+}
+
+// Hover is what the server says of the symbol at line:col: Markdown, its
+// code in fenced blocks; "" when it says nothing.
+func (c *Client) Hover(path string, line, col int) (string, error) {
+	raw, err := c.at("textDocument/hover", path, line, col)
+	if err != nil {
+		return "", err
+	}
+
+	return parseHover(raw), nil
+}
+
+// parseHover reads a Hover's contents: MarkupContent, a MarkedString or an
+// array of them. Anything it cannot read is nothing to say.
+func parseHover(raw json.RawMessage) string {
+	var h struct {
+		Contents json.RawMessage `json:"contents"`
+	}
+	if json.Unmarshal(raw, &h) != nil || len(h.Contents) == 0 {
+		return ""
+	}
+
+	var parts []json.RawMessage
+	if json.Unmarshal(h.Contents, &parts) != nil {
+		parts = []json.RawMessage{h.Contents}
+	}
+
+	var out []string
+
+	for _, p := range parts {
+		var s string
+		if json.Unmarshal(p, &s) == nil { // a MarkedString as Markdown
+			out = append(out, s)
+			continue
+		}
+
+		var m struct {
+			Kind, Language, Value string
+		}
+		if json.Unmarshal(p, &m) != nil {
+			continue
+		}
+
+		if m.Language != "" { // a MarkedString's code
+			out = append(out, "```"+m.Language+"\n"+m.Value+"\n```")
+			continue
+		}
+
+		if m.Kind == "plaintext" {
+			m.Value = "```\n" + m.Value + "\n```" // its line breaks and spaces kept
+		}
+
+		out = append(out, m.Value)
+	}
+
+	return strings.TrimSpace(strings.Join(out, "\n\n"))
+}
+
+// Signature is the call the cursor stands in: its label, the active
+// parameter's place in the label as rune offsets (From == To for none), and
+// its documentation.
+type Signature struct {
+	Label    string
+	From, To int
+	Doc      string
+}
+
+// SignatureHelp is the signature of the call around line:col, nil outside one.
+func (c *Client) SignatureHelp(path string, line, col int) (*Signature, error) {
+	raw, err := c.at("textDocument/signatureHelp", path, line, col)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseSignature(raw), nil
+}
+
+// parseSignature picks the active signature and finds its active parameter
+// in the label, given as a substring or as UTF-16 offsets.
+func parseSignature(raw json.RawMessage) *Signature {
+	type param struct {
+		Label json.RawMessage `json:"label"`
+	}
+
+	var h struct {
+		Signatures []struct {
+			Label           string          `json:"label"`
+			Documentation   json.RawMessage `json:"documentation"`
+			Parameters      []param         `json:"parameters"`
+			ActiveParameter *int            `json:"activeParameter"`
+		} `json:"signatures"`
+		ActiveSignature int `json:"activeSignature"`
+		ActiveParameter int `json:"activeParameter"`
+	}
+	if json.Unmarshal(raw, &h) != nil || len(h.Signatures) == 0 {
+		return nil
+	}
+
+	s := h.Signatures[max(min(h.ActiveSignature, len(h.Signatures)-1), 0)]
+	sig := &Signature{Label: s.Label, Doc: docText(s.Documentation)}
+
+	ap := h.ActiveParameter
+	if s.ActiveParameter != nil {
+		ap = *s.ActiveParameter
+	}
+
+	if ap < 0 || ap >= len(s.Parameters) {
+		return sig
+	}
+
+	var name string
+
+	var span [2]int
+
+	switch label := s.Parameters[ap].Label; {
+	case json.Unmarshal(label, &name) == nil:
+		if i := strings.Index(s.Label, name); i >= 0 && name != "" {
+			n := len([]rune(s.Label))
+			sig.From = min(len([]rune(s.Label[:i])), n)
+			sig.To = min(sig.From+len([]rune(name)), n) // not UTF-8, a match may split a rune
+		}
+
+	case json.Unmarshal(label, &span) == nil:
+		sig.From, sig.To = RuneCol(s.Label, span[0]), RuneCol(s.Label, span[1])
+		if sig.From > sig.To {
+			sig.From, sig.To = 0, 0
+		}
+	}
+
+	return sig
+}
+
+// docText is a documentation field: a string or MarkupContent.
+func docText(raw json.RawMessage) string {
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s
+	}
+
+	var m struct{ Value string }
+
+	_ = json.Unmarshal(raw, &m) // anything else is no documentation
+
+	return m.Value
+}
+
+// Format is text formatted by the server, which formats the whole document
+// as synced: indented with tabs tabSize wide, or with that many spaces.
+func (c *Client) Format(path, text string, tabSize int, spaces bool) (string, error) {
+	if err := c.Sync(path, text); err != nil {
+		return "", err
+	}
+
+	raw, err := c.call("textDocument/formatting", map[string]any{
+		"textDocument": map[string]any{"uri": uri(path)},
+		"options":      map[string]any{"tabSize": tabSize, "insertSpaces": spaces},
+	})
+	if err != nil {
+		return "", err
+	}
+
+	var edits []textEdit
+	if err := json.Unmarshal(raw, &edits); err != nil {
+		return "", fmt.Errorf("formatting: %w", err)
+	}
+
+	return splice(text, edits), nil
+}
+
+// at asks method about the position line:col of path.
+func (c *Client) at(method, path string, line, col int) (json.RawMessage, error) {
+	if err := c.open(path); err != nil {
+		return nil, err
+	}
+
+	return c.call(method, map[string]any{
+		"textDocument": map[string]any{"uri": uri(path)},
+		"position":     map[string]any{"line": line, "character": col},
+	})
 }
 
 // Item is one completion a server offers. Text replaces the line from Col

@@ -130,6 +130,27 @@ func TestClient(t *testing.T) {
 					}}},
 				}})
 
+			case "textDocument/hover":
+				writeMsg(sw, map[string]any{"jsonrpc": "2.0", "id": id, "result": map[string]any{
+					"contents": map[string]any{"kind": "markdown", "value": "```go\nfunc A()\n```\n\nA does it."},
+				}})
+
+			case "textDocument/signatureHelp":
+				writeMsg(sw, map[string]any{"jsonrpc": "2.0", "id": id, "result": map[string]any{
+					"signatures": []any{map[string]any{
+						"label":      "A(x int, y string)",
+						"parameters": []any{map[string]any{"label": "x int"}, map[string]any{"label": []int{9, 17}}},
+					}},
+					"activeParameter": 1,
+				}})
+
+			case "textDocument/formatting":
+				opts, _ := msg["params"].(map[string]any)["options"].(map[string]any)
+				writeMsg(sw, map[string]any{"jsonrpc": "2.0", "id": id, "result": []any{map[string]any{
+					"range":   map[string]any{"start": map[string]any{"line": 1, "character": 0}, "end": map[string]any{"line": 1, "character": 2}},
+					"newText": fmt.Sprintf("%v%v", opts["tabSize"], opts["insertSpaces"]),
+				}}})
+
 			case "textDocument/didOpen":
 				doc, _ := msg["params"].(map[string]any)["textDocument"].(map[string]any)
 
@@ -218,6 +239,85 @@ func TestClient(t *testing.T) {
 	if b, _ := os.ReadFile(file); string(b) != "package b\n" {
 		t.Fatalf("rename wrote %q", b)
 	}
+
+	if h, err := c.Hover(file, 0, 0); err != nil || h != "```go\nfunc A()\n```\n\nA does it." {
+		t.Fatalf("hover = %q (%v)", h, err)
+	}
+
+	if s, err := c.SignatureHelp(file, 0, 0); err != nil || s == nil || s.Label[s.From:s.To] != "y string" {
+		t.Fatalf("signature help = %+v (%v)", s, err)
+	}
+
+	got, err := c.Format(file, "package b\n  x\n", 2, true) // the server's edit, applied to the text sent
+	if err != nil || got != "package b\n2truex\n" {
+		t.Fatalf("format = %q (%v)", got, err)
+	}
+}
+
+// parseHover reads every shape a Hover's contents come in.
+func TestParseHover(t *testing.T) {
+	for raw, want := range map[string]string{
+		`{"contents":{"kind":"markdown","value":"**a**"}}`:             "**a**",
+		`{"contents":{"kind":"plaintext","value":"a  b"}}`:             "```\na  b\n```",
+		`{"contents":"just text"}`:                                     "just text",
+		`{"contents":{"language":"go","value":"var x int"}}`:           "```go\nvar x int\n```",
+		`{"contents":[{"language":"ts","value":"x: number"},"the x"]}`: "```ts\nx: number\n```\n\nthe x",
+		`{"contents":[]}`: "",
+		`null`:            "",
+		`{"contents":{"kind":"markdown","value":"  padded  "},"range":{}}`: "padded",
+	} {
+		if got := parseHover(json.RawMessage(raw)); got != want {
+			t.Errorf("parseHover(%s) = %q, want %q", raw, got, want)
+		}
+	}
+}
+
+// parseSignature picks the active signature and finds its active parameter
+// by name or by UTF-16 offsets.
+func TestParseSignature(t *testing.T) {
+	for _, c := range []struct {
+		raw, label, active, doc string
+	}{
+		{`{"signatures":[{"label":"f(a, b)","parameters":[{"label":"a"},{"label":"b"}]}],"activeParameter":1}`, "f(a, b)", "b", ""},
+		{`{"signatures":[{"label":"f(😀, b)","parameters":[{"label":[2,4]},{"label":[6,7]}],"activeParameter":0}],"activeParameter":1}`, "f(😀, b)", "😀", ""},
+		{`{"signatures":[{"label":"g()","documentation":{"kind":"markdown","value":"G."}},{"label":"h(x)","documentation":"H.","parameters":[{"label":"x"}]}],"activeSignature":1}`, "h(x)", "x", "H."},
+		{`{"signatures":[{"label":"f()","parameters":[]}],"activeParameter":3}`, "f()", "", ""},
+		{`{"signatures":[{"label":"f(a)","parameters":[{"label":[3,1]}]}]}`, "f(a)", "", ""},
+	} {
+		s := parseSignature(json.RawMessage(c.raw))
+		if s == nil {
+			t.Errorf("%s: no signature", c.raw)
+			continue
+		}
+
+		if rs := []rune(s.Label); s.Label != c.label || string(rs[s.From:s.To]) != c.active || s.Doc != c.doc {
+			t.Errorf("%s: %+v, active %q", c.raw, s, string(rs[s.From:s.To]))
+		}
+	}
+
+	for _, raw := range []string{`null`, `{"signatures":[]}`, `{`} {
+		if s := parseSignature(json.RawMessage(raw)); s != nil {
+			t.Errorf("%s: %+v, want none", raw, s)
+		}
+	}
+}
+
+// FuzzParseSignature checks the active parameter always lies in the label,
+// whatever offsets or names a server sends.
+func FuzzParseSignature(f *testing.F) {
+	f.Add(`{"signatures":[{"label":"f(a, b)","parameters":[{"label":"a"},{"label":[3,4]}]}],"activeParameter":1}`)
+	f.Add(`{"signatures":[{"label":"é","parameters":[{"label":"\u00a9"}]}],"activeSignature":-4}`)
+
+	f.Fuzz(func(t *testing.T, raw string) {
+		s := parseSignature(json.RawMessage(raw))
+		if s == nil {
+			return
+		}
+
+		if n := len([]rune(s.Label)); s.From < 0 || s.From > s.To || s.To > n {
+			t.Fatalf("%s: active parameter %d..%d of %d runes", raw, s.From, s.To, n)
+		}
+	})
 }
 
 func TestColumns(t *testing.T) {
