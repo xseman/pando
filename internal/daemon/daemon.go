@@ -729,11 +729,23 @@ func (d *Daemon) dispatch(method string, raw json.RawMessage) (any, error) {
 			return nil, err
 		}
 
-		spec := s.info().SessionSpec
+		// Its Terminal panel's shells go with it, and so do the jobs they
+		// attached to, such as a `pando claude` typed in one.
+		specs := []proto.SessionSpec{s.info().SessionSpec}
 
-		err = d.killSession(spec.ID)
-		if !spec.Asleep { // asleep, its job was stopped already
-			d.stopJob(spec.Conversation, spec.Workspace)
+		d.mu.Lock()
+		for _, id := range d.order {
+			if c := d.sessions[id].info(); c.Parent == specs[0].ID {
+				specs = append(specs, c.SessionSpec)
+			}
+		}
+		d.mu.Unlock()
+
+		err = d.killSession(specs[0].ID)
+		for _, spec := range specs {
+			if !spec.Asleep { // asleep, its job was stopped already
+				d.stopJob(spec.Conversation, spec.Workspace)
+			}
 		}
 
 		return nil, err

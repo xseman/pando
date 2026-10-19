@@ -199,8 +199,9 @@ Scrollback is lost. A claude resumes by id from its `sessions/<pid>.json`
 - `pando claude ARGS` runs `claude --bg ARGS` and execs `claude attach ID`, so
   the conversation lives in Claude Code's daemon and a restart stops only the
   attach. With `claude_background` on, resumes by id go through it too.
-- `session.kill` stops the job too (`[stop_job]`, `claude stop ID`), and waits
-  for it to let go of the conversation; `claude --resume` still opens it.
+- `session.kill` stops the job too (`[stop_job]`, `claude stop ID`), and the
+  jobs its Terminal shells attached to, and waits for each to let go of its
+  conversation; `claude --resume` still opens it.
 - An attach sets no title: the session shows the job's name or transcript title.
 
 ## Sleep

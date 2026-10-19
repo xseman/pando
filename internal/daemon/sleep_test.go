@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -15,7 +16,7 @@ import (
 // jobAgent sets up myagent, a stand-in claude whose sessions attach to
 // background jobs: ws/myagent is the attach client, and what resumes it,
 // printing MYAGENT and its arguments; ws/stopjob is its [stop_job], which
-// writes the job it was given to ws/stopped and ends the job's process.
+// adds the job it was given to ws/stopped and ends the job's process.
 func jobAgent(t *testing.T, d *Daemon, ws string) {
 	t.Helper()
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
@@ -25,7 +26,7 @@ func jobAgent(t *testing.T, d *Daemon, ws string) {
 	t.Cleanup(func() { delete(conversations, "myagent") })
 
 	mustWrite(t, filepath.Join(ws, "myagent"), "#!/bin/sh\necho MYAGENT \"$@\"\nsleep 300\n")
-	mustWrite(t, filepath.Join(ws, "stopjob"), "#!/bin/sh\necho \"$@\" > stopped\nkill \"$(cat job-$1.pid)\"\n")
+	mustWrite(t, filepath.Join(ws, "stopjob"), "#!/bin/sh\necho \"$@\" >> stopped\nkill \"$(cat job-$1.pid)\"\n")
 
 	for _, f := range []string{"myagent", "stopjob"} {
 		if err := os.Chmod(filepath.Join(ws, f), 0o755); err != nil { // the test runs them
@@ -47,13 +48,14 @@ func jobAgent(t *testing.T, d *Daemon, ws string) {
 
 // jobSession starts a session in ws attached to background job job, whose
 // conversation is conv-JOB: the job is a process of its own that a sessions
-// entry of kind bg names, as Claude Code's daemon runs one. It returns the
-// session's id and a channel closed when the job's process ends.
-func jobSession(t *testing.T, d *Daemon, ws, job string) (string, chan struct{}) {
+// entry of kind bg names, as Claude Code's daemon runs one. A parent makes
+// it a shell of that session's Terminal panel. It returns the session's id
+// and a channel closed when the job's process ends.
+func jobSession(t *testing.T, d *Daemon, ws, parent, job string) (string, chan struct{}) {
 	t.Helper()
 
 	var s proto.Session
-	call(t, "session.new", map[string]any{"workspace": ws, "cmd": []string{"sh"}}, &s)
+	call(t, "session.new", map[string]any{"workspace": ws, "cmd": []string{"sh"}, "parent": parent}, &s)
 
 	bg := exec.Command("sleep", "60")
 	if err := bg.Start(); err != nil {
@@ -92,7 +94,7 @@ func readScreen(t *testing.T, id string) string {
 
 // TestKillStopsBackgroundJob: a killed session's job goes with it, through
 // [stop_job], instead of running on in Claude Code's daemon with nothing in
-// pando to reach it.
+// pando to reach it; so does the job a shell of its Terminal panel attached to.
 func TestKillStopsBackgroundJob(t *testing.T) {
 	needProc(t)
 
@@ -103,17 +105,20 @@ func TestKillStopsBackgroundJob(t *testing.T) {
 
 	ws := t.TempDir()
 	jobAgent(t, d, ws)
-	id, gone := jobSession(t, d, ws, "aaaa1111")
+	id, gone := jobSession(t, d, ws, "", "aaaa1111")
+	_, panelGone := jobSession(t, d, ws, id, "bbbb2222")
 
 	call(t, "session.kill", map[string]any{"id": id}, nil)
 
-	select {
-	case <-gone:
-	case <-time.After(5 * time.Second): // reaped by the test's own Wait, a moment after
-		t.Fatal("the job still runs")
+	for job, gone := range map[string]chan struct{}{"aaaa1111": gone, "bbbb2222": panelGone} {
+		select {
+		case <-gone:
+		case <-time.After(5 * time.Second): // reaped by the test's own Wait, a moment after
+			t.Fatalf("job %s still runs", job)
+		}
 	}
 
-	if got := strings.TrimSpace(mustRead(t, filepath.Join(ws, "stopped"))); got != "aaaa1111" {
+	if got := strings.Fields(mustRead(t, filepath.Join(ws, "stopped"))); !slices.Equal(got, []string{"aaaa1111", "bbbb2222"}) {
 		t.Fatalf("stop_job got %q", got)
 	}
 }
@@ -133,7 +138,7 @@ func TestSleepWakeBackgroundJob(t *testing.T) {
 
 	ws := t.TempDir()
 	jobAgent(t, d, ws)
-	id, gone := jobSession(t, d, ws, "aaaa1111")
+	id, gone := jobSession(t, d, ws, "", "aaaa1111")
 	shell := d.sessions[id].cmd.Process.Pid
 
 	call(t, "session.sleep", map[string]any{"id": id}, nil)
