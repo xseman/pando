@@ -200,22 +200,22 @@ func TestAllocBudgets(t *testing.T) {
 		budget float64
 		f      func()
 	}{
-		{"View, session", 750, func() { _ = session.View() }},
-		{"View, file", 1870, func() { _ = file.View() }},
+		{"View, session", 370, func() { _ = session.View() }},
+		{"View, file", 715, func() { _ = file.View() }},
 		{"hover", 40, func() { _ = session.term.linkAt(session, "s1", 70, 25) }},
-		{"typing in a large file", 4030, func() {
+		{"typing in a large file", 3350, func() {
 			large.Update(keyMsg("x"))
 			_ = large.View()
 			large.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 			_ = large.View()
 		}},
-		{"typing in a large Markdown file", 78000, func() {
+		{"typing in a large Markdown file", 76600, func() {
 			md.Update(keyMsg("x"))
 			_ = md.View()
 			md.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 			_ = md.View()
 		}},
-		{"streaming turn", 1090, func() {
+		{"streaming turn", 420, func() {
 			session.Update(eventMsg{Kind: "screen", ID: "s1"})
 			_ = session.View()
 			session.Update(screenMsg{"s1", session.term.scr, nil})

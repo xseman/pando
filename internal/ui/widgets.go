@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -58,6 +59,14 @@ func row(w int, bg color.Color, left []seg, right ...seg) string {
 			x.st = x.st.Background(bg)
 		}
 
+		if pre, suf, ok := textSides(x.st, x.s); ok {
+			b.WriteString(pre)
+			b.WriteString(x.s)
+			b.WriteString(suf)
+
+			return
+		}
+
 		b.WriteString(x.st.Render(x.s))
 	}
 
@@ -94,7 +103,81 @@ func row(w int, bg color.Color, left []seg, right ...seg) string {
 // border, or spaces styled apart): pre+text+suf is that text rendered,
 // without the pass over every property Render makes.
 func renderSides(st lipgloss.Style) (pre, suf string) {
+	k, ok := textKey(st)
+	if !ok {
+		pre, suf, _ = strings.Cut(st.Render("\x00"), "\x00")
+		return pre, suf
+	}
+
+	return sidesOf(k, st)
+}
+
+// renderText is st.Render(s) byte for byte, through textSides where it can.
+func renderText(st lipgloss.Style, s string) string {
+	if pre, suf, ok := textSides(st, s); ok {
+		return pre + s + suf
+	}
+
+	return st.Render(s)
+}
+
+// textSides are renderSides(st) where pre+s+suf is st.Render(s) byte for
+// byte (FuzzRenderText holds it): s one line with no tab, st colors and
+// attributes only, and none that Render styles a rune at a time (underline,
+// strikethrough). Render passes over every property a style has, a frame's
+// costliest call; the sides are kept per style.
+func textSides(st lipgloss.Style, s string) (pre, suf string, ok bool) {
+	if strings.ContainsAny(s, "\t\n") {
+		return "", "", false
+	}
+
+	k, ok := textKey(st)
+	if !ok || k.ul != lipgloss.UnderlineNone || k.strike || st.GetUnderlineSpaces() || st.GetStrikethroughSpaces() {
+		return "", "", false
+	}
+
+	pre, suf = sidesOf(k, st)
+
+	return pre, suf, true
+}
+
+// styleKey is what Render styles text by: colors and attributes.
+type styleKey struct {
+	bold, italic, strike, reverse, blink, faint bool
+	ul                                          lipgloss.Underline
+	fg, bg, ulColor                             color.Color
+}
+
+// textKey is st's styleKey; ok is false for a style that lays text out
+// (width, padding, margins, borders, a transform, a link, a value).
+func textKey(st lipgloss.Style) (k styleKey, ok bool) {
+	pt, pr, pb, pl := st.GetPadding()
+	mt, mr, mb, ml := st.GetMargin()
+	border, bt, br, bb, bl := st.GetBorder()
+
+	if link, _ := st.GetHyperlink(); link != "" || st.Value() != "" || st.GetTransform() != nil ||
+		st.GetWidth()|st.GetHeight()|st.GetMaxWidth()|st.GetMaxHeight()|pt|pr|pb|pl|mt|mr|mb|ml != 0 ||
+		bt || br || bb || bl || border != (lipgloss.Border{}) {
+		return k, false
+	}
+
+	return styleKey{
+		st.GetBold(), st.GetItalic(), st.GetStrikethrough(), st.GetReverse(), st.GetBlink(), st.GetFaint(),
+		st.GetUnderlineStyle(), st.GetForeground(), st.GetBackground(), st.GetUnderlineColor(),
+	}, true
+}
+
+// sides holds the escapes either side of text by styleKey.
+var sides sync.Map
+
+func sidesOf(k styleKey, st lipgloss.Style) (pre, suf string) {
+	if v, ok := sides.Load(k); ok {
+		s, _ := v.([2]string)
+		return s[0], s[1]
+	}
+
 	pre, suf, _ = strings.Cut(st.Render("\x00"), "\x00")
+	sides.Store(k, [2]string{pre, suf})
 
 	return pre, suf
 }
@@ -185,6 +268,14 @@ func wcSafe(frame string) string {
 		}
 
 		seq, w, n, next := ansi.DecodeSequence(frame, state, nil)
+		if w == 0 && frame[0] == ansi.ESC { // an escape: no width to either
+			b.WriteString(seq)
+
+			frame, state = frame[n:], next
+
+			continue
+		}
+
 		if w > 0 && frame[0] < utf8.RuneSelf { // DecodeSequence takes ASCII a byte at a time: cut where StringWidth does, which keeps 1️⃣ one cluster
 			seq, w = ansi.FirstGraphemeCluster(frame, ansi.GraphemeWidth)
 			n = len(seq)
@@ -222,6 +313,17 @@ func wcSafe(frame string) string {
 func plainRun(s string) (n, cells int) {
 	last, i := 0, 0
 	for i < len(s) {
+		if s[i] >= ' ' && s[i] < 0x7f { // a stretch of printable ASCII, a cell a byte
+			j := i + 1
+			for j < len(s) && s[j] >= ' ' && s[j] < 0x7f {
+				j++
+			}
+
+			last, i, cells = j-1, j, cells+j-i
+
+			continue
+		}
+
 		r, size := rune(s[i]), 1
 		if r >= utf8.RuneSelf {
 			r, size = utf8.DecodeRuneInString(s[i:])
@@ -263,7 +365,7 @@ func framedBox(in *textinput.Model, w int, focused, dark bool) []string {
 // sits at column 1 and whose ▕ one cell before the row's end: with the edges
 // it frames the box in one thin line, as VS Code's input.border does.
 func frameLine(w int, glyph string, st lipgloss.Style) string {
-	return blank(1) + st.Render(strings.Repeat(glyph, max(w-2, 0))) + blank(min(w, 1))
+	return blank(1) + renderText(st, strings.Repeat(glyph, max(w-2, 0))) + blank(min(w, 1))
 }
 
 // hoverBox puts pre-styled lines in a box by the mouse, under the pointer, or
@@ -496,9 +598,9 @@ func (b vbar) cells(s barState) []string {
 		return out
 	}
 
-	slider, track := lipgloss.NewStyle().Background(s.slider(b)).Render(" "), fg(pal.rulerBorder).Render("▏")
+	slider, track := renderText(lipgloss.NewStyle().Background(s.slider(b)), " "), renderText(fg(pal.rulerBorder), "▏")
 	if pal.trackBg != nil {
-		track = lipgloss.NewStyle().Background(pal.trackBg).Render(" ")
+		track = renderText(lipgloss.NewStyle().Background(pal.trackBg), " ")
 	}
 
 	ty, sh := b.thumb()
@@ -583,7 +685,7 @@ func (b vbar) marked(s barState, kinds []byte, set markSet) []string {
 				}
 			}
 
-			out[i] = fg(set.cols[top]).Background(s.slider(b)).Render("▐")
+			out[i] = renderText(fg(set.cols[top]).Background(s.slider(b)), "▐")
 
 			continue
 		}
@@ -714,7 +816,7 @@ func (b vbar) hcells(s barState) string {
 	}
 
 	track := ifElse(pal.trackBg != nil, pal.trackBg, pal.rulerBorder)
-	half := func(c color.Color, n int) string { return fg(c).Render(strings.Repeat("▄", max(n, 0))) }
+	half := func(c color.Color, n int) string { return renderText(fg(c), strings.Repeat("▄", max(n, 0))) }
 	x, sw := b.thumb()
 
 	return half(track, x) + half(s.slider(b), sw) + half(track, b.h-x-sw)

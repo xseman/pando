@@ -4070,17 +4070,17 @@ func (m *Model) View() tea.View {
 	for j, p := range ps {
 		switch {
 		case b == 1: // the divider is the two frame edges either side of it
-			ls[j], rs[j] = edge(p).Render("│"), edge(p).Render("│")
+			ls[j], rs[j] = renderText(edge(p), "│"), renderText(edge(p), "│")
 
 			if j > 0 {
 				if st, ok := m.sashStyle(colSash(owner(j))); ok {
-					ls[j] = st.Render("┃")
+					ls[j] = renderText(st, "┃")
 				}
 			}
 
 			if j+1 < len(ps) {
 				if st, ok := m.sashStyle(colSash(owner(j + 1))); ok {
-					rs[j] = st.Render("┃")
+					rs[j] = renderText(st, "┃")
 				}
 			}
 
@@ -4198,9 +4198,9 @@ func (m *Model) View() tea.View {
 			}
 
 			// The title keeps the text's shade, the lines go soft.
-			top.WriteString(edge(p).Render("┌─") + ifElse(m.focus == p.focus, edge(p).Bold(true), dim).Render(t) +
-				edge(p).Render(strings.Repeat("─", max(p.rc.w-1-ansi.StringWidth(t), 0))+"┐"))
-			bot.WriteString(edge(p).Render("└" + strings.Repeat("─", p.rc.w) + "┘"))
+			top.WriteString(renderText(edge(p), "┌─") + renderText(ifElse(m.focus == p.focus, edge(p).Bold(true), dim), t) +
+				renderText(edge(p), strings.Repeat("─", max(p.rc.w-1-ansi.StringWidth(t), 0))+"┐"))
+			bot.WriteString(renderText(edge(p), "└"+strings.Repeat("─", p.rc.w)+"┘"))
 		}
 		// The status bar sits under the frame, as VS Code's sits under the workbench.
 		status, panels := lines[len(lines)-1], lines[:len(lines)-1]
@@ -4220,10 +4220,10 @@ func (m *Model) View() tea.View {
 
 func (m *Model) divider(i int) string {
 	if st, ok := m.sashStyle(colSash(i)); ok {
-		return st.Render("┃")
+		return renderText(st, "┃")
 	}
 
-	return fg(pal.panelBorder).Render("│")
+	return renderText(fg(pal.panelBorder), "│")
 }
 
 // sash is a divider the mouse drags to resize: a column's edge toward the
@@ -4757,7 +4757,7 @@ func (m *Model) dropBox(lines []string, t dropTarget) {
 
 	st := fg(pal.accent)
 	label := ansi.Truncate(t.label, max(w-4, 0), "…")
-	badge := lipgloss.NewStyle().Background(pal.buttonBg).Foreground(pal.buttonFg).Render(" " + label + " ")
+	badge := renderText(lipgloss.NewStyle().Background(pal.buttonBg).Foreground(pal.buttonFg), " "+label+" ")
 	pad := (w - 2 - ansi.StringWidth(badge)) / 2
 
 	for y := y0; y < y0+h; y++ {
@@ -4765,15 +4765,15 @@ func (m *Model) dropBox(lines []string, t dropTarget) {
 
 		switch {
 		case y == y0:
-			box = st.Render("┌" + strings.Repeat("─", w-2) + "┐")
+			box = renderText(st, "┌"+strings.Repeat("─", w-2)+"┐")
 		case y == y0+h-1:
-			box = st.Render("└" + strings.Repeat("─", w-2) + "┘")
+			box = renderText(st, "└"+strings.Repeat("─", w-2)+"┘")
 		case y == y0+h/2 && t.h == 0 && label != "":
-			box = st.Render("│") + blank(pad) + badge + blank(w-2-pad-ansi.StringWidth(badge)) + st.Render("│")
+			box = renderText(st, "│") + blank(pad) + badge + blank(w-2-pad-ansi.StringWidth(badge)) + renderText(st, "│")
 		case t.h == 0:
-			box = st.Render("│") + blank(w-2) + st.Render("│")
+			box = renderText(st, "│") + blank(w-2) + renderText(st, "│")
 		default:
-			box = st.Render("│") + ansi.Cut(lines[y], t.rc.x+1, t.rc.x+w-1) + "\x1b[m" + st.Render("│")
+			box = renderText(st, "│") + ansi.Cut(lines[y], t.rc.x+1, t.rc.x+w-1) + "\x1b[m" + renderText(st, "│")
 		}
 
 		lines[y] = ansi.Cut(lines[y], 0, t.rc.x) + "\x1b[m" + box + "\x1b[m" + ansi.Cut(lines[y], t.rc.x+w, m.w)
@@ -5248,7 +5248,7 @@ func welcome(w, h int, sess bool) []string {
 	top, left := max((h-len(text))/2, 0), blank((w-wide)/2)
 	for i, t := range text {
 		if top+i < h {
-			out[top+i] = left + dim.Render(t)
+			out[top+i] = left + renderText(dim, t)
 		}
 	}
 
@@ -5279,7 +5279,7 @@ func keyRows(pairs [][2]string) []item {
 	}
 
 	cell := func(p [2]string, dw int) string {
-		return keycap(p[0]+blank(kw-ansi.StringWidth(p[0]))) + " " + dim.Render(p[1]+blank(dw-ansi.StringWidth(p[1])))
+		return keycap(p[0]+blank(kw-ansi.StringWidth(p[0]))) + " " + renderText(dim, p[1]+blank(dw-ansi.StringWidth(p[1])))
 	}
 
 	var out []item
@@ -5296,7 +5296,7 @@ func keyRows(pairs [][2]string) []item {
 	return out
 }
 
-func heading(s string) item { return item{label: bold.Render(s), styled: true} }
+func heading(s string) item { return item{label: renderText(bold, s), styled: true} }
 
 // viewItems are the commands that belong to no view.
 func (m *Model) viewItems() []item {

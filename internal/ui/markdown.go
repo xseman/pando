@@ -2,10 +2,8 @@ package ui
 
 import (
 	"fmt"
-	"image/color"
 	"slices"
 	"strings"
-	"sync"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -27,7 +25,7 @@ func mdt(s string, st lipgloss.Style) mdText {
 		return mdText{}
 	}
 
-	return mdText{st.Render(s), s}
+	return mdText{renderText(st, s), s}
 }
 
 func (a mdText) add(b mdText) mdText { return mdText{a.s + b.s, a.p + b.p} }
@@ -37,32 +35,10 @@ func (a mdText) add(b mdText) mdText { return mdText{a.s + b.s, a.p + b.p} }
 // struck-through text a rune at a time, and was most of laying out a file.
 type mdStyle struct{ on, off string }
 
-// sgrKey is what lipgloss styles text by, all but layout.
-type sgrKey struct {
-	bold, italic, strike, reverse, blink, faint bool
-	ul                                          lipgloss.Underline
-	fg, bg, ulColor                             color.Color
-}
-
-// sgrs holds sgr by sgrKey: a style is built again for every run.
-var sgrs sync.Map
-
 // sgr is st's mdStyle; st styles text only, without width, padding or borders.
 func sgr(st lipgloss.Style) mdStyle {
-	k := sgrKey{
-		st.GetBold(), st.GetItalic(), st.GetStrikethrough(), st.GetReverse(), st.GetBlink(), st.GetFaint(),
-		st.GetUnderlineStyle(), st.GetForeground(), st.GetBackground(), st.GetUnderlineColor(),
-	}
-	if v, ok := sgrs.Load(k); ok {
-		ms, _ := v.(mdStyle)
-		return ms
-	}
-
 	on, off := renderSides(st)
-	ms := mdStyle{on, off}
-	sgrs.Store(k, ms)
-
-	return ms
+	return mdStyle{on, off}
 }
 
 // mdLine is a line wrap builds, a style left open while the words after

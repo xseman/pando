@@ -248,6 +248,10 @@ between projects (`projectDrop`). Let go anywhere else, it stays. A sash lights 
 Every row is segments padded to the exact width (`row` in `widgets.go`);
 `checkWidths` asserts every line is the terminal width.
 
+- A segment is painted by `renderText`: `st.Render(s)` byte for byte
+  (`FuzzRenderText`), from the escapes kept per style (`renderSides`) where
+  the style only colors text and `s` is one line. lipgloss's `Render` passes
+  over every property a style has, and was a third of a frame.
 - Widths are grapheme widths, as the session's emulator counts them. Bubble
   Tea's renderer counts them so only where the terminal answers mode 2027
   (`graphemes`); elsewhere (tmux, Alacritty) it sums wcwidth, so `wcSafe`

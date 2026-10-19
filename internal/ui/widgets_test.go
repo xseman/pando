@@ -1,9 +1,11 @@
 package ui
 
 import (
+	"image/color"
 	"strings"
 	"testing"
 
+	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/xseman/pando/internal/lsp"
@@ -163,4 +165,83 @@ func TestDialogButtonsGap(t *testing.T) {
 	}
 
 	t.Fatalf("no button row:\n%s", checkWidths(t, m))
+}
+
+// FuzzRenderText holds renderText to lipgloss: the text st.Render makes of
+// s, byte for byte, for a style of any colors, attributes and layout.
+func FuzzRenderText(f *testing.F) {
+	for _, s := range []string{"", "x", "a b", "\t", "one\ntwo", "⚠️ wide 世界", "\x1b[1mbold\x1b[m", " "} {
+		f.Add(uint32(0), uint8(0), uint8(0), s)
+		f.Add(uint32(0b111111), uint8(3), uint8(5), s)
+		f.Add(uint32(1<<12|1<<6), uint8(1), uint8(2), s)
+		f.Add(uint32(1<<17|1<<18|1<<19|1<<20), uint8(1), uint8(1), s)
+	}
+
+	colors := []color.Color{nil, hex("#0069cc"), ansi16(3), lipgloss.Color("200"), lipgloss.NoColor{}}
+
+	f.Fuzz(func(t *testing.T, flags uint32, fgc, bgc uint8, s string) {
+		on := func(bit int) bool { return flags&(1<<bit) != 0 }
+		st := lipgloss.NewStyle().Bold(on(0)).Italic(on(1)).Faint(on(2)).Reverse(on(3)).Blink(on(4)).Strikethrough(on(5)).
+			Foreground(colors[int(fgc)%len(colors)]).Background(colors[int(bgc)%len(colors)])
+
+		if on(6) {
+			st = st.Underline(true)
+		}
+
+		if on(7) {
+			st = st.UnderlineSpaces(on(8))
+		}
+
+		if on(9) {
+			st = st.Width(int(fgc % 12))
+		}
+
+		if on(10) {
+			st = st.Padding(0, int(bgc%3))
+		}
+
+		if on(11) {
+			st = st.Margin(0, int(fgc%2))
+		}
+
+		if on(12) {
+			st = st.Border(lipgloss.NormalBorder())
+		}
+
+		if on(13) {
+			st = st.Inline(true)
+		}
+
+		if on(14) {
+			st = st.MaxWidth(int(bgc % 6))
+		}
+
+		if on(15) {
+			st = st.Hyperlink("https://x.y")
+		}
+
+		if on(16) {
+			st = st.Transform(strings.ToUpper)
+		}
+
+		if on(17) {
+			st = st.BorderStyle(lipgloss.RoundedBorder())
+		}
+
+		if on(18) {
+			st = st.BorderTop(true)
+		}
+
+		if on(19) {
+			st = st.PaddingLeft(int(fgc % 2)).MarginBottom(int(bgc % 2))
+		}
+
+		if on(20) {
+			st = st.Height(int(bgc % 3))
+		}
+
+		if got, want := renderText(st, s), st.Render(s); got != want {
+			t.Fatalf("flags %b on %q:\n got %q\nwant %q", flags, s, got, want)
+		}
+	})
 }

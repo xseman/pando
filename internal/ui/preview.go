@@ -2480,7 +2480,7 @@ func (p *preview) indentGuides() indentGuides {
 		}
 	}
 
-	bar := [2]string{fg(pal.whitespace).Render("│"), fg(pal.indentGuide).Render("│")}
+	bar := [2]string{renderText(fg(pal.whitespace), "│"), renderText(fg(pal.indentGuide), "│")}
 
 	return indentGuides{lv, unit, activeGuide(len(lv), p.at().line, func(i int) int { return lv[i] }), bar}
 }
@@ -2527,7 +2527,7 @@ func (p *preview) paintGuides(body string, vr vrow, start, end, s0, s1 int) stri
 
 		bar := g.bar[b2i(lit)]
 		if c >= s0 && c < s1 {
-			bar = fg(ifElse(lit, pal.indentGuide, pal.whitespace)).Background(pal.textSelBg).Render("│")
+			bar = renderText(fg(ifElse(lit, pal.indentGuide, pal.whitespace)).Background(pal.textSelBg), "│")
 		}
 
 		x := c - start
@@ -2562,7 +2562,7 @@ func markBlanks(styled string, line []rune, marks []string, st lipgloss.Style) s
 
 		b.WriteString(ansi.Cut(styled, at, runFrom))
 		b.WriteString("\x1b[m")
-		b.WriteString(st.Render(run.String()))
+		b.WriteString(renderText(st, run.String()))
 
 		at, runFrom = c, -1
 
@@ -2610,7 +2610,7 @@ func paintSpans(styled string, spans []cellSpan, start, end int) string {
 
 		b.WriteString(ansi.Cut(styled, at, c0))
 		b.WriteString("\x1b[m")
-		b.WriteString(lipgloss.NewStyle().Background(sp.bg).Render(ansi.Strip(ansi.Cut(styled, c0, c1))))
+		b.WriteString(renderText(lipgloss.NewStyle().Background(sp.bg), ansi.Strip(ansi.Cut(styled, c0, c1))))
 		at = c1
 	}
 
@@ -2653,7 +2653,7 @@ func (p *preview) renderRow(vr vrow, w int) string {
 	outside := !ok || vr.line < a.line || vr.line > z.line
 	if vr.to == len(line) && p.shutEnd(vr.line) > vr.line { // a folded block's header ends in ⋯, VS Code's placeholder
 		line = append(line[:len(line):len(line)], ' ', '⋯')
-		styled += fg(pal.whitespace).Render(" ⋯")
+		styled += renderText(fg(pal.whitespace), " ⋯")
 
 		if p.wrap {
 			end = min(start+cellsOf(line[vr.from:]), start+tw)
@@ -2709,11 +2709,11 @@ func (p *preview) renderRow(vr vrow, w int) string {
 		b.WriteString(ansi.Cut(styled, start, c0))
 		b.WriteString("\x1b[m")
 		// Selected text drops its colors, the whitespace markers keep theirs.
-		b.WriteString(ansi.Cut(markBlanks(sel.Render(string(line)), line, marks, sel.Foreground(pal.whitespace)), c0, c1))
+		b.WriteString(ansi.Cut(markBlanks(renderText(sel, string(line)), line, marks, sel.Foreground(pal.whitespace)), c0, c1))
 		b.WriteString(ansi.Cut(styled, c1, end))
 		// A selected line break shows as one selected cell after the text.
 		if lineCells := cellsOf(line); vr.line < z.line && vr.to == len(line) && lineCells >= start && lineCells-start < tw {
-			b.WriteString(sel.Render(" "))
+			b.WriteString(renderText(sel, " "))
 		}
 	}
 
@@ -2722,7 +2722,7 @@ func (p *preview) renderRow(vr vrow, w int) string {
 		body = underBg(body+blank(max(tw-ansi.StringWidth(body), 0)), bg)
 	} else if bg := p.rowBg(vr.line); bg != nil { // tinted diff rows fill the width, like an editor
 		if used := ansi.StringWidth(body); used < tw {
-			body += lipgloss.NewStyle().Background(bg).Render(blank(tw - used))
+			body += renderText(lipgloss.NewStyle().Background(bg), blank(tw-used))
 		}
 	}
 
@@ -2939,11 +2939,11 @@ func (p *preview) splitBody(w, h int) []string {
 
 		switch {
 		case sr.full && p.meta[sr.l].kind == 'h':
-			body = append(body, dim.Render(center(strings.TrimSpace("⋯ "+ansi.Strip(p.lines[sr.l])), w)))
+			body = append(body, renderText(dim, center(strings.TrimSpace("⋯ "+ansi.Strip(p.lines[sr.l])), w)))
 		case sr.full:
 			body = append(body, ansi.Cut(p.lines[sr.l], p.left, p.left+w))
 		default:
-			body = append(body, p.splitHalf(sr.l, true, sel && p.oldHalf, lw)+dim.Render("│")+p.splitHalf(sr.r, false, sel && !p.oldHalf, w-1-lw))
+			body = append(body, p.splitHalf(sr.l, true, sel && p.oldHalf, lw)+renderText(dim, "│")+p.splitHalf(sr.r, false, sel && !p.oldHalf, w-1-lw))
 		}
 	}
 
@@ -3158,14 +3158,14 @@ func (p *preview) sideBody(m *Model, w, h int) []string {
 	for i := p.top; i < min(p.top+h, n); i++ {
 		left, right := "", ""
 		if i < len(p.src) {
-			left = lineNumSt(false).Render(blank(numPad)+fmt.Sprintf("%*d ", p.numW, i+1)) + ansi.Cut(p.src[i], p.left, p.left+lw-gw)
+			left = renderText(lineNumSt(false), blank(numPad)+fmt.Sprintf("%*d ", p.numW, i+1)) + ansi.Cut(p.src[i], p.left, p.left+lw-gw)
 		}
 
 		if i < len(styled) {
 			right = " " + styled[i]
 		}
 
-		body = append(body, fit(left, lw)+dim.Render("│")+fit(right, rw))
+		body = append(body, fit(left, lw)+renderText(dim, "│")+fit(right, rw))
 	}
 
 	return body
