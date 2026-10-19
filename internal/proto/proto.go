@@ -89,7 +89,8 @@ type Settings struct {
 	SpSort    string              `json:"spaces_sort" toml:"spaces_sort"`                 // Spaces sessions by "created" or "updated"
 	SpGroup   string              `json:"spaces_group" toml:"spaces_group"`               // Spaces rows: "workspace" (the project tree) or "time" (Today, Yesterday, …)
 	SpProj    string              `json:"spaces_project_sort" toml:"spaces_project_sort"` // Spaces projects in their "manual" order or by "updated" (their sessions' last output)
-	SpHide    []string            `json:"spaces_hide" toml:"spaces_hide"`                 // session states Spaces leaves out: blocked, running, done, idle, exited
+	SpHide    []string            `json:"spaces_hide" toml:"spaces_hide"`                 // session states Spaces leaves out: blocked, running, done, idle, asleep, exited
+	Sleep     int                 `json:"sleep_after" toml:"sleep_after"`                 // minutes an idle session goes unused before it is put to sleep; 0 never
 	// Profiles is per agent preset what a new session of it can run with:
 	// profile name to KEY=VALUE, such as CLAUDE_CONFIG_DIR=~/.claude-work.
 	Profiles map[string]map[string][]string `json:"profiles" toml:"profiles"`
@@ -153,6 +154,7 @@ type State struct {
 	Resume    map[string][]string `json:"resume"`     // agent to the command that continues its last conversation
 	ResumeID  map[string][]string `json:"resume_id"`  // agent to the command that continues conversation {id}
 	ResumeJob map[string][]string `json:"resume_job"` // agent to the command that attaches to background job {id}
+	StopJob   map[string][]string `json:"stop_job"`   // agent to the command that stops background job {id}
 	ResumeEnv map[string][]string `json:"resume_env"` // agent to the variables that pick its config, carried into the command that continues it
 	Databases map[string]string   `json:"databases"`  // name to the URL of a database the Databases view lists: a server's, or sqlite:///path
 	Drafts    map[string]string   `json:"drafts"`
@@ -264,6 +266,13 @@ type SessionSpec struct {
 	FG           string        `json:"fg,omitempty"`     // host terminal colors, #rrggbb
 	BG           string        `json:"bg,omitempty"`
 	Created      time.Time     `json:"created,omitzero"` // when session.new made it; zero for sessions older than the field
+	// Active is the last time anyone typed into it, looked at it or saw its
+	// status change, kept over a restart: what sleep_after counts from.
+	Active time.Time `json:"active,omitzero"`
+	// Asleep is a session put to sleep: its process stopped to free what it
+	// held, the spec kept so session.wake brings its agent back, as a restart
+	// would. A restarted daemon leaves it asleep.
+	Asleep bool `json:"asleep,omitempty"`
 }
 
 // Conversation is an agent's conversation by the agent's own id.
@@ -288,7 +297,7 @@ type Workspace struct {
 // process running in it.
 type Session struct {
 	SessionSpec
-	Status    string `json:"status"` // blocked | running | idle | exited
+	Status    string `json:"status"` // blocked | running | idle | asleep | exited
 	ExitCode  int    `json:"exit_code"`
 	Attention bool   `json:"attention"`
 	Shell     bool   `json:"shell,omitempty"` // running on a shell command under it, not on its screen's word
@@ -390,8 +399,8 @@ type ReadParams struct {
 // that lets a script drive an agent without polling.
 type WaitParams struct {
 	ID string `json:"id"`
-	// Until is any of idle, blocked, running, exited. Empty waits for the
-	// settled states: idle, blocked, exited.
+	// Until is any of idle, blocked, running, asleep, exited. Empty waits for
+	// the settled states: idle, blocked, asleep, exited.
 	Until []string `json:"until,omitempty"`
 	// Match is a Go regular expression tested against the screen text. Set on
 	// its own it is the only condition; with Until, either one returns.
@@ -402,7 +411,7 @@ type WaitParams struct {
 
 // Settled are the statuses session.wait stops at when Until says nothing:
 // every state in which the session is no longer working on its own.
-var Settled = []string{"idle", "blocked", "exited"}
+var Settled = []string{"idle", "blocked", "asleep", "exited"}
 
 // ScreenParams is session.screen. Cols and Rows resize the session when both
 // are set; Scroll pages back into scrollback.

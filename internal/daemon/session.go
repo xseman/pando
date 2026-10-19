@@ -47,7 +47,9 @@ type session struct {
 	lastViewed time.Time
 	resized    time.Time // when a client last resized it
 	active     time.Time // its last input or change of status: what Updated reports
+	touched    time.Time // its last input, or the use a restart carried over (used)
 	exited     bool
+	asleep     bool // put to sleep, or going to: the ticker leaves it be (sleepSession)
 	exitCode   int
 	attention  bool
 	title      string
@@ -379,6 +381,8 @@ func (s *session) tick(now time.Time) bool {
 	}
 
 	switch {
+	case s.asleep:
+		s.status = "asleep"
 	case s.exited:
 		s.status = "exited"
 	case s.seen == "blocked":
@@ -418,7 +422,10 @@ func (s *session) info() proto.Session {
 	defer s.mu.Unlock()
 
 	status := s.status
-	if s.exited {
+	switch {
+	case s.asleep:
+		status = "asleep"
+	case s.exited:
 		status = "exited" // the process is gone; tick would say so within half a second
 	}
 
@@ -680,6 +687,10 @@ func xtermKey(code rune, mod uv.KeyMod) (seq string, ok bool) {
 // paste and the mouse: written straight to the PTY it could overtake keys the
 // copier still held, as a ctrl+u landing after the next call's line.
 func (s *session) input(p proto.InputParams) error {
+	if s.isAsleep() {
+		return errAsleep
+	}
+
 	if p.Text != "" {
 		if _, err := io.WriteString(s.emu.InputPipe(), p.Text); err != nil {
 			return err
@@ -690,6 +701,7 @@ func (s *session) input(p proto.InputParams) error {
 	defer s.mu.Unlock()
 
 	s.active = time.Now()
+	s.touched = s.active
 
 	for _, k := range p.Keys {
 		// vt's SendKey only emits printable keys without modifiers, which

@@ -22,6 +22,9 @@ type config struct {
 	// ResumeJob attaches to the background job a session was attached to,
 	// while it still runs; {id} becomes the job's id.
 	ResumeJob map[string][]string `toml:"resume_job"`
+	// StopJob stops the background job a session is attached to when the
+	// session is killed or put to sleep; {id} becomes the job's id.
+	StopJob map[string][]string `toml:"stop_job"`
 	// ResumeEnv names, per program, the variables that pick where it keeps
 	// its config and conversations: they go before the command that
 	// continues it, so it looks where it was started to.
@@ -59,6 +62,7 @@ func defaultConfig() config {
 		},
 		ResumeID:  map[string][]string{"claude": {"claude", "--resume", "{id}"}},
 		ResumeJob: map[string][]string{"claude": {"claude", "attach", "{id}"}},
+		StopJob:   map[string][]string{"claude": {"claude", "stop", "{id}"}},
 		ResumeEnv: map[string][]string{
 			"claude": {"CLAUDE_CONFIG_DIR"}, "codex": {"CODEX_HOME"},
 			"opencode": {"OPENCODE_CONFIG_DIR", "OPENCODE_DATA_DIR"},
@@ -70,8 +74,8 @@ func defaultConfig() config {
 // default presets, so a preset can be removed by leaving it out.
 func loadConfig(path string) (config, error) {
 	c := defaultConfig()
-	agents, resume, resumeID, resumeJob, resumeEnv := c.Agents, c.Resume, c.ResumeID, c.ResumeJob, c.ResumeEnv
-	c.Agents, c.Resume, c.ResumeID, c.ResumeJob, c.ResumeEnv = nil, nil, nil, nil, nil
+	agents, resume, resumeID, resumeJob, stopJob, resumeEnv := c.Agents, c.Resume, c.ResumeID, c.ResumeJob, c.StopJob, c.ResumeEnv
+	c.Agents, c.Resume, c.ResumeID, c.ResumeJob, c.StopJob, c.ResumeEnv = nil, nil, nil, nil, nil, nil
 
 	md, err := toml.DecodeFile(path, &c)
 	if err != nil {
@@ -96,6 +100,10 @@ func loadConfig(path string) (config, error) {
 
 	if c.ResumeJob == nil {
 		c.ResumeJob = resumeJob
+	}
+
+	if c.StopJob == nil {
+		c.StopJob = stopJob
 	}
 
 	if c.ResumeEnv == nil {
@@ -229,9 +237,12 @@ func (c *config) encode() []byte {
 		"(colors blocked_bg, done_bg and their _soft_bg), \"steady\" to tint without the pulse, or \"off\".", "session_highlight", s.SessHi)
 	kv("Spaces: sessions sorted by \"created\" or \"updated\" (last input or change of state),\n"+
 		"grouped by \"workspace\" (project and worktree) or \"time\" (Today, Yesterday, …), and\n"+
-		"the states left out: blocked, running, done, idle, exited.", "spaces_sort", s.SpSort)
+		"the states left out: blocked, running, done, idle, asleep, exited.", "spaces_sort", s.SpSort)
 	kv("", "spaces_group", s.SpGroup)
 	kv("", "spaces_hide", list(s.SpHide))
+	kv("Put a session to sleep once it has been idle and unused - nobody typed into it, looked\n"+
+		"at it or saw it change - for this many minutes: its process, and a claude's background\n"+
+		"job, stop to free their memory; opening it brings the agent back. 0: never.", "sleep_after", s.Sleep)
 	kv("Spaces: projects in their \"manual\" order (drag, alt+up/down) or by \"updated\",\n"+
 		"the one whose sessions changed last first.", "spaces_project_sort", s.SpProj)
 	b.WriteString("\n# Sidebar columns per side, from the screen edge toward main, each with its tabs\n" +
@@ -274,6 +285,9 @@ func (c *config) encode() []byte {
 	b.WriteString("\n# Attaching again to the background job a session was attached to (claude attach),\n" +
 		"# which outlives pando; {id} becomes the job's id. A job that ended is resumed instead.\n[resume_job]\n")
 	table(&b, c.ResumeJob)
+	b.WriteString("\n# Stopping the background job a session is attached to when the session is killed\n" +
+		"# or put to sleep (claude stop); {id} becomes the job's id. Its conversation is kept.\n[stop_job]\n")
+	table(&b, c.StopJob)
 	b.WriteString("\n# The variables that pick where a program keeps its config and conversations,\n" +
 		"# e.g. CLAUDE_CONFIG_DIR: set on the program when pando saw it, they go before the\n" +
 		"# command that continues it, so it resumes from the same place.\n[resume_env]\n")

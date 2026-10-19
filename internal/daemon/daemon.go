@@ -14,6 +14,7 @@ import (
 	"maps"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -42,6 +43,7 @@ type Daemon struct {
 	order    []string
 	subs     map[chan proto.Event]struct{}
 	pending  map[string]bool // screen events debounced per session
+	moving   map[string]bool // sessions going to sleep or waking (sleepSession, wakeSession)
 	ln       net.Listener
 	closing  bool           // shutting down: exits are kills, keep the specs for respawn
 	upd      proto.Update   // what the last update check found
@@ -97,7 +99,7 @@ func New(configDir, stateDir, dataDir string) (*Daemon, error) {
 	d := &Daemon{
 		statePath: filepath.Join(stateDir, "state.json"), cfgPath: filepath.Join(configDir, "config.toml"),
 		dataDir: dataDir, sessions: map[string]*session{}, state: proto.State{Instance: proto.Instance()},
-		subs: map[chan proto.Event]struct{}{}, pending: map[string]bool{},
+		subs: map[chan proto.Event]struct{}{}, pending: map[string]bool{}, moving: map[string]bool{},
 		upd: proto.Update{Current: update.Version},
 	}
 
@@ -130,7 +132,7 @@ func New(configDir, stateDir, dataDir string) (*Daemon, error) {
 
 	c, err := loadConfig(d.cfgPath)
 
-	d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID, d.state.ResumeJob, d.state.ResumeEnv, d.state.Databases = c.Settings, c.Agents, c.Resume, c.ResumeID, c.ResumeJob, c.ResumeEnv, c.Databases
+	d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID, d.state.ResumeJob, d.state.StopJob, d.state.ResumeEnv, d.state.Databases = c.Settings, c.Agents, c.Resume, c.ResumeID, c.ResumeJob, c.StopJob, c.ResumeEnv, c.Databases
 	if errors.Is(err, os.ErrNotExist) {
 		if err := d.saveConfig(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -151,50 +153,73 @@ func New(configDir, stateDir, dataDir string) (*Daemon, error) {
 			continue
 		}
 
-		argv, leftover, notice := d.resume(spec, resumed)
-
-		start := d.start
-
-		switch {
-		case isShellAgent(spec.Agent): // the shell it ran first, then what a new one would open
-			shells := append([][]string{spec.Cmd}, d.shellCandidates(spec.Agent)...)
-			start = func(spec proto.SessionSpec, cols, rows int) (*session, error) {
-				return d.startShell(spec, cols, rows, shells)
-			}
-
-		case spec.ResumeExec && len(argv) > 0: // no shell to type it into: it runs in place of the agent
-			hangUp(leftover)
-
-			cmd, line := spec.Cmd, execLine(argv)
-			start = func(spec proto.SessionSpec, cols, rows int) (*session, error) {
-				spec.Cmd = line
-
-				s, err := d.start(spec, cols, rows)
-				if err == nil {
-					s.mu.Lock()
-					s.spec.Cmd = cmd // what a restart without a resume starts again
-					s.mu.Unlock()
-				}
-
-				return s, err
-			}
-			argv, leftover = nil, 0
-		}
-
-		s, err := start(spec, 0, 0)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "respawn", spec.ID, err)
+		if spec.Asleep { // it stays so until session.wake
+			d.add(dormant(spec, 0, 0))
 			continue
 		}
 
-		if len(notice) > 0 {
-			s.notice(notice...)
+		if _, _, err := d.respawn(spec, resumed, 0, 0); err != nil {
+			fmt.Fprintln(os.Stderr, "respawn", spec.ID, err)
 		}
-
-		s.resumeWith(argv, leftover)
 	}
 
 	return d, nil
+}
+
+// respawn starts saved session spec again, as a restart does for each and
+// session.wake for one asleep: its shell, or its agent's process, and the
+// command that brings the agent back (resume), typed into the shell or run
+// in place of the agent. by is the conversations sessions started before it
+// continue (resume).
+func (d *Daemon) respawn(spec proto.SessionSpec, by map[string]string, cols, rows int) (s *session, resumed []string, err error) {
+	d.mu.Lock() // what resume and shellCandidates read of d.state
+	argv, leftover, notice := d.resume(spec, by)
+	shells := append([][]string{spec.Cmd}, d.shellCandidates(spec.Agent)...)
+	d.mu.Unlock()
+
+	resumed = argv
+	start := d.start
+
+	switch {
+	case isShellAgent(spec.Agent): // the shell it ran first, then what a new one would open
+		start = func(spec proto.SessionSpec, cols, rows int) (*session, error) {
+			return d.startShell(spec, cols, rows, shells)
+		}
+
+	case spec.ResumeExec && len(argv) > 0: // no shell to type it into: it runs in place of the agent
+		hangUp(leftover)
+
+		cmd, line := spec.Cmd, execLine(argv)
+		start = func(spec proto.SessionSpec, cols, rows int) (*session, error) {
+			spec.Cmd = line
+
+			s, err := d.start(spec, cols, rows)
+			if err == nil {
+				s.mu.Lock()
+				s.spec.Cmd = cmd // what a restart without a resume starts again
+				s.mu.Unlock()
+			}
+
+			return s, err
+		}
+		argv, leftover = nil, 0
+	}
+
+	if s, err = start(spec, cols, rows); err != nil {
+		return nil, nil, err
+	}
+
+	if len(notice) > 0 {
+		s.notice(notice...)
+	}
+
+	s.mu.Lock()
+	s.touched = spec.Active // the use it had, which sleep_after goes on counting from
+	s.mu.Unlock()
+
+	s.resumeWith(argv, leftover)
+
+	return s, resumed, nil
 }
 
 // remember records what would bring session s's agent back after a restart:
@@ -352,9 +377,20 @@ func (d *Daemon) Serve(ln net.Listener) error {
 			d.mu.Lock()
 			changed, dirty, saw := false, false, false
 
-			for _, s := range d.sessions {
+			var sleepy []string
+
+			for id, s := range d.sessions {
 				if d.closing { // a killed agent is not a left one: keep its resume
 					break
+				}
+
+				if s.isAsleep() { // nothing runs to look at; what brings it back stays as it was
+					changed = s.tick(now) || changed
+					continue
+				}
+
+				if d.sleepy(s, now) {
+					sleepy = append(sleepy, id)
 				}
 
 				pid, prog := s.foreground()
@@ -369,6 +405,10 @@ func (d *Daemon) Serve(ln net.Listener) error {
 				_ = d.save() // best effort, it is written again next tick
 			}
 			d.mu.Unlock()
+
+			for _, id := range sleepy {
+				go func() { _ = d.sleepSession(id, true) }() // fails only if it went meanwhile
+			}
 
 			if changed {
 				d.broadcast(proto.Event{Kind: "sessions"})
@@ -405,6 +445,7 @@ func (d *Daemon) Close() {
 	d.cancel()
 	d.mu.Lock()
 	d.closing = true
+	_ = d.save() // the use since the last save (Active): best effort, as the tick's
 
 	ss := make([]*session, 0, len(d.sessions))
 	for _, s := range d.sessions {
@@ -683,7 +724,35 @@ func (d *Daemon) dispatch(method string, raw json.RawMessage) (any, error) {
 			return nil, err
 		}
 
-		return nil, d.killSession(p.ID)
+		s, err := d.session(p.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		spec := s.info().SessionSpec
+
+		err = d.killSession(spec.ID)
+		if !spec.Asleep { // asleep, its job was stopped already
+			d.stopJob(spec.Conversation, spec.Workspace)
+		}
+
+		return nil, err
+
+	case "session.sleep":
+		p, err := parse[struct{ ID string }](raw)
+		if err != nil {
+			return nil, err
+		}
+
+		return nil, d.sleepSession(p.ID, false)
+
+	case "session.wake":
+		p, err := parse[struct{ ID string }](raw)
+		if err != nil {
+			return nil, err
+		}
+
+		return d.wakeSession(p.ID)
 
 	case "session.rename":
 		p, err := parse[struct{ ID, Name string }](raw)
@@ -756,7 +825,10 @@ func (d *Daemon) dispatch(method string, raw json.RawMessage) (any, error) {
 func (d *Daemon) specs() []proto.SessionSpec {
 	out := make([]proto.SessionSpec, 0, len(d.order))
 	for _, id := range d.order {
-		out = append(out, d.sessions[id].spec)
+		s := d.sessions[id]
+		spec := s.info().SessionSpec
+		spec.Active = s.used()
+		out = append(out, spec)
 	}
 
 	return out
@@ -793,7 +865,7 @@ func (d *Daemon) saveConfig() error {
 		return fmt.Errorf("not saved, fix it first: %w", d.cfgErr)
 	}
 
-	c := config{d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID, d.state.ResumeJob, d.state.ResumeEnv, d.state.Databases}
+	c := config{d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID, d.state.ResumeJob, d.state.StopJob, d.state.ResumeEnv, d.state.Databases}
 	if err := writeFile(d.cfgPath, c.encode()); err != nil {
 		return err
 	}
@@ -822,7 +894,7 @@ func (d *Daemon) reloadConfig() {
 		return
 	}
 
-	d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID, d.state.ResumeJob, d.state.ResumeEnv, d.state.Databases = c.Settings, c.Agents, c.Resume, c.ResumeID, c.ResumeJob, c.ResumeEnv, c.Databases
+	d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID, d.state.ResumeJob, d.state.StopJob, d.state.ResumeEnv, d.state.Databases = c.Settings, c.Agents, c.Resume, c.ResumeID, c.ResumeJob, c.StopJob, c.ResumeEnv, c.Databases
 	d.mu.Unlock()
 	d.broadcast(proto.Event{Kind: "state"})
 }
@@ -1424,7 +1496,7 @@ func (d *Daemon) session(id string) (*session, error) {
 }
 
 // statuses are the values session.wait accepts and session.info reports.
-var statuses = []string{"idle", "blocked", "running", "exited"}
+var statuses = []string{"idle", "blocked", "running", "asleep", "exited"}
 
 // waitSession blocks until the session reaches one of the statuses in Until,
 // its screen matches Match, or the timeout passes. It polls at half the rate
@@ -1467,6 +1539,10 @@ func (d *Daemon) waitSession(p proto.WaitParams) (proto.Session, error) {
 	defer poll.Stop()
 
 	for {
+		if ns, err := d.session(s.spec.ID); err == nil { // a woken session is a new one under its id
+			s = ns
+		}
+
 		info := s.info()
 		if slices.Contains(until, info.Status) || (re != nil && re.MatchString(s.text(false, 0))) {
 			return info, nil
@@ -1601,6 +1677,11 @@ func (d *Daemon) startWith(spec proto.SessionSpec, cols, rows int, fallback [][]
 		s, closing := d.sessions[id], d.closing
 		d.mu.Unlock()
 
+		if s != nil && s.isAsleep() { // put to sleep: it stays listed
+			d.broadcast(proto.Event{Kind: "sessions"})
+			return
+		}
+
 		if !closing && s != nil && s.failedAtOnce() {
 			go d.fallBack(id)
 			return
@@ -1619,13 +1700,60 @@ func (d *Daemon) startWith(spec proto.SessionSpec, cols, rows int, fallback [][]
 
 	s.fallback, s.started = fallback, time.Now() // before it is registered: the exit callback reads them
 
-	d.mu.Lock()
-	d.sessions[id] = s
-	d.order = append(d.order, id)
-	d.mu.Unlock()
+	d.add(s)
 	close(registered)
 
 	return s, nil
+}
+
+// stopJob stops the background job conversation c runs in, [stop_job], and
+// waits for the job to let go of c: a resume by id is refused while it holds
+// it. A conversation outside a job, or an agent without one, has none.
+func (d *Daemon) stopJob(c *proto.Conversation, dir string) {
+	if c == nil || c.Job == "" {
+		return
+	}
+
+	d.mu.Lock()
+	t := d.state.StopJob[c.Agent]
+	d.mu.Unlock()
+
+	if len(t) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(d.ctx, 10*time.Second)
+	defer cancel()
+
+	argv := withID(t, c.Job)
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+
+	cmd.Dir, cmd.Env = dir, append(os.Environ(), c.Env...)
+
+	if out, err := cmd.CombinedOutput(); err != nil {
+		fmt.Fprintf(os.Stderr, "stop job %s: %v %s\n", c.Job, err, bytes.TrimSpace(out))
+		return
+	}
+
+	src := conversations[c.Agent]
+	for deadline := time.Now().Add(5 * time.Second); src != nil && time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
+		if _, job := src.holder(*c); job == "" {
+			return
+		}
+	}
+}
+
+// add lists session s, in the place of the one it replaces under its id.
+func (d *Daemon) add(s *session) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	id := s.spec.ID
+	if _, ok := d.sessions[id]; !ok {
+		d.order = append(d.order, id)
+	}
+
+	d.sessions[id] = s
 }
 
 func (d *Daemon) killSession(id string) error {

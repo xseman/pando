@@ -87,6 +87,7 @@ pando session get reviewer
 | `running` | a turn, a command or a background subagent works  |
 | `blocked` | the agent is waiting at an approval or a question |
 | `idle`    | at its prompt, ready for input                    |
+| `asleep`  | put to sleep: nothing runs, input is refused      |
 | `exited`  | the process is gone; `exit_code` says how         |
 
 pando reads the screen for the agents it recognizes (claude, codex, gemini,
@@ -105,13 +106,13 @@ behalf** — read it and ask, unless the user already told you how to answer.
 read` in a loop.
 
 ```sh
-pando session wait reviewer                          # idle, blocked or exited
+pando session wait reviewer                          # idle, blocked, asleep or exited
 pando session wait reviewer --until blocked --timeout 120000
 pando session wait reviewer --match 'All tests passed' --timeout 60000
 ```
 
 - `--until` takes a comma-separated list of the statuses above; the default is
-  `idle,blocked,exited`.
+  `idle,blocked,asleep,exited`.
 - `--match` is a Go regular expression tested against the screen text; with
   `--until` either condition returns.
 - `--timeout` is milliseconds. Without one the wait is indefinite — always
@@ -149,6 +150,21 @@ pando session keys reviewer shift+tab
 
 Every key is parsed before any is delivered, so a typo late in the list sends
 nothing. `pando session keys` with no keys prints the names it accepts.
+
+## Asleep sessions
+
+A session unused for a while (`sleep_after`), or put to sleep by the user, is
+`asleep`: its process, and a claude's background job, were stopped to free
+memory. Its screen still reads; input is refused. Wake it before you send:
+
+```sh
+pando session wake reviewer                      # returns once its agent is back at its prompt
+pando session wait reviewer --until idle,blocked --timeout 60000   # in case 20 s were not enough
+```
+
+Waking resumes the conversation the session had open, as a pando restart
+does; a shell wakes to a new shell, and whatever else ran in it (a server, an
+editor) does not come back. `pando session sleep ID` puts one to sleep.
 
 ## Read the result
 
@@ -210,10 +226,11 @@ the session in a workspace that already exists.
 
 ## Safety
 
-- Do not kill, rename, move or send input to a session you did not create,
-  and never to `$PANDO_SESSION`. Killing a session also kills the shells of
-  its Terminal panel (`--agent terminal --parent ID`), so a kill takes more
-  than one terminal.
+- Do not kill, rename, move, put to sleep or send input to a session you did
+  not create, and never to `$PANDO_SESSION`. Killing a session also kills the
+  shells of its Terminal panel (`--agent terminal --parent ID`), so a kill
+  takes more than one terminal, and stops a claude's background job: the
+  conversation is kept, the turn it was on is not.
 - The one input you send to a session you did not create is a message the
   user asked you to pass, after the checks in _Pass a message to another
   session_.

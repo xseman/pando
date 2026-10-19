@@ -129,10 +129,6 @@ func (d *Daemon) fallBack(id string) {
 	}
 
 	d.mu.Lock()
-	if i := slices.Index(d.order, id); i >= 0 && i < len(d.order)-1 { // start appended it a second time
-		d.order = d.order[:len(d.order)-1]
-	}
-
 	_ = d.save() // best effort: the tick writes it again
 	d.mu.Unlock()
 

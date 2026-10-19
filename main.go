@@ -37,7 +37,7 @@ const usage = `pando — terminal sidebar with agent sessions
   pando DIR                     add DIR to the projects and open it
   pando FILE[:LINE[:COL]]       open FILE at LINE and COL in the project holding it
   pando serve                   run the daemon in the foreground
-  pando stop                    stop the daemon (sessions are respawned next start)
+  pando stop                    stop the daemon (sessions are respawned next start, asleep ones stay so)
   pando doctor                  show the config path, the UI icons and the fonts that draw them
   pando version                 print the version this binary was built from
   pando update                  install the latest release over this binary
@@ -49,9 +49,10 @@ const usage = `pando — terminal sidebar with agent sessions
   pando ws ls | new [BRANCH] [--project DIR] | rm PATH | switch PATH | move PATH INDEX
   pando session new [--agent NAME] [--ws PATH] [--name NAME] [--parent ID] [--wait] [-- CMD...]
   pando session ls | get ID | kill ID | switch ID | rename ID [NAME...] | move ID OTHER
+  pando session sleep ID | wake ID   stop its process to free memory | bring its agent back
   pando session send ID TEXT... [--enter] [--wait]
   pando session keys ID KEY...  named keys, e.g. esc ctrl+c shift+tab
-  pando session wait ID [--until idle|blocked|running|exited] [--match RE] [--timeout MS]
+  pando session wait ID [--until idle|blocked|running|asleep|exited] [--match RE] [--timeout MS]
   pando session read ID [--scrollback] [--lines N]
   pando open FILE[:LINE[:COL]]  show FILE in every attached TUI
   pando set KEY VALUE           change a setting from config.toml, e.g. pando set icons ascii
@@ -65,8 +66,8 @@ guide to doing it well. Read it before the first call.
 API methods: ping state.get state.set draft.list draft.set project.add
 project.remove project.move workspace.list workspace.new workspace.remove
 workspace.move focus session.new session.get session.list session.kill
-session.rename session.move session.input session.screen session.read
-session.wait update.status update.check update.install subscribe shutdown
+session.rename session.move session.sleep session.wake session.input
+session.screen session.read session.wait update.status update.check update.install subscribe shutdown
 
 The API covers sessions, workspaces, projects and settings — everything a
 script needs to drive pando. Explorer, Source Control, Search and the editor
@@ -478,7 +479,7 @@ func session(rest []string) error {
 	parent := fs.String("parent", "", "the session whose Terminal panel a --agent terminal shell joins")
 	enter := fs.Bool("enter", false, "press enter after the text")
 	wait := fs.Bool("wait", false, "block until the session settles; send implies --enter")
-	until := fs.String("until", "", "statuses to wait for, comma separated (default idle,blocked,exited)")
+	until := fs.String("until", "", "statuses to wait for, comma separated (default idle,blocked,asleep,exited)")
 	match := fs.String("match", "", "regular expression the screen must match")
 	timeout := fs.Int("timeout", 0, "milliseconds before a wait gives up, 0 waits forever")
 	scrollback := fs.Bool("scrollback", false, "include scrollback")
@@ -519,6 +520,10 @@ func session(rest []string) error {
 
 	case "kill":
 		return proto.Call("session.kill", map[string]string{"id": arg(pos, 0, "")}, nil)
+	case "sleep":
+		return proto.Call("session.sleep", map[string]string{"id": arg(pos, 0, "")}, nil)
+	case "wake":
+		return printJSON("session.wake", map[string]string{"id": arg(pos, 0, "")})
 	case "rename": // no name: named by what runs in it again
 		return proto.Call("session.rename", map[string]string{"id": arg(pos, 0, ""), "name": strings.Join(pos[min(1, len(pos)):], " ")}, nil)
 	case "move", "mv":
@@ -610,7 +615,7 @@ func session(rest []string) error {
 		return nil
 	}
 
-	return errors.New("session new | ls | get | kill | switch | rename | send | keys | wait | read")
+	return errors.New("session new | ls | get | kill | sleep | wake | switch | rename | send | keys | wait | read")
 }
 
 func serve() error {

@@ -242,3 +242,6 @@ func (s *session) foreground() (int, string) { return 0, "" }
 
 // cwd is "": Windows has no /proc to say where the program in front is.
 func (s *session) cwd() string { return "" }
+
+// programOf is "": what runs is not known, as foreground says.
+func programOf([]string) string { return "" }
