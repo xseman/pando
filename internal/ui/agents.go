@@ -255,8 +255,8 @@ func (m *Model) listedSessions() []proto.Session {
 
 	var out []proto.Session
 
-	for _, s := range m.agentSessions() {
-		if !slices.Contains(st.SpHide, sessionState(m.rollup(s))) {
+	for _, s := range m.mainSessions() {
+		if !slices.Contains(st.SpHide, sessionState(s)) {
 			out = append(out, s)
 		}
 	}
@@ -278,9 +278,9 @@ func (m *Model) projects() []string {
 
 	last := map[string]time.Time{}
 
-	for _, s := range m.agentSessions() {
+	for _, s := range m.mainSessions() {
 		p := m.projectOf(s.Workspace)
-		if t := m.rollup(s).Updated; t.After(last[p]) {
+		if t := s.Updated; t.After(last[p]) {
 			last[p] = t
 		}
 	}
@@ -290,28 +290,10 @@ func (m *Model) projects() []string {
 	return out
 }
 
-// rollup is session s as its row shows it: its most demanding tab's state,
-// and the latest Updated of any of them.
-func (m *Model) rollup(s proto.Session) proto.Session {
-	tabs := m.tabsOf(s.ID)
-	if len(tabs) == 0 {
-		return s
-	}
-
-	r := slices.MinFunc(tabs, func(a, b proto.Session) int { return sessionRank(a) - sessionRank(b) })
-	for _, t := range tabs {
-		if t.Updated.After(r.Updated) {
-			r.Updated = t.Updated
-		}
-	}
-
-	return r
-}
-
 // sessionTime is what the Sort orders s by, and Group by Time files it under.
 func (m *Model) sessionTime(s proto.Session) time.Time {
 	if m.st.Settings.SpSort == "updated" {
-		return m.rollup(s).Updated
+		return s.Updated
 	}
 
 	return s.Created
@@ -676,12 +658,12 @@ func works(s proto.Session) bool {
 		return false
 	}
 
-	plain := s.Agent == "shell" || s.Agent == tabAgent
+	plain := s.Agent == "shell"
 
 	return !plain || s.Program != "" && !slices.Contains(shells, s.Program)
 }
 
-// spinning reports a session or tab whose ◐ turns.
+// spinning reports a session whose ◐ turns.
 func (m *Model) spinning() bool { return m.fx.on && slices.ContainsFunc(m.mainSessions(), works) }
 
 // spinLater sends the next spinMsg while a session works, one at a time, on
@@ -861,7 +843,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 				}
 
 				if in {
-					ss, k = append(ss, m.tabsOf(s.ID)...), k+1
+					ss, k = append(ss, s), k+1
 				}
 			}
 
@@ -937,29 +919,21 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			gutter = sg(pin.label(), dim)
 		}
 
-		// A session carries the most demanding of its tabs, as a herdr
-		// workspace does its panes'.
-		tabs := m.tabsOf(r.s.ID)
-		glyph, c := groupGlyph(tabs)
+		glyph, c := groupGlyph([]proto.Session{r.s})
 
 		// The session on screen: the accent's bar in the gutter's first cell
 		// and its name in the accent, as VS Code marks the active item. One
 		// that needs you says so in its status, in its symbol's color, bold
 		// on the pulse's beat; no row is tinted, so none reads as selected.
 		nameSt, lead := base, []seg{gutter}
-		if m.rootOf(m.sess) == r.s.ID {
+		if m.sess == r.s.ID {
 			nameSt = nameSt.Foreground(pal.headerAccent).Bold(true)
 			gutter.s = strings.TrimPrefix(gutter.s, " ") // the pin's own blank before it
 			lead = []seg{sg("▎", fg(pal.headerAccent)), gutter}
 		}
 
-		top := r.s
-		if len(tabs) > 0 {
-			top = slices.MinFunc(tabs, func(a, b proto.Session) int { return sessionRank(a) - sessionRank(b) })
-		}
-
 		status, statusSt := r.s.Status, dim
-		switch state := sessionState(top); {
+		switch state := sessionState(r.s); {
 		case state == "blocked":
 			status = "input"
 		case state == "done":
@@ -970,8 +944,8 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			status = "shell"
 		}
 
-		if tint, _ := sessionTint(top); tint != nil && m.st.Settings.SessHi != "off" {
-			statusSt = fg(c).Bold(m.pulses(top) && m.blinkOn)
+		if tint, _ := sessionTint(r.s); tint != nil && m.st.Settings.SessHi != "off" {
+			statusSt = fg(c).Bold(m.pulses(r.s) && m.blinkOn)
 		}
 
 		if m.st.Settings.SpGroup == "time" && !r.pinned { // no project tree to say where it runs
@@ -985,7 +959,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 
 		// A name the row cuts, at 32 cells or at the column's edge, shows
 		// whole in a tip.
-		g, after, right := m.spin(glyph, tabs...), titleAfter(r.s), " "+status+" "
+		g, after, right := m.spin(glyph, r.s), titleAfter(r.s), " "+status+" "
 		if full := fullName(r.s); y == hover && !onPin && (full != sessionName(r.s) || 3+ansi.StringWidth(conn+g+full+after+right) > rw) {
 			m.tip = full + after
 		}
@@ -1220,40 +1194,14 @@ func (a *agents) activate(m *Model, r *agRow) tea.Cmd {
 			return m.hideSession()
 		}
 
-		if id := m.newsTab(r.s.ID); id != "" {
-			return m.openSession(id)
-		}
-
-		return m.openSession(m.lastTabOf(r.s.ID))
+		return m.openSession(r.s.ID)
 	}
 
 	return nil
 }
 
-// newsTab is the one tab of session root out of view whose new state pulses,
-// the tab a click on its row opens; "" for none, or for several, where the
-// click goes back to the tab shown last.
-func (m *Model) newsTab(root string) string {
-	var news []string
-
-	for _, t := range m.tabsOf(root) {
-		if m.pulses(t) && !m.inView(t.ID) {
-			news = append(news, t.ID)
-		}
-	}
-
-	if len(news) != 1 {
-		return ""
-	}
-
-	return news[0]
-}
-
-// putsAway reports a click on session root's row hiding it: a second click,
-// with no single tab of it out of view to show instead.
-func (m *Model) putsAway(root string) bool {
-	return m.rootOf(m.sess) == root && m.inView(m.sess) && m.newsTab(root) == ""
-}
+// putsAway reports a click on session id's row hiding it: a second click.
+func (m *Model) putsAway(id string) bool { return m.sess == id && m.inView(m.sess) }
 
 // click is a left click's activate. A session it puts away leaves nothing
 // selected, so its row no longer reads as the one open; ↵ keeps the
@@ -1455,7 +1403,7 @@ func (m *Model) harnesses() []string {
 
 	for _, name := range slices.Sorted(maps.Keys(m.st.Agents)) {
 		argv := m.st.Agents[name]
-		if len(argv) == 0 || slices.Contains([]string{"shell", tabAgent, termAgent}, name) {
+		if len(argv) == 0 || slices.Contains([]string{"shell", termAgent}, name) {
 			continue
 		}
 
@@ -1470,7 +1418,7 @@ func (m *Model) harnesses() []string {
 // sessionCount is how many sessions worktree path holds, their tabs aside.
 func (m *Model) sessionCount(path string) int {
 	n := 0
-	for _, s := range m.agentSessions() {
+	for _, s := range m.mainSessions() {
 		n += b2i(s.Workspace == path)
 	}
 
@@ -2350,7 +2298,7 @@ func (a *agents) shiftSession(m *Model, id string, d int) tea.Cmd {
 }
 
 // moveSession puts session id where session to sits in the model's own
-// list, as session.move does in the daemon's: its tabs go with it, and the
+// list, as session.move does in the daemon's: its shells go with it, and the
 // moved row stays selected. The daemon is told once, on release.
 func (a *agents) moveSession(m *Model, id, to string) {
 	i := slices.IndexFunc(m.sessions, func(s proto.Session) bool { return s.ID == id })
@@ -2392,7 +2340,7 @@ func (a *agents) moveSession(m *Model, id, to string) {
 // exited ones. "@blocked", "@running", "@shell", "@done", "@idle", "@exited",
 // "@worktree" narrow by kind and "!claude" by agent.
 func (m *Model) agentNavigator() tea.Cmd {
-	ss := m.agentSessions()
+	ss := m.mainSessions()
 	slices.SortStableFunc(ss, func(a, b proto.Session) int { return sessionRank(a) - sessionRank(b) })
 
 	var items []item
@@ -2751,63 +2699,25 @@ type sessTab struct {
 	bg     color.Color // session_highlight's tint
 }
 
-// sessionTabs are the tabs of the session in view, in the order [ and ]
-// cycle them: herdr's workspace tabs.
+// sessionTabs is the tab of the session in view, its strip's only one.
 func (m *Model) sessionTabs(w int) []sessTab {
-	return m.tabsFor(w-m.sessBtnW(), m.tabsOf(m.rootOf(m.sess)), m.sess)
+	var ss []proto.Session
+	if s := m.session(m.sess); s != nil {
+		ss = append(ss, *s)
+	}
+
+	return m.tabsFor(w-m.sessBtnW(), ss, m.sess)
 }
 
-// spaceSessions are the sessions of the workspace in view, their tabs aside.
+// spaceSessions are the sessions of the workspace in view.
 func (m *Model) spaceSessions() []proto.Session {
-	return slices.DeleteFunc(m.agentSessions(), func(s proto.Session) bool { return s.Workspace != m.ws })
+	return slices.DeleteFunc(m.mainSessions(), func(s proto.Session) bool { return s.Workspace != m.ws })
 }
 
-// agentSessions are the sessions the Spaces tree lists: neither the Terminal
-// panel's shells nor a session's own tabs, which its strip shows.
-func (m *Model) agentSessions() []proto.Session {
-	return slices.DeleteFunc(m.mainSessions(), isTab)
-}
-
-// mainSessions are everything the main area can show: sessions and their tabs.
+// mainSessions are the sessions the Spaces tree lists and the main area
+// shows: all but the Terminal panel's shells.
 func (m *Model) mainSessions() []proto.Session {
 	return slices.DeleteFunc(slices.Clone(m.sessions), func(s proto.Session) bool { return s.Agent == termAgent })
-}
-
-// tabAgent is the agent name of a session's tabs past its first: shells a +
-// on its strip opens, with the session as their parent, so they die with it
-// and the Spaces tree keeps them under it, as herdr keeps a workspace's tabs.
-const tabAgent = "tab"
-
-func isTab(s proto.Session) bool { return s.Agent == tabAgent && s.Parent != "" }
-
-// rootOf is the session tab id belongs to, id itself for a session.
-func (m *Model) rootOf(id string) string {
-	if s := m.session(id); s != nil && isTab(*s) && m.session(s.Parent) != nil {
-		return s.Parent
-	}
-
-	return id
-}
-
-// tabsOf is session root and its tabs, in the order they were opened.
-func (m *Model) tabsOf(root string) []proto.Session {
-	if root == "" {
-		return nil
-	}
-
-	return slices.DeleteFunc(m.mainSessions(), func(s proto.Session) bool {
-		return s.ID != root && (!isTab(s) || s.Parent != root)
-	})
-}
-
-// lastTabOf is the tab of session root shown last, root itself before any:
-// going back to a session goes back to where it was, as herdr's does.
-func (m *Model) lastTabOf(root string) string {
-	if id := m.lastTab[root]; id != "" && m.rootOf(id) == root {
-		return id
-	}
-
-	return root
 }
 
 // termSessions are the shells of the Terminal panel: the shown session's own,
@@ -2817,10 +2727,10 @@ func (m *Model) termSessions() []proto.Session {
 }
 
 // termOwned reports a shell belonging to the Terminal panel as it stands:
-// every session has tabs of its own, and a shell opened with no session in
+// every session has shells of its own, and a shell opened with no session in
 // view stays with its workspace.
 func (m *Model) termOwned(s proto.Session) bool {
-	if s.Agent != termAgent || s.Parent != m.rootOf(m.sess) {
+	if s.Agent != termAgent || s.Parent != m.sess {
 		return false
 	}
 
@@ -2864,10 +2774,10 @@ func (m *Model) ensureTerm() tea.Cmd {
 func (m *Model) sessLabel(s proto.Session, active bool, room int) (label, tip string) {
 	// A shell's screen says nothing about an agent's state: a server
 	// printing logs would read as working. Only an agent shows a glyph, one
-	// started by hand in a tab or a terminal too.
+	// started by hand in a terminal too.
 	glyph := ""
 
-	if s.Agent != termAgent && s.Agent != tabAgent || m.runsAgent(s) {
+	if s.Agent != termAgent || m.runsAgent(s) {
 		g, _ := sessionGlyph(s)
 		glyph = m.spin(g, s) + " "
 	}
@@ -2942,7 +2852,7 @@ func fullName(s proto.Session) string {
 			name = t
 		}
 
-	case (s.Agent == termAgent || s.Agent == tabAgent) && len(s.Cmd) > 0:
+	case s.Agent == termAgent && len(s.Cmd) > 0:
 		name = filepath.Base(s.Cmd[0])
 	}
 
@@ -3008,7 +2918,7 @@ func (m *Model) sessionStrip(w int) string {
 	btns, _ := m.actSegs(m.sessionButtons(), x0, y)
 	m.noteStrip(tabs, "", "Kill Session…", x0, y, w)
 
-	return m.stripMark(row(w, nil, tabSegs(tabs, m.overTab, m.overX), append(right, btns...)...), stripSession, 0)
+	return row(w, nil, tabSegs(tabs, m.overTab, m.overX), append(right, btns...)...)
 }
 
 // sessionRule is the line under the session's strip.
@@ -3083,8 +2993,8 @@ func (m *Model) sessionHint() (string, lipgloss.Style) {
 	return "", plain
 }
 
-// runsAgent reports an agent in the foreground of shell s, a tab or a
-// terminal, claude typed at its prompt: the daemon reads its screen as it
+// runsAgent reports an agent in the foreground of terminal s, claude typed
+// at its prompt: the daemon reads its screen as it
 // does an agent session's, so its state is worth a glyph.
 func (m *Model) runsAgent(s proto.Session) bool {
 	for name, cmd := range m.st.Agents {
@@ -3151,8 +3061,7 @@ func tabSegs(tabs []sessTab, over, overX string) []seg {
 	return segs
 }
 
-// sessionStripMouse switches or closes a session from the strip; a tab past
-// the session's own drags along it.
+// sessionStripMouse switches to or closes the session from its strip.
 func (m *Model) sessionStripMouse(x int, mo tea.Mouse) tea.Cmd {
 	button := mo.Button
 	if a, ok := hit(m.sessionButtons(), x); ok && button == tea.MouseLeft {
@@ -3169,8 +3078,6 @@ func (m *Model) sessionStripMouse(x int, mo tea.Mouse) tea.Cmd {
 			return m.sessionMenu(t.id)
 		case button == tea.MouseMiddle || (t.active && x >= t.x+t.w-tabCloseW):
 			return m.confirmKill(t.id)
-		case button == tea.MouseLeft && t.id != m.rootOf(m.sess):
-			m.grabTab(stripSession, t.id, x)
 		}
 
 		return m.switchSession(t.id)
@@ -3417,7 +3324,7 @@ func (m *Model) sessW() int {
 	return m.mainW()
 }
 
-// sessionLines are the docked session: its tabs and their rule, then its screen.
+// sessionLines are the docked session: its tab and the rule, then its screen.
 func (m *Model) sessionLines(w, h int) []string {
 	lines := m.term.view(m, w, h-sessStripH)
 	out := []string{m.sessionStrip(w), m.sessionRule(w)}
@@ -3804,7 +3711,7 @@ func (m *Model) cycleTerm(d int) tea.Cmd {
 }
 
 func (m *Model) newTerm() tea.Cmd {
-	return m.spawn(m.ws, termAgent, m.rootOf(m.sess), nil, "", nil) // the daemon picks the shell
+	return m.spawn(m.ws, termAgent, m.sess, nil, "", nil) // the daemon picks the shell
 }
 
 // toggleTerminal is ⌃`: it opens the terminal where it is docked and focuses
@@ -3873,7 +3780,7 @@ func (m *Model) startTerm() tea.Cmd {
 	return m.fetchScreen()
 }
 
-// sessStripH is the rows over a session's screen: its tabs and their rule.
+// sessStripH is the rows over a session's screen: its tab and the rule.
 const sessStripH = 2
 
 // termStripH is the same over the Terminal's.

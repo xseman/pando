@@ -952,7 +952,7 @@ type edTab struct {
 }
 
 // editorTabs lays the strip out: the open files, then the sessions opened
-// over the editor area, the one shown with its tabs;
+// over the editor area;
 // tabs on the left give way until the active one fits.
 func (m *Model) editorTabs(w int) []edTab {
 	sessOn := m.showsSession()
@@ -979,17 +979,11 @@ func (m *Model) editorTabs(w int) []edTab {
 		items = append(items, edTab{i: i, w: ansi.StringWidth(label), label: label, icon: icon, active: active})
 	}
 
-	for _, root := range m.stripSessions() {
-		group := []proto.Session{*m.session(root)}
-		if shown := sessOn && root == m.rootOf(m.sess); shown {
-			group = m.tabsOf(root)
-		}
-
-		for _, s := range group {
-			active := sessOn && s.ID == m.sess
-			label, tip := m.sessLabel(s, active, w-3)
-			items = append(items, edTab{i: -1, id: s.ID, w: ansi.StringWidth(label), label: label, tip: tip, active: active, bg: m.highlight(s)})
-		}
+	for _, id := range m.stripSessions() {
+		s := *m.session(id)
+		active := sessOn && id == m.sess
+		label, tip := m.sessLabel(s, active, w-3)
+		items = append(items, edTab{i: -1, id: id, w: ansi.StringWidth(label), label: label, tip: tip, active: active, bg: m.highlight(s)})
 	}
 
 	at, total := -1, 0
@@ -1025,20 +1019,20 @@ func (m *Model) editorTabs(w int) []edTab {
 }
 
 // stripSessions are the sessions of the workspace in view opened over the
-// editor area, the roots of their tabs, in the order they were opened: the
+// editor area, in the order they were opened: the
 // one shown among them, and none docked in a column of its own, which has
 // its strip there.
 func (m *Model) stripSessions() []string {
 	var out []string
 
 	for _, id := range m.sessTabs[m.ws] {
-		if m.session(id) != nil && (!m.sessDocked() || id != m.rootOf(m.sess)) {
+		if m.session(id) != nil && (!m.sessDocked() || id != m.sess) {
 			out = append(out, id)
 		}
 	}
 
-	if r := m.rootOf(m.sess); m.showsSession() && !slices.Contains(out, r) {
-		out = append(out, r)
+	if m.showsSession() && !slices.Contains(out, m.sess) {
+		out = append(out, m.sess)
 	}
 
 	return out
@@ -1055,27 +1049,22 @@ func (m *Model) openSessTab(id string) {
 		m.sessTabs = map[string][]string{}
 	}
 
-	if r := m.rootOf(id); !slices.Contains(m.sessTabs[s.Workspace], r) {
-		m.sessTabs[s.Workspace] = append(m.sessTabs[s.Workspace], r)
+	if !slices.Contains(m.sessTabs[s.Workspace], id) {
+		m.sessTabs[s.Workspace] = append(m.sessTabs[s.Workspace], id)
 	}
 }
 
-// closeSessTab is a session tab's ✕: the session's own tab leaves the strip,
-// the session running on, and the tab before it shows; one of its shell tabs
-// is killed, as the session's strip has it.
+// closeSessTab is a session tab's ✕: the tab leaves the strip, the session
+// running on, and the tab before it shows.
 func (m *Model) closeSessTab(id string) tea.Cmd {
-	if m.rootOf(id) != id {
-		return m.confirmKill(id)
-	}
-
-	if m.rootOf(m.sess) != id {
+	if m.sess != id {
 		m.sessTabs[m.ws] = slices.DeleteFunc(slices.Clone(m.sessTabs[m.ws]), func(r string) bool { return r == id })
 		return nil
 	}
 
 	cmd := m.hideSession()
 	if rest := m.stripSessions(); m.pv.kind == "" && len(rest) > 0 { // no file to show: the session before it
-		return tea.Batch(cmd, m.switchSession(m.lastTabOf(rest[len(rest)-1])))
+		return tea.Batch(cmd, m.switchSession(rest[len(rest)-1]))
 	}
 
 	return cmd
@@ -1132,7 +1121,7 @@ func (m *Model) editorStrip(w int) string {
 		right, _ = m.pv.buttonSegs(m, w)
 	}
 
-	return m.stripMark(m.stripMark(row(w, nil, segs, right...), stripEditor, 0), stripSession, 0)
+	return m.stripMark(row(w, nil, segs, right...), stripEditor, 0)
 }
 
 // edTabsEnd is the column after the strip's last tab.
@@ -1157,7 +1146,7 @@ func (m *Model) noteSessTabs(tabs []edTab) {
 		switch {
 		case t.i >= 0:
 		case t.id != "" && t.id == m.overX:
-			m.tip = ifElse(m.rootOf(t.id) == t.id, "Close (keeps running)", "Kill Session…")
+			m.tip = "Close (keeps running)"
 		case t.id != "" && t.id == m.overTab && t.tip != "":
 			m.tip = t.tip
 		}
@@ -1269,9 +1258,8 @@ func (m *Model) stripMouse(x int, mo tea.Mouse) tea.Cmd {
 
 // sessTabClick is a click on session tab t at strip column x: the right
 // button opens its menu, the middle one or the ✕ closes it; else it shows,
-// and the left button picks it up: one of its shell tabs to move along its
-// tabs, the session's own to dock, dragged to the editor area's right or left
-// edge, as its title does.
+// and the left button picks it up to dock, dragged to the editor area's right
+// or left edge, as its title does.
 func (m *Model) sessTabClick(t edTab, x int, mo tea.Mouse) tea.Cmd {
 	switch {
 	case mo.Button == tea.MouseRight:
@@ -1280,18 +1268,8 @@ func (m *Model) sessTabClick(t edTab, x int, mo tea.Mouse) tea.Cmd {
 		return m.closeSessTab(t.id)
 	}
 
-	id := t.id
-	if !m.showsSession() || m.rootOf(id) != m.rootOf(m.sess) { // a session not shown: back to the tab it was on, as Spaces does
-		id = m.lastTabOf(id)
-	}
-
-	cmd := m.switchSession(id)
-
-	switch {
-	case mo.Button != tea.MouseLeft:
-	case m.rootOf(t.id) != t.id:
-		m.grabTab(stripSession, t.id, x)
-	default:
+	cmd := m.switchSession(t.id)
+	if mo.Button == tea.MouseLeft {
 		m.drag = &drag{kind: dragTab, v: viewSession, x0: mo.X, y0: mo.Y}
 	}
 

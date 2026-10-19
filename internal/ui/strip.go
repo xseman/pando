@@ -15,7 +15,7 @@ import (
 // herdr's tabs do.
 const (
 	stripEditor  = iota + 1 // the editors over the main area
-	stripSession            // the tabs of the session in view; the session's own stays first
+	stripSession            // the session in view: its one tab, which stays
 	stripTerm               // the Terminal's shells
 )
 
@@ -30,30 +30,10 @@ type stripTab struct {
 func (m *Model) stripTabs(s int) []stripTab {
 	var out []stripTab
 
-	switch s {
-	case stripEditor: // the files' tabs; a session's drags to dock
+	if s == stripEditor { // the files' tabs; a session's drags to dock
 		for _, t := range m.editorTabs(m.mainW()) {
 			if t.i >= 0 {
 				out = append(out, stripTab{id: m.editors[t.i].id(), x: t.x, w: t.w})
-			}
-		}
-
-		return out
-
-	case stripSession:
-		if m.showsSession() { // over the editor area, in its strip
-			for _, t := range m.editorTabs(m.mainW()) {
-				if t.id != "" && t.id != m.rootOf(m.sess) && m.rootOf(t.id) == m.rootOf(m.sess) {
-					out = append(out, stripTab{id: t.id, x: t.x, w: t.w})
-				}
-			}
-
-			return out
-		}
-
-		for _, t := range m.sessionTabs(m.sessW()) {
-			if t.id != m.rootOf(m.sess) {
-				out = append(out, stripTab{id: t.id, x: t.x, w: t.w})
 			}
 		}
 
@@ -167,8 +147,7 @@ func (m *Model) stripOrder(s int) []string {
 		return out
 
 	case stripSession:
-		root := m.rootOf(m.sess)
-		ss = slices.DeleteFunc(m.tabsOf(root), func(s proto.Session) bool { return s.ID == root })
+		return nil
 
 	default:
 		ss = m.termSessions()
@@ -193,11 +172,7 @@ func (m *Model) stripActive(s int) string {
 		return ""
 
 	case stripSession:
-		if m.sess == m.rootOf(m.sess) {
-			return ""
-		}
-
-		return m.sess
+		return ""
 	}
 
 	return m.tv.id
@@ -239,7 +214,7 @@ func (m *Model) stripMove(s int, id, to string) {
 }
 
 // stripSave keeps where tab id went: the workspace's editors in state.json,
-// a session's tabs and shells through session.move onto to.
+// the Terminal's shells through session.move onto to.
 func (m *Model) stripSave(s int, id, to string) tea.Cmd {
 	switch {
 	case s == stripEditor:

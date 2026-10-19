@@ -170,14 +170,14 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
   prompt's echo reads as running for a moment. A server printing in one
   keeps it turning, a redraw every 250 ms.
 - A tab strip draws the glyph on an agent's tab only, one started by hand
-  in a shell tab or a Terminal panel tab too (`runsAgent`, its `Program`):
+  in a Terminal panel tab too (`runsAgent`, its `Program`):
   a shell's screen reads like an agent's, so a server's logs would show as
   working.
 - `session_highlight` tints blocked, exited and done tabs (`sessionTint`);
   the tint pulses until the session is clicked or shown (`pulses`). A
   Spaces row is never tinted, so none reads as selected: its status says
   `input`, `done` or `exit N` in its symbol's color, bold on the pulse's
-  beat, for its tabs too. `"steady"` drops the pulse, `"off"` the tint and
+  beat. `"steady"` drops the pulse, `"off"` the tint and
   the color.
 - The session on screen has the accent's `▎` in its row's first cell and
   its name in the accent (`header_accent`).
@@ -196,8 +196,6 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
 | `n`, hover btn | its worktree's harness     | the harness (`harnessPicker`)                       | a worktree or a new one  |
 | Resume         | menu, header: its worktree | hover btn, menu, header (`resumePicker`)            | header: which worktree   |
 
-- A click on a session opens its one tab with a new state (`newsTab`);
-  with several, the tab shown last, and again it puts the session away.
 - The right-click menu groups by action, rules from `menuGroups`: create
   (New Session, Resume Session, New Worktree, Add / Open Project), the row's
   own (Rename, Pin, Move), go to / view options, then remove. A session's title
@@ -254,9 +252,8 @@ profile, whose config holds the conversations. The header's `↺`, after `+`,
 resumes in the selected row's worktree, a project asking which
 (`agents.resume`).
 
-A session is one tab: its strip has no `+`. Shell tabs a session kept from
-before (`tabsOf`) still show, `[` `]` cycle them, middle click or `✕` kills
-after asking.
+A session is one tab: its strip has no `+`, its shells live in its Terminal
+panel.
 
 ## Terminal
 

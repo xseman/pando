@@ -105,7 +105,7 @@ func TestPanelTabs(t *testing.T) {
 func TestPanelStaysForItsLists(t *testing.T) {
 	m := panelModel(t)
 	m.ptab = ptOutput
-	m.Update(sessionsMsg(m.agentSessions()))
+	m.Update(sessionsMsg(m.mainSessions()))
 
 	if !m.termOpen() {
 		t.Fatal("the last shell gone shuts the panel on the Output tab")

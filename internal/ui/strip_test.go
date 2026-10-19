@@ -25,8 +25,7 @@ func markAt(line string) int {
 
 // TestMoveTab moves the focused strip's tab with ⌃⇧pgup ⌃⇧pgdn, wrapping
 // at either end as herdr's move_tab_previous and move_tab_next do: the
-// Terminal's shell with the keyboard in the panel, the session's tab with a
-// session in view, which keeps its own tab first, else the active editor.
+// Terminal's shell with the keyboard in the panel, else the active editor.
 func TestMoveTab(t *testing.T) {
 	m := testModelSized(t, 120, 24)
 	drainInputs(m)
@@ -65,10 +64,6 @@ func TestMoveTab(t *testing.T) {
 		t.Fatal("Move Tab Left is a command [keys] can bind")
 	}
 
-	tab := func(id string) proto.Session {
-		return proto.Session{SessionSpec: proto.SessionSpec{ID: id, Workspace: m.ws, Agent: tabAgent, Parent: "s1"}, Status: "idle"}
-	}
-
 	shell := func(id string) proto.Session {
 		s := termSession(m.ws, id)
 		s.Parent = "s1"
@@ -76,7 +71,7 @@ func TestMoveTab(t *testing.T) {
 		return s
 	}
 
-	m.Update(sessionsMsg{m.sessions[0], tab("t1"), tab("t2"), shell("p1"), shell("p2")})
+	m.Update(sessionsMsg{m.sessions[0], shell("p1"), shell("p2")})
 	m.Update(focusSessionMsg("s1"))
 
 	ids := func(ss []proto.Session) string {
@@ -86,20 +81,6 @@ func TestMoveTab(t *testing.T) {
 		}
 
 		return strings.Join(out, " ")
-	}
-
-	press(m, "ctrl+shift+pgdown")
-
-	if got := ids(m.tabsOf("s1")); got != "s1 t1 t2" {
-		t.Fatalf("the session's own tab does not move: %s", got)
-	}
-
-	m.Update(focusSessionMsg("t1"))
-	m.focus = onMain
-	press(m, "ctrl+shift+pgup")
-
-	if got := ids(m.tabsOf("s1")); got != "s1 t2 t1" {
-		t.Fatalf("⌃⇧pgup wraps the first tab past the last, behind the session's own: %s", got)
 	}
 
 	m.tv.id = "p1"
@@ -186,68 +167,6 @@ func TestDragEditorTab(t *testing.T) {
 
 	if m.drag != nil || m.edIdx != 0 || names() != "README.md a-much-longer-name.txt .env" {
 		t.Fatalf("a click that never moved only activates: drag %+v, %s", m.drag, names())
-	}
-}
-
-// TestDragSessionTab reorders a session's tabs by a drag in the editor
-// area's strip: the session's own tab stays first and picks up to dock
-// instead, a drop over it lands right after it, and the release tells the
-// daemon.
-func TestDragSessionTab(t *testing.T) {
-	m := testModel(t)
-	drainInputs(m)
-
-	tab := func(id string) proto.Session {
-		return proto.Session{SessionSpec: proto.SessionSpec{ID: id, Workspace: m.ws, Agent: tabAgent, Parent: "s1", Cmd: []string{"/bin/" + id}}, Status: "idle"}
-	}
-
-	m.Update(sessionsMsg{m.sessions[0], tab("t1"), tab("t2"), tab("t3")})
-	m.Update(focusSessionMsg("t1"))
-
-	order := func() string {
-		var out []string
-		for _, s := range m.tabsOf("s1") {
-			out = append(out, s.ID)
-		}
-
-		return strings.Join(out, " ")
-	}
-
-	at := func(id string) (x, w int) {
-		for _, t := range m.editorTabs(m.mainW()) {
-			if t.id == id {
-				return m.mainX() + t.x, t.w
-			}
-		}
-
-		t.Fatalf("no tab %s on the strip", id)
-
-		return 0, 0
-	}
-
-	x, _ := at("s1")
-	m.Update(tea.MouseClickMsg{X: x + 1, Y: 0, Button: tea.MouseLeft})
-
-	if m.sess != "s1" || m.drag == nil || m.drag.kind != dragTab {
-		t.Fatalf("the session's own tab shows and picks up to dock, not to move: %q, %+v", m.sess, m.drag)
-	}
-
-	m.Update(tea.MouseReleaseMsg{X: x + 1, Y: 0, Button: tea.MouseLeft})
-
-	x, _ = at("t3")
-	m.Update(tea.MouseClickMsg{X: x + 1, Y: 0, Button: tea.MouseLeft})
-
-	x, _ = at("s1")
-	m.Update(tea.MouseMotionMsg{X: x + 1, Y: 0, Button: tea.MouseLeft})
-
-	x1, _ := at("t1")
-	if got := markAt(m.editorStrip(m.mainW())); m.drag.slot != 0 || got != x1-m.mainX()-tabGap {
-		t.Fatalf("over the session's own tab the mark sits before t1: slot %d, column %d", m.drag.slot, got)
-	}
-
-	_, cmd := m.Update(tea.MouseReleaseMsg{X: x + 1, Y: 0, Button: tea.MouseLeft})
-	if got := order(); got != "s1 t3 t1 t2" || cmd == nil || m.drag != nil || m.sess != "t3" {
-		t.Fatalf("the release puts t3 first after s1 and tells the daemon: %s, cmd %v, showing %q", got, cmd != nil, m.sess)
 	}
 }
 

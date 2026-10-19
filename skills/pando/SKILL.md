@@ -211,9 +211,9 @@ the session in a workspace that already exists.
 ## Safety
 
 - Do not kill, rename, move or send input to a session you did not create,
-  and never to `$PANDO_SESSION`. Killing a session also kills its own tabs
-  (`--agent tab --parent ID`) and the shells of its Terminal panel
-  (`--agent terminal --parent ID`), so a kill takes more than one terminal.
+  and never to `$PANDO_SESSION`. Killing a session also kills the shells of
+  its Terminal panel (`--agent terminal --parent ID`), so a kill takes more
+  than one terminal.
 - The one input you send to a session you did not create is a message the
   user asked you to pass, after the checks in _Pass a message to another
   session_.

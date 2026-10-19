@@ -65,7 +65,6 @@ T: also in a terminal; the rest are the shell's there.
 - `ctrl+f`: filter (`⏎` keeps it, `esc` clears)
 - `1` `2` `3` `4` `6` `7`: Explorer, Source Control, Spaces, Search, GitHub, Databases
 - `tab`: focus main
-- `[` `]`: previous, next tab of the session
 - `b`, `<` `>`: hide this column, narrow or widen it
 - `,`, `?`: settings, help
 - `q`, `esc`: close pando, asking first (sessions keep running)

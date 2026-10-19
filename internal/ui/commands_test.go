@@ -969,7 +969,7 @@ func TestSpacesDragSession(t *testing.T) {
 	sess := func(id, parent string) proto.Session {
 		agent := "shell"
 		if parent != "" {
-			agent = tabAgent
+			agent = termAgent
 		}
 
 		return proto.Session{SessionSpec: proto.SessionSpec{ID: id, Workspace: m.ws, Agent: agent, Parent: parent}, Status: "idle"}
@@ -1955,8 +1955,8 @@ func TestTerminalPanel(t *testing.T) {
 		t.Fatalf("the panel's tabs sit under its border, the shell shown in a select: %q", out[m.mainH():m.mainH()+panelTopH+2])
 	}
 	// Terminal sessions stay out of the Agents view and the main strip.
-	if len(m.agentSessions()) != 1 || m.agentSessions()[0].ID == "t1" {
-		t.Fatalf("agent sessions = %+v", m.agentSessions())
+	if len(m.mainSessions()) != 1 || m.mainSessions()[0].ID == "t1" {
+		t.Fatalf("agent sessions = %+v", m.mainSessions())
 	}
 
 	// The + before the select opens a shell.
@@ -2000,7 +2000,7 @@ func TestTerminalPanel(t *testing.T) {
 		t.Fatalf("reopened: open=%v id=%q", m.termOpen(), m.tv.id)
 	}
 
-	m.Update(sessionsMsg(m.agentSessions()))
+	m.Update(sessionsMsg(m.mainSessions()))
 
 	if m.termOpen() || m.termRows() != 0 {
 		t.Fatal("the last terminal tab closing shuts the panel")
@@ -3434,18 +3434,7 @@ func TestSessionOverEditorTabs(t *testing.T) {
 		t.Fatal("a click on the file's tab shows the file again")
 	}
 
-	// The session's tab, the file in front, goes back to the tab it was on.
-	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s1t", Workspace: m.ws, Agent: tabAgent, Parent: "s1"}, Status: "idle"})
-	m.lastTab["s1"] = "s1t"
-
-	st, _ = tab("s1")
-	click(m, m.mainX()+st.x+1, 0, tea.MouseLeft)
-
-	if m.sess != "s1t" {
-		t.Fatalf("its tab shows the tab it was on: %q", m.sess)
-	}
-
-	// Every tab is drawn where a click finds it, past the session's + too.
+	// Every tab is drawn where a click finds it.
 	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: m.ws, Agent: "claude"}, Status: "idle"})
 	m.openSessTab("s2")
 
@@ -3463,7 +3452,6 @@ func TestSessionOverEditorTabs(t *testing.T) {
 
 	ft = m.editorTabs(m.mainW())[0]
 	click(m, m.mainX()+ft.x+1, 0, tea.MouseLeft)
-	m.Update(sessionsMsg(slices.DeleteFunc(slices.Clone(m.sessions), func(s proto.Session) bool { return s.ID == "s1t" })))
 	m.sess = "s1"
 	m.preview = true
 
@@ -4087,98 +4075,6 @@ func TestSpacesCloseOrDelete(t *testing.T) {
 	}
 }
 
-// TestSessionTabs is herdr's workspace and its tabs: every session in the
-// Spaces tree has tabs of its own, which its strip shows and [ ] cycle. A
-// tab is not a session of the tree; the session carries its tabs' state,
-// going back to it lands on the tab it was on, and its Terminal panel is
-// shared by its tabs.
-func TestSessionTabs(t *testing.T) {
-	m := testModel(t)
-	drainInputs(m)
-
-	other := t.TempDir()
-	m.wss = append(m.wss, proto.Workspace{Path: other, Project: m.ws, Branch: "feat"})
-	m.sessions = append(m.sessions,
-		proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: m.ws, Agent: "shell"}, Status: "idle"},
-		proto.Session{SessionSpec: proto.SessionSpec{ID: "t1", Workspace: m.ws, Agent: tabAgent, Parent: "s1", Cmd: []string{"/bin/fish"}}, Status: "blocked"},
-		proto.Session{SessionSpec: proto.SessionSpec{ID: "p1", Workspace: m.ws, Agent: termAgent, Parent: "s1"}, Status: "idle"},
-		proto.Session{SessionSpec: proto.SessionSpec{ID: "o1", Workspace: other, Agent: "shell"}, Status: "idle"})
-	m.Update(focusSessionMsg("s1"))
-
-	ids := func(ss []proto.Session) []string {
-		var out []string
-		for _, s := range ss {
-			out = append(out, s.ID)
-		}
-
-		return out
-	}
-
-	if got := ids(m.spaceSessions()); !slices.Equal(got, []string{"s1", "s2"}) {
-		t.Fatalf("the space lists its sessions, not their tabs: %v", got)
-	}
-
-	tabs := m.sessionTabs(100)
-	if len(tabs) != 2 || tabs[0].id != "s1" || tabs[1].id != "t1" || !strings.Contains(tabs[1].label, "fish") {
-		t.Fatalf("the strip holds s1's own tabs: %+v", tabs)
-	}
-
-	// The tree shows s1 once, carrying its blocked tab's state.
-	m.showView(viewAgents)
-	checkWidths(t, m)
-
-	var tree []string
-
-	for _, r := range m.ag.rows(m) {
-		if r.kind == agSession {
-			tree = append(tree, r.s.ID)
-		}
-	}
-
-	lines := strings.Join(m.ag.lines(m, 30, 20), "\n")
-	if !slices.Equal(tree, []string{"s1", "s2", "o1"}) || !strings.Contains(ansi.Strip(lines), "├─ × shell") {
-		t.Fatalf("Spaces tree %v:\n%s", tree, ansi.Strip(lines))
-	}
-
-	m.cycleSession(1)
-
-	if m.sess != "t1" || m.rootOf(m.sess) != "s1" {
-		t.Fatalf("] goes to s1's next tab: %q", m.sess)
-	}
-
-	// The Terminal panel is the session's, whichever of its tabs is shown.
-	if got := ids(m.termSessions()); !slices.Equal(got, []string{"p1"}) {
-		t.Fatalf("s1's panel from its tab: %v", got)
-	}
-
-	m.cycleSession(1)
-
-	if m.sess != "s1" {
-		t.Fatalf("] wraps inside the session, got %q", m.sess)
-	}
-
-	m.cycleSession(-1)
-	m.Update(focusSessionMsg("s2"))
-
-	if got := m.lastTabOf("s1"); got != "t1" {
-		t.Fatalf("back to s1 lands on the tab it was on: %q", got)
-	}
-
-	// Closing a tab hands the strip to its neighbour in the session.
-	m.Update(focusSessionMsg("t1"))
-	send(m, sessionsMsg(slices.DeleteFunc(slices.Clone(m.sessions), func(s proto.Session) bool { return s.ID == "t1" })))
-
-	if m.sess != "s1" {
-		t.Fatalf("the closed tab handed over to %q", m.sess)
-	}
-
-	m.Update(focusSessionMsg("o1"))
-
-	if m.ws != other || len(m.sessionTabs(100)) != 1 {
-		t.Fatalf("the other space's session has its own tabs only: ws=%q tabs=%d", m.ws, len(m.sessionTabs(100)))
-	}
-}
-
 // TestSashHover lights a divider once the pointer has rested on it, VS
 // Code's sash.hoverBorder after its hover delay, in a shade apart from the
 // accent it drags in: a column's edge with and without panel borders, and
@@ -4342,95 +4238,6 @@ func TestTerminalPanelPerWorkspace(t *testing.T) {
 
 	if m.termOpen() {
 		t.Fatal("a worktree never visited follows the last state set: shut")
-	}
-}
-
-// TestTabPulseOnSelectedRow: a tab out of view coming to a state shows on
-// its session's Spaces row even while that row is selected, as the session
-// on screen usually is: its status says input, bold on the pulse's beat, the
-// row keeps the selection's background and the accent's bar.
-func TestTabPulseOnSelectedRow(t *testing.T) {
-	m := testModel(t)
-	m.st.Settings.SessHi = "tint"
-	tab := proto.Session{SessionSpec: proto.SessionSpec{ID: "t1", Workspace: m.ws, Agent: tabAgent, Parent: "s1"}, Status: "running"}
-	m.Update(sessionsMsg{m.sessions[0], tab})
-	m.Update(focusSessionMsg("s1"))
-	press(m, "3")
-
-	tab.Status = "blocked" // after the click: news
-	m.Update(sessionsMsg{m.sessions[0], tab})
-
-	for i, r := range m.ag.rows(m) {
-		if r.kind == agSession && r.s.ID == "s1" {
-			m.ag.l.sel = i
-		}
-	}
-
-	row := func() string {
-		r := m.ag.rows(m)
-		lines := m.ag.lines(m, 40, len(r))
-
-		return lines[m.ag.l.sel-m.ag.l.top]
-	}
-
-	m.blinkOn = true
-
-	if r := row(); !strings.Contains(ansi.Strip(r), "input") || !strings.Contains(r, "\x1b[1;") || strings.Contains(r, bgParams(pal.blockedBg)) || !strings.Contains(r, "▎") {
-		t.Fatalf("the selected row: input, bold on the beat, untinted, the active bar: %q", r)
-	}
-
-	m.blinkOn = false
-
-	if r := row(); strings.Contains(r, bgParams(pal.blockedSoftBg)) || !strings.Contains(ansi.Strip(r), "input") {
-		t.Fatalf("the other beat: %q", r)
-	}
-
-	m.acknowledge("t1")
-	m.blinkOn = true
-
-	if strings.Contains(row(), bgParams(pal.blockedBg)) {
-		t.Fatalf("a seen tab leaves the selection alone: %q", row())
-	}
-}
-
-// TestClickOpensNewsTab: a click on a session row whose one tab out of view
-// came to a new state opens that tab, rather than putting the session away;
-// with several, it goes back to the tab shown last, as before.
-func TestClickOpensNewsTab(t *testing.T) {
-	m := testModel(t)
-	m.st.Settings.SessHi = "tint"
-	tab := func(id, status string) proto.Session {
-		return proto.Session{SessionSpec: proto.SessionSpec{ID: id, Workspace: m.ws, Agent: tabAgent, Parent: "s1"}, Status: status}
-	}
-
-	m.Update(sessionsMsg{m.sessions[0], tab("t1", "running"), tab("t2", "running")})
-	m.Update(focusSessionMsg("s1"))
-	press(m, "3")
-
-	click := func() {
-		for _, r := range m.ag.rows(m) {
-			if r.kind == agSession && r.s.ID == "s1" {
-				m.ag.click(m, &r)
-			}
-		}
-	}
-
-	m.Update(sessionsMsg{m.sessions[0], tab("t1", "running"), tab("t2", "blocked")})
-	click()
-
-	if m.sess != "t2" || !m.inView("t2") {
-		t.Fatalf("the click opens the blocked tab: %q", m.sess)
-	}
-
-	m.Update(sessionsMsg{m.sessions[0], tab("t1", "blocked"), tab("t2", "blocked")})
-	m.Update(focusSessionMsg("s1"))
-	m.Update(sessionsMsg{m.sessions[0], tab("t1", "exited"), tab("t2", "idle")})
-	m.sessions[2].Attention = true // t2 done too
-
-	click()
-
-	if m.inView(m.sess) {
-		t.Fatalf("two tabs with news: the second click puts it away, as before: %q", m.sess)
 	}
 }
 
@@ -4670,15 +4477,13 @@ func TestSpacesPinnedPane(t *testing.T) {
 	checkWidths(t, m)
 }
 
-// TestKilledSessionClosesPanel: a session killed with a tab and a panel
-// shell of its own hands over to none of them, which die with it, so the
-// panel closes with its last shell instead of starting one under a tab
-// about to go.
+// TestKilledSessionClosesPanel: a session killed with a panel shell of its
+// own leaves the panel on it until it dies too, then the panel closes with
+// its last shell instead of starting another.
 func TestKilledSessionClosesPanel(t *testing.T) {
 	m := testModelSized(t, 140, 30)
-	tab := proto.Session{SessionSpec: proto.SessionSpec{ID: "s1t", Workspace: m.ws, Agent: tabAgent, Parent: "s1"}, Status: "idle"}
 	shell := proto.Session{SessionSpec: proto.SessionSpec{ID: "p1", Workspace: m.ws, Agent: termAgent, Parent: "s1", Cmd: []string{"/bin/sh"}}, Status: "idle"}
-	m.Update(sessionsMsg{m.sessions[0], tab, shell})
+	m.Update(sessionsMsg{m.sessions[0], shell})
 	m.Update(focusSessionMsg("s1"))
 	m.showPanel(ptTerm) // ctrl+j would be the session's
 	drainInputs(m)
@@ -4687,10 +4492,10 @@ func TestKilledSessionClosesPanel(t *testing.T) {
 		t.Fatalf("the panel shows the session's shell: open %v, %q", m.termOpen(), m.tv.id)
 	}
 
-	m.Update(sessionsMsg{tab, shell}) // the session goes first, its tab and shell after
+	m.Update(sessionsMsg{shell}) // the session goes first, its shell after
 
-	if m.sess == "s1t" {
-		t.Fatal("handed over to its own tab, which dies with it")
+	if m.sess != "" {
+		t.Fatalf("handed over to %q", m.sess)
 	}
 
 	m.Update(sessionsMsg{})

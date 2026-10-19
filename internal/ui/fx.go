@@ -543,7 +543,7 @@ func (m *Model) noteFx() {
 	}
 
 	perWs := map[string]int{}
-	for _, s := range m.agentSessions() {
+	for _, s := range m.mainSessions() {
 		perWs[s.Workspace]++
 	}
 

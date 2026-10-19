@@ -173,7 +173,6 @@ type Model struct {
 	msgErr      bool
 	msgAt       time.Time
 	soundAt     time.Time         // when the last sound cue played
-	lastTab     map[string]string // session to its tab shown last
 	seen        map[string]string // session to the state it was last clicked or shown in
 	blinkOn     bool              // a pulsing tint is at its full shade
 	blinking    bool              // its ticker runs
@@ -1933,7 +1932,7 @@ func (m *Model) toggleMax(file bool) tea.Cmd {
 // state.json: each session keeps its own, so going back to one, or a
 // restart, shows it as it was left. Sessions gone since drop out.
 func (m *Model) maxSession(on bool) tea.Cmd {
-	id := m.rootOf(m.sess)
+	id := m.sess
 	if id == "" {
 		return nil
 	}
@@ -1971,8 +1970,7 @@ func (m *Model) hideSession() tea.Cmd {
 	}
 
 	if m.sessTabs != nil { // its tab goes with it
-		r := m.rootOf(m.sess)
-		m.sessTabs[m.ws] = slices.DeleteFunc(slices.Clone(m.sessTabs[m.ws]), func(id string) bool { return id == r })
+		m.sessTabs[m.ws] = slices.DeleteFunc(slices.Clone(m.sessTabs[m.ws]), func(id string) bool { return id == m.sess })
 	}
 
 	m.sess, m.term = "", term{}
@@ -2005,7 +2003,7 @@ func (m *Model) sessionTitleMenu() tea.Cmd {
 	return m.menuOf(menuGroups(place,
 		[]item{
 			{label: "Rename…", run: func(m *Model) tea.Cmd { return m.renameSession(id) }},
-			{label: m.pinLabel(m.rootOf(id)), run: func(m *Model) tea.Cmd { return m.togglePin(m.rootOf(id)) }},
+			{label: m.pinLabel(id), run: func(m *Model) tea.Cmd { return m.togglePin(id) }},
 		},
 		[]item{
 			{label: "Close (keeps running)", run: func(m *Model) tea.Cmd { return m.hideSession() }},
@@ -2407,7 +2405,7 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 
 	if s := m.session(m.sess); s == nil || s.Workspace != path {
 		m.sess = ""
-		for _, s := range m.agentSessions() {
+		for _, s := range m.mainSessions() {
 			if s.Workspace == path {
 				m.sess = s.ID
 				break
@@ -2433,7 +2431,7 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 	case was == "file" && m.edIdx >= 0:
 		m.maxed, m.preview = true, true
 	default:
-		m.maxed = slices.Contains(m.st.Maxed, m.rootOf(m.sess))
+		m.maxed = slices.Contains(m.st.Maxed, m.sess)
 		m.preview = m.preview && (m.sess == "" || m.sessDocked())
 	}
 	// The panel as this workspace left it: open or shut, maximized or not,
@@ -2491,20 +2489,11 @@ func (m *Model) switchSession(id string) tea.Cmd {
 	// rather than picking one — and the Terminal panel follows the session.
 	m.sess, m.preview = id, false
 	m.openSessTab(id)
-
-	if m.lastTab == nil {
-		m.lastTab = map[string]string{}
-	}
-
-	m.lastTab[m.rootOf(id)] = id
-
-	for _, t := range m.tabsOf(m.rootOf(id)) { // clicked: its state and its tabs' are seen
-		m.acknowledge(t.ID)
-	}
+	m.acknowledge(id) // clicked: its state is seen
 
 	switched := m.switchWorkspace(s.Workspace)
 	if !m.preview { // not a file its worktree left maximized: the session as it was left
-		m.maxed = slices.Contains(m.st.Maxed, m.rootOf(id))
+		m.maxed = slices.Contains(m.st.Maxed, id)
 	}
 
 	return tea.Batch(switched, m.ensureTerm(), m.fetchScreen(), m.refreshGit())
@@ -2723,17 +2712,9 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if prev := m.session(m.sess); prev != nil && !slices.ContainsFunc(msg, func(s proto.Session) bool { return s.ID == prev.ID }) {
 			m.flash(sessionName(*prev)+" session closed", false)
-			// Before the list is replaced: a closed tab hands over to its
-			// neighbour in the session, a closed session to one of the space;
-			// never to its own tabs, which die with it.
-			root := m.rootOf(m.sess)
-			if slices.ContainsFunc(msg, func(s proto.Session) bool { return s.ID == root }) {
-				next = nextTab(m.tabsOf(root), m.sess, msg)
-			}
-
-			if next == "" {
-				next = nextTab(m.spaceSessions(), root, msg)
-			}
+			// Before the list is replaced: a closed session hands over to one
+			// of the space.
+			next = nextTab(m.spaceSessions(), m.sess, msg)
 
 			m.sess, m.term = "", term{}
 		}
@@ -2877,7 +2858,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case consoleMsg:
-		return m, tea.Batch(m.showTerminal(), m.spawn(m.ws, termAgent, m.rootOf(m.sess), msg.argv, "", nil))
+		return m, tea.Batch(m.showTerminal(), m.spawn(m.ws, termAgent, m.sess, msg.argv, "", nil))
 
 	case ghDoneMsg:
 		return m, m.gh.onDone(m, msg)
@@ -3314,8 +3295,6 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 
 		return tea.Batch(m.saveCols(), m.fetchScreen())
 
-	case "[", "]":
-		return m.cycleSession(map[string]int{"[": -1, "]": 1}[s])
 	case "tab":
 		if m.sess != "" || m.pv.kind != "" {
 			m.focus = onMain
@@ -3447,27 +3426,6 @@ func (m *Model) closeEmptyFilters() {
 			m.clearFilter(view(i))
 		}
 	}
-}
-
-func (m *Model) cycleSession(d int) tea.Cmd {
-	ss := m.tabsOf(m.rootOf(m.sess))
-	if len(ss) == 0 {
-		ss = m.spaceSessions() // none in view: the space's first
-	}
-
-	if len(ss) == 0 {
-		return nil
-	}
-
-	i := 0
-
-	for j, s := range ss {
-		if s.ID == m.sess {
-			i = (j + d + len(ss)) % len(ss)
-		}
-	}
-
-	return m.switchSession(ss[i].ID)
 }
 
 // shiftMouse moves a mouse event's row by dy (the border row above the content).
@@ -3871,7 +3829,7 @@ func (m *Model) viewMouse(v view, msg tea.MouseMsg, x, y int) tea.Cmd {
 		return m.panelMouse(msg, x, y-termStripH)
 
 	case viewSession:
-		if y == 0 { // its tabs
+		if y == 0 { // its tab
 			m.setOver(stripSession, x)
 
 			if click {
@@ -4933,7 +4891,7 @@ func (m *Model) projectPicker() tea.Cmd {
 			}
 		}
 
-		for _, s := range m.agentSessions() {
+		for _, s := range m.mainSessions() {
 			if w := m.workspace(s.Workspace); w != nil && w.Project == p {
 				n++
 			}
@@ -5176,7 +5134,7 @@ var hotkeys = map[view][][2]string{
 	viewDB:     {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"n", "new connection"}, {"e D", "edit/remove"}, {"c y", "copy name/path"}, {"r", "refresh"}, {"C", "collapse"}, {"^f", "filter"}},
 }
 
-var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4 6 7", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"M-t", "agents"}, {"^tab", "editors"}, {"^⇧pgup ^⇧pgdn", "move tab"}, {"^f", "find"}, {"^⇧m", "problems"}, {"^⇧u", "output"}, {"M-, M-.", "back/forward"}, {"[ ]", "sessions"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"F10", "manage"}, {"esc q", "quit"}}
+var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4 6 7", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"M-t", "agents"}, {"^tab", "editors"}, {"^⇧pgup ^⇧pgdn", "move tab"}, {"^f", "find"}, {"^⇧m", "problems"}, {"^⇧u", "output"}, {"M-, M-.", "back/forward"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"F10", "manage"}, {"esc q", "quit"}}
 
 var previewKeys = [][2]string{{"↑↓", "move"}, {"⇧↑↓", "select"}, {"^a", "all"}, {"y", "copy"}, {"s", "split diff"}, {"m", "stage/revert lines"}, {"] [", "next, prev change"}, {"} {", "next, prev file"}, {"F8 ⇧F8", "next, prev problem"}, {"^⇧[ ^⇧]", "fold, unfold"}, {"w", "wrap"}, {"^f", "find"}, {"^h", "replace"}, {"^g", "go to line"}, {"f12", "definition"}, {"⇧f12", "references"}, {"^k", "hover"}, {"^.", "code action"}, {"e", "edit"}, {"q", "close"}}
 

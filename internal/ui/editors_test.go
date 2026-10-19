@@ -368,13 +368,13 @@ func TestTabChips(t *testing.T) {
 	}
 
 	// A shell's tab has no status glyph: a server's logs are not an agent at
-	// work. An agent started in a tab or a terminal shows its own.
+	// work. An agent started in a terminal shows its own.
 	m.st.Agents["claude"] = []string{"claude", "--verbose"}
 	busy := []proto.Session{
 		{SessionSpec: proto.SessionSpec{ID: "a", Agent: "claude"}, Status: "running"},
-		{SessionSpec: proto.SessionSpec{ID: "b", Agent: tabAgent}, Status: "running", Program: "node"},
+		{SessionSpec: proto.SessionSpec{ID: "b", Agent: termAgent}, Status: "running", Program: "node"},
 		{SessionSpec: proto.SessionSpec{ID: "c", Agent: termAgent}, Status: "running"},
-		{SessionSpec: proto.SessionSpec{ID: "d", Agent: tabAgent}, Status: "running", Program: "claude"},
+		{SessionSpec: proto.SessionSpec{ID: "d", Agent: termAgent}, Status: "running", Program: "claude"},
 		{SessionSpec: proto.SessionSpec{ID: "e", Agent: termAgent}, Status: "idle", Program: "claude"},
 	}
 

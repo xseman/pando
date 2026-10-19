@@ -118,11 +118,10 @@ over the editor area, a tab in its strip) or `right` / `left` (a column;
 unsized, half the editor area).
 
 - Over the editor area each session opened from Spaces has a tab after the
-  files' (`stripSessions`, `sessTabs`, not saved; the one shown stays), the
-  one shown with its shell tabs (`editorTabs`). Opening a file
-  keeps it there; the file's tab or `alt+N` brings the file forward. Its ✕
-  (`closeSessTab`) closes the tab, the session running on, and shows the
-  session before it when no file is open; a shell tab's ✕ kills it.
+  files' (`stripSessions`, `sessTabs`, not saved; the one shown stays;
+  `editorTabs`). Opening a file keeps it there; the file's tab or `alt+N`
+  brings the file forward. Its ✕ (`closeSessTab`) closes the tab, the
+  session running on, and shows the session before it when no file is open.
 - Its tab dragged to the editor area's right or left quarter docks it there
   (`sessTabClick` starts the title's `dragTab`, `sessionDrop`); docked, its
   tab leaves the strip for the column's own. Short of room the column comes
