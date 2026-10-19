@@ -133,6 +133,25 @@ func TestWindowsDaemon(t *testing.T) {
 	t.Cleanup(func() {
 		t.Setenv("PANDO_RUNTIME_DIR", run2)
 		_ = proto.Call("shutdown", nil, nil)
+
+		// It still saves into cfg2 after it stops answering: wait for its
+		// lock, or TempDir's cleanup finds cfg2 not empty.
+		lock := filepath.Join(run2, "pando.lock")
+		for range 200 {
+			f, err := os.OpenFile(lock, os.O_RDWR, 0)
+			if err == nil {
+				err = lockFile(f)
+				_ = f.Close()
+			}
+
+			if err == nil {
+				return
+			}
+
+			time.Sleep(50 * time.Millisecond)
+		}
+
+		t.Error("the daemon started in a session still holds its lock")
 	})
 
 	for i := 0; i < 300 && second() != nil; i++ {
