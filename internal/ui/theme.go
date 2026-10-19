@@ -49,6 +49,7 @@ type palette struct {
 	indentGuide                                                                                                color.Color // VS Code's tree.indentGuidesStroke: the Explorer's active indent guide, the one around the selection, and the editor's around the cursor
 	mdCode, mdCodeBg                                                                                           color.Color // code in rendered Markdown: inline code's text, glow's salmon, and the background of it and of code blocks
 	lineNumber, lineNumberActive                                                                               color.Color // a file's line numbers and the cursor's, Dark and Light Modern's (subtler than 2026's); nil is the terminal's text color
+	barBg                                                                                                      color.Color // VS Code's activityBar.background and statusBar.background: the activity bar down a side, a rail and the status bar; nil keeps the terminal's
 	descFg                                                                                                     color.Color // VS Code's descriptionForeground: a picker's dates, details and group labels, where Faint is not drawn by every terminal
 }
 
@@ -81,6 +82,7 @@ var (
 		tabBorder: hex("#3c3d40"), panelBorder: hex("#5f5f5f"),
 		sashHover: hex("#2c7092"), whitespace: hex("#3e3f40"), indentGuide: hex("#585858"), mdCode: hex("#ff7b72"), mdCodeBg: hex("#242526"),
 		lineNumber: hex("#6e7681"), lineNumberActive: hex("#cccccc"), descFg: hex("#9d9d9d"),
+		barBg: hex("#191a1b"),
 	}
 	vscodeLight = palette{
 		light:    true,
@@ -109,6 +111,7 @@ var (
 		sashHover: hex("#5c9fe0"), whitespace: hex("#d0d0d4"), indentGuide: hex("#a9a9a9"), mdCode: hex("#800000"), mdCodeBg: hex("#ededf0"),
 		// The cursor's line number a shade darker than the rest, not 2026's navy.
 		lineNumber: hex("#6e7681"), lineNumberActive: hex("#3c4048"), descFg: hex("#6f6f73"),
+		barBg: hex("#f8f8f8"), // Light Modern's, a shade off the white where 2026's #fafafd barely shows
 	}
 	// terminalPal inherits the terminal profile's ANSI colors. Diff tints stay
 	// RGB: an ANSI background would collide with remapped syntax colors.
@@ -194,7 +197,7 @@ func (p *palette) colorKeys() map[string]*color.Color {
 		"blocked_bg": &p.blockedBg, "done_bg": &p.doneBg, "blocked_soft_bg": &p.blockedSoftBg, "done_soft_bg": &p.doneSoftBg,
 		"scrollbar_slider": &p.sliderBg, "scrollbar_slider_hover": &p.sliderHoverBg, "scrollbar_slider_active": &p.sliderActiveBg, "overview_ruler_border": &p.rulerBorder, "scrollbar_track": &p.trackBg,
 		"tab_border": &p.tabBorder, "panel_border": &p.panelBorder, "sash_hover": &p.sashHover, "whitespace": &p.whitespace, "indent_guide": &p.indentGuide,
-		"md_code": &p.mdCode, "md_code_bg": &p.mdCodeBg,
+		"md_code": &p.mdCode, "md_code_bg": &p.mdCodeBg, "bar_bg": &p.barBg,
 		"line_number": &p.lineNumber, "line_number_active": &p.lineNumberActive, "description": &p.descFg,
 	}
 }
@@ -389,6 +392,8 @@ var (
 	icBranch     = glyph{"git-branch (dev)", "\ue725", "⎇", "⎇"}
 	icPublish    = glyph{"cloud-upload", "\ueac3", "☁", ""}
 	icSync       = glyph{"sync", "\uea77", "⇅", ""}
+	icError      = glyph{"error", "\uea87", "✖", ""}
+	icWarning    = glyph{"warning", "\uea6c", "⚠", ""}
 	icSplit      = glyph{"split-horizontal", "", "split", ""}
 	icInline     = glyph{"diff", "", "inline", ""}
 	icUnfold     = glyph{"unfold", "\ueb73", "full", ""}
@@ -423,10 +428,10 @@ var (
 	icView       = glyph{"eye", "\uea70", "◫", ""} // a view of a database: rows read, never written
 	allGlyphs    = []glyph{
 		icFiles, icGit, icSpaces, icAgents, icGear, icNewFile, icNewDir, icRefresh, icCollapse, icTree, icList,
-		icAdd, icRemove, icDiscard, icWorktree, icSparkle, icCheck, icChevron, icClose, icMax, icRestore, icBranch, icPublish, icSync, icSplit, icInline, icUnfold, icFold,
+		icAdd, icRemove, icDiscard, icWorktree, icSparkle, icCheck, icChevron, icClose, icMax, icRestore, icBranch, icPublish, icSync, icError, icWarning, icSplit, icInline, icUnfold, icFold,
 		icSearch, icCase, icWord, icRegex, icEllipsis, icClearAll, icOptions, icPreview, icSource,
 		icPrevRev, icNextRev, icUp, icDown, icHistory, icTag, icDetach, icReplace, icPreserve, icReplaceAll, icTerminal, icDot,
-		icMainWt, icLinkedWt, icResume, icPin, icPinned, icWrap, icGitHub, icPR, icPRDraft, icPRNew, icIssue, icBell, icCheckAll,
+		icMainWt, icLinkedWt, icResume, icPin, icPinned, icWrap, icGitHub, icPR, icPRDraft, icPRNew, icIssue, icBell, icBellDot, icCheckAll,
 		icMerge, icCompare, icComment, icPRClosed, icReopen, icDatabase, icTable, icView,
 	}
 )
@@ -439,6 +444,7 @@ var (
 	icPRNew    = glyph{"git-pull-request-create", "\uebbc", "+PR", ""}
 	icIssue    = glyph{"issues", "\ueb0c", "#", ""}
 	icBell     = glyph{"bell", "\ueaa2", "!", ""}
+	icBellDot  = glyph{"bell-dot", "\ueb9a", "!", ""}
 	icCheckAll = glyph{"check-all", "\uebb1", "✓", ""}
 	// The page's header buttons: their text is their name, which is all a terminal
 	// without the font can show.

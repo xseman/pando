@@ -354,7 +354,7 @@ func TestCountsRoll(t *testing.T) {
 	checkWidths(t, m)
 	settle(t, m)
 
-	if out := checkWidths(t, m); !strings.Contains(out, "↑3") {
+	if out := checkWidths(t, m); !strings.Contains(out, "3↑") {
 		t.Fatalf("ahead settles on 3:\n%s", out)
 	}
 }

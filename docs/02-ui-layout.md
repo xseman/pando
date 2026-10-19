@@ -37,16 +37,23 @@ tick (2 s) ─▶ refreshGit, reloadIfLive, saveDrafts, saveEditors, …
 │ rows…        ├──────────────────────────────┤ rows…        │
 │              │ terminal panel (bottom)      │              │
 ├──────────────┴──────────────────────────────┴──────────────┤
-│ ⎇ main* ↑1  repo   flash   ! 1 waiting   Ln 3, Col 7       │ status bar
+│▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁│ rule
+│ ⎇ main* ⇅ 0↓ 1↑ ✖ 0 ⚠ 0 flash  Ln 3, Col 7  repo  ^⇧p  ! 1 │ status bar
 └────────────────────────────────────────────────────────────┘
 ```
 
 - `layout` places the columns, split by a one-cell divider (facing frame
   edges with `borders`).
-- Status bar items: the branch opens the branch picker, the project a
-  project switcher, the waiting count the navigator, the results Search,
-  Ln/Col go to line, the indentation its picker, `^⇧p` the palette, the
-  update installs or restarts. Each lights under the pointer and has a tip.
+- Status bar: VS Code's, on `bar_bg` in `description`'s grey, under a rule
+  (`ruled`, `statusRule`: a row whose bottom eighth is the line, in
+  `overview_ruler_border`; with `borders` the frame's edge is it). Left, the
+  workspace: the branch opens the branch picker, sync (behind↓ ahead↑)
+  syncs, or publishes a branch without an upstream, the problems (with
+  `lsp_diagnostics`, zero too) list them. Right, the results open Search,
+  Ln/Col go to line, the indentation its picker, the project a project
+  switcher, `^⇧p` the palette, the update installs or restarts, and the
+  bell at the end, VS Code's, the agents waiting on you (dotted, counted),
+  the navigator. Each lights under the pointer and has a tip.
 - Focus is a column index, `onMain` or `onPanel`; `ctrl+]` cycles left →
   main → panel → right (`cycleFocus`).
 
@@ -96,7 +103,9 @@ top: activityBar, actH = 2 rows
 ──────────────────────────────────      mark row: ─ mid-row, air either side;
          └ mark: the accent         the open view's stretch in the accent
 
-side: vertBar, actW wide, one actH-row block per chip, ⚙ at the bottom
+side: vertBar, actW wide on bar_bg, one vertH (2) row block per chip, its
+      icon on the second row, the mark around it from the middle of the row
+      over to the middle of the one under (╻ ┃ ╹); ⚙ at the bottom
 
  left column            right column
  ▎ icon ▕ view …        … view ▏ icon ▐

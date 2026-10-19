@@ -1419,7 +1419,7 @@ func TestStatusBar(t *testing.T) {
 	lines := strings.Split(checkWidths(t, m), "\n")
 
 	status := lines[len(lines)-1]
-	if !strings.Contains(status, "⎇ main*") || !strings.Contains(status, "! 1") {
+	if !strings.Contains(status, "⎇ main*") || !strings.HasSuffix(strings.TrimRight(status, " "), icBellDot.s()+" 1") {
 		t.Fatalf("status bar = %q", status)
 	}
 
@@ -1428,7 +1428,8 @@ func TestStatusBar(t *testing.T) {
 	}
 
 	_, zones := m.statusLine(m.w)
-	click(m, zones[len(zones)-1].x, m.h-1, tea.MouseLeft)
+	bell := slices.MaxFunc(zones, func(a, b rowAction) int { return a.x - b.x })
+	click(m, bell.x, m.h-1, tea.MouseLeft)
 
 	if m.modal == nil || m.modal.title != "Go to Agent or Worktree" {
 		t.Fatalf("clicking the agent count opens the navigator: %+v", m.modal)
@@ -2038,31 +2039,38 @@ func TestVerticalActivityBar(t *testing.T) {
 
 	out := strings.Split(checkWidths(t, m), "\n")
 	raw := strings.Split(m.View().Content, "\n") // checkWidths strips the colors
-	// The chips are the top bar's, stacked: one actH-row block per view, the
-	// active one marked with the border down the strip's outer edge.
-	if !strings.HasPrefix(out[0], "▎") || !strings.Contains(raw[0], fgParams(pal.headerAccent)) {
-		t.Fatalf("the active chip is bordered on the outer edge:\n%s", out[0])
+	// The chips are the top bar's, stacked: one vertH-row block per view, its
+	// icon on its second row, the active one marked on the strip's outer
+	// edge from the middle of the row over its icon to the middle of the one
+	// under it, all of it on bar_bg.
+	mid := vertH / 2
+	for y, edge := range []string{"╻", "┃", "╹"} {
+		if y += mid - 1; !strings.HasPrefix(out[y], edge) || !strings.Contains(raw[y], fgParams(pal.headerAccent)) || !strings.Contains(raw[y], bgParams(pal.barBg)) {
+			t.Fatalf("row %d of the active chip is not marked %s on the outer edge:\n%s", y, edge, out[y])
+		}
 	}
 
-	if got := strings.TrimSpace(ansi.Cut(out[0], 1, actW()-1)); got != strings.TrimSpace(m.vertTabs(0)[0].label) {
+	if got := strings.TrimSpace(ansi.Cut(out[vertH/2], 1, actW()-1)); got != strings.TrimSpace(m.vertTabs(0)[0].label) {
 		t.Fatalf("its icon sits beside the border: %q", got)
 	}
 
-	if strip := ansi.Cut(out[actH-1], 0, actW()-1); strings.TrimSpace(strip) != "" {
-		t.Fatalf("the rest of the block is air: %q", strip)
+	for y := range vertH {
+		if strip := ansi.Cut(out[y], 1, actW()-1); y != vertH/2 && strings.TrimSpace(strip) != "" {
+			t.Fatalf("row %d: the rest of the block is air: %q", y, strip)
+		}
 	}
 	// A rule down the inner edge parts the strip from the view, all the way down.
-	for _, y := range []int{0, actH - 1, m.panelH() - 1} {
+	for _, y := range []int{0, vertH - 1, m.panelH() - 1} {
 		if sep := ansi.Cut(out[y], actW()-1, actW()); sep != "▕" {
 			t.Fatalf("row %d: the strip's inner edge is %q, want a rule", y, sep)
 		}
 	}
 
-	if tabs := m.vertTabs(0); len(tabs) != 4 || tabs[1].x != actH || tabs[1].v != viewGit {
+	if tabs := m.vertTabs(0); len(tabs) != 4 || tabs[1].x != vertH || tabs[1].v != viewGit {
 		t.Fatalf("vertical tabs = %+v", tabs)
 	}
 
-	click(m, 1, actH, tea.MouseLeft)
+	click(m, 1, vertH, tea.MouseLeft)
 
 	if v, _ := m.viewOn(0); v != viewGit {
 		t.Fatalf("clicking an icon shows its view, got %v", v)
@@ -2094,13 +2102,13 @@ func TestVerticalActivityBar(t *testing.T) {
 	}
 	// A second click on the open view's icon hides the sidebar, VS Code's
 	// activity bar; the strip stays, and its icon opens it again.
-	click(m, 1, actH, tea.MouseLeft)
+	click(m, 1, vertH, tea.MouseLeft)
 
 	if !m.hidden[0] || m.colRect(0).w != actW() {
 		t.Fatalf("clicking the open view's icon hides the sidebar: hidden %v, w %d", m.hidden[0], m.colRect(0).w)
 	}
 
-	click(m, 1, actH, tea.MouseLeft)
+	click(m, 1, vertH, tea.MouseLeft)
 
 	if v, _ := m.viewOn(0); m.hidden[0] || v != viewGit {
 		t.Fatalf("its icon opens it again: hidden %v, view %v", m.hidden[0], v)
@@ -2228,19 +2236,19 @@ func TestDragChipDownSideBar(t *testing.T) {
 		t.Fatalf("drag = %+v", m.drag)
 	}
 
-	m.Update(tea.MouseMotionMsg{X: rc.x + 1, Y: actH, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: rc.x + 1, Y: vertH, Button: tea.MouseLeft})
 
 	d := m.drag.drop
-	if d == nil || d.col != 0 || d.at != 1 || d.rc.w != actW() || d.h != actH {
+	if d == nil || d.col != 0 || d.at != 1 || d.rc.w != actW() || d.h != vertH {
 		t.Fatalf("drop = %+v", d)
 	}
 
 	out := strings.Split(checkWidths(t, m), "\n")
-	if !strings.HasPrefix(out[actH], "┌") || !strings.HasPrefix(out[2*actH-1], "└") {
-		t.Fatalf("a box around the target block:\n%s\n%s", out[actH], out[2*actH-1])
+	if !strings.HasPrefix(out[vertH], "┌") || !strings.HasPrefix(out[2*vertH-1], "└") {
+		t.Fatalf("a box around the target block:\n%s\n%s", out[vertH], out[2*vertH-1])
 	}
 
-	m.Update(tea.MouseReleaseMsg{X: rc.x + 1, Y: actH, Button: tea.MouseLeft})
+	m.Update(tea.MouseReleaseMsg{X: rc.x + 1, Y: vertH, Button: tea.MouseLeft})
 
 	if got := m.colViews(0); got[0] != views[1] || got[1] != views[0] {
 		t.Fatalf("order = %v, from %v", got, views)
@@ -2615,6 +2623,33 @@ func TestTerminalResize(t *testing.T) {
 	checkWidths(t, m)
 }
 
+// TestStatusSyncAndProblems lays the status bar out as VS Code's: the
+// branch, then sync with the counts behind and ahead (Publish Branch's cloud
+// without an upstream), then the problems, zero too, each a button.
+func TestStatusSyncAndProblems(t *testing.T) {
+	m := gitModel(t)
+	root := m.ws
+	status := func() (string, []rowAction) { s, z := m.statusLine(m.w); return ansi.Strip(s), z }
+
+	if s, _ := status(); !strings.Contains(s, "main*  "+icPublish.s()+" ") || strings.Contains(s, icError.s()) {
+		t.Fatalf("no upstream: publish, no problems without lsp_diagnostics: %q", s)
+	}
+
+	m.scm.onGit(m, gitMsg{ws: root, repos: []string{root}, status: map[string]git.Status{root: {Branch: "main", Upstream: "origin/main", Ahead: 1, Behind: 2}}})
+	m.st.Settings.Diags = true
+	settle(t, m)
+
+	s, zones := status()
+	if want := " " + icSync.s() + " 2↓ 1↑  " + icError.s() + " 0 " + icWarning.s() + " 0 "; !strings.Contains(s, want) {
+		t.Fatalf("status = %q, want %q", s, want)
+	}
+
+	before, _, _ := strings.Cut(s, " "+icSync.s())
+	if len(zones) < 4 || zones[1].x != ansi.StringWidth(before) {
+		t.Fatalf("sync is the button after the branch: %+v", zones)
+	}
+}
+
 // TestStatusProjects lights the status bar's buttons under the mouse and opens
 // the project switcher from the project name.
 func TestStatusProjects(t *testing.T) {
@@ -2622,8 +2657,16 @@ func TestStatusProjects(t *testing.T) {
 	other, g0 := t.TempDir(), m.ws
 	m.st.Projects = []string{m.ws, other}
 	m.wss = append(m.wss, proto.Workspace{Path: other, Project: other, Main: true})
-	_, zones := m.statusLine(m.w)
-	branch, project := zones[0], zones[1]
+	status, zones := m.statusLine(m.w)
+	plain := ansi.Strip(status)
+	at := ansi.StringWidth(plain[:max(strings.Index(plain, " "+filepath.Base(g0)+" "), 0)])
+
+	k := slices.IndexFunc(zones, func(z rowAction) bool { return z.x == at })
+	if k < 0 {
+		t.Fatalf("no button on the project: %q", plain)
+	}
+
+	branch, project := zones[0], zones[k]
 
 	m.mouseX, m.mouseY = branch.x+1, m.h-1
 	if s, _ := m.statusLine(m.w); !strings.Contains(s, bgParams(pal.keycapBg)) {
@@ -4421,7 +4464,7 @@ func TestSpacesPin(t *testing.T) {
 // sessions and a heavy border under them; as tall as its rows, at most a
 // third of the view, past that it scrolls on its own.
 func TestSpacesPinnedPane(t *testing.T) {
-	m := testModel(t)
+	m := testModelSized(t, 100, 21) // 20 rows of view under the status bar's rule
 
 	var ss []proto.Session
 

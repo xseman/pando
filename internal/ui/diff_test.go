@@ -194,8 +194,8 @@ func TestSplitDiffSelection(t *testing.T) {
 		t.Fatal("the selected rows are tinted")
 	}
 
-	if !strings.Contains(out[len(out)-2], "stage/revert lines") {
-		t.Fatalf("footer = %q", out[len(out)-2])
+	if !strings.Contains(out[m.panelH()-1], "stage/revert lines") {
+		t.Fatalf("footer = %q", out[m.panelH()-1])
 	}
 
 	if !slices.ContainsFunc(m.pv.items(m), func(it item) bool { return it.label == "Stage Selected Ranges" }) {

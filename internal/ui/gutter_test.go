@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"image/color"
 	"slices"
 	"strings"
 	"testing"
@@ -262,7 +263,11 @@ func TestFileScrollbarChanges(t *testing.T) {
 		return ansi.Cut(row, m.mainX()+m.pvW(), m.mainX()+m.pvW()+1)
 	}
 
-	if !strings.Contains(cell(), fgParams(pal.diffModMark)) {
+	shows := func(c color.Color) bool { // drawn as the glyph, or as the cell around it, wherever in the cell the mark falls
+		return strings.Contains(cell(), fgParams(c)) || strings.Contains(cell(), bgParams(c))
+	}
+
+	if !shows(pal.diffModMark) {
 		t.Fatalf("the change is marked on the scrollbar: %q", cell())
 	}
 
@@ -276,7 +281,7 @@ func TestFileScrollbarChanges(t *testing.T) {
 	m.diags[m.pv.path] = []lsp.Diagnostic{{Line: 90, EndLine: 90, EndCol: 2, Severity: 1, Message: "x"}}
 	m.st.Settings.Diags = true
 
-	if !strings.Contains(cell(), fgParams(pal.errc)) {
+	if !shows(pal.errc) {
 		t.Fatalf("a problem shows over the change: %q", cell())
 	}
 }

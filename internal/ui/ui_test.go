@@ -397,13 +397,13 @@ func TestActivityBarHeaderFooter(t *testing.T) {
 	}
 
 	out := strings.Split(checkWidths(t, m), "\n")
-	chip := func(y int) string { return strings.Trim(ansi.Cut(out[y], 0, actW()), " ▎") } // the pointer's mark aside
+	chip := func(y int) string { return strings.Trim(ansi.Cut(out[y], 0, actW()), " ╻┃╹") } // the pointer's mark aside
 
-	if chip(0) != icFiles.short() || chip(actH) != icGit.short() || chip(m.panelH()-actH) != icGear.short() {
+	if mid := vertH / 2; chip(mid) != icFiles.short() || chip(vertH+mid) != icGit.short() || chip(m.panelH()-vertH+mid) != icGear.short() {
 		t.Fatalf("the activity bar:\n%s", strings.Join(out, "\n"))
 	}
 
-	click(m, 1, actH, tea.MouseLeft) // the Git icon opens the sidebar on Git
+	click(m, 1, vertH, tea.MouseLeft) // the Git icon opens the sidebar on Git
 
 	if v, _ := m.viewOn(0); m.railed(0) || v != viewGit || m.focus != 0 {
 		t.Fatalf("activity bar click: railed=%v view=%d focus=%d", m.railed(0), v, m.focus)
@@ -2352,8 +2352,8 @@ func TestSplitDiff(t *testing.T) {
 		t.Fatal("the side-by-side view has no text cursor")
 	}
 
-	if !strings.Contains(out[0], "inline") || !strings.Contains(out[len(out)-2], "s inline") {
-		t.Fatalf("header/footer:\n%s\n%s", out[0], out[len(out)-2])
+	if !strings.Contains(out[0], "inline") || !strings.Contains(out[m.panelH()-1], "s inline") {
+		t.Fatalf("header/footer:\n%s\n%s", out[0], out[m.panelH()-1])
 	}
 
 	// A narrow main area falls back to inline and keeps the setting.

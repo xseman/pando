@@ -6,11 +6,20 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/xseman/pando/internal/proto"
 )
 
 // statusY is the row the status bar draws on, under the panel frame.
 func statusY(m *Model) int { return m.h - 1 + m.bord() }
+
+// clickStatus clicks the status bar where text starts.
+func clickStatus(m *Model, text string) {
+	status, _ := m.statusLine(m.w)
+	before, _, _ := strings.Cut(ansi.Strip(status), text)
+	click(m, ansi.StringWidth(before), statusY(m), tea.MouseLeft)
+}
 
 func TestUpdateChip(t *testing.T) {
 	m := testModel(t)
@@ -28,7 +37,7 @@ func TestUpdateChip(t *testing.T) {
 
 	// Clicking it hands the download to the daemon; the chip turns into the
 	// meter at once, without waiting for the first event.
-	click(m, m.w-2, statusY(m), tea.MouseLeft)
+	clickStatus(m, "v0.2.0")
 
 	if m.upd.State != "downloading" {
 		t.Fatalf("clicking the version did not start the download: %+v", m.upd)
@@ -50,7 +59,7 @@ func TestUpdateChip(t *testing.T) {
 		t.Fatalf("no restart hint in the status bar:\n%s", out)
 	}
 
-	click(m, m.w-2, statusY(m), tea.MouseLeft)
+	clickStatus(m, "restart to update")
 
 	if m.modal == nil || !strings.Contains(m.modal.title, "0.2.0") {
 		t.Fatalf("modal = %+v", m.modal)

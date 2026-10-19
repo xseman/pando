@@ -119,7 +119,7 @@ func TestMarkdownPreview(t *testing.T) {
 	press(m, "ctrl+shift+v") // a source file types letters now; ⌃⇧v renders it
 
 	out := strings.Split(checkWidths(t, m), "\n")
-	if m.pv.gutter() != 0 || !strings.HasPrefix(ansi.Cut(out[1], m.mainX(), m.w), "   Title ") || !strings.Contains(out[len(out)-2], "p source") {
+	if m.pv.gutter() != 0 || !strings.HasPrefix(ansi.Cut(out[1], m.mainX(), m.w), "   Title ") || !strings.Contains(out[m.panelH()-1], "p source") {
 		t.Fatalf("rendered:\n%s", strings.Join(out, "\n"))
 	}
 

@@ -76,6 +76,11 @@ const (
 // carrying the active border under them.
 const actH = 2
 
+// vertH is the height of a chip down a side activity bar: VS Code's 48 px
+// button, a little over twice its list row; the icon on the second row, the
+// first air over it.
+const vertH = 2
+
 // actW is the width of the vertical activity bar: one chip, the same the top
 // bar draws, so both bars hold the same button.
 func actW() int { return 2*len(barPad()) + ansi.StringWidth(icFiles.short()) }
@@ -1114,7 +1119,12 @@ func (m *Model) colRect(i int) rect {
 }
 
 // panelH is a panel's height: everything above the status bar.
-func (m *Model) panelH() int { return max(m.h-1, 1) }
+func (m *Model) panelH() int { return max(m.h-1-m.ruled(), 1) }
+
+// ruled is 1 when a rule parts the panels from the status bar, VS Code's
+// statusBar.border: a row whose bottom eighth is the line, the frame's
+// bottom edge doing it when panel_borders draws one.
+func (m *Model) ruled() int { return b2i(m.bord() == 0 && m.h > 2) }
 
 // sessPos is where a session opens: "editor", over the editor area as a tab
 // beside the files' (the default), or a column of its own on that side.
@@ -1738,7 +1748,7 @@ func (m *Model) slotAt(v view, i, x, y int) dropTarget {
 	t := dropTarget{side: side, col: i}
 
 	if m.sideBar() {
-		k := max(min(y/actH, len(views)-b2i(idx >= 0)), 0)
+		k := max(min(y/vertH, len(views)-b2i(idx >= 0)), 0)
 		t.at = k
 
 		t.rc = rect{x: rc.x, w: actW()}
@@ -1746,7 +1756,7 @@ func (m *Model) slotAt(v view, i, x, y int) dropTarget {
 			t.rc.x = rc.x + rc.w - actW()
 		}
 
-		t.y, t.h = max(min(k*actH, m.panelH()-actH), 0), actH
+		t.y, t.h = max(min(k*vertH, m.panelH()-vertH), 0), vertH
 
 		return t
 	}
@@ -3506,6 +3516,10 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 
+	if m.ruled() == 1 && mo.Y == m.panelH() { // the rule over it
+		return nil
+	}
+
 	if mo.Y == -1 && click && m.bord() > 0 { // a frame's top edge carries its panel's title
 		return m.titleMouse(mo)
 	}
@@ -3670,7 +3684,7 @@ func (m *Model) vertBarMouse(s int, mo tea.Mouse, y int, click bool) tea.Cmd {
 	}
 
 	for _, t := range m.vertTabs(s) {
-		if y < t.x || y >= t.x+actH { // the icon's row and the air under it
+		if y < t.x || y >= t.x+vertH { // the icon's row and the air around it
 			continue
 		}
 
@@ -3689,7 +3703,7 @@ func (m *Model) vertBarMouse(s int, mo tea.Mouse, y int, click bool) tea.Cmd {
 		return m.showView(t.v)
 	}
 
-	if y >= m.panelH()-actH && mo.Button == tea.MouseLeft {
+	if y >= m.panelH()-vertH && mo.Button == tea.MouseLeft {
 		return m.manageMenu(mo.X, mo.Y)
 	}
 
@@ -4075,7 +4089,7 @@ func (m *Model) View() tea.View {
 		}
 	}
 
-	lines := make([]string, m.panelH()+1) // the panel rows, then the status bar
+	lines := make([]string, m.panelH()+m.ruled()+1) // the panel rows, the rule, then the status bar
 	for i := range m.panelH() {
 		var sb strings.Builder
 
@@ -4093,6 +4107,10 @@ func (m *Model) View() tea.View {
 		}
 
 		lines[i] = sb.String()
+	}
+
+	if m.ruled() == 1 {
+		lines[len(lines)-2] = m.statusRule(cs)
 	}
 
 	lines[len(lines)-1] = status
@@ -4537,9 +4555,11 @@ func markColor(active, hovered bool) color.Color {
 }
 
 // vertBar is the activity bar down a sidebar's outer edge: the top bar's
-// chips stacked, one `actH`-row block each, with no fill behind them. The
-// active one takes the accent color and VS Code's activityBar.activeBorder
-// down the strip's outer edge, where the top bar underlines instead; the one
+// chips stacked, one `vertH`-row block each, on VS Code's
+// activityBar.background (`bar_bg`). The active one takes the accent color
+// and VS Code's activityBar.activeBorder on the strip's outer edge, the
+// button high and centered on its icon, where the top bar underlines
+// instead; the one
 // under the mouse takes a tint of the accent, icon and mark. A view waiting on
 // its agent has no room for a count here, so its icon takes the attention
 // color instead.
@@ -4559,32 +4579,24 @@ func (m *Model) vertBar(s, w int) []string {
 	// block counts, not just the icon's row.
 	hot := func(y int) bool {
 		return time.Since(m.mouseAt) < actionsLinger && m.mouseX >= x0 && m.mouseX < x0+w &&
-			m.mouseY >= y && m.mouseY < y+actH
+			m.mouseY >= y && m.mouseY < y+vertH
 	}
-	// The active border runs down the strip's outer edge, a quarter of a cell
-	// wide; the block elements have no right quarter, so a right-docked strip
-	// takes the half block, the nearest there is.
-	edge, at, inner, border := "▎", 0, w-1, "▕"
+	// The active border runs down the strip's outer edge, VS Code's the
+	// button high: a heavy line from the middle of the row over the icon to
+	// the middle of the one under it, the block elements' halves too thick
+	// for it.
+	marks, at, inner, border := [3]string{"╻", "┃", "╹"}, 0, w-1, "▕"
 	if m.side(s) == 1 {
-		edge, at, inner, border = "▐", w-1, 0, "▏"
+		at, inner, border = w-1, 0, "▏"
 	}
 
-	base := row(w, nil, []seg{sg(blank(inner), plain), sg(border, fg(pal.rulerBorder))})
 	if m.railed(s) {
-		base, inner = blank(w), -1
+		inner = -1
 	}
 
-	out := make([]string, m.panelH())
-	for y := range out {
-		out[y] = base
-	}
-	// chipAt draws one chip: the icon centered on row y, the border beside it.
-	chipAt := func(y int, g glyph, st lipgloss.Style, mark color.Color) {
-		if y >= len(out) {
-			return
-		}
-
-		icon := g.short()
+	// line is one row of the strip: the mark on the outer edge, the border on
+	// the inner one, the icon centered.
+	line := func(icon string, st lipgloss.Style, edge string, mark color.Color) string {
 		iw := ansi.StringWidth(icon)
 		l := (w - iw) / 2
 
@@ -4596,19 +4608,52 @@ func (m *Model) vertBar(s, w int) []string {
 				segs, i = append(segs, sg(edge, fg(mark))), i+1
 			case i == inner:
 				segs, i = append(segs, sg(border, fg(pal.rulerBorder))), i+1
-			case i == l:
+			case icon != "" && i == l:
 				segs, i = append(segs, sg(icon, st)), i+iw
 			default:
 				segs, i = append(segs, sg(" ", plain)), i+1
 			}
 		}
 
-		out[y] = row(w, nil, segs)
+		return row(w, pal.barBg, segs)
 	}
 
-	gearRow := len(out) - actH
+	// cells are the strip's rows: an icon, a part of a mark. Where the
+	// active chip's mark and the one under the mouse meet in a row, the
+	// active one's part shows.
+	type cell struct {
+		icon, edge string
+		st         lipgloss.Style
+		mark       color.Color
+	}
+
+	rows := make([]cell, m.panelH())
+	// chipAt draws one chip, the block from row y: its icon on row vertH/2,
+	// the mark around it.
+	chipAt := func(y int, g glyph, st lipgloss.Style, mark color.Color, on bool) {
+		if y += vertH / 2; y >= len(rows) {
+			return
+		}
+
+		rows[y].icon, rows[y].st = g.short(), st
+
+		if mark == nil {
+			return
+		}
+
+		for k, edge := range marks {
+			r := y - 1 + k
+			if r < 0 || r >= len(rows) || rows[r].mark != nil && !on {
+				continue
+			}
+
+			rows[r].edge, rows[r].mark = edge, mark
+		}
+	}
+
+	gearRow := len(rows) - vertH
 	for _, t := range m.vertTabs(s) {
-		if t.x+actH > gearRow { // a short panel: the rest would run into the gear
+		if t.x+vertH > gearRow { // a short panel: the rest would run into the gear
 			break
 		}
 
@@ -4629,7 +4674,7 @@ func (m *Model) vertBar(s, w int) []string {
 			m.tip = viewTip(t.v)
 		}
 
-		chipAt(t.x, viewIcon(t.v), st, markColor(on, hot(t.x)))
+		chipAt(t.x, viewIcon(t.v), st, markColor(on, hot(t.x)), on)
 	}
 
 	st := dim
@@ -4637,13 +4682,25 @@ func (m *Model) vertBar(s, w int) []string {
 		st, m.tip = fg(pal.sashHover), settingsTip
 	}
 
-	chipAt(gearRow, icGear, st, markColor(false, hot(gearRow)))
+	chipAt(gearRow, icGear, st, markColor(false, hot(gearRow)), false)
+
+	out := make([]string, len(rows))
+	base := line("", plain, "", nil)
+
+	for y, c := range rows {
+		if c.icon == "" && c.mark == nil {
+			out[y] = base
+			continue
+		}
+
+		out[y] = line(c.icon, c.st, c.edge, c.mark)
+	}
 
 	return out
 }
 
 // vertTabs are the same chips as tabs, in a block each down the edge: x is
-// the icon's row, the rest of the block is the air under it.
+// the block's first row, the icon on the middle one.
 func (m *Model) vertTabs(s int) []tab {
 	views := m.colViews(s)
 	if m.railed(s) {
@@ -4653,7 +4710,7 @@ func (m *Model) vertTabs(s int) []tab {
 	var out []tab
 
 	for k, v := range views {
-		t := tab{v: v, x: k * actH, w: actW(), chipW: actW(), label: center(viewIcon(v).short(), actW())}
+		t := tab{v: v, x: k * vertH, w: actW(), chipW: actW(), label: center(viewIcon(v).short(), actW())}
 		if c := m.attentionCount(); v == viewAgents && c > 0 {
 			t.badge = "•"
 		}
@@ -4723,13 +4780,17 @@ func (m *Model) dropBox(lines []string, t dropTarget) {
 	}
 }
 
-// statusLine is the bottom row: the repository on the left, flash messages
-// after it, agents and search on the right. VS Code's status bar.
+// statusLine is the bottom row, VS Code's status bar: on its
+// statusBar.background (`bar_bg`), in its grey, the branch, sync, the
+// problems and flash messages on the left; search, the editor's items, the
+// project, the palette and the bell for the agents waiting on the right.
 func (m *Model) statusLine(w int) (string, []rowAction) {
 	var (
 		left, right []seg
 		zones       []rowAction
 	)
+
+	ink := fg(pal.descFg) // VS Code's statusBar.foreground
 	// The branch and the project are buttons: lit under the mouse, as VS Code's
 	// status bar items are, and named by a tip.
 	over := func(x, w int) bool { return m.mouseY == m.h-1+m.bord() && m.mouseX >= x && m.mouseX < x+w }
@@ -4763,17 +4824,26 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 	if root := m.scm.root(); root != "" {
 		st := m.scm.status[root]
 
-		branch := " " + icBranch.s() + " " + m.headLabel(root, st)
-		if st.Ahead+st.Behind > 0 {
-			branch += " " + m.aheadBehind(root, st, "↑%s ↓%s")
-		}
+		button(" "+icBranch.s()+" "+m.headLabel(root, st)+" ", "Switch Branch…", ink, func(m *Model) tea.Cmd { return m.scm.branchPicker(m) })
 
-		button(branch+" ", "Switch Branch…", fg(pal.headerAccent), func(m *Model) tea.Cmd { return m.scm.branchPicker(m) })
+		// VS Code's sync item: the counts behind and ahead once there are
+		// any, Publish Branch's cloud without an upstream.
+		switch {
+		case st.Upstream != "" && st.Ahead+st.Behind > 0:
+			button(" "+icSync.s()+" "+m.aheadBehind(root, st, "%[2]s↓ %[1]s↑")+" ", "Synchronize Changes", ink, func(m *Model) tea.Cmd { return m.scm.sync(m) })
+		case st.Upstream != "":
+			button(" "+icSync.s()+" ", "Synchronize Changes", ink, func(m *Model) tea.Cmd { return m.scm.sync(m) })
+		case st.Branch != "":
+			button(" "+icPublish.s()+" ", "Publish Branch", ink, func(m *Model) tea.Cmd { return m.scm.publish(m) })
+		}
 
 		name = filepath.Base(root)
 	}
 
-	button(" "+name+" ", "Open Project…", dim, func(m *Model) tea.Cmd { return m.projectPicker() })
+	if m.st.Settings.Diags { // VS Code's problems item, there with none too: a click lists them
+		errs, warns := m.diagCounts()
+		button(fmt.Sprintf(" %s %d %s %d ", icError.s(), errs, icWarning.s(), warns), "Problems  ^⇧m", ink, (*Model).showProblems)
+	}
 
 	if m.msg != "" && time.Since(m.msgAt) < 5*time.Second {
 		st := fg(pal.ok)
@@ -4808,34 +4878,26 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 	}
 
 	searchRun := func(m *Model) tea.Cmd { return tea.Batch(m.showView(viewSearch), m.sr.focus()) }
-	if n := m.attentionCount(); n > 0 {
-		add(" ! "+m.fx.text("attention", strconv.Itoa(n))+" ", fg(pal.attention), "Go to Agent or Worktree…  M-t", func(m *Model) tea.Cmd { return m.agentNavigator() })
-	}
 
 	switch n := m.sr.matches(); {
 	case m.sr.busy:
 		addSegs("Show Search  ^⇧f", searchRun, m.shimmer(" searching… ", dim, bold)...)
 	case n > 0:
-		add(" "+m.fx.text("results", strconv.Itoa(n))+strings.TrimPrefix(plural(n, "result"), strconv.Itoa(n))+" ", dim, "Show Search  ^⇧f", searchRun)
+		add(" "+m.fx.text("results", strconv.Itoa(n))+strings.TrimPrefix(plural(n, "result"), strconv.Itoa(n))+" ", ink, "Show Search  ^⇧f", searchRun)
 	}
 
 	if f, ok := m.diagFailed[m.pv.path]; ok && m.showsPreview() && m.pv.kind == pvFile { // no problems shown is not none
 		add(" ⚠ no diagnostics ", fg(pal.warn), f.server+": "+firstLine(f.err.Error()), nil)
 	}
 
-	if errs, warns := m.diagCounts(); errs+warns > 0 { // VS Code's problems item: a click lists them
-		addSegs("Problems  ^⇧m", (*Model).showProblems,
-			sg(" ✖ "+strconv.Itoa(errs), fg(pal.errc)), sg(" ⚠ "+strconv.Itoa(warns)+" ", fg(pal.warn)))
-	}
-
 	if m.showsPreview() && m.pv.tbl != nil && m.pv.tbl.column() != "" { // the cursor's column, where a file's cursor is
-		add(" "+m.pv.tbl.column()+" ", dim, "", nil)
+		add(" "+m.pv.tbl.column()+" ", ink, "", nil)
 	}
 
 	if text, tip, run, ok := m.blameItem(); ok {
 		blameAt = len(items)
 
-		add(text, dim, tip, run)
+		add(text, ink, tip, run)
 	}
 
 	if m.showsPreview() && m.pv.ready && m.pv.md != 1 && !m.pv.side(m) && m.pv.kind != pvTable && m.pv.kind != pvSettings { // a side-by-side diff keeps its cursor line
@@ -4843,18 +4905,28 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 		// indentation, changing it. A rendering has no cursor to show, nor a
 		// tab still loading.
 		if pos, ln := m.cursorPos(); ln > 0 { // a hunk gap or a commit message has no line of the file
-			add(pos, dim, "Go to Line…  ^g", func(m *Model) tea.Cmd { return m.gotoLineQuery(":") })
+			add(pos, ink, "Go to Line…  ^g", func(m *Model) tea.Cmd { return m.gotoLineQuery(":") })
 		}
 
 		if m.pv.kind == pvFile || m.pv.kind == pvRev {
-			add(" "+m.indentLabel()+" ", dim, "Change Indentation…", func(m *Model) tea.Cmd { return m.indentPicker() })
+			add(" "+m.indentLabel()+" ", ink, "Change Indentation…", func(m *Model) tea.Cmd { return m.indentPicker() })
 		}
 	}
 
-	add(" ^⇧p ", dim, "Show All Commands", func(m *Model) tea.Cmd { return m.commandPalette() })
+	add(" "+name+" ", ink, "Open Project…", func(m *Model) tea.Cmd { return m.projectPicker() })
+	add(" ^⇧p ", ink, "Show All Commands", func(m *Model) tea.Cmd { return m.commandPalette() })
 
 	if chip, run := m.updateChip(); chip != nil {
 		addSegs(map[string]string{"available": "Install pando v" + m.upd.Latest, "ready": "Restart to Update"}[m.upd.State], run, chip...)
+	}
+
+	// VS Code's bell at the right end: the agents waiting on you, its dot and
+	// count in the attention color while any is.
+	navigate := func(m *Model) tea.Cmd { return m.agentNavigator() }
+	if n := m.attentionCount(); n > 0 {
+		add(" "+icBellDot.s()+" "+m.fx.text("attention", strconv.Itoa(n))+" ", fg(pal.attention), "Go to Agent or Worktree…  M-t", navigate)
+	} else {
+		add(" "+icBell.s()+" ", ink, "Go to Agent or Worktree…  M-t", navigate)
 	}
 
 	if used := segsWidth(left) + segsWidth(slices.Concat(items...)); blameAt >= 0 && used > w {
@@ -4889,7 +4961,45 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 		}
 	}
 
-	return row(w, pal.sectionBg, left, right...), zones
+	return row(w, cmp.Or[color.Color](pal.barBg, pal.sectionBg), left, right...), zones
+}
+
+// statusRule is the row over the status bar, VS Code's statusBar.border: a
+// line along its bottom in the activity bar's border color, on its tint
+// under a side strip so the strip runs down to it.
+func (m *Model) statusRule(cs []rect) string {
+	tint := make([]bool, m.w)
+
+	for i, rc := range cs {
+		bw := ifElse(m.railed(i), rc.w, m.barW(i))
+		if rc.w == 0 || bw == 0 {
+			continue
+		}
+
+		x0 := ifElse(m.side(i) == 1, rc.x+rc.w-bw, rc.x)
+		for x := max(x0, 0); x < min(x0+bw, m.w); x++ {
+			tint[x] = true
+		}
+	}
+
+	var segs []seg
+
+	for x := 0; x < m.w; {
+		j := x
+		for j < m.w && tint[j] == tint[x] {
+			j++
+		}
+
+		st := fg(pal.rulerBorder)
+		if tint[x] && pal.barBg != nil {
+			st = st.Background(pal.barBg)
+		}
+
+		segs = append(segs, sg(strings.Repeat("▁", j-x), st))
+		x = j
+	}
+
+	return row(m.w, nil, segs)
 }
 
 // projectPicker is the status bar's project switcher: every project, the one
