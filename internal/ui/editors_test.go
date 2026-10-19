@@ -358,7 +358,7 @@ func TestTabChips(t *testing.T) {
 		shown := slices.ContainsFunc(tabs, func(t sessTab) bool { return t.active && t.id == active })
 		last := tabs[len(tabs)-1]
 
-		if !shown || !last.plus || last.x+last.w > 25 {
+		if !shown || last.x+last.w > 25 {
 			t.Fatalf("active %s in 25 columns: %+v", active, tabs)
 		}
 	}

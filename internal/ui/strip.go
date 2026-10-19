@@ -52,7 +52,7 @@ func (m *Model) stripTabs(s int) []stripTab {
 		}
 
 		for _, t := range m.sessionTabs(m.sessW()) {
-			if !t.plus && t.id != m.rootOf(m.sess) {
+			if t.id != m.rootOf(m.sess) {
 				out = append(out, stripTab{id: t.id, x: t.x, w: t.w})
 			}
 		}
@@ -110,14 +110,14 @@ func ruleRow(w int, marks []ruleMark, lit ...lipgloss.Style) string {
 const plusTab = "+"
 
 // tabUnder is the id of strip s's tab at strip column x, the session's own
-// included; plusTab over a session or terminal strip's +, "" past its tabs. It
+// included; plusTab over the terminal strip's +, "" past its tabs. It
 // says too whether x is on the active tab's ✕, the cells where a click closes
 // it.
 func (m *Model) tabUnder(s, x int) (id string, onClose bool) {
 	if s == stripEditor {
 		for _, t := range m.editorTabs(m.mainW()) {
 			if x >= t.x && x < t.x+t.w {
-				return m.tabID(t), t.active && !t.plus && x >= t.x+t.w-tabCloseW
+				return m.tabID(t), t.active && x >= t.x+t.w-tabCloseW
 			}
 		}
 

@@ -119,7 +119,7 @@ unsized, half the editor area).
 
 - Over the editor area each session opened from Spaces has a tab after the
   files' (`stripSessions`, `sessTabs`, not saved; the one shown stays), the
-  one shown with its shell tabs and a `+` (`editorTabs`). Opening a file
+  one shown with its shell tabs (`editorTabs`). Opening a file
   keeps it there; the file's tab or `alt+N` brings the file forward. Its ✕
   (`closeSessTab`) closes the tab, the session running on, and shows the
   session before it when no file is open; a shell tab's ✕ kills it.
@@ -272,7 +272,7 @@ Model.mouse
   left".
 - An icon button names itself and its key in a box under the pointer once
   it has rested `tipDelay`, until `actionsLinger` (`tipShown`, `hoverBox`):
-  header actions, activity bar chips, strip buttons, `+` and `✕`, Source
+  header actions, activity bar chips, strip buttons, the Terminal's `+` and `✕`, Source
   Control rows and ∨, Search's toggles, ▸ and ⋯, find widgets, status bar
   items. A session name its Spaces row or its tab cuts, at 32 cells
   (`sessionName`) or at the edge, shows whole the same way (`fullName`,

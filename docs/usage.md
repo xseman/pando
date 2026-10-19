@@ -102,10 +102,9 @@ checkout.
   (`auto_reveal`), as for any file or change opened, or tab picked. A file
   opened from Search or Source Control sharing Explorer's column leaves that
   view in front.
-- Each session has shell tabs (the strip's `+`) and its own Terminal panel.
-  `[` `]` step through its tabs; `alt+t` picks a session. Spaces shows the
-  tab count (`⧉ 2`) on a session with more than one. An agent started in a
-  tab, claude typed at its prompt, shows its state on the tab.
+- Each session is one tab, with its own Terminal panel for shells; `alt+t`
+  picks a session. An agent started in a shell, claude typed at its prompt,
+  shows its state on the tab.
 - Drag over a terminal to select and copy; `ctrl+f` finds in its scrollback.
 - Ctrl+click a link in a terminal, as in VS Code's: a URL or an OSC 8
   hyperlink opens in the browser, a path (`app.go:12:5`, `app.ts(12,5)`,

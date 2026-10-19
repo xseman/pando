@@ -4119,8 +4119,8 @@ func TestSessionTabs(t *testing.T) {
 	}
 
 	tabs := m.sessionTabs(100)
-	if len(tabs) != 3 || tabs[0].id != "s1" || tabs[1].id != "t1" || !tabs[2].plus || !strings.Contains(tabs[1].label, "fish") {
-		t.Fatalf("the strip holds s1's own tabs and +: %+v", tabs)
+	if len(tabs) != 2 || tabs[0].id != "s1" || tabs[1].id != "t1" || !strings.Contains(tabs[1].label, "fish") {
+		t.Fatalf("the strip holds s1's own tabs: %+v", tabs)
 	}
 
 	// The tree shows s1 once, carrying its blocked tab's state.
@@ -4138,10 +4138,6 @@ func TestSessionTabs(t *testing.T) {
 	lines := strings.Join(m.ag.lines(m, 30, 20), "\n")
 	if !slices.Equal(tree, []string{"s1", "s2", "o1"}) || !strings.Contains(ansi.Strip(lines), "├─ × shell") {
 		t.Fatalf("Spaces tree %v:\n%s", tree, ansi.Strip(lines))
-	}
-
-	if n := strings.Count(ansi.Strip(lines), icTabs.s()+" 2 · "); n != 1 {
-		t.Fatalf("s1 alone counts its 2 tabs, %d rows do:\n%s", n, ansi.Strip(lines))
 	}
 
 	m.cycleSession(1)
@@ -4178,7 +4174,7 @@ func TestSessionTabs(t *testing.T) {
 
 	m.Update(focusSessionMsg("o1"))
 
-	if m.ws != other || len(m.sessionTabs(100)) != 2 {
+	if m.ws != other || len(m.sessionTabs(100)) != 1 {
 		t.Fatalf("the other space's session has its own tabs only: ws=%q tabs=%d", m.ws, len(m.sessionTabs(100)))
 	}
 }

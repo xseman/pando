@@ -940,8 +940,7 @@ func (m *Model) tabDirty(i int) bool {
 }
 
 // edTab is one tab of the editor area's strip: an open file (i its editor),
-// or a session over the editor area (i -1, id the session; plus the + that
-// opens another tab in the session shown).
+// or a session over the editor area (i -1, id the session).
 type edTab struct {
 	i, x, w int
 	label   string // " ", the icon, the name, the ✕ or ● mark
@@ -950,11 +949,10 @@ type edTab struct {
 	id      string      // a session's
 	tip     string      // a session's whole name, when the label cuts it
 	bg      color.Color // a session's session_highlight tint
-	plus    bool
 }
 
 // editorTabs lays the strip out: the open files, then the sessions opened
-// over the editor area, the one shown with its tabs and a + after them;
+// over the editor area, the one shown with its tabs;
 // tabs on the left give way until the active one fits.
 func (m *Model) editorTabs(w int) []edTab {
 	sessOn := m.showsSession()
@@ -991,10 +989,6 @@ func (m *Model) editorTabs(w int) []edTab {
 			active := sessOn && s.ID == m.sess
 			label, tip := m.sessLabel(s, active, w-3)
 			items = append(items, edTab{i: -1, id: s.ID, w: ansi.StringWidth(label), label: label, tip: tip, active: active, bg: m.highlight(s)})
-		}
-
-		if sessOn && root == m.rootOf(m.sess) {
-			items = append(items, edTab{i: -1, w: 3, label: " + ", plus: true})
 		}
 	}
 
@@ -1093,10 +1087,7 @@ func (m *Model) editorStrip(w int) string {
 	tabs := m.editorTabs(w)
 	for _, t := range tabs {
 		if t.i < 0 {
-			segs = append(segs, tabSegs([]sessTab{{id: t.id, label: t.label, active: t.active, plus: t.plus, bg: t.bg}}, m.overTab, m.overX)...)
-			if t.plus { // its gap, a tab's hairline, so what follows sits where a click finds it
-				segs = append(segs, sg("▏", fg(pal.tabBorder)))
-			}
+			segs = append(segs, tabSegs([]sessTab{{id: t.id, label: t.label, active: t.active, bg: t.bg}}, m.overTab, m.overX)...)
 
 			continue
 		}
@@ -1155,8 +1146,8 @@ func edTabsEnd(tabs []edTab) int {
 	return t.x + t.w + tabGap
 }
 
-// noteSessTabs notes the tip of the session tab under the mouse: the +'s,
-// a ✕'s, or a cut name whole.
+// noteSessTabs notes the tip of the session tab under the mouse: a ✕'s, or
+// a cut name whole.
 func (m *Model) noteSessTabs(tabs []edTab) {
 	if m.mouseY != 0 || m.mouseX < m.mainX() || m.mouseX >= m.mainX()+m.mainW() {
 		return
@@ -1165,8 +1156,6 @@ func (m *Model) noteSessTabs(tabs []edTab) {
 	for _, t := range tabs {
 		switch {
 		case t.i >= 0:
-		case t.plus && m.overTab == plusTab:
-			m.tip = "New Tab in Session"
 		case t.id != "" && t.id == m.overX:
 			m.tip = ifElse(m.rootOf(t.id) == t.id, "Close (keeps running)", "Kill Session…")
 		case t.id != "" && t.id == m.overTab && t.tip != "":
@@ -1208,9 +1197,7 @@ func (m *Model) editorRule(w int) string {
 	var marks []ruleMark
 
 	for _, t := range m.editorTabs(w) {
-		if !t.plus {
-			marks = append(marks, ruleMark{t.x, t.w, t.active, m.tabID(t) == m.overTab})
-		}
+		marks = append(marks, ruleMark{t.x, t.w, t.active, m.tabID(t) == m.overTab})
 	}
 
 	return ruleRow(w, marks)
@@ -1222,7 +1209,7 @@ func (m *Model) tabID(t edTab) string {
 		return m.editors[t.i].id()
 	}
 
-	return ifElse(t.plus, plusTab, t.id)
+	return t.id
 }
 
 // stripMouse handles a click on the editor area's strip: the middle button
@@ -1280,15 +1267,13 @@ func (m *Model) stripMouse(x int, mo tea.Mouse) tea.Cmd {
 	return nil
 }
 
-// sessTabClick is a click on session tab t at strip column x: the + opens
-// another tab in the session, the right button its menu, the middle one or
-// the ✕ closes it; else it shows, and the left button picks it up: one of
-// its shell tabs to move along its tabs, the session's own to dock, dragged
-// to the editor area's right or left edge, as its title does.
+// sessTabClick is a click on session tab t at strip column x: the right
+// button opens its menu, the middle one or the ✕ closes it; else it shows,
+// and the left button picks it up: one of its shell tabs to move along its
+// tabs, the session's own to dock, dragged to the editor area's right or left
+// edge, as its title does.
 func (m *Model) sessTabClick(t edTab, x int, mo tea.Mouse) tea.Cmd {
 	switch {
-	case t.plus:
-		return m.newTab()
 	case mo.Button == tea.MouseRight:
 		return m.sessionMenu(t.id)
 	case mo.Button == tea.MouseMiddle || t.active && x >= t.x+t.w-tabCloseW:

@@ -414,7 +414,6 @@ var (
 	icDetach     = glyph{"debug-disconnect", "\uead0", "◇", ""}
 	icMainWt     = glyph{"home", "\ueb06", "⌂", ""}           // a project's own checkout
 	icLinkedWt   = glyph{"source-control", "\uea68", "⑂", ""} // a linked worktree of it
-	icTabs       = glyph{"window", "\ueb7f", "⧉", ""}         // a session's tab count in Spaces
 	icResume     = glyph{"comment-discussion", "\ueac7", "↺", ""}
 	icPin        = glyph{"pin", "\ueb2b", "⊙", ""}    // a Spaces session's pin button
 	icPinned     = glyph{"pinned", "\ueba0", "⊙", ""} // a pinned session's
@@ -426,7 +425,7 @@ var (
 		icAdd, icRemove, icDiscard, icWorktree, icSparkle, icCheck, icChevron, icClose, icMax, icRestore, icBranch, icPublish, icSync, icSplit, icInline, icUnfold, icFold,
 		icSearch, icCase, icWord, icRegex, icEllipsis, icClearAll, icOptions, icPreview, icSource,
 		icPrevRev, icNextRev, icUp, icDown, icHistory, icTag, icDetach, icReplace, icPreserve, icReplaceAll, icTerminal, icDot,
-		icMainWt, icLinkedWt, icTabs, icResume, icPin, icPinned, icWrap, icGitHub, icPR, icPRDraft, icPRNew, icIssue, icBell, icCheckAll,
+		icMainWt, icLinkedWt, icResume, icPin, icPinned, icWrap, icGitHub, icPR, icPRDraft, icPRNew, icIssue, icBell, icCheckAll,
 		icMerge, icCompare, icComment, icPRClosed, icReopen, icDatabase, icTable, icView,
 	}
 )

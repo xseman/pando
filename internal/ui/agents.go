@@ -983,10 +983,6 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			status = where + " · " + status
 		}
 
-		if len(tabs) > 1 { // its own and the ones + opened
-			status = icTabs.s() + " " + strconv.Itoa(len(tabs)) + " · " + status
-		}
-
 		// A name the row cuts, at 32 cells or at the column's edge, shows
 		// whole in a tip.
 		g, after, right := m.spin(glyph, tabs...), titleAfter(r.s), " "+status+" "
@@ -2743,8 +2739,8 @@ func (m *Model) onScreen(msg screenMsg) tea.Cmd {
 	return nil
 }
 
-// sessTab is one chip of the session strip; the last one is the + that opens
-// another shell.
+// sessTab is one chip of the session strip or the Terminal's, whose last one
+// is the + that opens another shell.
 type sessTab struct {
 	id     string
 	x, w   int
@@ -2756,7 +2752,7 @@ type sessTab struct {
 }
 
 // sessionTabs are the tabs of the session in view, in the order [ and ]
-// cycle them, with a + to open one more in it: herdr's workspace tabs.
+// cycle them: herdr's workspace tabs.
 func (m *Model) sessionTabs(w int) []sessTab {
 	return m.tabsFor(w-m.sessBtnW(), m.tabsOf(m.rootOf(m.sess)), m.sess)
 }
@@ -2812,16 +2808,6 @@ func (m *Model) lastTabOf(root string) string {
 	}
 
 	return root
-}
-
-// newTab opens a shell as one more tab of the session in view.
-func (m *Model) newTab() tea.Cmd {
-	root := m.session(m.rootOf(m.sess))
-	if root == nil {
-		return m.ag.newSession(m, nil)
-	}
-
-	return m.spawn(root.Workspace, tabAgent, root.ID, nil, "", nil) // the daemon picks the shell
 }
 
 // termSessions are the shells of the Terminal panel: the shown session's own,
@@ -2902,8 +2888,6 @@ func (m *Model) sessLabel(s proto.Session, active bool, room int) (label, tip st
 }
 
 func (m *Model) tabsFor(w int, sessions []proto.Session, active string) []sessTab {
-	room := w - 3 // the + keeps its place after the tabs
-
 	labels, tips, widths, total, at := make([]string, len(sessions)), make([]string, len(sessions)), make([]int, len(sessions)), 0, -1
 
 	for i, s := range sessions {
@@ -2911,7 +2895,7 @@ func (m *Model) tabsFor(w int, sessions []proto.Session, active string) []sessTa
 			at = i
 		}
 
-		labels[i], tips[i] = m.sessLabel(s, s.ID == active, room)
+		labels[i], tips[i] = m.sessLabel(s, s.ID == active, w)
 		widths[i] = ansi.StringWidth(labels[i])
 		total += widths[i] + tabGap
 	}
@@ -2919,7 +2903,7 @@ func (m *Model) tabsFor(w int, sessions []proto.Session, active string) []sessTa
 	// As the editor strip does: the tabs before the active one give way
 	// until it fits.
 	start := 0
-	for total > room && start < at {
+	for total > w && start < at {
 		total -= widths[start] + tabGap
 		start++
 	}
@@ -2928,13 +2912,13 @@ func (m *Model) tabsFor(w int, sessions []proto.Session, active string) []sessTa
 
 	x := 0
 
-	for i := start; i < len(sessions) && x+widths[i]+tabGap <= room; i++ {
+	for i := start; i < len(sessions) && x+widths[i]+tabGap <= w; i++ {
 		s := sessions[i]
 		out = append(out, sessTab{id: s.ID, x: x, w: widths[i], label: labels[i], tip: tips[i], active: s.ID == active, bg: m.highlight(s)})
 		x += widths[i] + tabGap
 	}
 
-	return append(out, sessTab{x: x, w: 3, label: " + ", plus: true})
+	return out
 }
 
 // shells are the programs a session waits in; anything else running in one
@@ -3022,7 +3006,7 @@ func (m *Model) sessionStrip(w int) string {
 	}
 
 	btns, _ := m.actSegs(m.sessionButtons(), x0, y)
-	m.noteStrip(tabs, "New Tab in Session", "Kill Session…", x0, y, w)
+	m.noteStrip(tabs, "", "Kill Session…", x0, y, w)
 
 	return m.stripMark(row(w, nil, tabSegs(tabs, m.overTab, m.overX), append(right, btns...)...), stripSession, 0)
 }
@@ -3032,9 +3016,7 @@ func (m *Model) sessionRule(w int) string {
 	var marks []ruleMark
 
 	for _, t := range m.sessionTabs(w) {
-		if !t.plus {
-			marks = append(marks, ruleMark{t.x, t.w, t.active, t.id == m.overTab})
-		}
+		marks = append(marks, ruleMark{t.x, t.w, t.active, t.id == m.overTab})
 	}
 
 	return ruleRow(w, marks)
@@ -3169,8 +3151,8 @@ func tabSegs(tabs []sessTab, over, overX string) []seg {
 	return segs
 }
 
-// sessionStripMouse switches, closes or opens a session from the strip; a
-// tab past the session's own drags along it.
+// sessionStripMouse switches or closes a session from the strip; a tab past
+// the session's own drags along it.
 func (m *Model) sessionStripMouse(x int, mo tea.Mouse) tea.Cmd {
 	button := mo.Button
 	if a, ok := hit(m.sessionButtons(), x); ok && button == tea.MouseLeft {
@@ -3183,8 +3165,6 @@ func (m *Model) sessionStripMouse(x int, mo tea.Mouse) tea.Cmd {
 		}
 
 		switch {
-		case t.plus:
-			return m.newTab()
 		case button == tea.MouseRight:
 			return m.sessionMenu(t.id)
 		case button == tea.MouseMiddle || (t.active && x >= t.x+t.w-tabCloseW):
@@ -3776,7 +3756,14 @@ func (m *Model) termScreen(w, h int) []string {
 	return withBar(out, w, t.bar(h), m.barState("terminal"))
 }
 
-func (m *Model) termTabs(w int) []sessTab { return m.tabsFor(w, m.termSessions(), m.tv.id) }
+func (m *Model) termTabs(w int) []sessTab {
+	tabs, x := m.tabsFor(w-3, m.termSessions(), m.tv.id), 0 // the + keeps its place after the tabs
+	if len(tabs) > 0 {
+		x = tabsEnd(tabs) + tabGap
+	}
+
+	return append(tabs, sessTab{x: x, w: 3, label: " + ", plus: true})
+}
 
 // termStripW is the room the tab strip has: the bottom panel keeps its buttons
 // and the space before its tabs, a column its buttons. Rendering and hit tests

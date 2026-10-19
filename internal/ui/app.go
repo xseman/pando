@@ -2073,10 +2073,6 @@ func (m *Model) terminalItems() []item {
 		})
 	}
 
-	if m.session(m.sess) != nil {
-		items = append(items, item{label: "New Tab in Session", run: func(m *Model) tea.Cmd { return m.newTab() }})
-	}
-
 	items = append(items, item{label: "Focus Terminal", run: func(m *Model) tea.Cmd { return m.focusTerminal() }},
 		item{label: "New Terminal", hint: "^⇧`", run: func(m *Model) tea.Cmd { return tea.Batch(m.openTerminalPanel(), m.newTerm()) }})
 	if m.session(m.tv.id) != nil {

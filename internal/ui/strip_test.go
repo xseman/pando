@@ -251,7 +251,7 @@ func TestDragSessionTab(t *testing.T) {
 	}
 }
 
-// TestPlusButtonHovers paints the + of the session strip on
+// TestPlusButtonHovers paints the + of the Terminal strip on
 // hover_bg while the pointer is over it.
 func TestPlusButtonHovers(t *testing.T) {
 	m := testModel(t)
@@ -266,7 +266,7 @@ func TestPlusButtonHovers(t *testing.T) {
 		strip int
 		tabs  []sessTab
 	}{
-		{stripSession, m.sessionTabs(m.sessW())},
+		{stripTerm, m.termTabs(m.termStripW())},
 	} {
 		plus := c.tabs[len(c.tabs)-1]
 		in, _ := m.tabUnder(c.strip, plus.x+1)

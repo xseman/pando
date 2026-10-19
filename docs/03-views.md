@@ -141,7 +141,7 @@ re-roots Explorer and Source Control to its worktree.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━  its border, heavy in tab_border
 ▾ ◐ repo +⎇ New Worktree  project: most demanding session's glyph (· none), button (hover)
    ⌂ main + New Session  ↺ Resume 2  the project's own checkout, buttons (hover; one that does not fit before the count is left out), session count
- ⊙ ├─ ◐ claude · fix   ⧉ 2 · running   tab count, with more than its own; ⊙ pinned
+ ⊙ ├─ ◐ claude · fix   running         ⊙ pinned
    └─ ○ shell          idle
    ⑂ feat/x         1   linked worktree (dimmed)
    └─ ○ shell          idle
@@ -254,9 +254,9 @@ profile, whose config holds the conversations. The header's `↺`, after `+`,
 resumes in the selected row's worktree, a project asking which
 (`agents.resume`).
 
-A session has tabs (`tabsOf`): `+` adds a shell that dies with it, `[` `]`
-cycle, middle click or `✕` kills after asking. A session with more than its
-own tab shows their count in its row (`icTabs`).
+A session is one tab: its strip has no `+`. Shell tabs a session kept from
+before (`tabsOf`) still show, `[` `]` cycle them, middle click or `✕` kills
+after asking.
 
 ## Terminal
 
