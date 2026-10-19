@@ -417,7 +417,7 @@ func (p *preview) editKey(m *Model, k tea.KeyPressMsg) (tea.Cmd, bool) {
 			a, z = c, c
 		}
 
-		if m.st.Settings.Spaces { // insert_spaces: to the next tab stop
+		if spaces, _ := m.indentation(); spaces { // insert_spaces or the file's own: to the next tab stop
 			return p.edit(m, a, z, strings.Repeat(" ", tabW-a.col%tabW)), true
 		}
 

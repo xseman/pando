@@ -5,7 +5,7 @@ what `state.json` remembers. Keys: [09-keys.md](09-keys.md).
 
 [Files](#files) · [Changes](#changes) · [Settings](#settings) ·
 [Tables](#tables) · [Shell](#shell) · [Columns](#columns) · [Keys](#keys) ·
-[Language servers](#language-servers-and-formatters) · [Colors](#colors) ·
+[Language servers](#language-servers-and-formatters) · [Indentation](#indentation) · [Colors](#colors) ·
 [state.json](#statejson) · [Drafts](#drafts)
 
 ## Files
@@ -88,8 +88,8 @@ config.toml edited ───────────┘  └─ "state" event �
 | `claude_background`    | `true`      | resume claude in the background (`pando claude`)                               |
 | `vim_mode`             | `false`     | editors open in vim normal mode                                                |
 | `word_wrap`            | `false`     | wrap long lines; off, a horizontal scrollbar                                   |
-| `tab_size`             | `4`         | cells a tab draws, spaces per indent                                           |
-| `insert_spaces`        | `false`     | `tab` inserts `tab_size` spaces                                                |
+| `tab_size`             | `4`         | cells a tab draws, spaces per indent, unless the file says its own (below)     |
+| `insert_spaces`        | `false`     | `tab` inserts `tab_size` spaces, unless the file says its own                  |
 | `render_whitespace`    | `selection` | `·` `→` for blanks: `none`, `boundary`, `selection`, `trailing`, `all`         |
 | `markdown_width`       | `80`        | rendered Markdown width, margins included; `0` fills the panel                 |
 | `editor_limit`         | `0`         | most editor tabs, least recent closing; `0` none                               |
@@ -166,6 +166,21 @@ ts     = ["prettier", "--stdin-filepath", "$FILE"]
 
 The extension beats the language id. A formatter pipes stdin to
 stdout; `$FILE` is the path. Lookup and TypeScript: [04-preview.md](04-preview.md).
+
+## Indentation
+
+A file indents as its `.editorconfig` says, then as its lines show, then as
+`tab_size` and `insert_spaces` say, VS Code's `editor.detectIndentation`
+with the EditorConfig extension:
+
+| Source          | Gives                                                                                  |
+| --------------- | -------------------------------------------------------------------------------------- |
+| `.editorconfig` | `indent_style`, `indent_size`, `tab_width`; the nearest file wins, up to `root = true` |
+| its lines       | tabs or spaces, by what more lines start with; a level's spaces, by the commonest step |
+| the status bar  | Tab Size: the file's own until it closes; a reload keeps it                            |
+
+Other `.editorconfig` keys (`end_of_line`, `trim_trailing_whitespace`, …)
+are not read.
 
 ## Colors
 

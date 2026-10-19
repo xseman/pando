@@ -169,6 +169,7 @@ type preview struct {
 	lineRow                       []int   // first screen row of each line
 	buf                           *buffer // the editable text of a file; nil for diffs and revisions
 	trunc                         bool    // the file was too big to load whole, so it stays read-only
+	ind                           indent  // the file's own indentation: .editorconfig, its lines, the status bar's picker
 	find                          filter  // ⌃f box over the file; hits are selected one at a time
 	hits                          []findHit
 	hit                           int
@@ -199,6 +200,7 @@ type previewMsg struct {
 	fixed        bool     // too long to unfold, or a merge's combined diff: git's three lines of context
 	disk         []string // a working-tree diff's file, for its problems' columns
 	base, head   []string // a file's staged text and, when it differs, its committed text
+	ind          indent   // a file's own indentation
 }
 
 // diffRows are a rendered diff's rows, every one of them.
@@ -331,7 +333,7 @@ func (p *preview) snapshot() preview {
 		root: p.root, entry: p.entry, rev: p.rev, gh: p.gh, folded: p.folded, compose: p.compose, tbl: p.tbl, cell: p.cell,
 		repo: p.repo, revs: p.revs, revIdx: p.revIdx, md: p.md,
 		cur: p.cur, top: p.top, left: p.left, buf: p.buf, trunc: p.trunc, used: p.used,
-		transient: p.transient, open: p.open,
+		transient: p.transient, open: p.open, ind: p.ind,
 	}
 }
 
@@ -412,6 +414,7 @@ func (m *Model) setPreview(p preview) tea.Cmd {
 	}
 
 	m.preview = true
+	tabW = m.tabWidth() // drawn at its own width from the start: the cursor it comes back with counts in it
 	cmd := m.pv.load(m)
 	m.saveSpot() // an untitled buffer loads in place: the tab takes it now
 
@@ -1231,6 +1234,10 @@ func (p *preview) load(m *Model) tea.Cmd {
 		if err == nil && raw != cp.raw {
 			msg.lines, msg.plain, msg.meta, msg.numW = render(cp.kind, cp.path, raw, dark)
 
+			if cp.kind == pvFile {
+				msg.ind = fileIndent(cp.path, raw)
+			}
+
 			if cp.kind == pvDiff && cp.diagPath() != "" {
 				msg.disk = fileLines(cp.diagPath())
 			}
@@ -1441,7 +1448,10 @@ func (p *preview) onLoad(m *Model, msg previewMsg) {
 	}
 
 	if p.kind == pvFile {
-		p.trunc = msg.trunc
+		if p.trunc = msg.trunc; !p.ind.picked {
+			p.ind = msg.ind
+		}
+
 		switch {
 		case p.dirty(): // unsaved edits survive a reload, a tab switch, a reopen
 			p.draft = ""

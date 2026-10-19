@@ -204,7 +204,8 @@ func (c *config) encode() []byte {
 	kv("Show a file's path under its tab, as VS Code's breadcrumbs.enabled; clicking a folder\nbrowses it.", "breadcrumbs", s.Crumbs)
 	kv("Editors wrap long lines at the edge; off, they scroll sideways under a horizontal\nscrollbar. alt+z toggles it.", "word_wrap", s.Wrap)
 	kv("A tab's width in editors, VS Code's editor.tabSize, and whether the tab key indents\n"+
-		"with that many spaces instead (editor.insertSpaces). The status bar's Tab Size sets both.", "tab_size", s.TabSize)
+		"with that many spaces instead (editor.insertSpaces): the defaults for a file whose\n"+
+		".editorconfig and lines say nothing. The status bar's Tab Size sets the file's own.", "tab_size", s.TabSize)
 	kv("", "insert_spaces", s.Spaces)
 	kv("Rendered Markdown lays out at most this many cells wide, its margins included, as glow's\n"+
 		"-w does; a wider panel leaves the rest blank. 0 fills the panel.", "markdown_width", s.MDWidth)

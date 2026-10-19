@@ -341,6 +341,9 @@ column and a blob are read only.
 - Unsaved text is kept as a draft and comes back with its tab; a file changed
   on disk is never overwritten silently.
 - `ctrl+shift+i` formats, `ctrl+s` too with `format_on_save`. Go uses `gofmt`.
+- Indentation follows the file: its `.editorconfig`, else what its lines show,
+  else `tab_size` and `insert_spaces`; the status bar's Tab Size changes the
+  file's own.
 
 ![a sloppy Go file typed into an untitled buffer, saved with path completion, and tidied by gofmt on the way to disk](demo/edit.gif)
 

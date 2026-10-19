@@ -749,8 +749,9 @@ func TestStatusBarEditorItems(t *testing.T) {
 	choose(t, m, "Indent Using Spaces")
 	choose(t, m, "2")
 
-	if !m.st.Settings.Spaces || m.st.Settings.TabSize != 2 || tabW != 2 {
-		t.Fatalf("settings %+v, tab width %d", m.st.Settings, tabW)
+	// The file takes it as its own, as VS Code's model does: the settings stay.
+	if m.pv.ind != (indent{"space", 2, true}) || m.st.Settings.Spaces || tabW != 2 {
+		t.Fatalf("indentation %+v, insert_spaces %v, tab width %d", m.pv.ind, m.st.Settings.Spaces, tabW)
 	}
 
 	if s := status(); !strings.Contains(s, "Spaces: 2") {

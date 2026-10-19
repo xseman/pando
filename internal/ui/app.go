@@ -463,7 +463,7 @@ func New(st proto.State, wss []proto.Workspace, ss []proto.Session, ws string, e
 	}
 
 	m.look()
-	tabW = tabSize(m.st.Settings.TabSize)
+	tabW = m.tabWidth()
 	m.ag.l.sel = -1
 	m.scm.init()
 	m.sr.init()
@@ -2937,7 +2937,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.scm.onMsg(m, msg)
 	case previewMsg:
 		m.pv.onLoad(m, msg)
-		return m, nil
+		return m, m.syncTabs() // a file opened for the first time tells its indentation now
 
 	case indexMsg:
 		if msg.ws == m.ws {
@@ -4877,7 +4877,7 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 		add(pos, dim, "Go to Line…  ^g", func(m *Model) tea.Cmd { return m.gotoLineQuery(":") })
 
 		if m.pv.kind == pvFile || m.pv.kind == pvRev {
-			add(" "+indentLabel(m.st.Settings)+" ", dim, "Change Indentation…", func(m *Model) tea.Cmd { return m.indentPicker() })
+			add(" "+m.indentLabel()+" ", dim, "Change Indentation…", func(m *Model) tea.Cmd { return m.indentPicker() })
 		}
 	}
 
@@ -5617,18 +5617,48 @@ func helpModal(gh, dbs bool) *modal {
 	return newMenu("Keys", -1, 0, items...)
 }
 
-// indentLabel is the status bar's indentation item, VS Code's: the width a
-// tab takes, or the spaces an indent is.
-func indentLabel(s proto.Settings) string {
-	if s.Spaces {
-		return fmt.Sprintf("Spaces: %d", tabSize(s.TabSize))
+// indentation is how the active editor indents.
+func (m *Model) indentation() (spaces bool, size int) { return m.indentOf(&m.pv) }
+
+// indentOf is how editor p indents: a file's own, what its .editorconfig or
+// its lines say, over insert_spaces and tab_size.
+func (m *Model) indentOf(p *preview) (spaces bool, size int) {
+	spaces, size = m.st.Settings.Spaces, tabSize(m.st.Settings.TabSize)
+	if p.kind != pvFile {
+		return spaces, size
 	}
 
-	return fmt.Sprintf("Tab Size: %d", tabSize(s.TabSize))
+	if p.ind.style != "" {
+		spaces = p.ind.style == "space"
+	}
+
+	if p.ind.size > 0 {
+		size = tabSize(p.ind.size)
+	}
+
+	return spaces, size
+}
+
+// tabWidth is the cells a tab takes in the active editor.
+func (m *Model) tabWidth() int {
+	_, size := m.indentation()
+	return size
+}
+
+// indentLabel is the status bar's indentation item, VS Code's: the width a
+// tab takes, or the spaces an indent is.
+func (m *Model) indentLabel() string {
+	spaces, size := m.indentation()
+	if spaces {
+		return fmt.Sprintf("Spaces: %d", size)
+	}
+
+	return fmt.Sprintf("Tab Size: %d", size)
 }
 
 // indentPicker is VS Code's indentation menu: indent with spaces or with
-// tabs, then how wide.
+// tabs, then how wide. A file takes it as its own, as VS Code's model does;
+// a revision has none, so it sets the settings.
 func (m *Model) indentPicker() tea.Cmd {
 	size := func(spaces bool) func(m *Model) tea.Cmd {
 		return func(m *Model) tea.Cmd {
@@ -5637,11 +5667,18 @@ func (m *Model) indentPicker() tea.Cmd {
 				n := i + 1
 
 				hint := ""
-				if n == tabSize(m.st.Settings.TabSize) {
+				if n == m.tabWidth() {
 					hint = "current"
 				}
 
 				items[i] = item{label: strconv.Itoa(n), hint: hint, run: func(m *Model) tea.Cmd {
+					if m.pv.kind == pvFile {
+						m.pv.ind = indent{style: ifElse(spaces, "space", "tab"), size: n, picked: true}
+						m.saveSpot() // the tab keeps it
+
+						return m.syncTabs()
+					}
+
 					return m.setSettings(map[string]any{"tab_size": n, "insert_spaces": spaces})
 				}}
 			}
@@ -5653,7 +5690,7 @@ func (m *Model) indentPicker() tea.Cmd {
 	}
 
 	using := func(spaces bool) string {
-		if spaces == m.st.Settings.Spaces {
+		if is, _ := m.indentation(); spaces == is {
 			return "current"
 		}
 
@@ -5668,10 +5705,11 @@ func (m *Model) indentPicker() tea.Cmd {
 	return nil
 }
 
-// syncTabs makes tab_size the width of a tab, redrawing the editor with the
-// cursor and the selection on the characters they were on.
+// syncTabs makes the active editor's tab width (tabWidth) the width of a
+// tab, redrawing the editor with the cursor and the selection on the
+// characters they were on.
 func (m *Model) syncTabs() tea.Cmd {
-	n := tabSize(m.st.Settings.TabSize)
+	n := m.tabWidth()
 	if n == tabW {
 		return nil
 	}

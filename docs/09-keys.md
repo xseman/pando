@@ -119,7 +119,7 @@ Editable files and read-only views (diff, revision, rendering):
 
 Editable only:
 
-- `⏎`, `tab`, `⌫`, `del`: type; `⏎` keeps the indent, `tab` follows `insert_spaces`
+- `⏎`, `tab`, `⌫`, `del`: type; `⏎` keeps the indent, `tab` follows the file's indentation
 - `ctrl+z`, `ctrl+y` `ctrl+shift+z`: undo, redo
 - `ctrl+x`, `ctrl+v`: cut (the line without a selection), paste
 - `ctrl+shift+k`: delete the line or selection

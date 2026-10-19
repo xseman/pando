@@ -55,7 +55,13 @@ vrow{line, from, to}   screen rows; wrapped when wrap is on
 - `pos{line, col}` is a display position into `plain`; `anchor` is the other
   end of a selection. Styles never enter `plain`, so copy gives code.
 - A tab is `tabW` spaces, not a run to the next stop; `syncTabs` redraws on a
-  change. `insert_spaces` makes the tab key insert spaces.
+  change. `tabW` is the active editor's (`tabWidth`): `setPreview` sets it
+  before the load renders, so a tab coming back draws at its own width.
+- A file's own indentation (`p.ind`, `indent.go`) is read in the load's
+  command, with the render: `editorConfig` over `detectIndent`, field by
+  field; `indentOf` puts it over `insert_spaces` and `tab_size`. The status
+  bar's picker sets it `picked`, which a reload keeps. The tab key inserts
+  spaces or a tab by it.
 - `render_whitespace`: `blankMarks` picks `·`/`→` per rune, `markBlanks`
   paints them over the styled line. Files only.
 - The gutter's lane after the numbers marks lines against the file's staged
