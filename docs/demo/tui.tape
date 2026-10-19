@@ -35,10 +35,10 @@ Show
 Wait+Screen@30s /running[\s\S]*running/
 Sleep 1500ms
 
-# One waits for a yes (× pulses) and one finishes (✓), in whichever order,
+# One waits for a yes (× input) and one finishes (✓ done), in whichever order,
 # while the third works on. (The wait for them is cut.)
 Hide
-Wait+Screen@90s /blocked/
+Wait+Screen@90s /×[^\n]*input/
 Wait+Screen@90s /✓/
 Show
 Sleep 2500ms

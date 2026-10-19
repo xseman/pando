@@ -41,7 +41,7 @@ Sleep 500ms
 Show
 Sleep 800ms
 
-# Where is Total used? gopls answers into the peek under the editor.
+# Where is Total used? gopls answers into the peek, inline under its line.
 Ctrl+g
 Sleep 300ms
 Type "18:17"
