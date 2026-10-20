@@ -2501,11 +2501,12 @@ func (t *term) lineAt(y int) int {
 	return t.pushed() - t.scroll + y
 }
 
-// readBase is the number lineAt gives line 0 of session.read's text, the
-// oldest scrollback line.
+// readBase is the number lineAt gives line 0 of the text searched and copied:
+// session.read's, the oldest scrollback line, or the screen's first for an app
+// that scrolls itself, whose screen is all of it.
 func (t *term) readBase() int {
-	if t.scr.AltScreen {
-		return 0
+	if t.ownScroll() {
+		return t.lineAt(0)
 	}
 
 	return t.pushed() - t.scr.Scrollback
@@ -2591,7 +2592,7 @@ func (t *term) cutSel(text func(n int) (string, bool)) string {
 // since the drag began come from session.read, which holds them all.
 func (t *term) copySel(id string) tea.Cmd {
 	p, q := t.selEnds()
-	if top := t.lineAt(0); p[1] >= top && q[1] < top+len(t.scr.Lines) || t.scr.AltScreen {
+	if top := t.lineAt(0); p[1] >= top && q[1] < top+len(t.scr.Lines) || t.ownScroll() {
 		text := t.selText()
 		return setClipboard(text, fmt.Sprintf("copied %d characters", utf8.RuneCountInString(text)))
 	}
@@ -2683,7 +2684,10 @@ func (m *Model) onScreen(msg screenMsg) tea.Cmd {
 			}
 
 			t.t.id, t.t.scr = msg.id, msg.scr
-			t.t.scroll = min(t.t.scroll, msg.scr.Scrollback)
+			if t.t.scroll = min(t.t.scroll, msg.scr.Scrollback); t.t.ownScroll() { // back on its own live view
+				t.t.scroll = 0
+			}
+
 			find = t.t.refind(m)
 		}
 
@@ -3168,10 +3172,21 @@ func (t *term) view(m *Model, w, _ int) []string {
 	return withBar(lines, w, t.bar(len(lines)), m.barState("session"))
 }
 
-// bar is the terminal's scrollbar: its scrollback above the h rows it shows.
+// bar is the terminal's scrollbar: its scrollback above the h rows it shows;
+// none for an app that scrolls itself.
 func (t *term) bar(h int) vbar {
+	if t.ownScroll() {
+		return vbar{h, h, 0}
+	}
+
 	return vbar{t.scr.Scrollback + h, h, t.scr.Scrollback - t.scroll}
 }
+
+// ownScroll reports an app that scrolls itself: on the alternate screen,
+// which keeps no scrollback, or taking the mouse, as claude's fullscreen view
+// does, whose scrollback is what scrolled off its redraws, not its history.
+// The wheel and pgup/pgdn go to it.
+func (t *term) ownScroll() bool { return t.scr.AltScreen || t.scr.Mouse }
 
 // barMouse starts a drag on terminal t's scrollbar (id names it) from a
 // left click at row y of its screen, at screen row sy.
@@ -3189,10 +3204,10 @@ func (m *Model) barMouse(t *term, id string, y, sy int) tea.Cmd {
 }
 
 // key sends a key to the terminal's app. pgup and pgdn (shift too, as VS
-// Code's) page the scrollback instead, as the wheel does, unless the app is on
-// the alternate screen, which has none and pages itself.
+// Code's) page the scrollback instead, as the wheel does, unless the app
+// scrolls itself.
 func (t *term) key(m *Model, id string, k tea.KeyPressMsg) tea.Cmd {
-	if !t.scr.AltScreen {
+	if !t.ownScroll() {
 		switch k.String() {
 		case "pgup", "shift+pgup":
 			return t.scrollBy(m, len(t.scr.Lines))

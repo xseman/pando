@@ -315,8 +315,11 @@ Model.mouse
 - Click grabs the slider or jumps to the track point; `dragScroll` follows.
   A diff's bar marks its changes (`vbar.marked`), on the slider too; a click
   on a mark off the slider goes to that change.
-- On the alternate screen (`Screen.AltScreen`) the bar is empty and the wheel
-  and `pgup`/`pgdn` go to the app.
+- An app that scrolls itself (`ownScroll`), on the alternate screen
+  (`Screen.AltScreen`) or taking the mouse (`Screen.Mouse`, claude's
+  fullscreen view), has no bar, its column kept so the width stays; the
+  wheel and `pgup`/`pgdn` go to it. What pando kept of a mouse app's
+  scrollback is what scrolled off its redraws, no history.
 
 ## Tab strips
 

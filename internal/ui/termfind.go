@@ -80,9 +80,9 @@ func (t *term) closeFind() {
 	t.find.hits = nil
 }
 
-// search collects the query's matches again. The alternate screen has no
-// scrollback, so its screen is searched as it is; otherwise the text comes
-// from session.read and the matches land in onTermText.
+// search collects the query's matches again. An app that scrolls itself has
+// its screen searched as it is; otherwise the text comes from session.read
+// and the matches land in onTermText.
 func (t *term) search(m *Model, id string, move int) tea.Cmd {
 	t.find.seq++
 	seq := t.find.seq
@@ -92,7 +92,7 @@ func (t *term) search(m *Model, id string, move int) tea.Cmd {
 		return nil
 	}
 
-	if t.scr.AltScreen {
+	if t.ownScroll() { // the screen is all there is to search: what pando kept above is no history
 		lines := make([]string, len(t.scr.Lines))
 		for i, l := range t.scr.Lines {
 			lines[i] = ansi.Strip(l)
@@ -211,7 +211,7 @@ func (t *term) findGo(m *Model, id string, d int) tea.Cmd {
 // when it is outside it, as xterm's search addon does.
 func (t *term) reveal(m *Model) tea.Cmd {
 	f := &t.find
-	if t.scr.AltScreen || f.hit >= len(f.hits) {
+	if t.ownScroll() || f.hit >= len(f.hits) {
 		return nil
 	}
 

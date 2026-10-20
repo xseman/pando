@@ -89,11 +89,11 @@ boxes: `⏎` `↓` to the results, `tab` next box.
 
 ## Terminals
 
-- `ctrl+f`: find in the scrollback
+- `ctrl+f`: find in the scrollback; in an app that scrolls itself, on its screen
 - `shift+F3`, `F3` (in the box also `⏎` `↑`, `shift+⏎` `↓`): previous (older), next match
 - `alt+c` `alt+w` `alt+r`: find: case, word, regex
 - `esc` (`ctrl+f` in the box): close find; a click on the terminal keeps the matches
-- `pgup` `pgdn` (`shift` too): page the scrollback; on the alternate screen, the app's
+- `pgup` `pgdn` (`shift` too): page the scrollback; the app's when it scrolls itself (the alternate screen, or it takes the mouse)
 - `alt+z`: Terminal panel: fit to the content width, scroll sideways
 - `ctrl+click` a URL or a `path:line`: open it, in the browser or the editor
 

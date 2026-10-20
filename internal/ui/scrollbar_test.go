@@ -492,3 +492,40 @@ func TestLongLine(t *testing.T) {
 		t.Fatalf("the cursor's word unlit in view: %q", raw)
 	}
 }
+
+// TestSessionScrollsItself leaves the scrolling to an app that takes the
+// mouse, as claude's fullscreen view does: what pando kept of its redraws is
+// no history, so no bar shows, pgup goes to the app, and find searches the
+// screen, its hits on the rows they stand on.
+func TestSessionScrollsItself(t *testing.T) {
+	m := testModel(t)
+	m.switchSession("s1")
+	m.focus = onMain
+
+	screen := make([]string, m.sessH())
+	screen[3] = "a needle here"
+	m.term.id = "s1"
+	m.term.scr = proto.Screen{Lines: screen, Scrollback: 200, Pushed: 500, Mouse: true}
+
+	if strings.Contains(m.View().Content, bgParams(pal.sliderBg)) {
+		t.Fatal("an app that scrolls itself shows pando's bar")
+	}
+
+	press(m, "pgup")
+
+	select {
+	case in := <-m.inputs:
+		if len(in.Keys) != 1 || in.Keys[0].Code != tea.KeyPgUp || m.term.scroll != 0 {
+			t.Fatalf("pgup: sent %+v, scroll %d; want the key to the app", in, m.term.scroll)
+		}
+
+	default:
+		t.Fatalf("pgup paged pando's scrollback: scroll %d", m.term.scroll)
+	}
+
+	press(m, "ctrl+f", "n", "e", "e", "d", "l", "e")
+
+	if spans := m.term.findSpans(3); len(m.term.find.hits) != 1 || len(spans) != 1 {
+		t.Fatalf("find over the screen: hits %+v, spans on its row %+v", m.term.find.hits, spans)
+	}
+}
