@@ -45,9 +45,9 @@ tick (2 s) ─▶ refreshGit, reloadIfLive, saveDrafts, saveEditors, …
 - `layout` places the columns, split by a one-cell divider (facing frame
   edges with `borders`).
 - Status bar: VS Code's, on `bar_bg` in `description`'s grey, under a rule
-  (`ruled`, `statusRule`: a `─` through the middle of a row on the bar's
-  background, in `overview_ruler_border`, so half a row of margin over it;
-  with `borders` the frame's edge is it). Left, the
+  (`ruled`, `statusRule`: an underlined row in `panel_border`, the
+  border right on the bar, a side activity bar's tint and edge running down to it; with
+  `borders` the frame's edge is it). Left, the
   workspace: the branch opens the branch picker, sync (behind↓ ahead↑)
   syncs, or publishes a branch without an upstream, the problems (with
   `lsp_diagnostics`, zero too) list them. Right, the results open Search,

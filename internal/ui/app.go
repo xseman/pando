@@ -1122,7 +1122,7 @@ func (m *Model) colRect(i int) rect {
 func (m *Model) panelH() int { return max(m.h-1-m.ruled(), 1) }
 
 // ruled is 1 when a rule parts the panels from the status bar, VS Code's
-// statusBar.border: a row with the line through its middle, the frame's
+// statusBar.border: an underlined row, the frame's
 // bottom edge doing it when panel_borders draws one.
 func (m *Model) ruled() int { return b2i(m.bord() == 0 && m.h > 2) }
 
@@ -4110,7 +4110,7 @@ func (m *Model) View() tea.View {
 	}
 
 	if m.ruled() == 1 {
-		lines[len(lines)-2] = m.statusRule()
+		lines[len(lines)-2] = m.statusRule(cs)
 	}
 
 	lines[len(lines)-1] = status
@@ -4965,10 +4965,56 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 }
 
 // statusRule is the row over the status bar, VS Code's statusBar.border: a
-// light line through its middle on the bar's background, so the bar starts
-// half a row under the panels, the line between.
-func (m *Model) statusRule() string {
-	return row(m.w, statusBg(), []seg{sg(strings.Repeat("─", m.w), fg(pal.rulerBorder))})
+// thin underline in panel_border, right on top of the bar, on the activity
+// bar's tint under a side strip, its inner border too, so the strip runs
+// down to it.
+func (m *Model) statusRule(cs []rect) string {
+	tint := make([]bool, m.w)
+	edge := map[int]string{}
+
+	for i, rc := range cs {
+		bw := ifElse(m.railed(i), rc.w, m.barW(i))
+		if rc.w == 0 || bw == 0 {
+			continue
+		}
+
+		x0 := ifElse(m.side(i) == 1, rc.x+rc.w-bw, rc.x)
+		for x := max(x0, 0); x < min(x0+bw, m.w); x++ {
+			tint[x] = true
+		}
+
+		if !m.railed(i) {
+			edge[ifElse(m.side(i) == 1, x0, x0+bw-1)] = ifElse(m.side(i) == 1, "▏", "▕")
+		}
+	}
+
+	var b strings.Builder
+
+	for x := 0; x < m.w; {
+		j, text := x+1, edge[x]
+		for text == "" && j < m.w && tint[j] == tint[x] && edge[j] == "" {
+			j++
+		}
+
+		st := lipgloss.NewStyle().Underline(true).UnderlineColor(pal.panelBorder) // thinner than a ▁
+		if text != "" {
+			st = st.Foreground(pal.rulerBorder)
+		} else {
+			text = strings.Repeat(" ", j-x)
+		}
+
+		if tint[x] && pal.barBg != nil {
+			st = st.Background(pal.barBg)
+		}
+
+		// Render underlines a cell at a time: style the run once.
+		pre, suf, _ := strings.Cut(st.Render("\x00"), "\x00")
+		b.WriteString(pre + text + suf)
+
+		x = j
+	}
+
+	return b.String()
 }
 
 // statusBg is the status bar's background: bar_bg, section_bg for a theme
