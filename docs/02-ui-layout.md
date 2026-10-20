@@ -89,7 +89,7 @@ One terminal cursor, styled by the terminal unless an app asks otherwise:
 
 ## Activity bar
 
-`activity_bar = "top"` or `"side"`; both draw one chip per view (`barPad`,
+`activity_bar = "side"` (the default) or `"top"`; both draw one chip per view (`barPad`,
 icon, `barPad`). The mark (`markColor`) is `header_accent` for the open view,
 `sash_hover`, a tint of the accent, for the icon and the mark under the mouse.
 Where the chips would run into ⚙ the top bar tightens them (`tabs`): one cell

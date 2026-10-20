@@ -47,7 +47,7 @@ func defaultConfig() config {
 		Settings: proto.Settings{
 			Hidden: true, Icons: "ascii", Width: 40, WidthR: 32, GitDeco: true, GitTree: true, Crumbs: true, Reveal: true,
 			Theme: "vscode", DiffView: "inline", Borders: true, FmtSave: true, Diags: true,
-			ActBar: "top", TermPos: "bottom", TermH: 12, SessPos: "editor", SessHi: "tint",
+			ActBar: "side", TermPos: "bottom", TermH: 12, SessPos: "editor", SessHi: "tint",
 			SpSort: "created", SpGroup: "workspace", SpProj: "manual", ExSort: "name",
 			Sounds: true, SoundDone: done, SoundReq: req, Updates: true, Anim: true, Tips: true, Blanks: "selection", ClaudeBg: true, TabSize: 4, MDWidth: 80,
 			Drawers: []string{"Commits", "Graph", "Branches", "Stashes", "Remotes"},
