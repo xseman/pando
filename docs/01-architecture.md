@@ -135,17 +135,29 @@ under the worker) as shell, its ◐ blue. Each tick, `session.tick` decides:
    │ no
  screenState: last 12 non-empty lines and the title
    ├─ blocked: a permission or a question ─────────▶ blocked
-   ├─ running: esc to interrupt, ✻ Doing… ─────────▶ running
-   └─ idle (claude at an empty ❯), or "" (no rule)
-        │
- shell command under the worker on 2 ticks? ───yes─▶ running, shell
-        │ no
- the screen said idle? ────────────────────────yes─▶ idle
-        │ no: unknown program, or a ◯ background row
- no output yet, or output in the last 1.5 s? ──yes─▶ running
-        │ no
-        └──────────────────────────────────────────▶ idle
+   │
+ the user scrolled the app's own view (held)? ─yes─▶ as it was
+   │ no
+ the screen says running (esc to interrupt, ✻ Doing…),
+ a shell command under the worker on 2 ticks (shell),
+ no output yet, or output of its own in the last 1.5 s? ──yes─▶ running
+   │ no
+ an input in the last 1.5 s? ──────────────────yes─▶ as it was
+   │ no
+   └───────────────────────────────────────────────▶ idle
 ```
+
+- Output of its own is the app's: not within 500 ms (`redrawWindow`) of a
+  resize, its redraw, or of an input, its echo. It says running over any
+  screen, claude's idle ❯ too: claude takes its spinner down while it streams
+  the answer, the prompt still under it. Idle shows once it stops, 1.5 s
+  (`busyWindow`) after its last output or the user's last input.
+- `held`: a wheel up sent to an app that takes the mouse scrolls its own view.
+  Scrolled, claude shows history over its prompt and draws nothing while it
+  works, so neither its screen nor its output says anything; the status stays
+  as it was until a key, text or a paste (typing takes the app back to its
+  live view), or output of its own. A turn that ends while the view is
+  scrolled shows `running` until then.
 
 - `agentRules` in `internal/daemon/detect.go` holds the phrases per agent
   (`claude`, `codex`, `gemini`, `opencode`). The screen is reclassified only

@@ -8,7 +8,10 @@ import (
 	"testing"
 	"time"
 
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/vt"
+
+	"github.com/xseman/pando/internal/proto"
 )
 
 func TestScreenState(t *testing.T) {
@@ -67,12 +70,93 @@ func TestBlockedNeedsAttention(t *testing.T) {
 	if s.status != "blocked" || s.attention {
 		t.Fatalf("viewed blocked session must not need attention: %+v", s)
 	}
-	// The prompt says idle before the output window closes.
+	// The prompt says idle once the output stops.
 	s = &session{status: "running", seen: "idle", busySince: now.Add(-5 * time.Second), lastOutput: now}
-	s.tick(now)
+	s.tick(now.Add(busyWindow))
 
 	if s.status != "idle" || !s.attention {
 		t.Fatalf("idle prompt after a burst: %+v", s)
+	}
+}
+
+// An agent streaming its answer takes its spinner down, claude's prompt still
+// under the text: output it writes on its own says running over the prompt,
+// its echo of a key does not, and the prompt says idle once it stops.
+func TestOutputOverIdlePrompt(t *testing.T) {
+	now := time.Now()
+
+	s := &session{status: "idle", seen: "idle", lastOutput: now}
+	s.tick(now)
+
+	if s.status != "running" {
+		t.Fatalf("streaming under an idle prompt: %q, want running", s.status)
+	}
+
+	s.tick(now.Add(busyWindow))
+
+	if s.status != "idle" {
+		t.Fatalf("the stream done: %q, want idle", s.status)
+	}
+
+	s = &session{status: "idle", seen: "idle", inputAt: now.Add(-100 * time.Millisecond), lastOutput: now}
+	s.tick(now)
+
+	if s.status != "idle" {
+		t.Fatalf("the echo of a key: %q, want idle", s.status)
+	}
+	// A key typed while the answer streams: its echo neither starts nor ends
+	// a turn.
+	s = &session{status: "running", seen: "idle", inputAt: now.Add(-100 * time.Millisecond), lastOutput: now}
+	s.tick(now)
+
+	if s.status != "running" {
+		t.Fatalf("a key mid-stream: %q, want running", s.status)
+	}
+}
+
+// A wheel up sent to an app that takes the mouse scrolls its own view: claude
+// then shows history under its prompt and draws nothing while it works. The
+// status holds through it, until a key, or output the app writes on its own.
+func TestScrolledViewHolds(t *testing.T) {
+	now := time.Now()
+	wheel := proto.InputParams{Mouse: &proto.Mouse{Kind: "wheel", Button: int(uv.MouseWheelUp)}}
+
+	s := &session{status: "running", seen: "idle", emu: vt.NewEmulator(80, 6), lastOutput: now.Add(-time.Minute)}
+	s.screenAt = s.lastOutput
+
+	go func() { // what it sends the app, which a session's pty takes
+		for buf := make([]byte, 64); ; {
+			if _, err := s.emu.Read(buf); err != nil {
+				return
+			}
+		}
+	}()
+
+	if err := s.input(wheel); err != nil || !s.held {
+		t.Fatalf("a wheel up: held %v, %v", s.held, err)
+	}
+
+	s.tick(now)
+
+	if s.status != "running" {
+		t.Fatalf("scrolled up mid-turn: %q, want running", s.status)
+	}
+
+	_ = s.input(proto.InputParams{Keys: []proto.Key{{Code: uv.KeyEnd, Mod: int(uv.ModCtrl)}}})
+	s.tick(now.Add(2 * busyWindow)) // past the redraw the key brings
+
+	if s.held || s.status != "idle" {
+		t.Fatalf("a key back to the live view: held %v, %q, want idle", s.held, s.status)
+	}
+
+	_ = s.input(wheel)
+	s.lastOutput = now.Add(time.Second) // the app follows its stream again
+	s.screenAt = s.lastOutput
+
+	s.tick(now.Add(time.Second))
+
+	if s.held || s.status != "running" {
+		t.Fatalf("output of its own: held %v, %q, want running", s.held, s.status)
 	}
 }
 

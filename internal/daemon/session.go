@@ -27,7 +27,7 @@ const (
 	busyWindow   = 1500 * time.Millisecond // output this recent = running
 	longBurst    = 3 * time.Second         // a burst this long ending unseen = attention
 	viewedWindow = 2 * time.Second
-	redrawWindow = 500 * time.Millisecond // output this soon after a resize = the app's redraw, no activity
+	redrawWindow = 500 * time.Millisecond // output this soon after a resize or an input = the app's redraw or echo, no activity
 )
 
 // session is one process on a terminal of its own (a pty, a pseudo console
@@ -46,6 +46,7 @@ type session struct {
 	busySince  time.Time
 	lastViewed time.Time
 	resized    time.Time // when a client last resized it
+	inputAt    time.Time // its last input, which the app echoes or redraws for
 	active     time.Time // its last input or change of status: what Updated reports
 	touched    time.Time // its last input, or the use a restart carried over (used)
 	exited     bool
@@ -55,6 +56,13 @@ type session struct {
 	title      string
 	program    string // the foreground program, as last reported
 	sentTitle  string // the title as last reported, status glyphs aside
+	// held is set while the user has scrolled the app's own view, a wheel
+	// up sent to an app that takes the mouse: what its screen shows is
+	// history, and a scrolled app may draw nothing while it works, so the
+	// status stays as it was until a key, or output the app writes on its own.
+	// ponytail: a turn that ends while scrolled shows running until then; the
+	// view the app holds is not something a terminal tells.
+	held bool
 	// attached is set while the foreground attaches to a background job
 	// (claude attach), which sets no title of its own: the shell's, the
 	// command line, would stand in for it. jobName, the job's own name,
@@ -365,9 +373,11 @@ func (s *session) notice(lines ...string) {
 }
 
 // tick recomputes status; returns true when anything a client shows changed.
-// An agent's screen decides when its rules recognise it (an approval prompt
-// waits in silence; a long tool call prints nothing), output timing otherwise;
-// a shell command under the agent keeps it running short of a prompt.
+// An agent's screen decides blocked (an approval prompt waits in silence) and
+// running (a long tool call prints nothing); output the app writes on its own
+// says running over any screen, as an agent streaming its answer takes its
+// spinner down; a shell command under the agent keeps it running too. While
+// the user has scrolled the app's own view (held) the status stays.
 func (s *session) tick(now time.Time) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -378,6 +388,13 @@ func (s *session) tick(now time.Time) bool {
 	if s.emu != nil && (s.screenAt != s.lastOutput || s.screenProg != s.program) {
 		s.screenAt, s.screenProg = s.lastOutput, s.program
 		s.seen = screenState(s.program, s.title, strings.Split(s.emu.String(), "\n"))
+	}
+
+	// live is output the app wrote on its own: not its redraw for a resize,
+	// nor its echo of an input, both of which an idle app does too.
+	live := now.Sub(s.lastOutput) < busyWindow && s.lastOutput.Sub(s.resized) > redrawWindow && s.lastOutput.Sub(s.inputAt) > redrawWindow
+	if live { // it draws for itself again: its screen is its own
+		s.held = false
 	}
 
 	switch {
@@ -391,10 +408,12 @@ func (s *session) tick(now time.Time) bool {
 			s.attention = true
 		}
 
+	case s.held: // the screen shows the view the user scrolled to
 	// A program that has printed nothing yet has not drawn its prompt: it
 	// starts busy, so session new --wait waits for it.
-	case s.seen == "running", s.command, s.seen == "" && s.lastOutput.IsZero(), s.seen != "idle" && now.Sub(s.lastOutput) < busyWindow && s.lastOutput.Sub(s.resized) > redrawWindow:
+	case s.seen == "running", s.command, s.seen == "" && s.lastOutput.IsZero(), live:
 		s.status = "running"
+	case now.Sub(s.inputAt) < busyWindow: // what the app draws now answers the input, not what it does
 	default:
 		s.status = "idle"
 		if prev == "running" && s.lastOutput.Sub(s.busySince) >= longBurst && !viewed {
@@ -701,7 +720,15 @@ func (s *session) input(p proto.InputParams) error {
 	defer s.mu.Unlock()
 
 	s.active = time.Now()
-	s.touched = s.active
+	s.touched, s.inputAt = s.active, s.active
+
+	if len(p.Keys) > 0 || p.Text != "" || p.Paste != "" { // typing takes an app back to its live view
+		s.held = false
+	}
+
+	if m := p.Mouse; m != nil && m.Kind == "wheel" && uv.MouseButton(m.Button) == uv.MouseWheelUp {
+		s.held = true
+	}
 
 	for _, k := range p.Keys {
 		// vt's SendKey only emits printable keys without modifiers, which
