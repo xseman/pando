@@ -58,6 +58,8 @@ Show Hidden Files and Sort by Type / Name (`explorer_sort`) added.
   (`activeGuide`), in `indent_guide`'s. Every tree draws them so (`guides.at`):
   Search, Source Control (a section's files, Compare's tree), GitHub (a
   query's results), Databases (a source's tables), the references peek.
+- A row without children leaves its chevron's two cells blank, VS Code's
+  empty twistie, so a file sits a level right of its folder's name.
 
 ## Source Control
 
@@ -68,9 +70,9 @@ Show Hidden Files and Sort by Type / Name (`explorer_sort`) added.
  ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔   accent while focused
                ✓ Commit                 ▏∨    action button
  ▾ Merge Changes                       [1]   only while conflicts exist
-   main.go · both modified       src +   !
+     main.go · both modified     src +   !
  ▾ Staged Changes                      [1]
-   api.go src                    src ↶ − A   hover actions
+     api.go src                  src ↶ − A   hover actions
  ▾ Changes                             [2]
  ▾ Untracked Changes                   [1]
  ─────────────────────────────────────────

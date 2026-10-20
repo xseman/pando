@@ -1503,7 +1503,7 @@ func (s *scmView) renderRow(m *Model, i, w int, hovered bool) string {
 
 		right = append(right, sg(" "+string(r.entry.Letter)+" ", base.Foreground(c)))
 
-		return row(w, bg, append(lead, iconSeg(name, false, false), sg(name, nameSt), sg(" "+dir, dim)), right...)
+		return row(w, bg, append(lead, sg("  ", plain), iconSeg(name, false, false), sg(name, nameSt), sg(" "+dir, dim)), right...) // a chevron's cells, blank: VS Code's twistie
 
 	case rowDrawer:
 		p := m.pane(r.title)

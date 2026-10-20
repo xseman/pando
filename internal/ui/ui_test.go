@@ -2671,7 +2671,7 @@ func TestMergeChanges(t *testing.T) {
 	}
 
 	out := checkWidths(t, m)
-	for _, want := range []string{"✓ Continue", "main*!", "a.go · both modified", "gone.go lib · deleted b"} {
+	for _, want := range []string{"✓ Continue", "main*!", "a.go · both modified", "gone.go lib · deleted"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q:\n%s", want, out)
 		}
