@@ -434,15 +434,14 @@ func (r *mdRenderer) wrap(toks []mdTok, first, rest mdText, width int) {
 				used++
 			}
 
-			for used+ww > width {
-				part := ansi.Truncate(word, width-used, "")
+			for used+ww > width { // one pass: a long URL or a base64 image is tens of thousands of cells
+				part := cutHead(word, width-used)
 				if part == "" {
 					break
 				}
 
 				cur.add(part, st)
-				word = word[len(part):]
-				ww = strWidth(word)
+				word, ww = word[len(part):], ww-strWidth(part)
 
 				flush()
 			}

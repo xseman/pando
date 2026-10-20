@@ -74,7 +74,8 @@ Targets: `parseStatus`, `pickLines`, `ConflictText`, `parseSuggestion`,
 `parseBlame`, the merge message (`internal/git`); `parseSignature`
 (`internal/lsp`); `ecGlob`, `detectIndent`, `splitLoc`, `binaryCard`,
 `refine`, `foldRanges`, `parseUserDirs`, terminal links, `renderText`,
-`strWidth`, `wcSafe`, the Markdown lexer and layout (`internal/ui`); `Columns` JSON/TOML (`internal/proto`); transcript titles
+`strWidth`, `wcSafe`, `headCells`, the Markdown lexer and layout
+(`internal/ui`); `Columns` JSON/TOML (`internal/proto`); transcript titles
 (`internal/daemon`); `checksum` (`internal/update`); `backgroundID` (`main`).
 
 ```sh
@@ -119,6 +120,7 @@ is per session: its scrollback, and every byte of output through vt.
 | `BenchmarkStreaming`      | a busy session's turn: its screen event, then its screen |
 | `BenchmarkTypeLargeFile`  | a letter typed and deleted in a 4900-line file           |
 | `BenchmarkTypeMarkdown`   | the same in a Markdown file beside its rendering         |
+| `BenchmarkViewLongLine`   | a minified bundle's long lines, scrolled into            |
 | `BenchmarkHoverSession`   | the link lookup each mouse motion over a session         |
 | `BenchmarkScreenScrolled` | `session.screen` scrolled into a full scrollback         |
 | `BenchmarkOutput`         | 100 lines of output through vt into the scrollback       |

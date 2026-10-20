@@ -143,6 +143,19 @@ func BenchmarkTypeMarkdown(b *testing.B) {
 	}
 }
 
+// BenchmarkViewLongLine draws a minified bundle, ten lines of 50 000 cells,
+// scrolled into them: a row costs what it shows, not its line.
+func BenchmarkViewLongLine(b *testing.B) {
+	m, _ := editorModel(b, "min.js", strings.Repeat(strings.Repeat("var foo = bar(1); ", 2800)+"\n", 10))
+	m.pv.left = 20000
+
+	b.ReportAllocs()
+
+	for b.Loop() {
+		_ = m.View()
+	}
+}
+
 // BenchmarkViewFile draws this package's largest source file, highlighted,
 // beside the session.
 func BenchmarkViewFile(b *testing.B) {

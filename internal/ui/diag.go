@@ -576,7 +576,7 @@ func paintProbs(body string, spans []probSpan, start int) string {
 			continue
 		}
 
-		body = ansi.Cut(body, 0, a) + squiggle(ansi.Cut(body, a, b), sevColor(sp.sev)) + ansi.Cut(body, b, wideCols)
+		body = cutHead(body, a) + "\x1b[m" + squiggle(ansi.Cut(body, a, b), sevColor(sp.sev)) + ansi.TruncateLeft(body, b, "")
 	}
 
 	return body

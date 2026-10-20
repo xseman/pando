@@ -4,6 +4,8 @@ import (
 	"image/color"
 	"strings"
 	"testing"
+	"unicode"
+	"unicode/utf8"
 
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
@@ -242,6 +244,44 @@ func FuzzRenderText(f *testing.F) {
 
 		if got, want := renderText(st, s), st.Render(s); got != want {
 			t.Fatalf("flags %b on %q:\n got %q\nwant %q", flags, s, got, want)
+		}
+	})
+}
+
+// FuzzHeadCells holds headCells to what a cut is: the text's head, at most n
+// cells as the rows are measured (strWidth, ansi.StringWidth), and not a
+// grapheme shorter than fits. The text is a row's: printable, with the
+// well-formed colors a lexer puts between its words.
+func FuzzHeadCells(f *testing.F) {
+	for _, s := range []string{"plain text", "red and bold", "日本語 wide", "a⚠️b 👍🏽 x\u0301", "┌──┐ ▏box", ""} {
+		f.Add(s, 4, uint8(0b1011))
+		f.Add(s, 0, uint8(0))
+	}
+
+	f.Fuzz(func(t *testing.T, text string, n int, colors uint8) {
+		if !utf8.ValidString(text) || strings.ContainsFunc(text, unicode.IsControl) {
+			return
+		}
+
+		var b strings.Builder
+
+		for i, r := range text {
+			if colors>>(i%8)&1 != 0 {
+				b.WriteString([]string{"\x1b[38;2;1;2;3m", "\x1b[m", "\x1b[1;4m"}[i%3])
+			}
+
+			b.WriteRune(r)
+		}
+
+		s := b.String()
+		n = max(min(n, 64), 0)
+
+		got := headCells(s, n)
+		head, all := ansi.Strip(got), ansi.Strip(s)
+
+		rest, ok := strings.CutPrefix(all, head)
+		if next, w := ansi.FirstGraphemeCluster(rest, ansi.GraphemeWidth); !ok || strWidth(got) > n || next != "" && strWidth(got)+w <= n {
+			t.Fatalf("headCells(%q, %d) = %q: %d cells, the next %q", s, n, got, strWidth(got), next)
 		}
 	})
 }

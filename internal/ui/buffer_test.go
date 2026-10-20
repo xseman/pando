@@ -372,11 +372,11 @@ func TestWordHighlight(t *testing.T) {
 
 	m.pv.hl = m.pv.hlWord()
 	// "totals" is a longer word, so it does not count as an occurrence.
-	if spans := m.pv.wordSpans(m.pv.plain[2]); len(spans) != 1 || spans[0] != [2]int{4, 9} {
+	if spans := m.pv.wordSpans(m.pv.plain[2], 0, len(m.pv.plain[2])); len(spans) != 1 || spans[0] != [2]int{4, 9} {
 		t.Fatalf("spans on the declaration = %v", spans)
 	}
 
-	if spans := m.pv.wordSpans(m.pv.plain[4]); len(spans) != 1 {
+	if spans := m.pv.wordSpans(m.pv.plain[4], 0, len(m.pv.plain[4])); len(spans) != 1 {
 		t.Fatalf("spans on the use = %v", spans)
 	}
 	// A selection replaces it, and a single letter is not worth painting.
@@ -591,7 +591,7 @@ func TestRenderWhitespace(t *testing.T) {
 
 		m.pv.blanks = mode
 
-		marks := m.pv.blankMarks(0, line)
+		marks := m.pv.blankMarks(0, line, 0, len(line))
 		out := []rune(string(line))
 
 		for j, mk := range marks {

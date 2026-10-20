@@ -184,7 +184,7 @@ func tokenLines(lexer chroma.Lexer, lines []string, dark bool) [][]tok {
 
 	style := syntaxStyle(dark)
 
-	it, err := chroma.Coalesce(lexer).Tokenise(nil, strings.Join(lines, "\n"))
+	it, err := chroma.Coalesce(lexer).Tokenise(nil, strings.Join(tokenizable(lines), "\n"))
 	if err != nil {
 		return out
 	}
@@ -208,7 +208,9 @@ func tokenLines(lexer chroma.Lexer, lines []string, dark bool) [][]tok {
 	}
 
 	for i := range out {
-		out[i] = hl[i]
+		if len(lines[i]) <= maxTokenize {
+			out[i] = hl[i]
+		}
 	}
 
 	return out

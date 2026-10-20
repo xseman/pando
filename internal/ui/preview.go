@@ -78,6 +78,7 @@ func langLexer(lang string) chroma.Lexer {
 }
 
 const (
+	maxTokenize     = 20000 // bytes of a line chroma colors, VS Code's maxTokenizationLineLength
 	maxPreviewBytes = 1 << 20
 	maxPreviewLines = 5000
 )
@@ -1609,10 +1610,10 @@ func render(kind, path, raw string, dark bool) (styled, plainLines []string, met
 	if lexer != nil {
 		var b strings.Builder
 
-		it, err := chroma.Coalesce(lexer).Tokenise(nil, strings.Join(plainLines, "\n"))
+		it, err := chroma.Coalesce(lexer).Tokenise(nil, strings.Join(tokenizable(plainLines), "\n"))
 		if err == nil && formatters.Get("terminal16m").Format(&b, syntaxStyle(dark), refine(lexer, it)) == nil {
 			if hl := strings.Split(b.String(), "\n"); len(hl) >= len(plainLines) {
-				styled = hl[:len(plainLines)]
+				styled = untokenized(hl[:len(plainLines)], plainLines)
 			}
 		}
 	}
@@ -1875,6 +1876,63 @@ func runeCells(r rune) int {
 	}
 
 	return ansi.StringWidth(string(r))
+}
+
+// tokenizable is lines with each one past maxTokenize blanked: such a line
+// stays plain, as VS Code's editor.maxTokenizationLineLength leaves it;
+// chroma takes a second over one of a minified bundle's, and again on each
+// key typed in it.
+func tokenizable(lines []string) []string {
+	if !slices.ContainsFunc(lines, func(l string) bool { return len(l) > maxTokenize }) {
+		return lines
+	}
+
+	out := slices.Clone(lines)
+	for i, l := range out {
+		if len(l) > maxTokenize {
+			out[i] = ""
+		}
+	}
+
+	return out
+}
+
+// untokenized puts the lines tokenizable blanked back into the colored rows
+// of lines, plain.
+func untokenized(rows, lines []string) []string {
+	for i, l := range lines {
+		if len(l) > maxTokenize {
+			rows[i] = l
+		}
+	}
+
+	return rows
+}
+
+// cutRow is the styled text of a line's runes lo to hi, off cells into it,
+// its styles closed: the runes themselves for a line that has no styles, as a
+// line too long to color has none.
+func cutRow(styled string, line []rune, lo, hi, off int) string {
+	if !strings.Contains(styled, "\x1b") && utf8.RuneCountInString(styled) == len(line) {
+		return string(line[lo:hi])
+	}
+
+	return ansi.TruncateLeft(headCells(styled, off+cellsOf(line[lo:hi])), off, "")
+}
+
+// runesIn is how many of rs's runes start within its first n cells.
+func runesIn(rs []rune, n int) int {
+	c := 0
+
+	for i, r := range rs {
+		if c >= n {
+			return i
+		}
+
+		c += runeCells(r)
+	}
+
+	return len(rs)
 }
 
 func cellsOf(rs []rune) int {
@@ -2302,15 +2360,17 @@ func (p *preview) standsElsewhere(word []rune, line, col int) bool {
 	return false
 }
 
-// wordSpans is where p.hl stands on a line, as cell ranges.
-func (p *preview) wordSpans(line []rune) [][2]int {
-	if len(p.hl) == 0 || len(line) < len(p.hl) {
+// wordSpans is where p.hl stands on line's runes lo to hi, as cell ranges
+// from lo; a match the window's edge cuts shows its part inside it.
+func (p *preview) wordSpans(line []rune, lo, hi int) [][2]int {
+	if len(p.hl) == 0 {
 		return nil
 	}
 
 	var spans [][2]int
 
-	for i := 0; i+len(p.hl) <= len(line); i++ {
+	at, c := lo, 0 // c is the cells of line[lo:at], counted on as the scan moves: a minified line holds thousands of matches
+	for i := max(lo-len(p.hl)+1, 0); i < hi && i+len(p.hl) <= len(line); i++ {
 		if !slices.Equal(line[i:i+len(p.hl)], p.hl) {
 			continue
 		}
@@ -2320,8 +2380,11 @@ func (p *preview) wordSpans(line []rune) [][2]int {
 			continue // part of a longer word, not this one
 		}
 
-		spans = append(spans, [2]int{cellsOf(line[:i]), cellsOf(line[:j])})
-		i = j - 1
+		a, z := max(i, lo), min(j, hi)
+		c += cellsOf(line[at:a])
+		w := cellsOf(line[a:z])
+		spans = append(spans, [2]int{c, c + w})
+		at, c, i = z, c+w, j-1
 	}
 
 	return spans
@@ -2331,16 +2394,17 @@ func (p *preview) wordSpans(line []rune) [][2]int {
 // a tab as → on the first of the four cells it takes.
 const spaceMark, tabMark = "·", "→"
 
-// blankMarks is what render_whitespace draws over display line i: per rune
-// of line, a marker, or "" to leave the rune alone. nil when nothing shows.
-func (p *preview) blankMarks(i int, line []rune) []string {
+// blankMarks is what render_whitespace draws over runes lo to hi of display
+// line i: per rune, a marker, or "" to leave the rune alone. nil when nothing
+// shows.
+func (p *preview) blankMarks(i int, line []rune, lo, hi int) []string {
 	if p.blanks == "" || p.blanks == "none" || p.kind != pvFile || p.md == 1 {
 		return nil
 	}
 
-	marks, seen := make([]string, len(line)), false
+	marks, seen := make([]string, hi-lo), false
 
-	for j, r := range line {
+	for j, r := range line[lo:hi] {
 		if r == ' ' {
 			marks[j], seen = spaceMark, true
 		}
@@ -2355,7 +2419,7 @@ func (p *preview) blankMarks(i int, line []rune) []string {
 		d := 0
 
 		for _, r := range p.buf.line(i) {
-			if d >= len(marks) {
+			if d >= hi {
 				break
 			}
 
@@ -2364,9 +2428,8 @@ func (p *preview) blankMarks(i int, line []rune) []string {
 				continue
 			}
 
-			marks[d] = tabMark
-			for k := d + 1; k < min(d+tabW, len(marks)); k++ {
-				marks[k] = " "
+			for k := max(d, lo); k < min(d+tabW, hi); k++ {
+				marks[k-lo] = ifElse(k == d, tabMark, " ")
 			}
 
 			d += tabW
@@ -2384,20 +2447,20 @@ func (p *preview) blankMarks(i int, line []rune) []string {
 
 	a, z, sel := p.selection()
 
-	for j := range marks {
-		keep := true
+	for jj := range marks {
+		j, keep := lo+jj, true
 
 		switch p.blanks {
 		case "trailing":
 			keep = j >= last
 		case "boundary": // all but a single space between words
-			keep = marks[j] != spaceMark || j < first || j >= last || line[j-1] == ' ' || line[j+1] == ' '
+			keep = marks[jj] != spaceMark || j < first || j >= last || line[j-1] == ' ' || line[j+1] == ' '
 		case "selection":
 			keep = sel && (i > a.line || i == a.line && j >= a.col) && (i < z.line || i == z.line && j < z.col)
 		}
 
 		if !keep {
-			marks[j] = ""
+			marks[jj] = ""
 		}
 	}
 
@@ -2488,13 +2551,13 @@ func (p *preview) indentGuides() indentGuides {
 // guideRoom clears render_whitespace's marks off row vr's guide cells, as
 // VS Code draws both: a tab's arrow moves to the tab's next cell, a space's
 // dot gives way.
-func (p *preview) guideRoom(vr vrow, marks []string) []string {
+func (p *preview) guideRoom(vr vrow, marks []string, lo int) []string {
 	if vr.line >= len(p.guide.lv) || vr.from > 0 {
 		return marks
 	}
 
-	for k := 1; k < p.guide.lv[vr.line]; k++ { // the top level has none (paintGuides)
-		if c := k * p.guide.unit; c < len(marks) {
+	for k := 1; k < p.guide.lv[vr.line]; k++ { // the top level has none (paintGuides); marks start at rune lo, indentation a cell each
+		if c := k*p.guide.unit - lo; c >= 0 && c < len(marks) {
 			if marks[c] == tabMark && c+1 < len(marks) && marks[c+1] == " " {
 				marks[c+1] = tabMark
 			}
@@ -2517,6 +2580,8 @@ func (p *preview) paintGuides(body string, vr vrow, start, end, s0, s1 int) stri
 		return body
 	}
 
+	bw := strWidth(body)
+
 	for k := 1; k < g.lv[vr.line]; k++ {
 		c := k * g.unit
 		if c < start || c >= end {
@@ -2531,11 +2596,11 @@ func (p *preview) paintGuides(body string, vr vrow, start, end, s0, s1 int) stri
 		}
 
 		x := c - start
-		if w := strWidth(body); w <= x { // a blank line's guides run past its text
-			body += blank(x - w + 1)
+		if bw <= x { // a blank line's guides run past its text
+			body, bw = body+blank(x-bw+1), x+1
 		}
 
-		body = ansi.Cut(body, 0, x) + "\x1b[m" + bar + ansi.Cut(body, x+1, wideCols)
+		body = cutHead(body, x) + "\x1b[m" + bar + ansi.TruncateLeft(body, x+1, "")
 	}
 
 	return body
@@ -2626,18 +2691,35 @@ func (p *preview) renderRow(vr vrow, w int) string {
 
 	tw := max(w-p.gutter(), 1)
 
-	line, styled := p.plain[vr.line], p.lines[vr.line]
+	// The row is a window on its line, runes lo to hi, off cells into it, and
+	// what follows works in its cells: a row costs its width, not its line's,
+	// a minified one megabytes. Wrapped, the window is the row's runes;
+	// unwrapped, those from the left edge to the right.
+	full, styled := p.plain[vr.line], p.lines[vr.line]
+
+	lo, hi := vr.from, vr.to
+	if !p.wrap {
+		lo, hi = runesIn(full, p.left), runesIn(full, p.left+tw)
+	}
+
+	line, off := full[lo:hi], cellsOf(full[:lo])
+	if lo > 0 || hi < len(full) {
+		styled = cutRow(styled, full, lo, hi, off)
+	}
+
+	last := hi == len(full) // the row ends the line: a fold's ⋯ or a conflict's note may follow it
+
 	if p.marker(vr.line) { // one color, not the lexer's guess at << and ==
 		styled = string(line)
 	}
 
-	marks := p.guideRoom(vr, p.blankMarks(vr.line, line))
+	marks := p.guideRoom(vr, p.blankMarks(vr.line, full, lo, hi), lo)
 	styled = markBlanks(styled, line, marks, fg(pal.whitespace))
-	start := cellsOf(line[:vr.from])
 
-	end := start + cellsOf(line[vr.from:vr.to])
-	if !p.wrap {
-		start, end = p.left, p.left+tw
+	start, end := 0, cellsOf(line)
+	if !p.wrap { // the edge may split a wide rune, which the window leaves out
+		start = max(p.left-off, 0)
+		end = start + tw
 	}
 
 	var b strings.Builder
@@ -2645,22 +2727,22 @@ func (p *preview) renderRow(vr vrow, w int) string {
 	a, z, ok := p.selection()
 	c0, c1 := 0, 0 // the row's selected cells
 
-	hits := p.findSpans(vr.line, line)
+	hits := p.findSpans(vr.line, full, lo, hi)
 	if ok && p.hitSelected(a, z) {
 		ok = false // the current match shows in find's color, not as a selection
 	}
 
 	outside := !ok || vr.line < a.line || vr.line > z.line
-	if vr.to == len(line) && p.shutEnd(vr.line) > vr.line { // a folded block's header ends in ⋯, VS Code's placeholder
+	if last && p.shutEnd(vr.line) > vr.line { // a folded block's header ends in ⋯, VS Code's placeholder
 		line = append(line[:len(line):len(line)], ' ', '⋯')
 		styled += renderText(fg(pal.whitespace), " ⋯")
 
 		if p.wrap {
-			end = min(start+cellsOf(line[vr.from:]), start+tw)
+			end = min(start+cellsOf(line), start+tw)
 		}
 	}
 
-	if outside && vr.to == len(line) && len(p.conf) > 0 {
+	if outside && last && len(p.conf) > 0 {
 		// A conflict marker's note and actions follow its text, VS Code's
 		// decoration after-text and CodeLens in one row.
 		if extra, extraStyled, _ := p.conflictSuffix(vr.line, tw); extra != nil {
@@ -2668,7 +2750,7 @@ func (p *preview) renderRow(vr vrow, w int) string {
 			styled += extraStyled
 
 			if p.wrap {
-				end = min(start+cellsOf(line[vr.from:]), start+tw)
+				end = min(start+cellsOf(line), start+tw)
 			}
 		}
 	}
@@ -2677,7 +2759,7 @@ func (p *preview) renderRow(vr vrow, w int) string {
 	case outside:
 		spans := hits
 		if spans == nil {
-			for _, sp := range p.wordSpans(line) {
+			for _, sp := range p.wordSpans(full, lo, hi) {
 				spans = append(spans, cellSpan{sp[0], sp[1], pal.wordHiBg})
 			}
 		}
@@ -2685,7 +2767,7 @@ func (p *preview) renderRow(vr vrow, w int) string {
 		if p.hot != "" && vr.line < len(p.ghHits) {
 			for _, h := range p.ghHits[vr.line] {
 				if h.key == p.hot && h.lit1 > h.lit0 {
-					spans = append(spans, cellSpan{h.lit0, h.lit1, pal.hoverBg})
+					spans = append(spans, cellSpan{h.lit0 - off, h.lit1 - off, pal.hoverBg})
 				}
 			}
 		}
@@ -2695,13 +2777,13 @@ func (p *preview) renderRow(vr vrow, w int) string {
 	default:
 		sel := lipgloss.NewStyle().Background(pal.textSelBg)
 
-		s0, s1 := 0, len(line)
+		s0, s1 := 0, len(line) // in the window's runes
 		if vr.line == a.line {
-			s0 = a.col
+			s0 = min(max(a.col-lo, 0), len(line))
 		}
 
 		if vr.line == z.line {
-			s1 = z.col
+			s1 = min(max(z.col-lo, 0), len(line))
 		}
 
 		c0 = max(start, min(cellsOf(line[:s0]), end))
@@ -2712,12 +2794,12 @@ func (p *preview) renderRow(vr vrow, w int) string {
 		b.WriteString(ansi.Cut(markBlanks(renderText(sel, string(line)), line, marks, sel.Foreground(pal.whitespace)), c0, c1))
 		b.WriteString(ansi.Cut(styled, c1, end))
 		// A selected line break shows as one selected cell after the text.
-		if lineCells := cellsOf(line); vr.line < z.line && vr.to == len(line) && lineCells >= start && lineCells-start < tw {
+		if lineCells := cellsOf(line); vr.line < z.line && last && lineCells >= start && lineCells-start < tw {
 			b.WriteString(renderText(sel, " "))
 		}
 	}
 
-	body := paintProbs(p.paintGuides(b.String(), vr, start, end, c0, c1), p.probs[vr.line], start)
+	body := paintProbs(p.paintGuides(b.String(), vr, off+start, off+end, off+c0, off+c1), p.probs[vr.line], off+start)
 	if bg := p.underlay(vr.line); bg != nil {
 		body = underBg(body+blank(max(tw-ansi.StringWidth(body), 0)), bg)
 	} else if bg := p.rowBg(vr.line); bg != nil { // tinted diff rows fill the width, like an editor
@@ -3980,7 +4062,7 @@ func (p *preview) replaceAll(m *Model) tea.Cmd {
 
 // findSpans are the matches on line i while the find widget is open, the
 // current one in a stronger color; nil when the line has none.
-func (p *preview) findSpans(i int, line []rune) []cellSpan {
+func (p *preview) findSpans(i int, line []rune, lo, hi int) []cellSpan {
 	if !p.find.on {
 		return nil
 	}
@@ -3994,7 +4076,8 @@ func (p *preview) findSpans(i int, line []rune) []cellSpan {
 			bg = pal.findHitBg
 		}
 
-		spans = append(spans, cellSpan{cellsOf(line[:min(h.at.col, len(line))]), cellsOf(line[:min(h.end, len(line))]), bg})
+		a, z := min(max(h.at.col, lo), hi), min(max(h.end, lo), hi) // clipped to the window, its cells from lo
+		spans = append(spans, cellSpan{cellsOf(line[lo:a]), cellsOf(line[lo:z]), bg})
 	}
 
 	return spans

@@ -464,3 +464,31 @@ func TestExplorerScrollbar(t *testing.T) {
 
 	checkWidths(t, m)
 }
+
+// TestLongLine draws a minified line as a window on it: past maxTokenize it
+// stays plain, the lines around keep their colors, and a row scrolled into it
+// shows those cells, the cursor's word lit there too.
+func TestLongLine(t *testing.T) {
+	long := strings.Repeat("var foo = bar(1);  ", maxTokenize/18+1)
+	m, _ := editorModel(t, "min.js", "const a = 1\n"+long+"\nconst b = 2\n")
+	m.st.Settings.Blanks = "all"
+
+	if strings.Contains(m.pv.lines[1], "\x1b") || !strings.Contains(m.pv.lines[0], "\x1b") {
+		t.Fatalf("a line past maxTokenize stays plain, the rest colored: %q / %q", m.pv.lines[0], m.pv.lines[1][:40])
+	}
+
+	m.pv.gotoLine(m, 1, 1000) // in a foo: it lights everywhere in view
+	m.pv.left = 995
+
+	out := strings.Split(checkWidths(t, m), "\n")
+	row := ansi.Strip(ansi.Cut(out[1+m.stripH()+1], m.mainX()+m.pv.gutter(), m.mainX()+m.pvW()))
+
+	want := strings.ReplaceAll(string([]rune(long)[995:995+len([]rune(row))]), " ", "·")
+	if len(row) < 50 || row != want {
+		t.Fatalf("the row scrolled into the line:\n got %q\nwant %q", row, want)
+	}
+
+	if raw := strings.Split(m.View().Content, "\n")[1+m.stripH()+1]; !strings.Contains(raw, bgParams(pal.wordHiBg)) {
+		t.Fatalf("the cursor's word unlit in view: %q", raw)
+	}
+}

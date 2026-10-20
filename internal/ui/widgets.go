@@ -214,6 +214,56 @@ func fitWith(s string, w int, tail string) string {
 	return b.String()
 }
 
+// headCells is ansi.Truncate(s, n, ""), its styles closed, reading s only as
+// far as the cut: Truncate reads on to the end, a line of a minified bundle
+// megabytes past what a row shows.
+func headCells(s string, n int) string {
+	if h := cutHead(s, n); len(h) < len(s) {
+		return h + "\x1b[m"
+	}
+
+	return s
+}
+
+// cutHead is the head of s at most n cells wide, cut between graphemes, its
+// styles left open; s itself when it fits.
+func cutHead(s string, n int) string {
+	w := 0
+
+	for i, state := 0, ansi.NormalState; i < len(s); {
+		if k, cells := plainRun(s[i:]); k > 0 && state == ansi.NormalState {
+			if w+cells <= n {
+				w, i = w+cells, i+k
+				continue
+			}
+
+			for j := range s[i : i+k] { // one cell a character: cut at the (n-w)th
+				if w == n {
+					return s[:i+j]
+				}
+
+				w++
+			}
+		}
+
+		_, sw, k, next := ansi.DecodeSequence(s[i:], state, nil)
+		if sw > 0 && s[i] < utf8.RuneSelf { // a byte at a time: cut where StringWidth does, 0🏽 one cluster
+			var seq string
+
+			seq, sw = ansi.FirstGraphemeCluster(s[i:], ansi.GraphemeWidth)
+			k = len(seq)
+		}
+
+		if sw > 0 && w+sw > n {
+			return s[:i]
+		}
+
+		w, i, state = w+sw, i+k, next
+	}
+
+	return s
+}
+
 // strWidth is ansi.StringWidth, which segments every character into its
 // grapheme cluster, with plainRun's characters counted without that.
 func strWidth(s string) int {

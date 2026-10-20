@@ -45,6 +45,14 @@ is a card instead (`binaryCard`, shown as an error is): its name, an image's
 format and size (`image.DecodeConfig`: PNG, JPEG, GIF) or the type
 `http.DetectContentType` sniffs, and its size on disk.
 
+A line longer than `maxTokenize` (20 000 bytes, VS Code's
+maxTokenizationLineLength) stays plain (`tokenizable`): chroma takes a
+second over one of a minified bundle's. A row draws a window on its line
+(`renderRow`): unwrapped, the runes from the left edge to the right
+(`runesIn`, `cutRow`, `headCells` stopping at the cut), so a frame costs
+the rows' width, not their lines'; the whitespace marks, word and find
+highlights work in the window's cells (`BenchmarkViewLongLine`).
+
 Code colors follow the terminal's background (`syntaxStyle`): github-dark
 on a dark one, Simple Light's (`simpleLightCode`) on a light one: variables
 blue, strings green, numbers brown, comments grey, keywords bold, the rest
