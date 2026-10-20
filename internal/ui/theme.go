@@ -101,8 +101,9 @@ var (
 		mutedButtonBg: hex("#e5e5e5"), mutedButtonFg: hex("#3b3b3b"),
 		inputBorder: hex("#c4c4c4"), inputBg: hex("#ffffff"), sectionBg: hex("#f8f8f8"), badgeBg: hex("#cccccc"), badgeFg: hex("#3b3b3b"),
 		keycapBg: hex("#eaeaea"), keycapFg: hex("#3b3b3b"),
-		// Matches in yellow, the one selected deeper.
-		textSelBg: hex("#bed6ed"), matchBg: hex("#ffdd00"), wordHiBg: hex("#d6ebff"),
+		// Matches in yellow, the one selected deeper. The word under the cursor
+		// keeps pando's blue: Simple Light's #d6ebff turns cyan in 256 colors.
+		textSelBg: hex("#bed6ed"), matchBg: hex("#ffdd00"), wordHiBg: hex("#d9e9f7"),
 		rangeHiBg: hex("#eaeaea"), findMatchBg: hex("#fff4b0"), findHitBg: hex("#ffdd00"), lineHiBg: hex("#f2f2f2"),
 		// pando's own diff colors, not Simple Light's.
 		diffDelBg: hex("#f3dada"), diffDelWordBg: hex("#e2a8a8"), diffAddBg: hex("#e6ecdb"), diffAddWordBg: hex("#c5d1aa"),
