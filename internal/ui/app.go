@@ -1122,7 +1122,7 @@ func (m *Model) colRect(i int) rect {
 func (m *Model) panelH() int { return max(m.h-1-m.ruled(), 1) }
 
 // ruled is 1 when a rule parts the panels from the status bar, VS Code's
-// statusBar.border: a row whose bottom eighth is the line, the frame's
+// statusBar.border: a row with the line through its middle, the frame's
 // bottom edge doing it when panel_borders draws one.
 func (m *Model) ruled() int { return b2i(m.bord() == 0 && m.h > 2) }
 
@@ -4110,7 +4110,7 @@ func (m *Model) View() tea.View {
 	}
 
 	if m.ruled() == 1 {
-		lines[len(lines)-2] = m.statusRule(cs)
+		lines[len(lines)-2] = m.statusRule()
 	}
 
 	lines[len(lines)-1] = status
@@ -4961,46 +4961,19 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 		}
 	}
 
-	return row(w, cmp.Or[color.Color](pal.barBg, pal.sectionBg), left, right...), zones
+	return row(w, statusBg(), left, right...), zones
 }
 
 // statusRule is the row over the status bar, VS Code's statusBar.border: a
-// line along its bottom in the activity bar's border color, on its tint
-// under a side strip so the strip runs down to it.
-func (m *Model) statusRule(cs []rect) string {
-	tint := make([]bool, m.w)
-
-	for i, rc := range cs {
-		bw := ifElse(m.railed(i), rc.w, m.barW(i))
-		if rc.w == 0 || bw == 0 {
-			continue
-		}
-
-		x0 := ifElse(m.side(i) == 1, rc.x+rc.w-bw, rc.x)
-		for x := max(x0, 0); x < min(x0+bw, m.w); x++ {
-			tint[x] = true
-		}
-	}
-
-	var segs []seg
-
-	for x := 0; x < m.w; {
-		j := x
-		for j < m.w && tint[j] == tint[x] {
-			j++
-		}
-
-		st := fg(pal.rulerBorder)
-		if tint[x] && pal.barBg != nil {
-			st = st.Background(pal.barBg)
-		}
-
-		segs = append(segs, sg(strings.Repeat("▁", j-x), st))
-		x = j
-	}
-
-	return row(m.w, nil, segs)
+// light line through its middle on the bar's background, so the bar starts
+// half a row under the panels, the line between.
+func (m *Model) statusRule() string {
+	return row(m.w, statusBg(), []seg{sg(strings.Repeat("─", m.w), fg(pal.rulerBorder))})
 }
+
+// statusBg is the status bar's background: bar_bg, section_bg for a theme
+// without one.
+func statusBg() color.Color { return cmp.Or[color.Color](pal.barBg, pal.sectionBg) }
 
 // projectPicker is the status bar's project switcher: every project, the one
 // on screen marked, choosing one opens its main worktree; the last row adds

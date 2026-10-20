@@ -37,7 +37,7 @@ tick (2 s) ─▶ refreshGit, reloadIfLive, saveDrafts, saveEditors, …
 │ rows…        ├──────────────────────────────┤ rows…        │
 │              │ terminal panel (bottom)      │              │
 ├──────────────┴──────────────────────────────┴──────────────┤
-│▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁│ rule
+│────────────────────────────────────────────────────────────│ rule
 │ ⎇ main* ⇅ 0↓ 1↑ ✖ 0 ⚠ 0 flash  Ln 3, Col 7  repo  ^⇧p  ! 1 │ status bar
 └────────────────────────────────────────────────────────────┘
 ```
@@ -45,8 +45,9 @@ tick (2 s) ─▶ refreshGit, reloadIfLive, saveDrafts, saveEditors, …
 - `layout` places the columns, split by a one-cell divider (facing frame
   edges with `borders`).
 - Status bar: VS Code's, on `bar_bg` in `description`'s grey, under a rule
-  (`ruled`, `statusRule`: a row whose bottom eighth is the line, in
-  `overview_ruler_border`; with `borders` the frame's edge is it). Left, the
+  (`ruled`, `statusRule`: a `─` through the middle of a row on the bar's
+  background, in `overview_ruler_border`, so half a row of margin over it;
+  with `borders` the frame's edge is it). Left, the
   workspace: the branch opens the branch picker, sync (behind↓ ahead↑)
   syncs, or publishes a branch without an upstream, the problems (with
   `lsp_diagnostics`, zero too) list them. Right, the results open Search,
