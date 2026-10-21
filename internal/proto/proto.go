@@ -589,9 +589,11 @@ func EnsureDaemon() error {
 
 	defer func() { _ = logf.Close() }() // the daemon keeps its own descriptor
 
+	argv := daemonArgv(exe)
+
 	var cmd *exec.Cmd
 	for _, attr := range daemonAttrs() {
-		cmd = exec.Command(exe, "serve")
+		cmd = exec.Command(argv[0], argv[1:]...)
 		cmd.Stdout, cmd.Stderr = logf, logf
 		cmd.Env = WithoutNoColor(os.Environ())
 		cmd.SysProcAttr = attr

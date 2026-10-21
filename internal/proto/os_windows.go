@@ -18,3 +18,6 @@ func daemonAttrs() []*syscall.SysProcAttr {
 		{CreationFlags: windows.CREATE_NO_WINDOW},
 	}
 }
+
+// daemonArgv is the command line that starts the daemon.
+func daemonArgv(exe string) []string { return []string{exe, "serve"} }

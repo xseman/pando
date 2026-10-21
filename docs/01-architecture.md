@@ -98,6 +98,11 @@ driving the API.
   hidden or detached) outlives both, as a detached one outlives a pty.
 - `pando serve` on Windows runs on a hidden console of its own, out of its
   starter's job where the job lets it (`CREATE_BREAKAWAY_FROM_JOB`).
+- On Unix it runs in a session of its own (`Setsid`); under a systemd user
+  manager also in a scope of its own (`systemd-run --user --scope -p
+  OOMPolicy=continue`). The terminal's scope it would share otherwise has
+  `OOMPolicy=stop`: one OOM kill in a session ends the scope, daemon and every
+  session with it. Without systemd-run or a user bus it starts as before.
 - A shell session tries `shellCandidates` in order; one failing within 2 s
   yields to the next.
 - Sessions resolve by id, by name (unique among live sessions), or an
