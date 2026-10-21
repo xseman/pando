@@ -45,7 +45,7 @@ Needs git. Optional: `gh` for GitHub, `rg` for search, `sqlite3` (3.37+),
 …), the `claude` CLI for commit messages, and a Nerd Font for `icons =
 "nerd"` (_Symbols Nerd Font Mono_ as a fallback font is enough).
 
-![the editor beside its file tree: gopls's references to Total in a peek under the code, the one in main.go picked and shown](docs/demo/lsp.png)
+![pando with Explorer on the left and Spaces on the right, two projects and their claude sessions in it, one working, one waiting for a yes, one done; between them store.go with gopls's references to Total in a peek, beside the claude session that just changed it](docs/demo/hero.png)
 
 ## Features
 
@@ -97,28 +97,30 @@ pando main.go:42:5 # the project holding main.go, the file open at line 42
 | `2`      | Source Control for the session's worktree: review and commit   |
 | `?`      | every key of every view                                        |
 
-![three claude sessions, each in a worktree of its own, come to life; one finishes (✓), one waits for a yes (×, pulsing), and the finished one's diff is reviewed and committed without leaving pando](docs/demo/tui.gif)
-
 ## Tour
 
 Every GIF below is pando itself, recorded by `make demo`.
 
 <table>
 <tr>
+<td width="50%" valign="top"><img src="docs/demo/tui.gif" alt="three claude sessions, each in a worktree of its own, come to life; one finishes (✓), one waits for a yes (×, pulsing), and the finished one's diff is reviewed and committed without leaving pando" width="100%"><p align="center"><sub><b>Agents in worktrees.</b> A session per worktree, its state in Spaces as it changes; review and commit what it did without leaving pando. <a href="docs/usage.md#sessions">More</a></sub></p></td>
 <td width="50%" valign="top"><img src="docs/demo/resume.gif" alt="a claude conversation, pando closed and its daemon stopped; the next pando brings the session back and claude continues the same conversation" width="100%"><p align="center"><sub><b>Resume.</b> Stop the daemon, start pando again: every session comes back and its agent continues the same conversation. <a href="docs/usage.md#resume">More</a></sub></p></td>
+</tr>
+<tr>
 <td width="50%" valign="top"><img src="docs/demo/diff.gif" alt="a diff inline and side by side, staging part of it, then a conflicting merge continued with git's message" width="100%"><p align="center"><sub><b>Review and commit.</b> Diffs inline or side by side, staging single lines, merge conflicts with VS Code's accept actions. <a href="docs/usage.md#review-and-commit">More</a></sub></p></td>
-</tr>
-<tr>
 <td width="50%" valign="top"><img src="docs/demo/github.gif" alt="pull requests with their checks, one opened as its rendered description and as a diff, then checked out in a worktree of its own" width="100%"><p align="center"><sub><b>GitHub.</b> Pull requests with their checks, opened as a description or a diff, checked out in a worktree of their own. <a href="docs/usage.md#github">More</a></sub></p></td>
+</tr>
+<tr>
 <td width="50%" valign="top"><img src="docs/demo/lsp.gif" alt="the references peek, a code action, rename and completion, answered by gopls" width="100%"><p align="center"><sub><b>Language servers.</b> References in a peek, code actions, rename and completion, from <code>gopls</code> or any server you configure. <a href="docs/usage.md#editor">More</a></sub></p></td>
-</tr>
-<tr>
 <td width="50%" valign="top"><img src="docs/demo/edit.gif" alt="a sloppy Go file typed into an untitled buffer, saved with path completion, and tidied by gofmt on the way to disk" width="100%"><p align="center"><sub><b>Editor.</b> Untitled buffers, save with path completion, format on save.</sub></p></td>
-<td width="50%" valign="top"><img src="docs/demo/vim.gif" alt="a method yanked in V-LINE, put above itself, and changed into another one in INSERT" width="100%"><p align="center"><sub><b>Vim mode.</b> <code>vim_mode = true</code>: normal, visual and insert modes in every editor.</sub></p></td>
 </tr>
 <tr>
+<td width="50%" valign="top"><img src="docs/demo/vim.gif" alt="a method yanked in V-LINE, put above itself, and changed into another one in INSERT" width="100%"><p align="center"><sub><b>Vim mode.</b> <code>vim_mode = true</code>: normal, visual and insert modes in every editor.</sub></p></td>
 <td width="50%" valign="top"><img src="docs/demo/markdown.gif" alt="a README as source, rendered in place, then both side by side scrolling together" width="100%"><p align="center"><sub><b>Markdown.</b> Source, rendered, or both side by side scrolling together.</sub></p></td>
+</tr>
+<tr>
 <td width="50%" valign="top"><img src="docs/demo/databases.gif" alt="a SQLite table sorted, filtered and edited in a grid, the pending SQL submitted in one transaction, then sqlite3 in the terminal and the form that adds a server" width="100%"><p align="center"><sub><b>Databases.</b> SQLite, Postgres and MariaDB tables in a grid: filter, sort, edit, submit in one transaction. <a href="docs/usage.md#databases">More</a></sub></p></td>
+<td width="50%"></td>
 </tr>
 </table>
 

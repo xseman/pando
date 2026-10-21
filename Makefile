@@ -12,7 +12,7 @@ GOLANGCI ?= go run $(GOLANGCI_PKG)
 # would be a second one to trust by hand, or it shows the repository's path on
 # screen, where /tmp/pando-demo is what belongs in the GIF.
 PAR_TAPES ?= markdown lsp vim databases
-SEQ_TAPES ?= diff edit github tui resume
+SEQ_TAPES ?= diff edit github tui resume hero
 JOBS ?= 4
 
 BENCHSTAT ?= go run golang.org/x/perf/cmd/benchstat@v0.0.0-20261009192801-be2c69fb417e
