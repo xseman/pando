@@ -47,7 +47,7 @@ func defaultConfig() config {
 		Settings: proto.Settings{
 			Hidden: true, Icons: "ascii", Width: 40, WidthR: 32, GitDeco: true, GitTree: true, Crumbs: true, Reveal: true,
 			Theme: "vscode", DiffView: "inline", Borders: true, FmtSave: true, Diags: true,
-			ActBar: "side", TermPos: "bottom", TermH: 12, SessPos: "editor", SessHi: "tint",
+			ActBar: "side", TermPos: "bottom", TermH: 12, SessHi: "tint",
 			SpSort: "created", SpGroup: "workspace", SpProj: "manual", ExSort: "name",
 			Sounds: true, SoundDone: done, SoundReq: req, Updates: true, Anim: true, Tips: true, Blanks: "selection", ClaudeBg: true, TabSize: 4, MDWidth: 80,
 			Drawers: []string{"Commits", "Graph", "Branches", "Stashes", "Remotes"},
@@ -83,7 +83,9 @@ func loadConfig(path string) (config, error) {
 	}
 
 	for _, k := range md.Undecoded() {
-		fmt.Fprintf(os.Stderr, "%s: unknown key %s\n", path, k)
+		if k.String() != "session_position" { // gone with the session's column: a config from before still has it
+			fmt.Fprintf(os.Stderr, "%s: unknown key %s\n", path, k)
+		}
 	}
 
 	if c.Agents == nil {
@@ -231,7 +233,7 @@ func (c *config) encode() []byte {
 	kv("The shell every terminal opens - a session, a session's tab, the Terminal panel - as a\n"+
 		"command with its arguments, e.g. \"fish\" or \"zsh -l\". \"\" opens the [agents] shell preset,\n"+
 		"else your login shell. One that is missing or fails at once falls back on bash.", "shell", s.Shell)
-	kv("Where a session opens: \"editor\" (a tab over the editor area, beside the files')\nor \"right\" or \"left\" (a column of its own beside the editor).", "session_position", s.SessPos)
+
 	kv("A session that waits for an answer, finished unseen or ended with an error: \"tint\"\n"+
 		"its tab, and color its status in Spaces, in its symbol's color and pulse until it is clicked\n"+
 		"(colors blocked_bg, done_bg and their _soft_bg), \"steady\" to tint without the pulse, or \"off\".", "session_highlight", s.SessHi)

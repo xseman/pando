@@ -173,7 +173,7 @@ func (p *preview) ghClick(m *Model, at pos, mo tea.Mouse) (tea.Cmd, bool) {
 // ghHot is the key of the hit under the pointer on the page, w cells wide
 // and h rows high, "" when it lights nothing.
 func (p *preview) ghHot(m *Model, w, h int) string {
-	x, y := m.mouseX-m.mainX(), m.mouseY-m.headH()-m.stripH()
+	x, y := m.mouseX-m.mainX(), m.mouseY-m.mainY()-m.headH()-m.stripH()
 	if p.kind != pvGH || p.gh == nil || m.modal != nil || x < 0 || x >= w || y < 0 || y >= h {
 		return ""
 	}
@@ -326,7 +326,7 @@ func (p *preview) ghHeader(m *Model, w int) (segs []seg, btns []rowAction, width
 		pieces = append(state, pieces...)
 	}
 
-	x, y := w-size(pieces)-1, m.stripH() // the header is the row under the strip
+	x, y := w-size(pieces)-1, m.mainY()+m.stripH() // the header is the row under the strip
 
 	for _, q := range pieces {
 		st, tw := q.st, ansi.StringWidth(q.text)

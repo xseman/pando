@@ -41,28 +41,28 @@ type Event struct {
 
 // Settings live in config.toml; the JSON names are the same as the TOML keys.
 type Settings struct {
-	Hidden    bool                `json:"hidden" toml:"hidden"`
-	ExSort    string              `json:"explorer_sort" toml:"explorer_sort"` // Explorer files by "name" or "type" (extension, then name), folders first
-	Reveal    bool                `json:"auto_reveal" toml:"auto_reveal"`     // Explorer selects the file the editor shows, its folders unfolded
-	Icons     string              `json:"icons" toml:"icons"`                 // "nerd" | "emoji" | "ascii"
-	Width     int                 `json:"width" toml:"width"`                 // left sidebar
-	WidthR    int                 `json:"width_right" toml:"width_right"`
-	GitDeco   bool                `json:"git_deco" toml:"git_deco"`
-	Left      Columns             `json:"left" toml:"left"` // sidebar columns from the screen edge to main; unlisted views dock left
-	Right     Columns             `json:"right" toml:"right"`
-	GitTree   bool                `json:"git_tree" toml:"git_tree"`
-	Drawers   []string            `json:"git_drawers" toml:"git_drawers"` // visible Source Control drawers
-	GitPanes  map[string]Pane     `json:"git_panes" toml:"git_panes"`     // Git drawers by title
-	QuickTree bool                `json:"quick_open_tree" toml:"quick_open_tree"`
-	Theme     string              `json:"color_theme" toml:"color_theme"`             // "vscode" (dark or light by background) | "vscode-dark" | "vscode-light" | "terminal"
-	DiffView  string              `json:"diff_view" toml:"diff_view"`                 // "inline" | "split"
-	DiffFull  bool                `json:"diff_full" toml:"diff_full"`                 // a file's diff shows the whole file, not only the changes and three lines around them
-	Borders   bool                `json:"panel_borders" toml:"panel_borders"`         // frame each panel with a titled border
-	ActBar    string              `json:"activity_bar" toml:"activity_bar"`           // "top" (a row of chips) | "side" (icons down the outer edge)
-	TermPos   string              `json:"terminal_position" toml:"terminal_position"` // "bottom" (a panel under the editor) | "left" | "right"
-	TermH     int                 `json:"terminal_height" toml:"terminal_height"`     // rows of the bottom panel
-	TermOpen  bool                `json:"terminal_open" toml:"terminal_open"`         // the panel's state for a workspace without one in State.Terminals: the last one set
-	SessPos   string              `json:"session_position" toml:"session_position"`   // where a session opens: "right" | "left" (a column of its own) | "editor" (over the editor area)
+	Hidden    bool            `json:"hidden" toml:"hidden"`
+	ExSort    string          `json:"explorer_sort" toml:"explorer_sort"` // Explorer files by "name" or "type" (extension, then name), folders first
+	Reveal    bool            `json:"auto_reveal" toml:"auto_reveal"`     // Explorer selects the file the editor shows, its folders unfolded
+	Icons     string          `json:"icons" toml:"icons"`                 // "nerd" | "emoji" | "ascii"
+	Width     int             `json:"width" toml:"width"`                 // left sidebar
+	WidthR    int             `json:"width_right" toml:"width_right"`
+	GitDeco   bool            `json:"git_deco" toml:"git_deco"`
+	Left      Columns         `json:"left" toml:"left"` // sidebar columns from the screen edge to main; unlisted views dock left
+	Right     Columns         `json:"right" toml:"right"`
+	GitTree   bool            `json:"git_tree" toml:"git_tree"`
+	Drawers   []string        `json:"git_drawers" toml:"git_drawers"` // visible Source Control drawers
+	GitPanes  map[string]Pane `json:"git_panes" toml:"git_panes"`     // Git drawers by title
+	QuickTree bool            `json:"quick_open_tree" toml:"quick_open_tree"`
+	Theme     string          `json:"color_theme" toml:"color_theme"`             // "vscode" (dark or light by background) | "vscode-dark" | "vscode-light" | "terminal"
+	DiffView  string          `json:"diff_view" toml:"diff_view"`                 // "inline" | "split"
+	DiffFull  bool            `json:"diff_full" toml:"diff_full"`                 // a file's diff shows the whole file, not only the changes and three lines around them
+	Borders   bool            `json:"panel_borders" toml:"panel_borders"`         // frame each panel with a titled border
+	ActBar    string          `json:"activity_bar" toml:"activity_bar"`           // "top" (a row of chips) | "side" (icons down the outer edge)
+	TermPos   string          `json:"terminal_position" toml:"terminal_position"` // "bottom" (a panel under the editor) | "left" | "right"
+	TermH     int             `json:"terminal_height" toml:"terminal_height"`     // rows of the bottom panel
+	TermOpen  bool            `json:"terminal_open" toml:"terminal_open"`         // the panel's state for a workspace without one in State.Terminals: the last one set
+
 	SessHi    string              `json:"session_highlight" toml:"session_highlight"` // a session waiting, done unseen or failed: "tint" its row and tab, pulsing until clicked | "steady" | "off"
 	LSP       map[string][]string `json:"lsp" toml:"lsp"`                             // language to server command
 	Format    map[string][]string `json:"format" toml:"format"`                       // language to formatter command, the file on stdin
@@ -162,9 +162,7 @@ type State struct {
 	// Terminals is per workspace: whether its Terminal panel was open, and
 	// the shell it showed.
 	Terminals map[string]Terminal `json:"terminals"`
-	// SessionViews is per workspace: where its session shows and how wide.
-	SessionViews map[string]SessionView `json:"session_views"`
-	Sessions     []SessionSpec          `json:"sessions"`
+	Sessions  []SessionSpec       `json:"sessions"`
 	// Worktrees is each project's worktree paths in the order workspace.move
 	// left them; git's order for any it does not name, after these.
 	Worktrees map[string][]string `json:"worktrees,omitempty"`
@@ -178,9 +176,7 @@ type State struct {
 	// Pinned is the session ids Spaces shows under Pinned, in the order
 	// they were pinned.
 	Pinned []string `json:"spaces_pinned,omitempty"`
-	// Maxed is the sessions maximized over the editor area: each keeps its
-	// own, so going back to one shows it as it was left.
-	Maxed []string `json:"sessions_maxed,omitempty"`
+
 	// Seen is per program the [resume_env] variables pando saw it run with,
 	// KEY=VALUE: a new session of it offers them after its Profiles.
 	Seen map[string][][]string `json:"seen_env,omitempty"`
@@ -189,12 +185,25 @@ type State struct {
 	Instance string `json:"instance,omitempty"`
 }
 
-// Editors is a workspace's tab strip as state.json keeps it, VS Code's
-// workbench.editors: the files open, the one showing, and where each was.
+// Editors is a workspace's editor group as state.json keeps it, VS Code's
+// workbench.editors: the files open, the one showing, and where each was,
+// and the sessions with a tab beside them. Split, it holds two groups
+// instead, VS Code's editor grid: A left of B, or over it.
 type Editors struct {
-	Open   []Editor `json:"open"`
-	Active int      `json:"active"` // index into Open
+	Open     []Editor `json:"open"`
+	Active   int      `json:"active"`             // index into Open
+	Sessions []string `json:"sessions,omitempty"` // the sessions' tabs
+	Session  string   `json:"session,omitempty"`  // the session shown in front of the files
+	Focus    bool     `json:"focus,omitempty"`    // the group with the keyboard
+	Row      bool     `json:"row,omitempty"`      // A and B side by side, else stacked
+	Ratio    float64  `json:"ratio,omitempty"`    // A's share of the room
+	A        *Editors `json:"a,omitempty"`
+	B        *Editors `json:"b,omitempty"`
+	Max      bool     `json:"max,omitempty"` // the grid's: the focused group fills the editor area
 }
+
+// Empty reports nothing to keep: no tab, and no split.
+func (e Editors) Empty() bool { return len(e.Open) == 0 && len(e.Sessions) == 0 && e.A == nil }
 
 // Terminal is a workspace's Terminal panel as state.json keeps it, so every
 // workspace opens and shuts its own.
@@ -202,16 +211,6 @@ type Terminal struct {
 	Open bool   `json:"open"`
 	Tab  string `json:"tab,omitempty"` // the shell it showed
 	Max  bool   `json:"max,omitempty"` // it filled the editor area (⌃⇧↑)
-}
-
-// SessionView is a workspace's session as state.json keeps it, so every
-// workspace places and sizes its own: in a column beside the editor or over
-// the editor area. One without it takes session_position and the session's
-// column in left/right, the last ones set anywhere.
-type SessionView struct {
-	Position string `json:"position"`        // "left" | "right" | "editor"
-	Width    int    `json:"width,omitempty"` // the column's cells; 0 = half the editor area
-	Max      string `json:"max,omitempty"`   // "file": the file filled the editor area, the session waiting; a session's own is State.Maxed
 }
 
 // Editor is one open file with its cursor (0-based) and scroll. An untitled

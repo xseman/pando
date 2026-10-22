@@ -32,7 +32,7 @@ func (m *Model) keyContext() keyCtx {
 	}
 
 	switch {
-	case m.focus == onPanel || m.termFocused() || m.sessFocused(), m.focus == onMain && m.showsSession():
+	case m.focus == onPanel || m.termFocused(), m.focus == onMain && m.showsSession():
 		return ctxTerminal
 	case m.typing():
 		return ctxInput
@@ -113,7 +113,12 @@ var keybindings = []keybinding{
 		return tea.Batch(m.showView(viewSearch), m.sr.focus())
 	}},
 	{keys: []string{"ctrl+0"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.focusSidebar() }},
-	{keys: []string{"ctrl+1"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { m.focus = onMain; return m.fetchScreen() }},
+	{keys: []string{"ctrl+1", "ctrl+2", "ctrl+3", "ctrl+4", "ctrl+5", "ctrl+6", "ctrl+7", "ctrl+8", "ctrl+9"}, when: ctxAny, run: func(m *Model, s string) tea.Cmd {
+		m.focus = onMain
+		return tea.Batch(m.focusGroupN(int(s[5]-'1')), m.fetchScreen())
+	}},
+	// VS Code's Split Editor; a terminal keeps ⌃\, its quit signal.
+	{keys: []string{`ctrl+\`}, when: ctxNotTerm, run: func(m *Model, _ string) tea.Cmd { return m.splitEditor(sideRight) }},
 	{keys: []string{"alt+t"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.agentNavigator() }},
 	{keys: []string{"ctrl+pgdown"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.cycleEditor(1) }},
 	{keys: []string{"ctrl+pgup"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.cycleEditor(-1) }},

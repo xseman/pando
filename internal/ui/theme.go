@@ -375,7 +375,6 @@ func (g glyph) short() string {
 var (
 	icFiles      = glyph{"folder", "\uea83", "Files", "📁"}
 	icGit        = glyph{"code-fork (fa)", "\uf126", "Git", "🔀"}
-	icAgents     = glyph{"robot (mdi)", "󰚩", "Agents", "🤖"}
 	icSpaces     = glyph{"multiple-windows", "\ueb23", "Spaces", "🪟"}
 	icTerminal   = glyph{"terminal", "", "Term", "💻"}
 	icDot        = glyph{"circle-filled", "\ueabc", "•", ""}
@@ -434,7 +433,7 @@ var (
 	icTable      = glyph{"table", "\uebb7", "▦", ""}
 	icView       = glyph{"eye", "\uea70", "◫", ""} // a view of a database: rows read, never written
 	allGlyphs    = []glyph{
-		icFiles, icGit, icSpaces, icAgents, icGear, icNewFile, icNewDir, icRefresh, icCollapse, icTree, icList,
+		icFiles, icGit, icSpaces, icGear, icNewFile, icNewDir, icRefresh, icCollapse, icTree, icList,
 		icAdd, icRemove, icDiscard, icWorktree, icSparkle, icCheck, icChevron, icClose, icMax, icRestore, icBranch, icPublish, icSync, icError, icWarning, icSplit, icInline, icUnfold, icFold,
 		icSearch, icCase, icWord, icRegex, icEllipsis, icClearAll, icOptions, icPreview, icSource,
 		icPrevRev, icNextRev, icUp, icDown, icHistory, icTag, icDetach, icReplace, icPreserve, icReplaceAll, icTerminal, icDot,
@@ -462,10 +461,9 @@ var (
 	icReopen   = glyph{"issue-reopened", "\ueb0b", "Reopen", ""}
 )
 
-// viewIcon is a view's tab and rail icon. Spaces gets the windows glyph, the
-// docked session the robot: one is where the work lives, the other an agent.
+// viewIcon is a view's tab and rail icon.
 func viewIcon(v view) glyph {
-	return []glyph{icFiles, icGit, icSpaces, icSearch, icTerminal, icAgents, icGitHub, icDatabase}[v]
+	return []glyph{icFiles, icGit, icSpaces, icSearch, icTerminal, icGitHub, icDatabase}[v]
 }
 
 // Doctor lists every UI glyph with its codepoint and the installed font that

@@ -229,7 +229,7 @@ func (m *Model) termPick() tea.Cmd {
 // ok is false while the panel is not shown.
 func (m *Model) panelOrigin() (x, y, w, h int, ok bool) {
 	if n := m.termRows(); n > 0 {
-		return m.mainX(), m.mainH() + panelTopH, m.mainW(), n - panelTopH, true
+		return m.area().x, m.areaH() + panelTopH, m.area().w, n - panelTopH, true
 	}
 
 	if !m.shown(viewTerm) {

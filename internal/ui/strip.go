@@ -15,7 +15,7 @@ import (
 // herdr's tabs do.
 const (
 	stripEditor  = iota + 1 // the editors over the main area
-	stripSession            // the session in view: its one tab, which stays
+	stripSession            // a session over the editor area: its tab stays
 	stripTerm               // the Terminal's shells
 )
 
@@ -30,7 +30,7 @@ type stripTab struct {
 func (m *Model) stripTabs(s int) []stripTab {
 	var out []stripTab
 
-	if s == stripEditor { // the files' tabs; a session's drags to dock
+	if s == stripEditor { // the files' tabs
 		for _, t := range m.editorTabs(m.mainW()) {
 			if t.i >= 0 {
 				out = append(out, stripTab{id: m.editors[t.i].id(), x: t.x, w: t.w})
@@ -104,12 +104,7 @@ func (m *Model) tabUnder(s, x int) (id string, onClose bool) {
 		return "", false
 	}
 
-	tabs := m.termTabs(m.termStripW())
-	if s == stripSession {
-		tabs = m.sessionTabs(m.sessW())
-	}
-
-	for _, t := range tabs {
+	for _, t := range m.termTabs(m.termStripW()) {
 		if x >= t.x && x < t.x+t.w {
 			if t.plus {
 				return plusTab, false
@@ -179,13 +174,13 @@ func (m *Model) stripActive(s int) string {
 }
 
 // focusedStrip is the strip Move Tab Left/Right acts on: the Terminal's with
-// the keyboard in it, the session's when it has it or fills the main area,
-// else the editors'.
+// the keyboard in it, the session's when it fills the main area, else the
+// editors'.
 func (m *Model) focusedStrip() int {
 	switch {
 	case m.termFocused():
 		return stripTerm
-	case m.sessFocused() || m.showsSession():
+	case m.showsSession():
 		return stripSession
 	}
 
@@ -251,12 +246,21 @@ func (m *Model) grabTab(s int, id string, x int) {
 
 // dragStripTo follows the held tab with a mark where it would land, herdr's
 // drop indicator, and moves it there once it is let go on its strip's row.
+// An editor's tab held over the editor area off its strip goes to a group
+// instead: the one under it, or a new one at the edge it is near.
 func (m *Model) dragStripTo(d *drag, x, y int, release bool) tea.Cmd {
 	d.moved = true
 
-	d.slot = -1
-	if y == d.y0 {
+	d.slot, d.drop = -1, nil
+
+	switch {
+	case y == d.y0 && (d.strip != stripEditor || x >= m.mainX() && x < m.mainX()+m.mainW()):
 		d.slot = m.stripSlot(d.strip, x-d.org)
+	case d.strip == stripEditor:
+		var t dropTarget
+		if d.dst, d.side, t = m.gridDrop(x, y); d.dst != nil {
+			d.drop = &t
+		}
 	}
 
 	if !release {
@@ -264,6 +268,10 @@ func (m *Model) dragStripTo(d *drag, x, y int, release bool) tea.Cmd {
 	}
 
 	m.drag = nil
+	if d.drop != nil {
+		return m.moveTabTo(d.tab, d.dst, d.side)
+	}
+
 	order := m.stripOrder(d.strip)
 
 	i := slices.Index(order, d.tab)

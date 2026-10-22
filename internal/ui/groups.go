@@ -1,0 +1,656 @@
+package ui
+
+import (
+	"cmp"
+	"slices"
+	"strings"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/xseman/pando/internal/proto"
+)
+
+// group is one editor group, VS Code's: a strip of files and sessions and
+// the one it shows. The active group's live in Model (pv, editors, edIdx,
+// preview, sess, term and the workspace's sessTabs); the others wait here
+// until they are drawn, fetched for or given the keyboard.
+type group struct {
+	pv      preview
+	editors []preview
+	edIdx   int
+	preview bool
+	sess    string
+	term    term
+	tabs    []string
+}
+
+// pane is the editor area's grid, VS Code's: a group, or two panes side by
+// side (row) or one over the other, the first taking ratio of the room.
+type pane struct {
+	g     *group
+	a, b  *pane
+	up    *pane
+	row   bool
+	ratio float64
+}
+
+// box is a place on screen, in content cells.
+type box struct{ x, y, w, h int }
+
+// The least room a group keeps: with less, the focused group is drawn alone.
+const (
+	minGroupW = 20
+	minGroupH = 5
+)
+
+// Where a tab goes against a group: into it, or into a new group on that side.
+const (
+	sideInto = iota
+	sideLeft
+	sideRight
+	sideUp
+	sideDown
+)
+
+// offMain is the focus while a group without the keyboard is drawn: its
+// cursor and its active tab's mark stay unlit.
+const offMain = -3
+
+func newPane() *pane { return &pane{g: &group{edIdx: -1}} }
+
+// leaves are the groups under p, left to right and top to bottom.
+func (p *pane) leaves() []*pane {
+	if p.g != nil {
+		return []*pane{p}
+	}
+
+	return append(p.a.leaves(), p.b.leaves()...)
+}
+
+// halves are the rooms of p's two panes in b, a cell between them for the
+// divider.
+func (p *pane) halves(b box) (box, box) {
+	if p.row {
+		w := min(max(int(float64(b.w-1)*p.ratio+0.5), 1), b.w-2)
+		return box{b.x, b.y, w, b.h}, box{b.x + w + 1, b.y, b.w - w - 1, b.h}
+	}
+
+	h := min(max(int(float64(b.h-1)*p.ratio+0.5), 1), b.h-2)
+
+	return box{b.x, b.y, b.w, h}, box{b.x, b.y + h + 1, b.w, b.h - h - 1}
+}
+
+// fits reports every group under p with its least room in b.
+func (p *pane) fits(b box) bool {
+	if p.g != nil {
+		return b.w >= minGroupW && b.h >= minGroupH
+	}
+
+	ba, bb := p.halves(b)
+
+	return p.a.fits(ba) && p.b.fits(bb)
+}
+
+// boxIn is p's room when the grid has a.
+func (p *pane) boxIn(a box) box {
+	if p.up == nil {
+		return a
+	}
+
+	x, y := p.up.halves(p.up.boxIn(a))
+
+	return ifElse(p.up.a == p, x, y)
+}
+
+// areaH is the editor area's rows, above the bottom panel.
+func (m *Model) areaH() int { return max(m.panelH()-m.termRows(), 0) }
+
+// area is the editor area: main's columns above the bottom panel.
+func (m *Model) area() box { _, c := m.layout(); return box{c.x, 0, c.w, m.areaH()} }
+
+// tiled reports the groups drawn side by side: more than one, none
+// maximized, each with its least room.
+func (m *Model) tiled() bool { return m.grid.g == nil && !m.maxed && m.grid.fits(m.area()) }
+
+// boxOf is where group p is drawn: its room in the grid, or the whole area.
+func (m *Model) boxOf(p *pane) box {
+	if !m.tiled() {
+		return m.area()
+	}
+
+	return p.boxIn(m.area())
+}
+
+// mainY is the active group's first row; mainX, mainW and mainH its other
+// edges.
+func (m *Model) mainY() int { return m.boxOf(m.cur).y }
+func (m *Model) mainX() int { return m.boxOf(m.cur).x }
+func (m *Model) mainW() int { return m.boxOf(m.cur).w }
+func (m *Model) mainH() int { return m.boxOf(m.cur).h }
+
+// stash keeps the active group's state in its pane.
+func (m *Model) stash() {
+	g := m.cur.g
+	g.pv, g.editors, g.edIdx, g.preview, g.sess, g.term, g.tabs = m.pv, m.editors, m.edIdx, m.preview, m.sess, m.term, m.sessTabs[m.ws]
+}
+
+// load makes group p the active one: its state in Model.
+func (m *Model) load(p *pane) {
+	g := p.g
+	m.cur, m.pv, m.editors, m.edIdx, m.preview, m.sess, m.term = p, g.pv, g.editors, g.edIdx, g.preview, g.sess, g.term
+
+	if m.sessTabs == nil {
+		m.sessTabs = map[string][]string{}
+	}
+
+	m.sessTabs[m.ws] = g.tabs
+}
+
+// within runs f with group p's state in Model, as if it had the keyboard:
+// to draw it, or to fetch its session's screen.
+func (m *Model) within(p *pane, f func()) {
+	was := m.cur
+	if p == was {
+		f()
+		return
+	}
+
+	m.stash()
+	m.load(p)
+	f()
+	m.stash()
+	m.load(was)
+}
+
+// eachGroup runs f with every group in Model in turn.
+func (m *Model) eachGroup(f func()) {
+	for _, p := range m.grid.leaves() {
+		m.within(p, f)
+	}
+}
+
+// focusGroup gives group p the keyboard.
+func (m *Model) focusGroup(p *pane) tea.Cmd {
+	m.focus = onMain
+	if p == m.cur {
+		return nil
+	}
+
+	m.saveSpot()
+	m.stash()
+	m.load(p)
+	m.refs = nil // the References inline were the other group's
+
+	return tea.Batch(m.syncTabs(), m.fetchScreen()) // tabs as wide as its file has them
+}
+
+// focusGroupN is ⌃1…⌃9: group n, counted left to right and top to bottom.
+func (m *Model) focusGroupN(n int) tea.Cmd {
+	ps := m.grid.leaves()
+	if n >= len(ps) {
+		return nil
+	}
+
+	return tea.Batch(m.focusGroup(ps[n]), m.saveEditors())
+}
+
+// holds reports tab id, a file's or a session's, in g: a session behind its
+// files without a tab of its own is not one.
+func (g *group) holds(id string) bool {
+	shown := g.sess == id && (g.pv.kind == "" || !g.preview)
+	return shown || slices.Contains(g.tabs, id) || slices.ContainsFunc(g.editors, func(e preview) bool { return e.id() == id })
+}
+
+// holder is the group other than the active one with tab id, nil for none:
+// a file and a session have their tab in one group.
+func (m *Model) holder(id string) *pane {
+	for _, p := range m.grid.leaves() {
+		if p != m.cur && p.g.holds(id) {
+			return p
+		}
+	}
+
+	return nil
+}
+
+// empty reports the active group without a tab.
+func (m *Model) empty() bool {
+	return len(m.editors) == 0 && m.pv.kind == "" && m.sess == "" && len(m.sessTabs[m.ws]) == 0
+}
+
+// replace puts pane n where p is in the grid.
+func (m *Model) replace(p, n *pane) {
+	switch u := p.up; {
+	case u == nil:
+		m.grid = n
+	case u.a == p:
+		u.a = n
+	default:
+		u.b = n
+	}
+
+	n.up = p.up
+}
+
+// splitPane puts a new group on side of p, the two halving p's room, and
+// returns it.
+func (m *Model) splitPane(p *pane, side int) *pane {
+	q := newPane()
+	s := &pane{row: side == sideLeft || side == sideRight, ratio: 0.5}
+	m.replace(p, s)
+
+	s.a, s.b = p, q
+	if side == sideLeft || side == sideUp {
+		s.a, s.b = q, p
+	}
+
+	p.up, q.up = s, s
+
+	return q
+}
+
+// dropPane takes group p out of the grid, its neighbour taking the room.
+func (m *Model) dropPane(p *pane) {
+	if s := p.up; s != nil {
+		m.replace(s, ifElse(s.a == p, s.b, s.a))
+	}
+}
+
+// prune closes the groups left without a tab, VS Code's closeEmptyGroups:
+// the active one's neighbour takes the keyboard. The last group stays.
+func (m *Model) prune() (cmd tea.Cmd) {
+	for _, p := range m.grid.leaves() {
+		if m.grid.g != nil {
+			break
+		}
+
+		g := p.g
+		if p == m.cur && !m.empty() || p != m.cur && (len(g.editors) > 0 || g.pv.kind != "" || g.sess != "" || len(g.tabs) > 0) {
+			continue
+		}
+
+		next := ifElse(p.up.a == p, p.up.b, p.up.a).leaves()[0]
+		m.dropPane(p)
+
+		if p == m.cur {
+			m.load(next)
+			cmd = m.syncTabs()
+		}
+	}
+
+	m.maxed = m.maxed && m.grid.g == nil
+
+	return cmd
+}
+
+// moveTabTo moves the active group's tab id, a file's or a session's, into
+// group dst or into a new group on side of it, and gives that group the
+// keyboard: VS Code's Move Editor into Group, and a tab dropped on a group.
+func (m *Model) moveTabTo(id string, dst *pane, side int) tea.Cmd {
+	src, file := m.cur, slices.IndexFunc(m.editors, func(e preview) bool { return e.id() == id })
+	if side == sideInto && dst == src || file < 0 && m.sess != id && !slices.Contains(m.sessTabs[m.ws], id) {
+		return nil
+	}
+
+	if side != sideInto {
+		dst = m.splitPane(dst, side)
+		if !m.grid.fits(m.area()) {
+			m.dropPane(dst)
+			return flash("no room for another group", true)
+		}
+	}
+
+	var (
+		e    preview
+		took tea.Cmd
+	)
+
+	if file >= 0 {
+		m.saveSpot()
+
+		e = m.editors[file] // before it goes
+		took = m.dropEditor(file)
+	} else {
+		took = m.closeSessTab(id)
+	}
+
+	m.stash()
+	m.load(dst)
+
+	var put tea.Cmd
+	if file >= 0 {
+		put = m.restore(e)
+	} else {
+		m.term, m.sess, m.preview = term{}, id, false
+		m.openSessTab(id)
+	}
+
+	m.focus = onMain
+
+	return tea.Batch(took, put, m.prune(), m.fetchScreen(), m.saveEditors())
+}
+
+// moveEditor is VS Code's Move Editor into Left/Right/Above/Below Group: the
+// active tab goes to the group on that side, or to a new one there.
+func (m *Model) moveEditor(side int) tea.Cmd {
+	id := m.sess
+	if m.showsPreview() {
+		id = m.pv.id()
+	}
+
+	if id == "" {
+		return nil
+	}
+
+	if n := m.neighbour(side); n != nil {
+		return m.moveTabTo(id, n, sideInto)
+	}
+
+	return m.moveTabTo(id, m.cur, side)
+}
+
+// splitEditor is ⌃\: the active tab into a new group on side of its own,
+// VS Code's Split Editor, which moves it here since a tab has one group.
+func (m *Model) splitEditor(side int) tea.Cmd {
+	if len(m.editors)+len(m.stripSessions()) < 2 {
+		return flash("one tab: nothing to split off", false)
+	}
+
+	id := m.sess
+	if m.showsPreview() {
+		id = m.pv.id()
+	}
+
+	return m.moveTabTo(id, m.cur, side)
+}
+
+// neighbour is the group on side of the active one, the nearest to its
+// middle, nil at the area's edge.
+func (m *Model) neighbour(side int) *pane {
+	if !m.tiled() {
+		return nil
+	}
+
+	a, me := m.area(), m.boxOf(m.cur)
+	cx, cy := me.x+me.w/2, me.y+me.h/2
+
+	var best *pane
+
+	far := 1 << 30
+
+	for _, p := range m.grid.leaves() {
+		b := p.boxIn(a)
+
+		var d int
+
+		switch side {
+		case sideLeft:
+			d = me.x - (b.x + b.w)
+		case sideRight:
+			d = b.x - (me.x + me.w)
+		case sideUp:
+			d = me.y - (b.y + b.h)
+		default:
+			d = b.y - (me.y + me.h)
+		}
+
+		if p == m.cur || d < 0 {
+			continue
+		}
+
+		d = d*1000 + max(cx-b.x-b.w/2, b.x+b.w/2-cx) + max(cy-b.y-b.h/2, b.y+b.h/2-cy)
+		if d < far {
+			best, far = p, d
+		}
+	}
+
+	return best
+}
+
+// toggleMaxGroup is VS Code's Toggle Maximized Editor Group: the active
+// group fills the editor area, the others waiting, or the grid comes back.
+func (m *Model) toggleMaxGroup() tea.Cmd {
+	if m.grid.g != nil {
+		return nil
+	}
+
+	m.maxed, m.focus = !m.maxed, onMain
+
+	return tea.Batch(m.fetchScreen(), m.saveEditors())
+}
+
+// paneAt is the group drawn at cell (x, y), nil off the grid.
+func (m *Model) paneAt(x, y int) *pane {
+	a := m.area()
+	for _, p := range m.grid.leaves() {
+		if b := p.boxIn(a); x >= b.x && x < b.x+b.w && y >= b.y && y < b.y+b.h {
+			return p
+		}
+	}
+
+	return nil
+}
+
+// splitAt is the split whose divider is at cell (x, y), nil for none.
+func (m *Model) splitAt(x, y int) *pane {
+	var at func(p *pane, b box) *pane
+
+	at = func(p *pane, b box) *pane {
+		if p.g != nil || x < b.x || x >= b.x+b.w || y < b.y || y >= b.y+b.h {
+			return nil
+		}
+
+		ba, bb := p.halves(b)
+		if p.row && x == ba.x+ba.w || !p.row && y == ba.y+ba.h {
+			return p
+		}
+
+		return cmp.Or(at(p.a, ba), at(p.b, bb))
+	}
+
+	return at(m.grid, m.area())
+}
+
+// dragSplit follows a divider between groups: its split's ratio is where
+// the pointer is, each side keeping its least room.
+func (m *Model) dragSplit(d *drag, x, y int, release bool) tea.Cmd {
+	p := d.split
+	b := p.boxIn(m.area())
+
+	at, n, least := x-b.x, b.w-1, minGroupW
+	if !p.row {
+		at, n, least = y-b.y, b.h-1, minGroupH
+	}
+
+	was := p.ratio
+	if n > 0 {
+		p.ratio = float64(min(max(at, least), n-least)) / float64(n)
+	}
+
+	if !m.grid.fits(m.area()) {
+		p.ratio = was
+	}
+
+	if !release {
+		return nil
+	}
+
+	m.drag = nil
+
+	return tea.Batch(m.fetchScreen(), m.saveEditors())
+}
+
+// gridDrop is where the active group's tab held over the editor area at
+// (x, y) would land: into the group under it, on its strip or its middle,
+// or into a new group at the edge it is near, a quarter of the group's width
+// or height; dst is nil where it would not move.
+func (m *Model) gridDrop(x, y int) (dst *pane, side int, t dropTarget) {
+	dst = m.cur
+	if m.tiled() {
+		dst = m.paneAt(x, y)
+	}
+
+	if dst == nil {
+		return nil, 0, t
+	}
+
+	b := m.boxOf(dst)
+	if x < b.x || x >= b.x+b.w || y < b.y || y >= b.y+b.h {
+		return nil, 0, t
+	}
+
+	qw, qh := max(b.w/4, 1), max(b.h/4, 1)
+
+	switch {
+	case y == b.y: // its strip
+	case x < b.x+qw:
+		side, b.w = sideLeft, b.w/2
+	case x >= b.x+b.w-qw:
+		side, b.x, b.w = sideRight, b.x+b.w-b.w/2, b.w/2
+	case y < b.y+qh:
+		side, b.h = sideUp, b.h/2
+	case y >= b.y+b.h-qh:
+		side, b.y, b.h = sideDown, b.y+b.h-b.h/2, b.h/2
+	}
+
+	if side == sideInto && dst == m.cur {
+		return nil, 0, t
+	}
+
+	label := []string{"Move Here", "Split Left", "Split Right", "Split Up", "Split Down"}[side]
+
+	return dst, side, dropTarget{rc: rect{b.x, b.w}, y: b.y, h: b.h, fill: true, col: -1, label: label}
+}
+
+// maxAct is the strip's maximize button while there are groups to leave:
+// VS Code's Maximize Group, Restore while it fills the area.
+func (m *Model) maxAct() []rowAction {
+	if m.grid.g != nil {
+		return nil
+	}
+
+	return []rowAction{{g: ifElse(m.maxed, icRestore, icMax), tip: ifElse(m.maxed, "Restore Groups", "Maximize Group"), run: func(m *Model) tea.Cmd { return m.toggleMaxGroup() }}}
+}
+
+// areaLines draws the editor area: the grid, a divider between its groups,
+// or the active group alone.
+func (m *Model) areaLines(w int) []string {
+	if !m.tiled() {
+		return m.editorLines(w)
+	}
+
+	return m.paneLines(m.grid, m.area())
+}
+
+func (m *Model) paneLines(p *pane, b box) []string {
+	if p.g != nil {
+		var out []string
+
+		focus := m.focus
+		if p != m.cur {
+			m.focus = offMain
+		}
+
+		m.within(p, func() { out = m.editorLines(b.w) })
+		m.focus = focus
+
+		return out[:b.h]
+	}
+
+	ba, bb := p.halves(b)
+	a, c := m.paneLines(p.a, ba), m.paneLines(p.b, bb)
+
+	st, lit := m.sashStyle(gridSash(p))
+	if !lit {
+		st = fg(pal.panelBorder)
+	}
+
+	if p.row {
+		div := renderText(st, ifElse(lit, "┃", "│"))
+		for i := range a {
+			a[i] += div + c[i]
+		}
+
+		return a
+	}
+
+	return append(append(a, renderText(st, strings.Repeat(ifElse(lit, "━", "─"), b.w))), c...)
+}
+
+// gridSpec is the grid under p as state.json keeps it.
+func (m *Model) gridSpec(p *pane) proto.Editors {
+	if p.g == nil {
+		a, b := m.gridSpec(p.a), m.gridSpec(p.b)
+		return proto.Editors{Row: p.row, Ratio: p.ratio, A: &a, B: &b}
+	}
+
+	var e proto.Editors
+
+	m.within(p, func() { e = m.groupSpec() })
+	e.Focus = p == m.cur && m.grid.g == nil
+
+	return e
+}
+
+// restoreGrid opens the groups e keeps, each as restoreGroup opens one, and
+// gives the one that had it the keyboard.
+func (m *Model) restoreGrid(e proto.Editors) tea.Cmd {
+	var (
+		cmds  []tea.Cmd
+		focus *pane
+		build func(e proto.Editors) *pane
+	)
+
+	build = func(e proto.Editors) *pane {
+		if e.A == nil || e.B == nil {
+			p := newPane()
+			m.cur = p
+			m.load(p)
+
+			cmds = append(cmds, m.restoreGroup(e))
+			m.preview = m.sess == "" // a session shows in front of the files, as it does in one group
+			m.stash()
+
+			if e.Focus || focus == nil {
+				focus = p
+			}
+
+			return p
+		}
+
+		p := &pane{row: e.Row, ratio: cmpRatio(e.Ratio)}
+		p.a, p.b = build(*e.A), build(*e.B)
+		p.a.up, p.b.up = p, p
+
+		return p
+	}
+
+	m.grid = build(e)
+	m.load(focus)
+	m.maxed = e.Max && m.grid.g == nil
+
+	return tea.Batch(append(cmds, m.prune())...)
+}
+
+// cmpRatio is a saved split's ratio, half when it has none that makes sense.
+func cmpRatio(r float64) float64 {
+	if r <= 0 || r >= 1 {
+		return 0.5
+	}
+
+	return r
+}
+
+// forget drops the sessions gone from a group without the keyboard: its
+// shown one hands over to its last tab still alive.
+func (g *group) forget(alive func(string) bool) {
+	g.tabs = slices.DeleteFunc(slices.Clone(g.tabs), func(id string) bool { return !alive(id) })
+	if g.sess == "" || alive(g.sess) {
+		return
+	}
+
+	g.sess, g.term = "", term{}
+	if len(g.tabs) > 0 && g.pv.kind == "" {
+		g.sess = g.tabs[len(g.tabs)-1]
+	}
+}

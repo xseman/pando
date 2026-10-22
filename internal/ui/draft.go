@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,8 +26,8 @@ type draftsMsg []proto.Draft
 func (m *Model) untitledName() string {
 	for n := 1; ; n++ {
 		name := fmt.Sprintf("Untitled-%d", n)
-		if !slices.ContainsFunc(m.editors, func(e preview) bool { return e.name == name }) {
-			return name
+		if !slices.ContainsFunc(m.editors, func(e preview) bool { return e.name == name }) && m.holder((&preview{kind: pvFile, name: name}).id()) == nil {
+			return name // in no group
 		}
 	}
 }
@@ -80,13 +81,18 @@ func (m *Model) saveDrafts() tea.Cmd {
 		m.savedDrafts = map[string]string{}
 	}
 
-	m.saveSpot()
+	var eds []preview // every group's
+
+	m.eachGroup(func() {
+		m.saveSpot()
+		eds = append(eds, m.editors...)
+	})
 
 	var cmds []tea.Cmd
 
 	live := map[string]bool{}
 
-	for _, e := range m.editors {
+	for _, e := range eds {
 		if e.kind != pvFile || e.cell != nil { // a table cell's value goes with its table
 			continue
 		}
@@ -150,20 +156,14 @@ func (m *Model) onDrafts(ds []proto.Draft) tea.Cmd {
 
 	var cmds []tea.Cmd
 
-	for _, d := range ds {
-		if d.Text == "" {
-			continue
-		}
-
-		m.savedDrafts[d.Key()] = d.Text
-
+	apply := func(d proto.Draft) {
 		i := slices.IndexFunc(m.editors, func(e preview) bool {
 			return e.kind == pvFile && e.path == d.Path && e.name == d.Name
 		})
 		if i < 0 {
 			if d.Path != "" { // the file is gone, or was never in this strip
 				if st, err := os.Stat(d.Path); err != nil || st.IsDir() {
-					continue
+					return
 				}
 			}
 
@@ -172,7 +172,7 @@ func (m *Model) onDrafts(ds []proto.Draft) tea.Cmd {
 		}
 
 		if m.editors[i].dirty() { // typed into already: that text is newer
-			continue
+			return
 		}
 
 		e := &m.editors[i]
@@ -184,6 +184,17 @@ func (m *Model) onDrafts(ds []proto.Draft) tea.Cmd {
 			m.pv.draft, m.pv.draftM, m.pv.buf = d.Text, d.Mod, e.buf
 			cmds = append(cmds, m.pv.load(m))
 		}
+	}
+
+	for _, d := range ds {
+		if d.Text == "" {
+			continue
+		}
+
+		m.savedDrafts[d.Key()] = d.Text
+		// Into the group with the file's tab, else the active one.
+		at := m.holder((&preview{kind: pvFile, path: d.Path, name: d.Name}).id())
+		m.within(cmp.Or(at, m.cur), func() { apply(d) })
 	}
 
 	if m.edIdx < 0 && len(m.editors) > 0 {

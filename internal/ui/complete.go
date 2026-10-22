@@ -426,7 +426,7 @@ func (p *preview) compBox(m *Model) (box []string, x, y int, ok bool) {
 	x = max(min(x, m.w-iw-2), 0) // on screen, in an editor narrower than the list
 	// The body's rows run from headH()+stripH() for pvH() rows; lightbulb's y is the
 	// row under the cursor.
-	if y+len(box) > m.headH()+m.stripH()+m.pvH() {
+	if y+len(box) > m.mainY()+m.headH()+m.stripH()+m.pvH() {
 		y = max(y-1-len(box), 0) // above the line instead
 	}
 

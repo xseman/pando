@@ -328,7 +328,7 @@ func (sp *settingsPage) chips(hot int) ([]seg, []int) {
 // hover is the tab's cell under the mouse; ok is false while it is
 // elsewhere, or a modal is over it.
 func (sp *settingsPage) hover(m *Model) (x, y int, ok bool) {
-	x, y = m.mouseX-m.mainX(), m.mouseY-m.headH()-m.stripH()
+	x, y = m.mouseX-m.mainX(), m.mouseY-m.mainY()-m.headH()-m.stripH()
 
 	return x, y, m.modal == nil && m.pv.kind == pvSettings && x >= 0 && x < m.mainW() && y >= 0 && y < m.pvH()
 }
@@ -441,7 +441,7 @@ func (sp *settingsPage) act(m *Model, s setting) tea.Cmd {
 	}
 
 	k := sp.settings()[sp.at] - sp.top
-	x, y := m.mainX()+settingsCtrlX, m.headH()+m.stripH()+settingsTopH+k+1 // right under the control
+	x, y := m.mainX()+settingsCtrlX, m.mainY()+m.headH()+m.stripH()+settingsTopH+k+1 // right under the control
 	m.menuOf(items, x, y)
 	m.modal.l.sel = max(slices.Index(s.opts, s.get(m)), 0) // on the value it has, as VS Code's select
 

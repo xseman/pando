@@ -7,6 +7,7 @@ import (
 	"image/color"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"slices"
 	"strconv"
@@ -378,6 +379,11 @@ func (p *preview) snapshot() preview {
 // setPreview opens p in the main area, remembering the editor it replaces in
 // the tab strip and the navigation history.
 func (m *Model) setPreview(p preview) tea.Cmd {
+	var focus tea.Cmd
+	if q := m.holder(p.id()); q != nil { // its tab is in another group: that one opens it
+		focus = m.focusGroup(q)
+	}
+
 	m.saveSpot()
 
 	m.edUsed++
@@ -441,18 +447,13 @@ func (m *Model) setPreview(p preview) tea.Cmd {
 	m.pv.wrap = m.st.Settings.Wrap
 
 	// The session over the editor area keeps its tab beside the file's, as
-	// VS Code's editor terminals do; dragged to an edge it docks.
-	var unmax tea.Cmd
-	if m.maxed && !m.preview { // a file opened over a maximized session sits beside it again
-		m.maxed, unmax = false, m.maxSession(false)
-	}
-
+	// VS Code's editor terminals do.
 	m.preview = true
 	tabW = m.tabWidth() // drawn at its own width from the start: the cursor it comes back with counts in it
 	cmd := m.pv.load(m)
 	m.saveSpot() // an untitled buffer loads in place: the tab takes it now
 
-	return tea.Batch(unmax, cmd)
+	return tea.Batch(focus, cmd)
 }
 
 // edLimits are the values Settings cycles editor_limit through; 0 is none.
@@ -531,13 +532,17 @@ func (m *Model) saveSpot() {
 	}
 }
 
-// editorsSpec is the tab strip as state.json keeps it: the files, each with
-// its cursor and scroll. Diffs and commits depend on git state that moves on,
-// so they are not remembered.
-func (m *Model) editorsSpec() proto.Editors {
+// groupSpec is the active group's strip as state.json keeps it: the files,
+// each with its cursor and scroll, and the sessions. Diffs and commits depend
+// on git state that moves on, so they are not remembered; nor is a session
+// behind the files.
+func (m *Model) groupSpec() proto.Editors {
 	m.saveSpot()
 
-	var e proto.Editors
+	e := proto.Editors{Sessions: slices.Clone(m.sessTabs[m.ws])}
+	if m.showsSession() {
+		e.Session = m.sess
+	}
 
 	for i, p := range m.editors {
 		if p.kind != pvFile && p.kind != pvRev || p.cell != nil { // a table cell's value goes with its table
@@ -564,10 +569,11 @@ func (m *Model) saveEditors() tea.Cmd {
 		return nil
 	}
 
-	e := m.editorsSpec()
+	e := m.gridSpec(m.grid)
+	e.Max = m.maxed
 	// Against what this TUI saved, not the daemon's copy: two TUIs on one
 	// workspace would otherwise rewrite each other's strip every tick.
-	if e.Active == m.savedEds.Active && slices.Equal(e.Open, m.savedEds.Open) {
+	if reflect.DeepEqual(e, m.savedEds) {
 		return nil
 	}
 
@@ -576,7 +582,7 @@ func (m *Model) saveEditors() tea.Cmd {
 		m.st.Editors = map[string]proto.Editors{}
 	}
 
-	if len(e.Open) == 0 {
+	if e.Empty() {
 		delete(m.st.Editors, m.ws)
 	} else {
 		m.st.Editors[m.ws] = e
@@ -585,12 +591,35 @@ func (m *Model) saveEditors() tea.Cmd {
 	return do("state.set", map[string]any{"editors": map[string]proto.Editors{m.ws: e}})
 }
 
-// restoreEditors reopens what the workspace had open the last time, cursors
-// and scroll included, like VS Code reopening a folder. Files that are gone
-// are skipped; the active one loads, the others load when their tab is shown.
+// restoreEditors reopens what the workspace had open the last time, its
+// groups and their tabs, cursors and scroll included, like VS Code reopening
+// a folder.
 func (m *Model) restoreEditors() tea.Cmd {
 	e := m.st.Editors[m.ws]
-	m.savedEds = e
+	m.savedEds, m.maxed = e, false
+	m.grid = newPane()
+	m.cur = m.grid
+
+	if e.A != nil && e.B != nil {
+		return m.restoreGrid(e)
+	}
+
+	return m.restoreGroup(e)
+}
+
+// restoreGroup reopens group e in the active one: its sessions' tabs, the one
+// it showed, and its files. Files that are gone are skipped; the active one
+// loads, the others load when their tab is shown.
+func (m *Model) restoreGroup(e proto.Editors) tea.Cmd {
+	if m.sessTabs == nil {
+		m.sessTabs = map[string][]string{}
+	}
+
+	m.sessTabs[m.ws] = slices.DeleteFunc(slices.Clone(e.Sessions), func(id string) bool { return m.session(id) == nil })
+	if m.session(e.Session) != nil {
+		m.sess, m.term = e.Session, term{}
+	}
+
 	m.editors, m.edIdx = nil, -1
 	active := -1
 
@@ -1050,14 +1079,12 @@ func (m *Model) editorTabs(w int) []edTab {
 }
 
 // stripSessions are the sessions of the workspace in view opened over the
-// editor area, in the order they were opened: the
-// one shown among them, and none docked in a column of its own, which has
-// its strip there.
+// editor area, in the order they were opened, the one shown among them.
 func (m *Model) stripSessions() []string {
 	var out []string
 
 	for _, id := range m.sessTabs[m.ws] {
-		if m.session(id) != nil && (!m.sessDocked() || id != m.sess) {
+		if m.session(id) != nil {
 			out = append(out, id)
 		}
 	}
@@ -1143,7 +1170,7 @@ func (m *Model) editorStrip(w int) string {
 			right = append(right, sg(hint, st))
 		}
 
-		btns, _ := m.actSegs(m.sessionButtons(), m.mainX(), 0)
+		btns, _ := m.actSegs(m.sessionButtons(), m.mainX(), m.mainY())
 		right = append(right, btns...)
 
 		m.noteSessTabs(tabs)
@@ -1169,7 +1196,7 @@ func edTabsEnd(tabs []edTab) int {
 // noteSessTabs notes the tip of the session tab under the mouse: a ✕'s, or
 // a cut name whole.
 func (m *Model) noteSessTabs(tabs []edTab) {
-	if m.mouseY != 0 || m.mouseX < m.mainX() || m.mouseX >= m.mainX()+m.mainW() {
+	if m.mouseY != m.mainY() || m.mouseX < m.mainX() || m.mouseX >= m.mainX()+m.mainW() {
 		return
 	}
 
@@ -1187,7 +1214,7 @@ func (m *Model) noteSessTabs(tabs []edTab) {
 // buttonSegs draws the buttons, the one under the mouse and a lit toggle in
 // their colors, and returns their width.
 func (p *preview) buttonSegs(m *Model, w int) (segs []seg, bw int) {
-	return m.actSegs(p.buttons(m, w), m.mainX(), 0)
+	return m.actSegs(p.buttons(m, w), m.mainX(), m.mainY())
 }
 
 // actSegs draws a strip's buttons, the one under the mouse (the strip's row y
@@ -1216,8 +1243,8 @@ func (m *Model) actSegs(acts []rowAction, x0, y int) (segs []seg, bw int) {
 func (m *Model) editorRule(w int) string {
 	var marks []ruleMark
 
-	for _, t := range m.editorTabs(w) {
-		marks = append(marks, ruleMark{t.x, t.w, t.active, m.tabID(t) == m.overTab})
+	for _, t := range m.editorTabs(w) { // a group without the keyboard leaves its active tab unlit
+		marks = append(marks, ruleMark{t.x, t.w, t.active && m.focus != offMain, m.tabID(t) == m.overTab})
 	}
 
 	return ruleRow(w, marks)
@@ -1234,8 +1261,8 @@ func (m *Model) tabID(t edTab) string {
 
 // stripMouse handles a click on the editor area's strip: the middle button
 // and the active tab's ✕ close, anything else activates, and the left button
-// picks a file's tab up to drag it along the strip (a double click pins it),
-// a session's to dock it; past the tabs a session's strip is its title.
+// picks a file's tab up to drag it along the strip (a double click pins it);
+// past the tabs a session's strip is its title.
 func (m *Model) stripMouse(x int, mo tea.Mouse) tea.Cmd {
 	button := mo.Button
 
@@ -1280,31 +1307,26 @@ func (m *Model) stripMouse(x int, mo tea.Mouse) tea.Cmd {
 		return cmd
 	}
 
-	if m.showsSession() {
-		return m.sessionTitleClick(mo) // the empty strip is the session's title: drag it, or its menu
+	if m.showsSession() && mo.Button == tea.MouseRight { // the empty strip is the session's title
+		return m.sessionTitleMenu()
 	}
 
 	return nil
 }
 
 // sessTabClick is a click on session tab t at strip column x: the right
-// button opens its menu, the middle one or the ✕ closes it; else it shows,
-// and the left button picks it up to dock, dragged to the editor area's right
-// or left edge, as its title does.
+// button opens its menu, the middle one or the ✕ closes it; else it shows.
 func (m *Model) sessTabClick(t edTab, x int, mo tea.Mouse) tea.Cmd {
 	switch {
 	case mo.Button == tea.MouseRight:
 		return m.sessionMenu(t.id)
 	case mo.Button == tea.MouseMiddle || t.active && x >= t.x+t.w-tabCloseW:
 		return m.closeSessTab(t.id)
+	case mo.Button == tea.MouseLeft: // held, it goes to another group
+		m.grabTab(stripEditor, t.id, x)
 	}
 
-	cmd := m.switchSession(t.id)
-	if mo.Button == tea.MouseLeft {
-		m.drag = &drag{kind: dragTab, v: viewSession, x0: mo.X, y0: mo.Y}
-	}
-
-	return cmd
+	return m.switchSession(t.id)
 }
 
 // gotoLine moves the cursor to line and col (0-based), centering the view.
@@ -3256,11 +3278,7 @@ func (p *preview) sideBody(m *Model, w, h int) []string {
 // buttons are the preview header's actions, right-aligned: Markdown
 // rendering, the diff's context and layout, and the file's revisions.
 func (p *preview) buttons(m *Model, w int) []rowAction {
-	var acts []rowAction
-
-	if m.canMax() { // first, so the others keep their places
-		acts = append(acts, rowAction{g: m.maxGlyph(), tip: m.maxTip(), run: func(m *Model) tea.Cmd { return m.toggleMax(true) }})
-	}
+	acts := m.maxAct() // first, so the others keep their places
 
 	add := func(g glyph, tip string, k tea.KeyPressMsg) {
 		acts = append(acts, rowAction{g: g, tip: tip + "  " + k.Text, run: func(m *Model) tea.Cmd { return m.pv.key(m, k) }})
@@ -3599,7 +3617,7 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 
 	for k := p.top; k < len(vis) && k < p.top+h; k++ {
 		if vis[k].line < 0 { // the quick diff's zone
-			body = append(body, p.qd.row(m, vis[k].from, tw, m.headH()+m.stripH()+k-p.top))
+			body = append(body, p.qd.row(m, vis[k].from, tw, m.mainY()+m.headH()+m.stripH()+k-p.top))
 			continue
 		}
 
@@ -4226,7 +4244,7 @@ func (p *preview) findBox(m *Model) (box []string, x, y int, ok bool) {
 
 	field, acts := p.findActs(bw)
 	edge := findEdge(p.find.editing)
-	x, y = m.mainX()+x0, m.headH()+m.stripH()
+	x, y = m.mainX()+x0, m.mainY()+m.headH()+m.stripH()
 	m.noteTip(acts, x, y+1)
 
 	if p.editable() { // the chevron before the query
@@ -4618,7 +4636,7 @@ func (p *preview) menu(m *Model, x, y int) tea.Cmd { return m.menuOf(p.items(m),
 func (p *preview) menuAt(m *Model) (x, y int) {
 	if p.split(m) {
 		if i := splitIndex(splitRows(p.meta), p.at().line) - p.top; i >= 0 && i < m.pvH() {
-			return m.mainX(), m.headH() + m.stripH() + i + 1
+			return m.mainX(), m.mainY() + m.headH() + m.stripH() + i + 1
 		}
 	} else if _, _, ok := p.cursor(m.pvW(), m.pvH()); ok {
 		return m.lightbulb(0)
@@ -5416,7 +5434,7 @@ func (p *preview) dragTo(m *Model, x, y int, release bool) tea.Cmd {
 	// The same translation the click went through (Model.mouse): the header,
 	// then the editor strip above it. Dropping the strip would put every drag
 	// a row below its click, so the first motion of a click would select.
-	x, y = x-c, y-m.headH()-m.stripH()
+	x, y = x-c, y-m.mainY()-m.headH()-m.stripH()
 	if p.split(m) {
 		if y < 0 {
 			p.top, y = max(p.top-1, 0), 0

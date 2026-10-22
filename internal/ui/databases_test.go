@@ -319,7 +319,7 @@ func TestTableCellEditor(t *testing.T) {
 		t.Fatalf("cell editor: %q %+v", m.pv.kind, m.pv.cell)
 	}
 
-	for _, e := range m.editorsSpec().Open {
+	for _, e := range m.groupSpec().Open {
 		if strings.HasPrefix(e.Name, "orders.note") {
 			t.Fatalf("a cell editor is kept with the editors: %+v", e)
 		}

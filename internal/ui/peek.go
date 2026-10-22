@@ -86,7 +86,7 @@ func (m *Model) showPeek(pk *peek) tea.Cmd {
 
 // peekH is the height of the References inline, 0 while they are closed.
 func (m *Model) peekH() int {
-	if m.refs == nil || !m.showsPreview() {
+	if m.refs == nil || !m.showsPreview() || m.focus == offMain { // the active group's, not one drawn beside it
 		return 0
 	}
 

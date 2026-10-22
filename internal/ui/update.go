@@ -96,7 +96,7 @@ func (m *Model) finishUpdate() tea.Cmd {
 				return m.confirmQuit()
 			}
 
-			return tea.Sequence(m.saveEditors(), m.saveTerm(), m.saveSessView(), m.saveDrafts(), tea.Quit)
+			return tea.Sequence(m.saveEditors(), m.saveTerm(), m.saveDrafts(), tea.Quit)
 		}},
 		cancelItem())
 

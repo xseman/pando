@@ -17,7 +17,7 @@ import (
 // message rate (mouse motion, a busy session's screens) is how much of the
 // event loop is left for keys. go test -run '^$' -bench . ./internal/ui
 
-// benchModel is a framed 220x55 window, the session s1 docked beside the
+// benchModel is a framed 220x55 window, the session s1 shown over the
 // editor area on a busy screen whose rows are padded to its width, as the
 // emulator pads a row it cleared.
 func benchModel(tb testing.TB) *Model {

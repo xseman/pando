@@ -746,9 +746,15 @@ func (m *Model) acknowledge(ids ...string) {
 	}
 }
 
-// inView reports session id shown right now, over the editor or docked.
-func (m *Model) inView(id string) bool {
-	return id == m.sess && (m.showsSession() || m.shown(viewSession))
+// inView reports session id shown right now, in any group on screen.
+func (m *Model) inView(id string) (in bool) {
+	if !m.tiled() {
+		return id == m.sess && m.showsSession()
+	}
+
+	m.eachGroup(func() { in = in || id == m.sess && m.showsSession() })
+
+	return in
 }
 
 // wantsBlink reports a session out of view whose tint pulses.
@@ -2625,16 +2631,22 @@ type screenMsg struct {
 	err error
 }
 
-// fetchScreen refreshes both terminals: the main area's session and the
-// Terminal panel's shell.
-func (m *Model) fetchScreen() tea.Cmd { return tea.Batch(m.fetchMain(), m.fetchTerm()) }
+// fetchScreen refreshes the terminals: the session of every group on screen
+// and the Terminal panel's shell.
+func (m *Model) fetchScreen() tea.Cmd {
+	cmds := []tea.Cmd{m.fetchTerm()}
+	if !m.tiled() {
+		return tea.Batch(append(cmds, m.fetchMain())...)
+	}
+
+	m.eachGroup(func() { cmds = append(cmds, m.fetchMain()) })
+
+	return tea.Batch(cmds...)
+}
 
 func (m *Model) fetchMain() tea.Cmd {
 	t := &m.term
-	docked := m.sessDocked()
-
-	shown := m.showsSession() || docked && m.shown(viewSession)
-	if m.sess == "" || m.w == 0 || !shown {
+	if m.sess == "" || m.w == 0 || !m.showsSession() {
 		return nil
 	}
 
@@ -2647,9 +2659,6 @@ func (m *Model) fetchMain() tea.Cmd {
 
 	// One column less than the view: the scrollbar has it.
 	p := proto.ScreenParams{ID: m.sess, Cols: max(m.mainW()-1, 1), Rows: m.sessH(), Scroll: t.scroll}
-	if docked { // its column: the tab strip above the screen
-		p.Cols, p.Rows = max(m.sessW()-1, 1), max(m.bodyH(viewSession)-sessStripH, 1)
-	}
 
 	if t.id == m.sess { // the scroll counts back from this screen
 		p.Pushed = t.scr.Pushed
@@ -2666,6 +2675,16 @@ func (m *Model) fetchMain() tea.Cmd {
 
 // onScreen routes a screen to whichever terminal asked for it.
 func (m *Model) onScreen(msg screenMsg) tea.Cmd {
+	for _, p := range m.grid.leaves() {
+		if p != m.cur && p.g.sess == msg.id { // a group without the keyboard asked for it
+			var cmd tea.Cmd
+
+			m.within(p, func() { cmd = m.onScreen(msg) })
+
+			return cmd
+		}
+	}
+
 	for _, t := range []struct {
 		t    *term
 		want string
@@ -2714,16 +2733,6 @@ type sessTab struct {
 	active bool
 	plus   bool
 	bg     color.Color // session_highlight's tint
-}
-
-// sessionTabs is the tab of the session in view, its strip's only one.
-func (m *Model) sessionTabs(w int) []sessTab {
-	var ss []proto.Session
-	if s := m.session(m.sess); s != nil {
-		ss = append(ss, *s)
-	}
-
-	return m.tabsFor(w-m.sessBtnW(), ss, m.sess)
 }
 
 // spaceSessions are the sessions of the workspace in view.
@@ -2971,48 +2980,12 @@ func (m *Model) renameSession(id string) tea.Cmd {
 	return nil
 }
 
-func (m *Model) sessionStrip(w int) string {
-	tabs := m.sessionTabs(w)
-
-	var right []seg
-	if hint, st := m.sessionHint(); hint != "" && ansi.StringWidth(hint) <= w-m.sessBtnW()-tabsEnd(tabs) {
-		right = append(right, sg(hint, st))
-	}
-
-	y, x0 := 0, m.mainX()
-	if i := m.colOf(viewSession); i >= 0 {
-		y, x0 = m.barH(i), m.colRect(i).x
-	}
-
-	btns, _ := m.actSegs(m.sessionButtons(), x0, y)
-	m.noteStrip(tabs, "", "Kill Session…", x0, y, w)
-
-	return row(w, nil, tabSegs(tabs, m.overTab, m.overX), append(right, btns...)...)
-}
-
-// sessionRule is the line under the session's strip.
-func (m *Model) sessionRule(w int) string {
-	var marks []ruleMark
-
-	for _, t := range m.sessionTabs(w) {
-		marks = append(marks, ruleMark{t.x, t.w, t.active, t.id == m.overTab})
-	}
-
-	return ruleRow(w, marks)
-}
-
 // sessionButtons are the buttons at the right end of the session's strip, shown
-// always as the editor's are: maximize or restore while a file shares the area,
+// always as the editor's are: maximize or restore the group while there are others,
 // and close.
 func (m *Model) sessionButtons() []rowAction {
-	var acts []rowAction
-
-	if m.canMax() {
-		acts = append(acts, rowAction{g: m.maxGlyph(), tip: m.maxTip(), run: func(m *Model) tea.Cmd { return m.toggleMax(false) }})
-	}
-
-	acts = append(acts, rowAction{g: icClose, tip: "Close (keeps running)", run: func(m *Model) tea.Cmd { return m.hideSession() }})
-	layoutRight(acts, m.sessW(), 2)
+	acts := append(m.maxAct(), rowAction{g: icClose, tip: "Close (keeps running)", run: func(m *Model) tea.Cmd { return m.hideSession() }})
+	layoutRight(acts, m.mainW(), 2)
 
 	return acts
 }
@@ -3057,6 +3030,8 @@ func (m *Model) sessionHint() (string, lipgloss.Style) {
 		return fmt.Sprintf(" exited %d · x in Agents to close ", s.ExitCode), fg(pal.errc)
 	case m.term.scroll > 0:
 		return fmt.Sprintf(" scrollback -%d ", m.term.scroll), fg(pal.warn)
+	case m.focus == offMain: // another group has the keyboard: a click gives it this one
+		return "", plain
 	case m.focus != onMain:
 		return " ^] focus ", dim
 	case m.anyRailed():
@@ -3081,25 +3056,6 @@ func (m *Model) runsAgent(s proto.Session) bool {
 
 // newTermTip is the tip of the Terminal strip's +.
 const newTermTip = "New Terminal  ^⇧`"
-
-// noteStrip notes the tip of the + or of the active tab's ✕ under the mouse,
-// else of a tab of tabs that cuts its name, on the strip w cells wide from
-// screen column x0 on row y.
-func (m *Model) noteStrip(tabs []sessTab, plus, kill string, x0, y, w int) {
-	switch {
-	case m.mouseY != y || m.mouseX < x0 || m.mouseX >= x0+w:
-	case m.overTab == plusTab:
-		m.tip = plus
-	case m.overX != "":
-		m.tip = kill
-	default:
-		for _, t := range tabs {
-			if t.id == m.overTab && t.tip != "" { // the +'s id is "", as is overTab past the tabs
-				m.tip = t.tip
-			}
-		}
-	}
-}
 
 // tabSegs draws a strip's tabs, tab over in hover_bg and the ✕ of tab overX
 // raised.
@@ -3132,31 +3088,6 @@ func tabSegs(tabs []sessTab, over, overX string) []seg {
 	}
 
 	return segs
-}
-
-// sessionStripMouse switches to or closes the session from its strip.
-func (m *Model) sessionStripMouse(x int, mo tea.Mouse) tea.Cmd {
-	button := mo.Button
-	if a, ok := hit(m.sessionButtons(), x); ok && button == tea.MouseLeft {
-		return a.run(m)
-	}
-
-	for _, t := range m.sessionTabs(m.sessW()) {
-		if x < t.x || x >= t.x+t.w {
-			continue
-		}
-
-		switch {
-		case button == tea.MouseRight:
-			return m.sessionMenu(t.id)
-		case button == tea.MouseMiddle || (t.active && x >= t.x+t.w-tabCloseW):
-			return m.confirmKill(t.id)
-		}
-
-		return m.switchSession(t.id)
-	}
-
-	return m.sessionTitleClick(mo) // the empty strip is the session's title: drag it, or its menu
 }
 
 func (t *term) view(m *Model, w, _ int) []string {
@@ -3383,53 +3314,10 @@ func (m *Model) onNewSession(s proto.Session) tea.Cmd {
 	return tea.Batch(m.openSession(s.ID), loadSessions())
 }
 
-// openSession shows a session and gives it the keyboard, in its column when it
-// is docked beside the editor.
+// openSession shows a session and gives it the keyboard.
 func (m *Model) openSession(id string) tea.Cmd {
 	m.focus = onMain
-
-	cmd := m.switchSession(id)
-	if m.sessDocked() {
-		return tea.Batch(cmd, m.showView(viewSession))
-	}
-
-	return cmd
-}
-
-// sessFocused reports the keyboard in the docked session's column.
-func (m *Model) sessFocused() bool {
-	if m.focus < 0 {
-		return false
-	}
-
-	v, ok := m.viewOn(m.focus)
-
-	return ok && v == viewSession
-}
-
-// sessW is the width the session is drawn at: the editor area's, or its column's.
-func (m *Model) sessW() int {
-	if i := m.colOf(viewSession); i >= 0 {
-		return max(m.colRect(i).w, 1)
-	}
-
-	return m.mainW()
-}
-
-// sessionLines are the docked session: its tab and the rule, then its screen.
-func (m *Model) sessionLines(w, h int) []string {
-	lines := m.term.view(m, w, h-sessStripH)
-	out := []string{m.sessionStrip(w), m.sessionRule(w)}
-
-	for i := range max(h-sessStripH, 0) {
-		if i < len(lines) {
-			out = append(out, fit(lines[i], w))
-		} else {
-			out = append(out, blank(w))
-		}
-	}
-
-	return out
+	return m.switchSession(id)
 }
 
 func (m *Model) onNewWorkspace(w proto.Workspace) tea.Cmd {
@@ -3609,7 +3497,7 @@ func (m *Model) clearTerm(id string) tea.Cmd {
 // shells.
 func (m *Model) termBody() (w, h int) {
 	if n := m.termRows(); n > 0 { // the panel under the editor
-		return max(m.mainW(), 1), max(n-panelTopH, 1) // the border, the tab strip and its rule
+		return max(m.area().w, 1), max(n-panelTopH, 1) // the border, the tab strip and its rule
 	}
 
 	rc := m.colRect(m.colOf(viewTerm))
@@ -3666,9 +3554,9 @@ func (m *Model) termPanelLines(w, h int) []string {
 		top = ruleRow(w, nil, st)
 	}
 
-	strip := m.panelStrip(w, panelTabX, m.mainX(), m.mainH()+1)
+	strip := m.panelStrip(w, panelTabX, m.area().x, m.areaH()+1)
 
-	return append([]string{top, strip, m.panelRule(w, panelTabX, m.mainX(), m.mainH()+1)}, m.panelBody(w, h-panelTopH)...)
+	return append([]string{top, strip, m.panelRule(w, panelTabX, m.area().x, m.areaH()+1)}, m.panelBody(w, h-panelTopH)...)
 }
 
 // termLines are the panel in a column: its strip, the rule, then the tab's
@@ -3686,7 +3574,7 @@ const panelTabX = 1
 // termW is the width of the Terminal's strip: the editor area's, or its column's.
 func (m *Model) termW() int {
 	if m.termRows() > 0 {
-		return m.mainW()
+		return m.area().w
 	}
 
 	return m.colRect(m.colOf(viewTerm)).w
@@ -3769,7 +3657,7 @@ func (m *Model) termTabs(w int) []sessTab {
 // share it.
 func (m *Model) termStripW() int {
 	if m.termRows() > 0 {
-		return max(m.mainW()-1-m.termBtnW(), 1)
+		return max(m.area().w-1-m.termBtnW(), 1)
 	}
 
 	return max(m.colRect(m.colOf(viewTerm)).w-m.termBtnW(), 1)

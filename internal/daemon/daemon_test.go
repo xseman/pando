@@ -264,26 +264,9 @@ func TestDaemon(t *testing.T) {
 	if len(terms.Terminals) != 0 {
 		t.Fatalf("forgotten terminals = %+v", terms.Terminals)
 	}
-	// And the session's place and width, beside the settings' default.
-	view := proto.SessionView{Position: "editor", Width: 48}
-	call(t, "state.set", map[string]any{"settings": map[string]any{"session_position": "left"}, "session_views": map[string]proto.SessionView{root: view}}, nil)
-
-	var views proto.State
-	call(t, "state.get", nil, &views)
-
-	if views.SessionViews[root] != view || views.Settings.SessPos != "left" {
-		t.Fatalf("session views = %+v, default %q", views.SessionViews, views.Settings.SessPos)
-	}
-
-	call(t, "state.set", map[string]any{"session_views": map[string]any{root: nil}}, nil)
-
-	views = proto.State{}
-	call(t, "state.get", nil, &views)
-
-	if len(views.SessionViews) != 0 {
-		t.Fatalf("forgotten session views = %+v", views.SessionViews)
-	}
 	// The Spaces headings folded, a whole list each time.
+	var views proto.State
+
 	call(t, "state.set", map[string]any{"spaces_folded": []string{root, "time:Today"}}, nil)
 	call(t, "state.get", nil, &views)
 
@@ -627,15 +610,14 @@ func TestInstanceState(t *testing.T) {
 	}
 }
 
-// TestStateDropsGoneWorkspaces forgets the tabs, Terminal panel and session
-// view of a workspace removed while the daemon was down, and keeps a draft.
+// TestStateDropsGoneWorkspaces forgets the tabs and Terminal panel of a
+// workspace removed while the daemon was down, and keeps a draft.
 func TestStateDropsGoneWorkspaces(t *testing.T) {
 	cfg, ws, gone := t.TempDir(), t.TempDir(), filepath.Join(t.TempDir(), "removed")
 	mustWrite(t, filepath.Join(cfg, "state.json"), `{
 		"drafts": {"`+gone+`": "unsaved"},
 		"editors": {"`+ws+`": {}, "`+gone+`": {}},
-		"terminals": {"`+ws+`": {"open": true}, "`+gone+`": {"open": true}},
-		"session_views": {"`+ws+`": {}, "`+gone+`": {}}
+		"terminals": {"`+ws+`": {"open": true}, "`+gone+`": {"open": true}}
 	}`)
 
 	d, err := New(cfg, cfg, t.TempDir())
@@ -644,8 +626,8 @@ func TestStateDropsGoneWorkspaces(t *testing.T) {
 	}
 
 	st := d.state
-	if _, ok := st.Editors[gone]; ok || len(st.Editors) != 1 || len(st.Terminals) != 1 || len(st.SessionViews) != 1 || st.Drafts[gone] != "unsaved" {
-		t.Fatalf("editors %v, terminals %v, session views %v, drafts %v", st.Editors, st.Terminals, st.SessionViews, st.Drafts)
+	if _, ok := st.Editors[gone]; ok || len(st.Editors) != 1 || len(st.Terminals) != 1 || st.Drafts[gone] != "unsaved" {
+		t.Fatalf("editors %v, terminals %v, drafts %v", st.Editors, st.Terminals, st.Drafts)
 	}
 }
 

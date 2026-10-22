@@ -136,7 +136,7 @@ func testModelSized(tb testing.TB, w, h int) *Model {
 	mustWrite(tb, filepath.Join(root, "README.md"), "# hi\n")
 	mustWrite(tb, filepath.Join(root, ".env"), "A=1\n")
 	st := proto.State{
-		Settings: proto.Settings{Width: 30, Icons: "ascii", SessPos: "editor", Crumbs: true, Tips: true}, Projects: []string{root},
+		Settings: proto.Settings{Width: 30, Icons: "ascii", Crumbs: true, Tips: true}, Projects: []string{root},
 		Agents: map[string][]string{"shell": {"sh"}},
 	}
 	wss := []proto.Workspace{{Path: root, Project: root, Branch: "main", Main: true}}
@@ -467,7 +467,7 @@ func TestViewsModalsAndFocus(t *testing.T) {
 		t.Fatal("ctrl+w closes preview")
 	}
 
-	m.switchSession("s1") // over the editor: session_position is "editor" here
+	m.switchSession("s1") // over the editor
 	m.focus = onMain
 	m.term = term{id: "s1", scr: proto.Screen{Lines: []string{"$ \x1b[31mred\x1b[m", "second"}, CursorVisible: true, CursorX: 2}}
 
@@ -590,34 +590,18 @@ func TestTwoSidebarsAndDrag(t *testing.T) {
 	checkWidths(t, m)
 }
 
-// A screen too narrow for everything: the editor gives the docked session its
-// area, the side without Spaces folds into its rail, Spaces narrows last and
-// never goes; a wider screen brings it all back, nothing saved on the way.
+// A screen too narrow for everything: the side without Spaces folds into its
+// rail, Spaces narrows last and never goes; a wider screen brings it all
+// back, nothing saved on the way.
 func TestNarrowScreen(t *testing.T) {
 	m := testModelSized(t, 280, 30)
 	m.st.Settings.Left = proto.Columns{{Views: []string{"files", "git", "search", "github"}, Width: 42}}
-	m.st.Settings.Right = proto.Columns{{Views: []string{"session"}, Width: 55}, {Views: []string{"agents"}, Width: 63}}
-	m.st.Settings.SessPos = "right"
-	m.switchSession("s1")
+	m.st.Settings.Right = proto.Columns{{Views: []string{"agents"}, Width: 63}}
 	fire(m, m.openFile(filepath.Join(m.ws, "README.md"), false))
 	fire(m, m.pv.load(m))
 
 	spaces := func() int { return m.colRect(m.colOf(viewAgents)).w }
-	saved := fmt.Sprint(m.st.Settings.Left, m.st.Settings.Right, m.st.Settings.SessPos, m.st.SessionViews)
-
-	if !m.sessDocked() || !m.showsPreview() || spaces() != 63 {
-		t.Fatalf("280 wide, all of it: docked %v, file %v, Spaces %d", m.sessDocked(), m.showsPreview(), spaces())
-	}
-
-	m.focus = m.colOf(viewSession) // typing into it
-	m.Update(tea.WindowSizeMsg{Width: 200, Height: 30})
-
-	if m.sessDocked() || !m.showsSession() || m.focus != onMain || spaces() != 63 || m.colRect(0).w != 42 {
-		t.Fatalf("200 wide, the editor gives way: docked %v, over the editor %v, focus %d, Spaces %d, left %d",
-			m.sessDocked(), m.showsSession(), m.focus, spaces(), m.colRect(0).w)
-	}
-
-	checkWidths(t, m)
+	saved := fmt.Sprint(m.st.Settings.Left, m.st.Settings.Right)
 
 	for _, c := range []struct{ w, spaces, main int }{{120, 63, 120 - railW() - 2 - 63}, {80, 80 - railW() - 2 - minEditor, minEditor}, {50, 20, 50 - railW() - 2 - 20}} {
 		m.Update(tea.WindowSizeMsg{Width: c.w, Height: 30})
@@ -639,98 +623,17 @@ func TestNarrowScreen(t *testing.T) {
 	}
 
 	checkWidths(t, m)
-
-	// A file opens in front of the session rather than docking it; the
-	// session comes back from Spaces.
-	m.preview = false
-	fire(m, m.openFile(filepath.Join(m.ws, ".env"), false))
-	fire(m, m.pv.load(m))
-
-	if m.sessDocked() || !m.showsPreview() {
-		t.Fatalf("a file in front of the session: docked %v, file %v", m.sessDocked(), m.showsPreview())
-	}
-
-	m.switchSession("s1")
-
-	if !m.showsSession() {
-		t.Fatal("the session back in front of the file")
-	}
-
 	m.Update(tea.WindowSizeMsg{Width: 280, Height: 30})
 
-	if !m.sessDocked() || !m.showsPreview() || spaces() != 63 || m.colRect(0).w != 42 {
-		t.Fatalf("280 wide again: docked %v, file %v, Spaces %d, left %d", m.sessDocked(), m.showsPreview(), spaces(), m.colRect(0).w)
+	if spaces() != 63 || m.colRect(0).w != 42 {
+		t.Fatalf("280 wide again: Spaces %d, left %d", spaces(), m.colRect(0).w)
 	}
 
-	if now := fmt.Sprint(m.st.Settings.Left, m.st.Settings.Right, m.st.Settings.SessPos, m.st.SessionViews); now != saved {
+	if now := fmt.Sprint(m.st.Settings.Left, m.st.Settings.Right); now != saved {
 		t.Fatalf("the layout saved nothing:\n%s\n%s", saved, now)
 	}
 
 	checkWidths(t, m)
-}
-
-// TestNarrowScreenDrag: dragging a divider while the session shares the
-// editor area for room keeps the columns as they were: the session neither
-// docks half way nor goes, and the divider moves its own column. Let go with
-// room enough, it docks beside the file again; when they share the area again,
-// the one that had the keyboard last is in front.
-func TestNarrowScreenDrag(t *testing.T) {
-	m := testModelSized(t, 200, 30)
-	m.st.Settings.Left = proto.Columns{{Views: []string{"files", "git", "search", "github"}, Width: 42}}
-	m.st.Settings.Right = proto.Columns{{Views: []string{"session"}, Width: 55}, {Views: []string{"agents"}, Width: 63}}
-	m.st.Settings.SessPos = "right"
-	fire(m, m.openFile(filepath.Join(m.ws, "README.md"), false))
-	m.switchSession("s1")
-
-	if !m.cramped() || !m.showsSession() {
-		t.Fatalf("200 wide: cramped %v, over the editor %v", m.cramped(), m.showsSession())
-	}
-
-	drag := func(v view, dx int, release bool) {
-		t.Helper()
-
-		r := m.colRect(m.colOf(v))
-
-		x := r.x + r.w
-		if m.side(m.colOf(v)) == 1 {
-			x = r.x - 1
-		}
-
-		m.Update(tea.MouseClickMsg{X: x, Y: 5, Button: tea.MouseLeft})
-
-		for _, d := range []int{dx / 2, dx} {
-			m.Update(tea.MouseMotionMsg{X: x + d, Y: 5, Button: tea.MouseLeft})
-
-			if !m.cramped() || !m.showsSession() {
-				t.Fatalf("dragging %s by %d: cramped %v, over the editor %v, docked %v", viewKeys[v], d, m.cramped(), m.showsSession(), m.sessDocked())
-			}
-		}
-
-		if release {
-			m.Update(tea.MouseReleaseMsg{X: x + dx, Y: 5, Button: tea.MouseLeft})
-		}
-	}
-
-	drag(viewAgents, -10, true) // wider: still no room
-	drag(viewFiles, 10, true)   // the left side, wider
-
-	if !m.cramped() || !m.showsSession() || m.colRect(m.colOf(viewAgents)).w != 73 || m.colRect(0).w != 52 {
-		t.Fatalf("both wider: cramped %v, over the editor %v, Spaces %d, left %d", m.cramped(), m.showsSession(), m.colRect(m.colOf(viewAgents)).w, m.colRect(0).w)
-	}
-
-	drag(viewAgents, 50, false)
-	m.Update(tea.MouseReleaseMsg{X: m.colRect(m.colOf(viewAgents)).x + 49, Y: 5, Button: tea.MouseLeft})
-
-	if m.cramped() || !m.sessDocked() || !m.showsPreview() {
-		t.Fatalf("Spaces narrowed, let go: cramped %v, docked %v, file %v", m.cramped(), m.sessDocked(), m.showsPreview())
-	}
-
-	m.focus = onMain // reading the file
-	m.Update(tea.WindowSizeMsg{Width: 150, Height: 30})
-
-	if !m.cramped() || !m.showsPreview() || m.showsSession() {
-		t.Fatalf("narrower with the file in hand: cramped %v, file %v, session %v", m.cramped(), m.showsPreview(), m.showsSession())
-	}
 }
 
 func TestPanelBorders(t *testing.T) {

@@ -199,7 +199,7 @@ func (p *preview) hoverBox(m *Model) (box []string, x, y int, ok bool) {
 	box, x, y = m.hoverBox(lines)
 	if !h.mouse {
 		x, y = m.lightbulb(p.at().col - h.from + 2) // the border and the space before the text
-		if y+len(box) > m.headH()+m.stripH()+m.pvH() {
+		if y+len(box) > m.mainY()+m.headH()+m.stripH()+m.pvH() {
 			y = max(y-1-len(box), 0)
 		}
 
@@ -317,7 +317,7 @@ func (p *preview) sigBox(m *Model) (box []string, x, y int, ok bool) {
 	x, y = m.lightbulb(0)
 	x = max(min(x, m.w-ansi.StringWidth(box[0])), 0)
 
-	top := m.headH() + m.stripH()
+	top := m.mainY() + m.headH() + m.stripH()
 	if y-1-len(box) >= top {
 		y -= 1 + len(box)
 	}

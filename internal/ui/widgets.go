@@ -1162,7 +1162,7 @@ type modal struct {
 	x, y     int     // anchor; x < 0 centers
 	form     formBox // a form the box is instead of a list: New or Edit Connection, the indentation
 	// area is the screen columns [from, to) the box stays in: a table's keep
-	// to the editor area, off a session docked beside it. Zero is the screen.
+	// to the editor area. Zero is the screen.
 	area [2]int
 	w    int // the widest the box has been: it does not narrow while open
 }
@@ -1655,7 +1655,7 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 		fw, fh, _ := md.form.size()
 		w, h = cover(min(fw, x1-x0-2)), fh
 
-		return x0 + (x1-x0-w)/2, m.headH() + m.stripH(), w, h, 0
+		return x0 + (x1-x0-w)/2, m.mainY() + m.headH() + m.stripH(), w, h, 0
 	}
 
 	if md.dialog {
@@ -1721,7 +1721,7 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 
 	switch {
 	case md.x < 0 && md.area[1] > 0 && !md.dialog: // as the form: lower, it would cut the grid's boxes
-		x, y = x0+(x1-x0-w)/2, m.headH()+m.stripH()
+		x, y = x0+(x1-x0-w)/2, m.mainY()+m.headH()+m.stripH()
 
 	case md.x < 0:
 		// A picker's top edge stays put while results change: it is placed as if full.

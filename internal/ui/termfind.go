@@ -42,13 +42,13 @@ type termTextMsg struct {
 }
 
 // focusedTerm is the terminal with the keyboard and the session it shows:
-// the Terminal panel's shell, or the session in the editor area or its
-// column. nil when the keyboard is elsewhere.
+// the Terminal panel's shell, or the session in the editor area. nil when
+// the keyboard is elsewhere.
 func (m *Model) focusedTerm() (*term, string) {
 	switch {
 	case m.focus == onPanel || m.termFocused():
 		return &m.tv.term, m.tv.id
-	case m.sessFocused(), m.focus == onMain && m.showsSession():
+	case m.focus == onMain && m.showsSession():
 		return &m.term, m.sess
 	}
 
@@ -320,8 +320,8 @@ func (t *term) findBox(m *Model, id string, w, h int) (box []string, x0 int, ok 
 }
 
 // termFindBoxes are the widgets of the terminals on screen, placed on the
-// screen: the session's, in the editor area or its column, and the Terminal
-// panel's, under the editor or in its column.
+// screen: the session's in the editor area, and the Terminal panel's, under
+// the editor or in its column.
 func (m *Model) termFindBoxes() (boxes [][]string, xs, ys []int) {
 	add := func(t *term, id string, x, y, w, h int) {
 		if box, x0, ok := t.findBox(m, id, w, h); ok {
@@ -332,12 +332,8 @@ func (m *Model) termFindBoxes() (boxes [][]string, xs, ys []int) {
 		}
 	}
 
-	switch {
-	case m.showsSession():
-		add(&m.term, m.sess, m.mainX(), m.headH()+m.stripH(), m.mainW(), m.sessH())
-	case m.sessDocked() && m.shown(viewSession):
-		i := m.colOf(viewSession)
-		add(&m.term, m.sess, m.colRect(i).x, m.bodyTop(viewSession)+sessStripH, m.sessW(), max(m.bodyH(viewSession)-sessStripH, 1))
+	if m.showsSession() {
+		add(&m.term, m.sess, m.mainX(), m.mainY()+m.headH()+m.stripH(), m.mainW(), m.sessH())
 	}
 
 	if !m.termShowing() || m.ptab != ptTerm {
@@ -346,7 +342,7 @@ func (m *Model) termFindBoxes() (boxes [][]string, xs, ys []int) {
 
 	w, h := m.termBody() // the screen, left of the column of shells
 	if m.termRows() > 0 {
-		add(&m.tv.term, m.tv.id, m.mainX(), m.mainH()+panelTopH, w, h)
+		add(&m.tv.term, m.tv.id, m.area().x, m.areaH()+panelTopH, w, h)
 	} else {
 		add(&m.tv.term, m.tv.id, m.colRect(m.colOf(viewTerm)).x, m.bodyTop(viewTerm)+termStripH, w, h)
 	}

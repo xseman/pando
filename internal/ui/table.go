@@ -681,17 +681,23 @@ func (tb *table) describe(e *rowEdit) string {
 
 // tableEdits counts the edits not submitted in every open table, a long
 // value's editor not put back among them: no draft keeps either.
-func (m *Model) tableEdits() int {
-	n := b2i(m.pv.cell != nil && m.pv.dirty())
-
-	for _, e := range slices.Concat(append(slices.Collect(maps.Values(m.waiting)), m.editors)...) { // other workspaces' too
-		switch {
-		case e.tbl != nil:
-			n += len(e.tbl.edits)
-		case e.cell != nil && e.dirty() && e.id() != m.pv.id():
-			n++
+func (m *Model) tableEdits() (n int) {
+	count := func(es []preview) {
+		for _, e := range es {
+			switch {
+			case e.tbl != nil:
+				n += len(e.tbl.edits)
+			case e.cell != nil && e.dirty() && e.id() != m.pv.id():
+				n++
+			}
 		}
 	}
+
+	count(slices.Concat(slices.Collect(maps.Values(m.waiting))...)) // other workspaces' too
+	m.eachGroup(func() {
+		n += b2i(m.pv.cell != nil && m.pv.dirty())
+		count(m.editors)
+	})
 
 	return n
 }
@@ -1352,7 +1358,7 @@ func (m *Model) editCell(tb *table, i, c int) tea.Cmd {
 	tb.l.snap(tb.gridH(m.pvH(), lay))
 
 	md.x = m.mainX() + lay.gutter + lay.xs[c] - tb.left + 1 - 3
-	md.y = m.headH() + m.stripH() + tableHead + b2i(tb.err != "") + i - tb.l.top - 1
+	md.y = m.mainY() + m.headH() + m.stripH() + tableHead + b2i(tb.err != "") + i - tb.l.top - 1
 	md.area = m.editorArea()
 	m.modal = md
 

@@ -230,11 +230,13 @@ func (m *Model) diagFiles() []diagFile {
 		}
 	}
 
-	for _, e := range append([]preview{m.pv}, m.editors...) {
-		if e.kind == pvFile && !e.trunc {
-			add(e.path, e.unsaved(), e.dirty())
+	m.eachGroup(func() { // every group's editors
+		for _, e := range append([]preview{m.pv}, m.editors...) {
+			if e.kind == pvFile && !e.trunc {
+				add(e.path, e.unsaved(), e.dirty())
+			}
 		}
-	}
+	})
 
 	for _, root := range slices.Sorted(maps.Keys(m.scm.status)) {
 		st := m.scm.status[root]
