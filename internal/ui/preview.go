@@ -1035,14 +1035,14 @@ func (m *Model) editorTabs(w int) []edTab {
 		}
 
 		active := i == m.edIdx && !sessOn
-		label := " " + icon.s + name + " " + editorMark(active, m.tabDirty(i))
+		label := " " + icon.s + name + " " + editorMark(active, e.id() == m.overTab, m.tabDirty(i))
 		items = append(items, edTab{i: i, w: ansi.StringWidth(label), label: label, icon: icon, active: active})
 	}
 
 	for _, id := range m.stripSessions() {
 		s := *m.session(id)
 		active := sessOn && id == m.sess
-		label, tip := m.sessLabel(s, active, w-3)
+		label, tip := m.sessLabel(s, active || id == m.overTab, w-3)
 		items = append(items, edTab{i: -1, id: id, w: ansi.StringWidth(label), label: label, tip: tip, active: active, bg: m.highlight(s)})
 	}
 
@@ -1145,8 +1145,8 @@ func (m *Model) editorStrip(w int) string {
 		}
 
 		chip := tabChip(t.label, t.active, bg)
-		if t.active && m.editors[t.i].id() == m.overX {
-			chip, m.tip = closeHot(chip), "Close  ^w"
+		if m.editors[t.i].id() == m.overX {
+			chip, m.tip = closeHot(chip), ifElse(t.active, "Close  ^w", "Close")
 		}
 
 		if m.editors[t.i].transient {
@@ -1260,7 +1260,7 @@ func (m *Model) tabID(t edTab) string {
 }
 
 // stripMouse handles a click on the editor area's strip: the middle button
-// and the active tab's ✕ close, anything else activates, and the left button
+// and a tab's ✕ close, anything else activates, and the left button
 // picks a file's tab up to drag it along the strip (a double click pins it);
 // past the tabs a session's strip is its title.
 func (m *Model) stripMouse(x int, mo tea.Mouse) tea.Cmd {
@@ -1291,7 +1291,7 @@ func (m *Model) stripMouse(x int, mo tea.Mouse) tea.Cmd {
 			return nil
 		}
 
-		if button == tea.MouseMiddle || (t.active && x >= t.x+t.w-tabCloseW) {
+		if button == tea.MouseMiddle || x >= t.x+t.w-tabCloseW {
 			return m.closeEditor(t.i)
 		}
 
@@ -1320,7 +1320,7 @@ func (m *Model) sessTabClick(t edTab, x int, mo tea.Mouse) tea.Cmd {
 	switch {
 	case mo.Button == tea.MouseRight:
 		return m.sessionMenu(t.id)
-	case mo.Button == tea.MouseMiddle || t.active && x >= t.x+t.w-tabCloseW:
+	case mo.Button == tea.MouseMiddle || x >= t.x+t.w-tabCloseW:
 		return m.closeSessTab(t.id)
 	case mo.Button == tea.MouseLeft: // held, it goes to another group
 		m.grabTab(stripEditor, t.id, x)

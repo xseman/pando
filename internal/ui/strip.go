@@ -91,13 +91,13 @@ const plusTab = "+"
 
 // tabUnder is the id of strip s's tab at strip column x, the session's own
 // included; plusTab over the terminal strip's +, "" past its tabs. It
-// says too whether x is on the active tab's ✕, the cells where a click closes
-// it.
+// says too whether x is on its ✕, which a tab under the mouse shows, the
+// cells where a click closes it.
 func (m *Model) tabUnder(s, x int) (id string, onClose bool) {
 	if s == stripEditor {
 		for _, t := range m.editorTabs(m.mainW()) {
 			if x >= t.x && x < t.x+t.w {
-				return m.tabID(t), t.active && x >= t.x+t.w-tabCloseW
+				return m.tabID(t), x >= t.x+t.w-tabCloseW
 			}
 		}
 
@@ -110,7 +110,7 @@ func (m *Model) tabUnder(s, x int) (id string, onClose bool) {
 				return plusTab, false
 			}
 
-			return t.id, t.active && x >= t.x+t.w-tabCloseW
+			return t.id, x >= t.x+t.w-tabCloseW
 		}
 	}
 

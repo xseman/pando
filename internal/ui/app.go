@@ -3286,8 +3286,13 @@ func (m *Model) groupMouse(msg tea.MouseMsg, click bool) tea.Cmd {
 
 			return cmd
 
-		default: // hovering another group lights nothing in the active one
-			m.overTab, m.overX = "", ""
+		default: // hovering another group lights its tab, not the active one's
+			m.within(p, func() {
+				if m.stripH() > 0 && mo.Y == m.mainY() {
+					m.setOver(stripEditor, mo.X-m.mainX())
+				}
+			})
+
 			return nil
 		}
 	}

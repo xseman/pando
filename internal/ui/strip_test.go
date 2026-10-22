@@ -250,6 +250,30 @@ func TestCloseHovers(t *testing.T) {
 	}
 }
 
+// TestCloseOnHover: a tab other than the active one shows its ✕ only while
+// the pointer is on it, and a click there closes that tab.
+func TestCloseOnHover(t *testing.T) {
+	m := groupsModel(t) // .env in front
+	tab := m.editorTabs(m.mainW())[0]
+
+	if !strings.HasSuffix(tab.label, tabClose(false)) {
+		t.Fatalf("README.md shows no ✕ while the pointer is elsewhere: %q", tab.label)
+	}
+
+	x, y := m.mainX()+tab.x+tab.w-2, m.mainY()
+	m.Update(tea.MouseMotionMsg{X: x, Y: y})
+
+	if strip := ansi.Strip(m.editorStrip(m.mainW())); strings.Count(strip, icClose.s()) != 2 || m.overX == "" {
+		t.Fatalf("hovered, README.md shows its ✕ too: %q", strip)
+	}
+
+	click(m, x, y, tea.MouseLeft)
+
+	if len(m.editors) != 1 || filepath.Base(m.pv.path) != ".env" {
+		t.Fatalf("the click closed README.md and left .env in front: %d tabs, %q", len(m.editors), m.pv.path)
+	}
+}
+
 // TestEditorRule draws a rule under the editor strip, lit under the active tab.
 func TestEditorRule(t *testing.T) {
 	m := testModel(t)

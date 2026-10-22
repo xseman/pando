@@ -2796,8 +2796,8 @@ func (m *Model) ensureTerm() tea.Cmd {
 }
 
 // sessLabel is session s's tab label in a strip with room cells for tabs,
-// and its tip when the label cuts its name.
-func (m *Model) sessLabel(s proto.Session, active bool, room int) (label, tip string) {
+// its ✕ shown when closable, and its tip when the label cuts its name.
+func (m *Model) sessLabel(s proto.Session, closable bool, room int) (label, tip string) {
 	// A shell's screen says nothing about an agent's state: a server
 	// printing logs would read as working. Only an agent shows a glyph, one
 	// started by hand in a terminal too.
@@ -2808,7 +2808,7 @@ func (m *Model) sessLabel(s proto.Session, active bool, room int) (label, tip st
 		glyph = m.spin(g, s) + " "
 	}
 
-	name, end := m.fx.text("sess:"+s.ID, sessionName(s)), " "+tabClose(active)
+	name, end := m.fx.text("sess:"+s.ID, sessionName(s)), " "+tabClose(closable)
 	// A name too long for the strip on its own is cut, so every tab, the
 	// active one above all, can show; its tip has it whole.
 	frame := ansi.StringWidth(" "+glyph+end) + tabGap
@@ -2831,7 +2831,7 @@ func (m *Model) tabsFor(w int, sessions []proto.Session, active string) []sessTa
 			at = i
 		}
 
-		labels[i], tips[i] = m.sessLabel(s, s.ID == active, w)
+		labels[i], tips[i] = m.sessLabel(s, s.ID == active || s.ID == m.overTab, w)
 		widths[i] = ansi.StringWidth(labels[i])
 		total += widths[i] + tabGap
 	}
@@ -3080,7 +3080,7 @@ func tabSegs(tabs []sessTab, over, overX string) []seg {
 		}
 
 		chip := tabChip(t.label, t.active, bg)
-		if t.active && t.id == overX {
+		if t.id == overX {
 			chip = closeHot(chip)
 		}
 

@@ -283,22 +283,23 @@ const tabGap = 1
 // and a space, which closeHot raises together.
 const tabCloseW = 3
 
-// tabClose is the end of a tab's label: the ✕ on the active tab, as much
-// blank on the others, so a tab keeps its width whichever one is active and
-// the strip never shifts under the pointer, as VS Code's does.
-func tabClose(active bool) string {
-	if active {
+// tabClose is the end of a tab's label: the ✕ on the active tab and on the
+// one under the mouse, as much blank on the others, so a tab keeps its width
+// whichever one shows it and the strip never shifts under the pointer, as
+// VS Code's does.
+func tabClose(shown bool) string {
+	if shown {
 		return icClose.s() + " "
 	}
 
 	return strings.Repeat(" ", ansi.StringWidth(icClose.s())) + " "
 }
 
-// editorMark is the end of an editor tab: ● while it has unsaved changes,
-// whichever tab it is, else the ✕ of the active one.
-func editorMark(active, dirty bool) string {
-	if !dirty {
-		return tabClose(active)
+// editorMark is the end of an editor tab: ● while it has unsaved changes and
+// the mouse is not on it, else tabClose's ✕.
+func editorMark(active, over, dirty bool) string {
+	if !dirty || over {
+		return tabClose(active || over)
 	}
 
 	return "●" + strings.Repeat(" ", max(ansi.StringWidth(icClose.s())-1, 0)) + " "

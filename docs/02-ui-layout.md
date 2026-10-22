@@ -332,8 +332,10 @@ group has one strip, the files' tabs then the sessions'.
 - `tabChip`: active bold, others dim, neither on a fill (`hover_bg` under
   the mouse, `overTab`), each followed by a `▏` in `tab_border`
   (`tabGap`). Room for `✕` is always kept (`tabClose`), so activating moves
-  nothing. The active tab's `✕` raises like a button while the mouse is on
-  it (`overX`, `closeHot`).
+  nothing. The active tab shows its `✕`, any other only under the mouse
+  (unsaved, its `●` turns into it), in any group; a click on it closes that
+  tab. It raises like a button while the mouse is on it (`overX`,
+  `closeHot`).
 - Press picks a tab up (`grabTab`, `dragStrip`), an accent `│` marks the slot
   (`stripSlot`), release moves it. While held, the tab rides a row under the
   pointer, as VS Code's drag image (`dragGhost`, `sel_bg`, an accent `▎`); off its own strip it goes to a group
