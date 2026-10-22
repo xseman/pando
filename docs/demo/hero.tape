@@ -1,7 +1,7 @@
 # The README's still: Explorer on the left, Spaces on the right with two
-# projects and their sessions, and between them a file with gopls's references
-# in a peek beside the claude session that just changed it. Only hero.png is
-# kept; the GIF vhs insists on writing, a few frames, is ignored by git.
+# projects and their sessions, and between them two editor groups side by
+# side, the file and the claude session that just changed it. Only hero.png
+# is kept; the GIF vhs insists on writing, a few frames, is ignored by git.
 # Record with: make demo   (needs vhs v0.10 or v0.11, ttyd, ffmpeg, jq, a Chrome, gopls and claude)
 Output docs/demo/hero.gif
 
@@ -12,13 +12,13 @@ Require gopls
 Require claude
 
 Source docs/demo/settings.tape
-# 200×48 cells: room for the peek's code beside the session column.
+# 200×48 cells: room for the file and the session side by side.
 Set FontSize 16
 Set Width 2080
 Set Height 1144
 Source docs/demo/setup.tape
-# VHS cannot send shift+F12: Find All References is ctrl+e here.
-Type `cfg 22 hero claude-edits claude-ask ctrl+e=editor.findReferences` Enter
+# VHS cannot send a palette command: Move Editor into Left Group is ctrl+e here.
+Type `cfg 22 hero claude-edits claude-ask ctrl+e=view.moveEditorIntoLeftGroup` Enter
 Type "go build ./... >/dev/null 2>&1; pando project add . >/dev/null; for b in discount readme; do pando ws new $b >/dev/null; done" Enter
 # A second project, so Spaces holds two.
 Type "web=$STATE/web; git init -q -b main $web && echo '<h1>shop</h1>' > $web/index.html && git -C $web add -A && git -C $web -c user.name=Demo -c user.email=demo@example.com commit -qm 'a page'" Enter
@@ -35,26 +35,21 @@ Type "pando session send $c 'document the store package in README.md, with an ex
 Type "pando session send $b 'run go vet ./... and go run .' --wait --timeout 120000 >/dev/null" Enter
 Type "pando session send $a 'add a Count method to Store' --wait --timeout 180000 >/dev/null; echo RE''ADY" Enter
 Wait+Screen@240s /READY\n/
-# The session column next to the file, 44 cells wide, and the finished session
-# docked in it once pando is up; the focus stays in the sidebar.
-Type `pando call state.set "{\"session_views\": {\"$REPO\": {\"position\": \"right\", \"width\": 44}}}" >/dev/null; clear; (sleep 3; pando session switch $a >/dev/null) & pando .` Enter
+# The finished session over the editor area once pando is up; the focus
+# stays in the sidebar.
+Type `clear; (sleep 3; pando session switch $a >/dev/null) & pando .` Enter
 Sleep 5s
 
-# store.go beside it, and the references to Total in a peek, main.go's picked.
+# store.go in front of it, then into a group of its own on the left: the file
+# and the session that changed it side by side.
 Ctrl+p
 Sleep 300ms
 Wait+Screen@5s /Go to File/
 Type "store.go"
 Enter
 Sleep 1s
-Ctrl+g
-Type "18:17"
-Enter
-Sleep 300ms
 Ctrl+e
-Wait+Screen@60s /References/
-Down 3
-Sleep 1s
+Sleep 1500ms
 # A tape hidden to its end has no frames, and vhs saves no screenshot then.
 Show
 Sleep 100ms

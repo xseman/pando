@@ -11,7 +11,7 @@ GOLANGCI ?= go run $(GOLANGCI_PKG)
 # at once. A serial tape cannot: it either runs claude, and a second directory
 # would be a second one to trust by hand, or it shows the repository's path on
 # screen, where /tmp/pando-demo is what belongs in the GIF.
-PAR_TAPES ?= markdown lsp vim databases
+PAR_TAPES ?= markdown lsp vim databases groups
 SEQ_TAPES ?= diff edit github tui resume hero
 JOBS ?= 4
 

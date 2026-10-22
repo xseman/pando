@@ -7,7 +7,7 @@
 #   cfg 34 claude-edits claude-ask       # and agent ask: one that asks before every command, whatever settings.json says
 #   cfg 26 vim ctrl+k=editor.saveFile    # a setting of its own
 #   cfg 30 resume                        # claude resumed in the foreground, in the demo's palette
-#   cfg 22 hero                          # Spaces on the right, a session docked beside the file
+#   cfg 22 hero                          # Spaces on the right, the rest on the left
 #
 # VHS cannot send ctrl+s, F12 or a drag, so every tape binds what it needs to a
 # ctrl letter; keeping the presets here is what stops every tape from repeating
@@ -54,7 +54,7 @@ demo_claude() {
 }
 
 cfg() {
-	local width=$1 top="" agents="" keys="" pos=editor a
+	local width=$1 top="" agents="" keys="" a
 	shift
 	for a in "$@"; do
 		case $a in
@@ -62,9 +62,7 @@ cfg() {
 		resume) # the resumed claude in the foreground, not a Claude Code background
 			# job that outlives the recording
 			top+=$'claude_background = false\n' ;;
-		hero) # the README's still: every view on the left but Spaces, the
-			# session in a column beside the file
-			pos=right
+		hero) # the README's still: every view on the left but Spaces
 			top+=$'width_right = 30\nleft = [{ views = ["files", "git", "search", "github", "databases"] }]\nright = [{ views = ["agents"] }]\n' ;;
 		claude-ask) agents+="ask = [\"claude\", \"--permission-mode\", \"default\"]"$'\n' ;;
 		claude-edits) agents+="claude = [\"claude\", \"--permission-mode\", \"acceptEdits\", \"--allowedTools\", \"Bash\"]"$'\n' ;;
@@ -78,12 +76,10 @@ cfg() {
 	# after a daemon restart too, whatever its shell inherited.
 	printf '{"theme": "%s", "tui": "default", "env": {"DISABLE_AUTOUPDATER": "1", "CLAUDE_CODE_HIDE_ACCOUNT_INFO": "1", "ENABLE_CLAUDEAI_MCP_SERVERS": "false"}}\n' "$mode" > "$PANDO_CONFIG_DIR/claude.json"
 	# Top-level keys first: after a [table] header they would belong to it.
-	# Every panel on the left, the session over the editor area: at the 98
-	# columns a GIF records in, a session docked beside the editor leaves
-	# both too narrow to read, and a file opened shows in front of it. A
-	# terminal's bash skips the recorder's .bashrc: its prompt is vhs's.
+	# Every panel on the left. A terminal's bash skips the recorder's
+	# .bashrc: its prompt is vhs's.
 	{
-		printf 'icons = "nerd"\npanel_borders = false\ncolor_theme = "vscode-%s"\nwidth = %s\nsession_position = "%s"\nshell = "bash --norc"\n%s' "$mode" "$width" "$pos" "$top"
+		printf 'icons = "nerd"\npanel_borders = false\ncolor_theme = "vscode-%s"\nwidth = %s\nshell = "bash --norc"\n%s' "$mode" "$width" "$top"
 		[ -n "$agents" ] && printf '[agents]\n%s' "$agents"
 		[ -n "$keys" ] && printf '[keys]\n%s' "$keys"
 	} > "$PANDO_CONFIG_DIR/config.toml"

@@ -45,7 +45,7 @@ Needs git. Optional: `gh` for GitHub, `rg` for search, `sqlite3` (3.37+),
 …), the `claude` CLI for commit messages, and a Nerd Font for `icons =
 "nerd"` (_Symbols Nerd Font Mono_ as a fallback font is enough).
 
-![pando with Explorer on the left and Spaces on the right, two projects and their claude sessions in it, one working, one waiting for a yes, one done; between them store.go with gopls's references to Total in a peek, beside the claude session that just changed it](docs/demo/hero.png)
+![pando with Explorer on the left and Spaces on the right, two projects and their claude sessions in it, one working, one waiting for a yes, one done; between them two editor groups side by side, store.go and the claude session that just changed it](docs/demo/hero.png)
 
 ## Features
 
@@ -74,9 +74,10 @@ Needs git. Optional: `gh` for GitHub, `rg` for search, `sqlite3` (3.37+),
   the system keyring), their tables in a grid: filter, sort and page, then
   edit cells and rows and submit them in one transaction, or open the client
   in the terminal for the rest.
-- **Layout**: a bottom panel with the terminals, the problems and the
-  output, a settings tab, draggable views and columns, VS Code's 2026
-  themes, remappable keys.
+- **Layout**: VS Code's editor groups, files and sessions split side by side
+  or stacked by dragging a tab, a bottom panel with the terminals, the
+  problems and the output, a settings tab, draggable views and columns, VS
+  Code's 2026 themes, remappable keys.
 - **CLI and API**: JSON over a unix socket; self-update on Linux and macOS.
 - **Instances**: `pando --instance work` is a separate pando, with projects
   and sessions of its own and your settings.
@@ -120,7 +121,7 @@ Every GIF below is pando itself, recorded by `make demo`.
 </tr>
 <tr>
 <td width="50%" valign="top"><img src="docs/demo/databases.gif" alt="a SQLite table sorted, filtered and edited in a grid, the pending SQL submitted in one transaction, then sqlite3 in the terminal and the form that adds a server" width="100%"><p align="center"><sub><b>Databases.</b> SQLite, Postgres and MariaDB tables in a grid: filter, sort, edit, submit in one transaction. <a href="docs/usage.md#databases">More</a></sub></p></td>
-<td width="50%"></td>
+<td width="50%" valign="top"><img src="docs/demo/groups.gif" alt="store.go split off into an editor group on the right, maximized and restored, then a shell session moved into a group under it, beside main.go" width="100%"><p align="center"><sub><b>Editor groups.</b> Files and sessions side by side or stacked, as VS Code's groups: drag a tab to a group's edge. <a href="docs/usage.md#the-screen">More</a></sub></p></td>
 </tr>
 </table>
 
