@@ -67,23 +67,27 @@ checkout.
 │ ▾ app  │ ▾ src          │                      │                  │
 │  ⌂ main│    main.go   M │   editor or diff     │   session        │
 │   ◐ fix│                │                      │   (its own PTY)  │
-│  ⑂ feat│                ├──────────────────────┤                  │
-│   × ui │                │ Terminal panel       │                  │
-├────────┴────────────────┴──────────────────────┴──────────────────┤
+│  ⑂ feat│                ├──────────────────────┴──────────────────┤
+│   × ui │                │ Terminal panel                          │
+├────────┴────────────────┴─────────────────────────────────────────┤
 │ status bar: branch, sync, agents waiting, updates                 │
 └───────────────────────────────────────────────────────────────────┘
 ```
 
-- `ctrl+]` cycles focus; inside a session every other key goes to its program.
+- `ctrl+]` cycles focus, through each editor group too; inside a session every
+  other key goes to its program.
 - `1`–`4` and `6` open Explorer, Source Control, Spaces, Search and GitHub.
 - ``ctrl+` ``, `ctrl+j` or `5` toggles the bottom panel; `ctrl+shift+↑`
   maximizes it. Its tabs: Terminal (`+` a new shell, the select beside it picks
   one or kills it),
   Problems (`ctrl+shift+m`) and Output
   (`ctrl+shift+u`: the language servers' logs and every error in full).
-- A session beside a file: the button at the right end of either's tab strip
-  maximizes it over the whole editor area, and restores the pair. Each
-  session keeps it while you are in another, a restart too.
+- Editor groups, as VS Code's: drag a file's or a session's tab to a group's
+  edge to split it there, onto its middle or tab strip to move the tab in.
+  `ctrl+\` moves the active tab into a new group on the right; the palette
+  moves it into the group left, right, above or below. `ctrl+1`…`ctrl+9`
+  focus group N, the button at the right end of a group's tab strip maximizes
+  it. A group left empty closes. Each worktree keeps its groups, a restart too.
 - Drag a view's tab to move it, a divider to resize. A second click on the
   open view's icon hides its sidebar; `ctrl+b` hides both.
 - Rest the pointer on an icon button for its name and key, or on a session
@@ -93,10 +97,9 @@ checkout.
 
 ## Sessions
 
-- A session opens as a tab over the editor area, beside your files' tabs.
-  Drag its tab to the right or left edge to dock it in a column beside the
-  editor; short of room it comes back among the tabs until there is room.
-  Its ✕, or a column dragged off screen, hides it; it keeps running.
+- A session opens as a tab in the focused editor group, beside your files'
+  tabs, or shows the group that has it already. Drag its tab to a group's
+  edge to put it beside a file. Its ✕ hides it; it keeps running.
 - A session re-roots Explorer and Source Control to its worktree; Explorer
   selects the file its editor shows and comes to the front of its column
   (`auto_reveal`), as for any file or change opened, or tab picked. A file

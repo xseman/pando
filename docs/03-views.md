@@ -201,7 +201,7 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
 - The right-click menu groups by action, rules from `menuGroups`: create
   (New Session, Resume Session, New Worktree, Add / Open Project), the row's
   own (Rename, Pin, Move), go to / view options, then remove. A session's title
-  menu: where it sits (Move to Editor Area, Dock), Rename and Pin, then Close and Kill.
+  menu: Rename and Pin, then Close, Sleep and Kill.
 - `x` kills the sessions in the way first (`killThen`), after asking.
 - _New Worktree…_ (`w`) offers a random branch (`workspace.new`).
 - Session reordering applies under Sort by Created + Group by Workspace only;

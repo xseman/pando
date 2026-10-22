@@ -30,7 +30,7 @@ T: also in a terminal; the rest are the shell's there.
 
 | Key                                                    | Action                                                  |
 | ------------------------------------------------------ | ------------------------------------------------------- |
-| `ctrl+]` T                                             | cycle focus: left sidebar, main, panel, right sidebar   |
+| `ctrl+]` T                                             | cycle focus: left sidebar, each editor group, panel, …  |
 | `ctrl+shift+p` T, `F1`                                 | command palette, over any modal too                     |
 | `F10`                                                  | Manage menu (⚙): palette, settings, keys, categories    |
 | `ctrl+shift+e` `ctrl+shift+g` `ctrl+shift+f` T         | Explorer, Source Control, Search                        |
@@ -40,7 +40,8 @@ T: also in a terminal; the rest are the shell's there.
 | ``ctrl+shift+` `` T                                    | new shell in the panel                                  |
 | `ctrl+shift+↑` `ctrl+shift+↓` T                        | maximize, restore the panel                             |
 | `ctrl+b` T, `ctrl+,` T                                 | hide the sidebars, the Settings tab                     |
-| `ctrl+0` `ctrl+1` T                                    | focus sidebar, editor                                   |
+| `ctrl+0` T, `ctrl+1`…`ctrl+9` T                        | focus sidebar, editor group N                           |
+| `ctrl+\`                                               | split: the active tab into a new group on the right     |
 | `alt+t` T                                              | go to a session or worktree (`@idle`, `!claude` narrow) |
 | `ctrl+pgup` `ctrl+pgdn` T, `ctrl+shift+tab` `ctrl+tab` | previous, next editor                                   |
 | `alt+1`…`alt+9` T                                      | editor N                                                |
@@ -204,6 +205,9 @@ in every mode.
 - Right click: menu. Middle click: close a tab. Double click on the empty
   editor area: untitled file.
 - In a file: drag selects, double click a word, triple click a line.
+- A file's or session's tab dragged over an editor group: its edge splits the
+  group there, its middle or strip moves the tab in. A divider between groups
+  drags; a click focuses the group, the wheel scrolls it where it is.
 - Tilt or `shift`+wheel pans. The wheel scrolls a session's scrollback unless
   the app takes the mouse or the alternate screen; scrolled back, the page
   stays on its text as output goes on below.

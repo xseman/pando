@@ -115,7 +115,7 @@ is per session: its scrollback, and every byte of output through vt.
 
 | Benchmark                 | Measures                                                 |
 | ------------------------- | -------------------------------------------------------- |
-| `BenchmarkViewSession`    | a frame with a busy session docked, 220x55               |
+| `BenchmarkViewSession`    | a frame with a busy session over the editor, 220x55      |
 | `BenchmarkViewFile`       | the same with `app.go` open, highlighted                 |
 | `BenchmarkStreaming`      | a busy session's turn: its screen event, then its screen |
 | `BenchmarkTypeLargeFile`  | a letter typed and deleted in a 4900-line file           |
@@ -178,7 +178,7 @@ GIF, [vhs#787](https://github.com/charmbracelet/vhs/issues/787)). Also needs
 
 ```text
 make demo ─▶ make install          overwrites $(PREFIX)/bin/pando
-   ├─ PAR_TAPES, JOBS=4 at once    markdown lsp vim databases
+   ├─ PAR_TAPES, JOBS=4 at once    markdown lsp vim databases groups
    │    own /tmp/pando-<tape>/ repo and daemon
    └─ SEQ_TAPES, one at a time     diff edit github tui resume hero
         share /tmp/pando-demo (claude trusts it; its path is on screen)
@@ -203,7 +203,7 @@ Tape rules:
   next frame, which already shows the next key, and only a shown one.
 - Agents start from the CLI (`session new`, `session wait --until`), hidden;
   `Hide`/`Show` cuts the awaited turn.
-- vhs cannot send `F12`, `ctrl+.`, `ctrl+s`, `ctrl+space`, `alt+shift`: bind
+- vhs cannot send `F12`, `ctrl+.`, `ctrl+s`, `ctrl+\`, `ctrl+space`, `alt+shift`: bind
   to a ctrl letter (`cfg 26 ctrl+k=editor.saveFile`).
 - Inside a session every key goes to the agent, `[keys]` bindings included.
 - `cfg … claude-ask` for a permission prompt.

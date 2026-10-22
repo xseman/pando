@@ -75,7 +75,6 @@ config.toml edited ───────────┘  └─ "state" event �
 | `terminal_height`      | `12`        | bottom panel rows                                                              |
 | `terminal_open`        | `false`     | panel state for a worktree without its own: the last set                       |
 | `shell`                | `""`        | command every terminal opens: [Shell](#shell)                                  |
-| `session_position`     | `editor`    | `editor` (a tab over the editor area, beside the files'), `right`, `left`     |
 | `session_highlight`    | `tint`      | waiting, done or failed session: `tint` (pulsing), `steady`, `off`             |
 | `spaces_sort`          | `created`   | `created`, `updated` (last input or change of state)                           |
 | `spaces_group`         | `workspace` | `workspace`, `time` (Today, Yesterday, …)                                      |
@@ -226,25 +225,28 @@ tick, on leaving the workspace and on quitting.
 | `worktrees`      | per project, worktree order from `workspace.move`               |
 | `sessions`       | session specs a restarted daemon respawns                       |
 | `drafts`         | per repository, the commit message; `""`                        |
-| `editors`        | per workspace, the tab strip; `null`, empty `open`, gone        |
+| `editors`        | per workspace, the editor groups; `null`, nothing open, gone    |
 | `terminals`      | per workspace, panel `open`, `tab`, `max`; `null`/gone          |
-| `session_views`  | per workspace, `position`, `width` (0 half), `max`; `null`/gone |
 | `last_workspace` | reopened when pando starts outside a repository                 |
 | `spaces_folded`  | folded Spaces headings, paths and `time:…`; sent whole          |
 | `spaces_pinned`  | pinned Spaces session ids, in the order pinned; sent whole      |
-| `sessions_maxed` | session ids maximized over the editor area; sent whole          |
 | `seen_env`       | per program, the `[resume_env]` values seen; never, edit it out |
 
 ```json
-"editors": { "/home/me/app": { "active": 0, "open": [
-	{ "path": "/home/me/app/main.go", "line": 41, "col": 3, "top": 30 },
-	{ "path": "", "name": "Untitled-2", "line": 0, "col": 5, "md": 0 } ] } }
+"editors": { "/home/me/app": { "row": true, "ratio": 0.5,
+	"a": { "active": 0, "open": [
+		{ "path": "/home/me/app/main.go", "line": 41, "col": 3, "top": 30 },
+		{ "path": "", "name": "Untitled-2", "line": 0, "col": 5, "md": 0 } ] },
+	"b": { "focus": true, "open": null, "sessions": ["s3"], "session": "s3" } } }
 ```
 
-`editors` keeps files, not diffs: 0-based cursor, top row, `md` (0 source, 1
-rendered, 2 both); no `path` is untitled. `terminals` and `session_views` are
-sent with `terminal_open`, `session_position` and `left`/`right`, the fallback
-for a worktree without an entry. "Gone": a workspace no longer on disk when
+`editors` is one group (`open`, `active`, `sessions` its session tabs,
+`session` the one in front of the files) or a split: `a` and `b` side by side
+(`row`) or stacked, `a` taking `ratio` of the room. `focus` marks the group
+with the keyboard, `max` on the top entry the focused group alone. It keeps
+files, not diffs: 0-based cursor, top row, `md` (0 source, 1 rendered, 2
+both); no `path` is untitled. `terminals` is sent with `terminal_open` and
+`left`/`right`, the fallback for a worktree without an entry. "Gone": a workspace no longer on disk when
 the daemon starts.
 
 ## Drafts

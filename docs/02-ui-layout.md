@@ -4,7 +4,7 @@ How the TUI runs as a daemon client, and how its screen is divided, sized,
 hit-tested and dragged. The views themselves are in [03-views.md](03-views.md).
 
 [Client](#client) · [Screen](#screen) · [Cursor](#cursor) · [Columns](#columns) ·
-[Activity bar](#activity-bar) · [Session column](#session-column) ·
+[Activity bar](#activity-bar) · [Editor groups](#editor-groups) ·
 [Terminal panel](#terminal-panel) · [Short of room](#short-of-room) ·
 [Dragging](#dragging) · [Rows](#rows) · [Mouse](#mouse) ·
 [Scrollbars](#scrollbars) · [Tab strips](#tab-strips) · [Modals](#modals)
@@ -121,44 +121,51 @@ side: vertBar, actW wide on bar_bg, one vertH (2) row block per chip, its
   none marked, no border. Hide with `b`, `ctrl+b`, _Hide Sidebar_, or a second
   click on the open view's icon (on release, `drag.hide`, so it still drags).
 
-## Session column
+## Editor groups
 
-The agent session is `viewSession`. `session_position` is `editor` (default:
-over the editor area, a tab in its strip) or `right` / `left` (a column;
-unsized, half the editor area).
+The editor area is a tree of groups (`groups.go`), VS Code's: a `pane` is a
+group or two panes side by side (`row`) or stacked, the first taking `ratio`
+of the room, a one-cell divider between them. A group is one strip of files
+and sessions and the one it shows. The focused group's state lives in `Model`
+(`pv`, `editors`, `edIdx`, `sess`, `term`, the session tabs); the others wait
+in their `group` and are swapped in (`within`) to draw, fetch a screen, or
+take a message (`previewMsg`, `onScreen`, drafts).
 
-- Over the editor area each session opened from Spaces has a tab after the
-  files' (`stripSessions`, `sessTabs`, not saved; the one shown stays;
-  `editorTabs`). Opening a file keeps it there; the file's tab or `alt+N`
-  brings the file forward. Its ✕ (`closeSessTab`) closes the tab, the
-  session running on, and shows the session before it when no file is open.
-- Its tab dragged to the editor area's right or left quarter docks it there
-  (`sessTabClick` starts the title's `dragTab`, `sessionDrop`); docked, its
-  tab leaves the strip for the column's own. Short of room the column comes
-  back as its tab and docks again once there is room (`cramped`, below).
+```text
+ main.go  store.go   □ ✕ │ claude                 □ ✕
+ ───────                 │ ──────
+  editor                 │  session
+                         ├──────────────────────────
+                         │ notes.md               □ ✕
+                         │  editor
+```
 
-- Its column dropped mid-editor goes back to a tab. Widened past `minEditor` (40)
-  cells of editor it is maximized (`toggleMax`): restoring docks its column
-  again at the width it was picked up at. Narrowed below `snapHide` (10) it closes
-  (`hideSession`) and keeps running.
-- Each worktree keeps its own place and width (`session_views` in
-  `state.json`).
-- No header row, in the editor area or in its column: the tab names the
-  session, the frame title (`mainTitle`, `sideTitle`) the project and
-  worktree. The strip carries what a header would: maximize / restore and ✕
-  (`sessionButtons`), always shown as the editor's are, and the hint (exited,
-  scrollback, where `ctrl+]` goes; `sessionHint`) before them, with a rule
-  under it (`sessionRule`, `sessStripH` rows over the screen). The empty part
-  of the strip is the title: drag it to dock, right click for its menu.
-- The button among the actions of the session's tab strip and of the file's
-  (`toggleMax`, also _Toggle Session / Editor Maximized_) gives the whole editor
-  area to the session or to the file, the other one waiting; pressed again it
-  docks them side by side. A maximized session restores from the right end of
-  its tab strip, the first row (`maxed`: `cols` drops the column, `preview`
-  says who shows). Each session keeps its own, a restart too
-  (`sessions_maxed`, `maxSession`): going back to one shows it as it was
-  left. A maximized file is its worktree's (`session_views`' `max`: `file`);
-  opening a file over a maximized session restores.
+- A file or session lives in one group: opening one another group holds
+  focuses that group (`holder`), otherwise it opens in the focused group.
+- Splitting: a tab dragged over a group's body (`gridDrop`) splits it on the
+  edge it is near, a quarter of its width or height, and moves into a group
+  of its own there; on a strip or the middle it moves into that group. `ctrl+\`
+  moves the active tab into a new group on the right (`splitEditor`), the
+  palette's _Move Editor into Left / Right Group, Group Above / Below_ into
+  the neighbour or a new group (`moveEditor`). A new group takes half the
+  room; a group left empty closes (`prune`).
+- `ctrl+1`…`ctrl+9` focus group N, `ctrl+]` walks the groups, a click focuses
+  the one under it; the wheel scrolls a group without moving the focus. A
+  group without the keyboard draws its active tab and cursor unlit
+  (`offMain`). The status bar follows the focused group.
+- A divider drags (`dragSplit`), each group keeping `minGroupW` × `minGroupH`
+  (20 × 5). A split is refused without room; an area too small for every
+  group draws the focused one alone, the tree kept.
+- The strip's □ (`maxAct`, _Toggle Maximized Editor Group_) draws the focused
+  group alone until pressed again.
+- Each worktree keeps its tree, ratios, tabs (sessions' too), the focused
+  group and maximize in `state.json` (`editors`, `gridSpec`, `restoreGrid`).
+- A session's tab has no header row: the tab names the session, the frame
+  title (`mainTitle`) the project and worktree, the strip carries the hint
+  (exited, scrollback, where `ctrl+]` goes; `sessionHint`) and the buttons.
+  Its ✕ (`closeSessTab`) closes the tab, the session running on. The
+  strip's empty part or the session's tab, right-clicked, is its menu
+  (`sessionTitleMenu`). Terminal panel shells stay in the panel.
 
 ## Terminal panel
 
@@ -208,29 +215,25 @@ Nothing is saved; a wider screen undoes it.
 
 ```text
 editor < minEditor (40)?
-  1. docked session ──▶ takes the editor area (crampedBy, followCramp)
-  2. other columns ───▶ narrow to 20, outermost first
-  3. side w/o Spaces ─▶ folds into its rail (folds)
-  4. Spaces ──────────▶ narrows to 20
+  1. columns ─────────▶ narrow to 20, outermost first
+  2. side w/o Spaces ─▶ folds into its rail (folds)
+  3. Spaces ──────────▶ narrows to 20
 editor < 20?
-  5. editor ──────────▶ gives up all but 20 cells
-  6. columns ─────────▶ drop, outermost first, Spaces last
+  4. editor ──────────▶ gives up all but 20 cells
+  5. columns ─────────▶ drop, outermost first, Spaces last
 ```
 
 A side opened from its rail stays open until the next resize (`unfold`). A
-dragged divider stops at `minEditor`. In step 1 the session and the file share
-the editor area, the one that had the keyboard last in front (`fileLast`).
-While a divider is dragged the columns stay as they were picked up
-(`drag.cramp`): letting it go docks the session again when there is room, or
-gives it the editor area when there is not; a maximized one (`maxed`) stays
-maximized. The session's column keeps its width in the settings meanwhile
-(`allCols`).
+dragged divider stops at `minEditor`. Groups that no longer fit draw the
+focused one alone ([Editor groups](#editor-groups)).
 
 ## Dragging
 
 | Drag                                      | Effect                                     |
 | ----------------------------------------- | ------------------------------------------ |
 | column divider                            | width, saved on release                    |
+| editor group divider                      | the groups' ratio, saved                   |
+| editor or session tab over a group        | split it or move in (`gridDrop`)           |
 | terminal rule and strip's empty part      | `terminal_height`                          |
 | Source Control drawer, GitHub pane header | the pane's top edge                        |
 | tab onto a bar, or the half facing main   | slot between chips (`slotAt`, `placeView`) |
@@ -324,8 +327,7 @@ Model.mouse
 ## Tab strips
 
 Editors, session tabs and Terminal shells share `strip.go`. The editor
-area has one strip, the files' tabs then the sessions' over it; a docked
-session's column has its own.
+group has one strip, the files' tabs then the sessions'.
 
 - `tabChip`: active bold, others dim, neither on a fill (`hover_bg` under
   the mouse, `overTab`), each followed by a `▏` in `tab_border`
@@ -333,7 +335,9 @@ session's column has its own.
   nothing. The active tab's `✕` raises like a button while the mouse is on
   it (`overX`, `closeHot`).
 - Press picks a tab up (`grabTab`, `dragStrip`), an accent `│` marks the slot
-  (`stripSlot`), release moves it. `ctrl+shift+pgup`/`pgdn` move it
+  (`stripSlot`), release moves it. While held, the tab rides a row under the
+  pointer, as VS Code's drag image (`dragGhost`, `sel_bg`, an accent `▎`); off its own strip it goes to a group
+  ([Editor groups](#editor-groups)). `ctrl+shift+pgup`/`pgdn` move it
   (`moveTab`). A session's own tab stays first.
 
 ## Modals
@@ -345,8 +349,8 @@ screen, or anchored (`x`, `y`) where the thing it acts on is, as rename over
 a symbol, a table's prompt over its cell and an editor's menu by key (`m`,
 `⇧F10`) under the cursor's row (`menuAt`), and the revert question it leads
 to; the form, and a menu centred in an area, sit at the top of the area's
-body. `area` keeps a box to some columns, a table's to the editor area, off
-a session docked beside it, and covers them whole when less than two cells a
+body. `area` keeps a box to some columns, a table's to its editor group,
+and covers them whole when less than two cells a
 side would show. An anchored menu that does not fit below its line opens
 above it; a box never narrows while it is open (`modal.w`). A menu at the
 pointer has square corners, a centered box round ones. A context menu's
