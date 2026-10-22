@@ -72,8 +72,9 @@ func TestSplitEditor(t *testing.T) {
 	}
 }
 
-// TestDragTabToGroup drops a tab on another group's middle, which closes the
-// group it left empty, and on an edge, which splits that group there.
+// TestDragTabToGroup carries a tab under the pointer and drops it on another
+// group's middle, which closes the group it left empty, and on an edge, which
+// splits that group there.
 func TestDragTabToGroup(t *testing.T) {
 	m := groupsModel(t)
 	press(m, `ctrl+\`) // .env alone on the right
@@ -88,6 +89,10 @@ func TestDragTabToGroup(t *testing.T) {
 	out := checkWidths(t, m)
 	if !strings.Contains(out, "Move Here") {
 		t.Fatalf("the drop target says where it goes:\n%s", out)
+	}
+
+	if ghost := ansi.Strip(strings.Split(out, "\n")[left.y+left.h/2+1]); !strings.Contains(ghost, ".env") {
+		t.Fatalf("the tab follows the pointer, a row under it: %q", ghost)
 	}
 
 	m.Update(tea.MouseReleaseMsg{X: left.x + left.w/2, Y: left.y + left.h/2, Button: tea.MouseLeft})

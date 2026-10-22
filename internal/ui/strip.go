@@ -241,7 +241,54 @@ func (m *Model) moveTab(d int) tea.Cmd {
 // grabTab picks tab id of strip s up at strip column x, the mouse's column
 // and row being m.mouseX and m.mouseY: nothing moves until it is let go.
 func (m *Model) grabTab(s int, id string, x int) {
-	m.drag = &drag{kind: dragStrip, strip: s, tab: id, org: m.mouseX - x, y0: m.mouseY, slot: -1}
+	m.drag = &drag{kind: dragStrip, strip: s, tab: id, org: m.mouseX - x, x0: m.mouseX, y0: m.mouseY, slot: -1}
+}
+
+// dragGhost is the held tab lifted off its strip and carried by the pointer,
+// as VS Code drags a tab's image: the cell it was picked up by stays under
+// the pointer, a row lower so the drop mark on the strip stays in sight.
+func (m *Model) dragGhost() (box []string, x, y int, ok bool) {
+	d := m.drag
+	if d == nil || d.kind != dragStrip || !d.moved {
+		return nil, 0, 0, false
+	}
+
+	var label string
+
+	tx := 0
+
+	if d.strip == stripEditor {
+		for _, t := range m.editorTabs(m.mainW()) {
+			if t.id == d.tab || t.i >= 0 && m.editors[t.i].id() == d.tab {
+				label, tx = t.label, t.x
+			}
+		}
+	} else {
+		for _, t := range m.termTabs(m.termStripW()) {
+			if t.id == d.tab {
+				label, tx = t.label, t.x
+			}
+		}
+	}
+
+	if label == "" {
+		return nil, 0, 0, false
+	}
+
+	st := lipgloss.NewStyle().Background(pal.selBg).Bold(true)
+	if pal.selFg != nil {
+		st = st.Foreground(pal.selFg)
+	}
+
+	chip := renderText(fg(pal.accent).Background(pal.selBg), "▎") + renderText(st, label)
+	w := ansi.StringWidth(chip)
+
+	x, y = max(min(m.mouseX-(d.x0-d.org-tx), m.w-w), 0), m.mouseY+1
+	if y >= m.panelH() {
+		y = m.mouseY - 1
+	}
+
+	return []string{chip}, x, y, true
 }
 
 // dragStripTo follows the held tab with a mark where it would land, herdr's

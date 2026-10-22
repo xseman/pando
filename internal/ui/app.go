@@ -104,7 +104,7 @@ type drag struct {
 	tab    string // dragStrip: the tab being moved, an editor's or a session's id
 	org    int    // dragStrip: the screen column of the strip's first cell
 	slot   int    // dragStrip: where the tab would land, an index in stripOrder; -1 nowhere
-	x0     int    // dragTab: where it was picked up; dragMsgSel: the message text's screen origin, with y0
+	x0     int    // dragTab, dragStrip: where it was picked up; dragMsgSel: the message text's screen origin, with y0
 	drop   *dropTarget
 	split  *pane // dragGrid: the split whose divider moves
 	dst    *pane // dragStrip: the group the tab would go to, or beside on side
@@ -3776,6 +3776,10 @@ func (m *Model) View() tea.View {
 	lines[len(lines)-1] = status
 	if m.drag != nil && (m.drag.kind == dragTab || m.drag.kind == dragStrip) && m.drag.drop != nil {
 		m.dropBox(lines[:m.panelH()], *m.drag.drop)
+	}
+
+	if box, x, y, ok := m.dragGhost(); ok {
+		m.overlayBox(lines, box, x, y)
 	}
 
 	if box, x, y, ok := m.pv.findBox(m); ok && m.modal == nil {
