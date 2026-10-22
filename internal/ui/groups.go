@@ -483,7 +483,8 @@ func (m *Model) dragSplit(d *drag, x, y int, release bool) tea.Cmd {
 // gridDrop is where the active group's tab held over the editor area at
 // (x, y) would land: into the group under it, on its strip or its middle,
 // or into a new group at the edge it is near, a quarter of the group's width
-// or height; dst is nil where it would not move.
+// or height; dst is nil where it would not move, and over its own group when
+// it is the only tab there, which no split would leave anything behind.
 func (m *Model) gridDrop(x, y int) (dst *pane, side int, t dropTarget) {
 	dst = m.cur
 	if m.tiled() {
@@ -513,7 +514,7 @@ func (m *Model) gridDrop(x, y int) (dst *pane, side int, t dropTarget) {
 		side, b.y, b.h = sideDown, b.y+b.h-b.h/2, b.h/2
 	}
 
-	if side == sideInto && dst == m.cur {
+	if dst == m.cur && (side == sideInto || len(m.editors)+len(m.stripSessions()) < 2) {
 		return nil, 0, t
 	}
 

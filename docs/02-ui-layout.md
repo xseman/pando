@@ -144,7 +144,8 @@ take a message (`previewMsg`, `onScreen`, drafts).
   focuses that group (`holder`), otherwise it opens in the focused group.
 - Splitting: a tab dragged over a group's body (`gridDrop`) splits it on the
   edge it is near, a quarter of its width or height, and moves into a group
-  of its own there; on a strip or the middle it moves into that group. `ctrl+\`
+  of its own there; on a strip or the middle it moves into that group. A
+  group's only tab offers nothing over its own group. `ctrl+\`
   moves the active tab into a new group on the right (`splitEditor`), the
   palette's _Move Editor into Left / Right Group, Group Above / Below_ into
   the neighbour or a new group (`moveEditor`). A new group takes half the

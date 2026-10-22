@@ -115,6 +115,27 @@ func TestDragTabToGroup(t *testing.T) {
 	checkWidths(t, m)
 }
 
+// TestDragOnlyTab: a group's only tab held over that group offers no split,
+// which would leave nothing behind.
+func TestDragOnlyTab(t *testing.T) {
+	m := groupsModel(t)
+	fire(m, m.closeEditor(0)) // .env alone
+
+	a, tab := m.area(), m.editorTabs(m.mainW())[0]
+	m.Update(tea.MouseClickMsg{X: a.x + tab.x + 1, Y: a.y, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: a.x + a.w - 2, Y: a.y + a.h/2, Button: tea.MouseLeft})
+
+	if out := checkWidths(t, m); strings.Contains(out, "Split Right") || m.drag.drop != nil {
+		t.Fatalf("no drop target over its own edge:\n%s", out)
+	}
+
+	m.Update(tea.MouseReleaseMsg{X: a.x + a.w - 2, Y: a.y + a.h/2, Button: tea.MouseLeft})
+
+	if m.grid.g == nil || len(m.editors) != 1 {
+		t.Fatalf("still one group with .env: %v, %d tabs", m.grid.g != nil, len(m.editors))
+	}
+}
+
 // TestGroupDivider drags the divider between two groups, each keeping its
 // least room.
 func TestGroupDivider(t *testing.T) {
