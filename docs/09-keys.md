@@ -31,7 +31,7 @@ T: also in a terminal; the rest are the shell's there.
 | Key                                                    | Action                                                  |
 | ------------------------------------------------------ | ------------------------------------------------------- |
 | `ctrl+]` T                                             | cycle focus: left sidebar, main, panel, right sidebar   |
-| `ctrl+shift+p` T, `F1`                                 | command palette                                         |
+| `ctrl+shift+p` T, `F1`                                 | command palette, over any modal too                     |
 | `F10`                                                  | Manage menu (⚙): palette, settings, keys, categories    |
 | `ctrl+shift+e` `ctrl+shift+g` `ctrl+shift+f` T         | Explorer, Source Control, Search                        |
 | `ctrl+shift+h` T                                       | Search with replace                                     |
@@ -45,7 +45,7 @@ T: also in a terminal; the rest are the shell's there.
 | `ctrl+pgup` `ctrl+pgdn` T, `ctrl+shift+tab` `ctrl+tab` | previous, next editor                                   |
 | `alt+1`…`alt+9` T                                      | editor N                                                |
 | `ctrl+shift+pgup` `ctrl+shift+pgdn` T                  | move the tab: editor, session tab, shell                |
-| `ctrl+p`                                               | quick open; `:` line, `@` symbols, `ctrl+t` tree        |
+| `ctrl+p` T                                             | quick open; `:` line, `@` symbols, `ctrl+t` tree        |
 | `ctrl+n`, `ctrl+s`                                     | new untitled file, save                                 |
 | `ctrl+enter`                                           | commit                                                  |
 | `ctrl+g`, `ctrl+shift+o`                               | go to line, symbol                                      |

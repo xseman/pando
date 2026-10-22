@@ -411,7 +411,7 @@ func (t *term) findKey(m *Model, id string, k tea.KeyPressMsg) tea.Cmd {
 		t.closeFind()
 		return nil
 
-	case "enter", "shift+f3", "up", "ctrl+p":
+	case "enter", "shift+f3", "up":
 		return t.findGo(m, id, -1)
 	case "shift+enter", "f3", "down", "ctrl+n":
 		return t.findGo(m, id, 1)

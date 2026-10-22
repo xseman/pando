@@ -4374,7 +4374,7 @@ func (p *preview) findKey(m *Model, k tea.KeyPressMsg) (tea.Cmd, bool) {
 
 	case "down", "ctrl+n":
 		return p.findGo(m, 1), true
-	case "shift+enter", "up", "ctrl+p":
+	case "shift+enter", "up":
 		return p.findGo(m, -1), true
 	case "ctrl+shift+1", "ctrl+!": // VS Code's Replace
 		return p.replaceOne(m), true

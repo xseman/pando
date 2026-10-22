@@ -157,6 +157,19 @@ func TestCommandPalette(t *testing.T) {
 		!slices.Contains(labels(m), "Preferences: Color theme") || slices.Contains(labels(m), "Editor: Stage Selected Ranges") {
 		t.Fatalf("palette %v", labels(m))
 	}
+	// ⌃p is ↑ in a list; over a prompt both chords reach the palettes.
+	press(m, "ctrl+p")
+
+	if m.modal == nil || m.modal.title != "Command Palette" {
+		t.Fatal("ctrl+p left the palette")
+	}
+
+	m.modal = newPrompt("Rename", "x", nil)
+	press(m, "ctrl+shift+p")
+
+	if m.modal == nil || m.modal.title != "Command Palette" {
+		t.Fatal("ctrl+shift+p does not reach the palette from a prompt")
+	}
 
 	m = diffModel(t, 100, 20)
 	m.Update(tea.KeyPressMsg{Code: tea.KeyF1})

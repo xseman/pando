@@ -35,7 +35,7 @@ func TestKeyContexts(t *testing.T) {
 		t.Fatalf("a session on screen is a terminal: %b", c)
 	}
 	// ⌃←/⌃→ move the shell's cursor by words; they used to walk editor history.
-	for _, key := range []string{"ctrl+left", "ctrl+right", "ctrl+p", "ctrl+s", "ctrl+enter", "ctrl+j", "5", "f1", "alt+,"} {
+	for _, key := range []string{"ctrl+left", "ctrl+right", "ctrl+s", "ctrl+enter", "ctrl+j", "5", "f1", "alt+,"} {
 		if _, ok := m.bindingFor(ctxTerminal, key); ok {
 			t.Errorf("%s is pando's in a terminal, not the shell's", key)
 		}
@@ -55,7 +55,7 @@ func TestKeyContexts(t *testing.T) {
 		t.Fatalf("ctrl+j reaches the session: %+v, panel toggled %v", in, m.termOpen() != open)
 	}
 	// The ways out, and VS Code's commandsToSkipShell, still work from there.
-	for _, key := range []string{"ctrl+]", "ctrl+shift+p", "ctrl+`", "ctrl+space", "ctrl+b", "alt+t", "ctrl+pgdown"} {
+	for _, key := range []string{"ctrl+]", "ctrl+shift+p", "ctrl+p", "ctrl+`", "ctrl+space", "ctrl+b", "alt+t", "ctrl+pgdown"} {
 		if _, ok := m.bindingFor(ctxTerminal, key); !ok {
 			t.Errorf("%s does not leave the terminal", key)
 		}
@@ -86,8 +86,8 @@ func TestKeyContexts(t *testing.T) {
 		}
 	}
 
-	if _, ok := ed.bindingFor(ctxInput, "ctrl+p"); ok {
-		t.Error("a text box keeps ctrl+p")
+	if _, ok := ed.bindingFor(ctxInput, "ctrl+p"); !ok {
+		t.Error("ctrl+p is not Quick Open in a text box")
 	}
 
 	// [keys] reaches neither a terminal nor a text box.

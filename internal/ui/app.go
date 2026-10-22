@@ -3201,6 +3201,17 @@ type focusSessionMsg string
 
 func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 	if m.modal != nil {
+		// The palette and Quick Open replace any modal; a list keeps ⌃p as ↑.
+		switch s := k.String(); {
+		case s == "ctrl+shift+p" && m.modal.title != "Command Palette":
+			m.modal.dismiss(m)
+			return m.commandPalette()
+
+		case s == "ctrl+p" && (m.modal.form != nil || m.modal.dialog || m.modal.items == nil):
+			m.modal.dismiss(m)
+			return m.loadIndex(true)
+		}
+
 		return m.modal.key(m, k)
 	}
 
@@ -3303,8 +3314,6 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 
 		return m.startFilter(v)
 
-	case "ctrl+p":
-		return m.loadIndex(true)
 	case ",":
 		return m.openSettings()
 

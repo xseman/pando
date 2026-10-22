@@ -61,6 +61,9 @@ var keybindings = []keybinding{
 	// Ways out of a terminal and the chords VS Code keeps from its shell.
 	{keys: []string{"ctrl+]"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { m.cycleFocus(); return m.fetchScreen() }},
 	{keys: []string{"ctrl+shift+p"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.commandPalette() }},
+	// VS Code skips the shell and a text box for Quick Open too. Outside the
+	// kitty protocol ⌃⇧p arrives as ⌃p, so this keeps a palette in reach.
+	{keys: []string{"ctrl+p"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.loadIndex(true) }},
 	// VS Code's terminal find: ⌃f opens it over the shell, F3 walks its
 	// matches, esc closes it while it shows.
 	{keys: []string{"ctrl+f"}, when: ctxTerminal, run: func(m *Model, _ string) tea.Cmd {
@@ -146,7 +149,6 @@ var keybindings = []keybinding{
 
 	// pando's panels, where these are not text: a text box keeps them.
 	{keys: []string{"5"}, when: ctxList | ctxEditor, run: func(m *Model, _ string) tea.Cmd { return m.toggleTerminal() }},
-	{keys: []string{"ctrl+p"}, when: ctxPanels, run: func(m *Model, _ string) tea.Cmd { return m.loadIndex(true) }},
 	{keys: []string{"ctrl+g"}, when: ctxPanels, cond: (*Model).showsPreview, run: func(m *Model, _ string) tea.Cmd { return m.gotoLineQuery(":") }},
 	// VS Code's Go to Next and Previous Problem in the shown file or diff, and
 	// its Problems list.
