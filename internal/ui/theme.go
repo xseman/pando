@@ -110,7 +110,7 @@ var (
 		diffDelMark: hex("#ad0707"), diffAddMark: hex("#587c0c"), diffModMark: hex("#2090d3"), // VS Code light's modified gutter: yellow fades on white
 		mergeCurrentHeadBg: hex("#a0e4d7"), mergeCurrentBg: hex("#d9f4ef"), mergeIncomingHeadBg: hex("#a0d3ff"), mergeIncomingBg: hex("#d9edff"),
 		mergeCommonHeadBg: hex("#c0c0c0"), mergeCommonBg: hex("#e6e6e6"),
-		ok: hex("#2ea043"), warn: hex("#9a5a00"), errc: hex("#c5000b"), attention: hex("#862f95"),
+		ok: hex("#1f883d"), warn: hex("#9a5a00"), errc: hex("#c5000b"), attention: hex("#862f95"),
 		blockedBg: hex("#edd4d4"), doneBg: hex("#e2d9e8"),
 		blockedSoftBg: hex("#f6e8e8"), doneSoftBg: hex("#efeaf3"),
 		// Zed's slider over no track: a rule down it, its border.
