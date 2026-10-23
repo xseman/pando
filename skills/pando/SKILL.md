@@ -71,6 +71,19 @@ pando session new --agent claude --ws /path/to/worktree --name reviewer --wait
 Names are unique among live sessions; a second `reviewer` is refused rather
 than shadowed. A name is not reused after the session is gone.
 
+Pick the name so the user recognizes the work in Spaces:
+
+- **Follow the house style.** Read `session ls` first and name yours the way
+  the existing ones are named: the same separator, case, order and length.
+- **Say what it works on.** Put in the branch it works on, or, when the work
+  comes from a task in an issue tracker or project tool, that task's number
+  or key.
+- **Mark where the task lives.** Next to the number, a short marker of the
+  tool it came from, the one the existing names use or a plain abbreviation
+  of the tool, so the same number from two tools never reads alike.
+- Short and stable: lowercase words joined the way the others are, no spaces,
+  nothing that changes as the work goes on (a status, a date).
+
 Read the live list, or one session, with:
 
 ```sh
