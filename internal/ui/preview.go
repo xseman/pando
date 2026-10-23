@@ -3039,7 +3039,7 @@ func (p *preview) followSplit(h int) {
 	p.top = max(0, min(max(min(p.top, i), i-h+1), max(len(rows)-h, 0)))
 }
 
-func (p *preview) splitBody(w, h int) []string {
+func (p *preview) splitBody(m *Model, w, h int) []string {
 	rows := splitRows(p.meta)
 	p.top = max(0, min(p.top, len(rows)-h))
 	lw := (w - 1) / 2
@@ -3048,12 +3048,14 @@ func (p *preview) splitBody(w, h int) []string {
 
 	sa, sz := p.splitRange(rows)
 
+	hy := p.hoverY(m, w, h)
+
 	for k, sr := range rows[p.top:min(p.top+h, len(rows))] {
 		sel := p.top+k >= sa && p.top+k <= sz // drawn on the cursor's half
 
 		switch {
 		case sr.full && p.meta[sr.l].kind == 'h':
-			body = append(body, renderText(dim, center(strings.TrimSpace("⋯ "+ansi.Strip(p.lines[sr.l])), w)))
+			body = append(body, renderText(gapSt(k == hy), center(strings.TrimSpace("⋯ "+ansi.Strip(p.lines[sr.l])), w)))
 		case sr.full:
 			body = append(body, ansi.Cut(p.lines[sr.l], p.left, p.left+w))
 		default:
@@ -3598,7 +3600,7 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 
 	switch {
 	case p.split(m):
-		body = p.splitBody(tw, h)
+		body = p.splitBody(m, tw, h)
 		kinds, _ := p.barChanges(m)
 
 		return header, withCells(body, w, vbar{p.scrollRows(m), h, p.top}.marked(vb, kinds, diffMarks())), footer
@@ -3625,9 +3627,16 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 	p.left = max(0, min(p.left, hb.n-hb.h)) // a shift+wheel pans no further than the widest line
 	hb.top = p.left
 
+	hy := p.hoverY(m, tw, h)
+
 	for k := p.top; k < len(vis) && k < p.top+h; k++ {
 		if vis[k].line < 0 { // the quick diff's zone
 			body = append(body, p.qd.row(m, vis[k].from, tw, m.mainY()+m.headH()+m.stripH()+k-p.top))
+			continue
+		}
+
+		if k-p.top == hy && p.gaps[vis[k].line].n > 0 {
+			body = append(body, renderText(gapSt(true), pad(ansi.Strip(p.renderRow(vis[k], tw)), tw, false)))
 			continue
 		}
 
@@ -3728,6 +3737,26 @@ func (p *preview) refold(m *Model) {
 		a := pos{min(p.anchor.line, p.lastLine()), p.anchor.col}
 		p.anchor = &a
 	}
+}
+
+// hoverY is the body row under the mouse, -1 when it is off the body.
+func (p *preview) hoverY(m *Model, w, h int) int {
+	x, y := m.mouseX-m.mainX(), m.mouseY-m.mainY()-m.headH()-m.stripH()
+	if x < 0 || x >= w || y < 0 || y >= h {
+		return -1
+	}
+
+	return y
+}
+
+// gapSt draws a gap's label, lit across the row under the mouse: a click
+// unfolds it.
+func gapSt(hot bool) lipgloss.Style {
+	if hot {
+		return plain.Background(pal.hoverBg)
+	}
+
+	return dim
 }
 
 // unfold shows the rows behind the gap on meta line n, the cursor on the

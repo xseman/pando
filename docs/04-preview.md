@@ -188,8 +188,9 @@ inline                                side by side (diff_view = "split")
   commit's are fetched with full context (`--unified=1000000000`, `unfolds`)
   and folded in the view: `all` keeps every row, `shownRows` shows each change
   with `ctxRows` (3) around it and each longer unchanged run as a gap row,
-  `N hidden lines`, carrying its first hidden row's numbers. ⏎ on a gap or a
-  click unfolds it in place (`unfold`: the tab keeps the old lines it hid,
+  `N hidden lines`, carrying its first hidden row's numbers and lit in
+  `hover_bg` under the mouse (`hoverY`). ⏎ on a gap or a click unfolds it in
+  place (`unfold`: the tab keeps the old lines it hid,
   `gapLines`, so a reload, even with a new change inside them, leaves them
   shown); Go to Line into a gap unfolds it, and find looks in the rows a
   gap hides (`findHit.hidden`), unfolding it for the match selected. With

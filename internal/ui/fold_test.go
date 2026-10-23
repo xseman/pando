@@ -190,6 +190,33 @@ func TestUnfoldGapSplit(t *testing.T) {
 	}
 }
 
+// TestGapHover lights a gap's row under the mouse, unified and side by
+// side, and only that row.
+func TestGapHover(t *testing.T) {
+	m := foldModel(t)
+
+	for _, view := range []string{"unified", "split"} {
+		m.st.Settings.DiffView = view
+		y := gapRows(m)[0] - m.pv.top
+		lit := func(row int) bool {
+			_, body, _ := m.pv.view(m, m.pvW(), m.pvH())
+			return strings.Contains(body[row], bgParams(pal.hoverBg))
+		}
+
+		m.Update(tea.MouseMotionMsg{X: m.mainX() + 20, Y: 1 + m.stripH() + y})
+
+		if !lit(y) || lit(y+1) {
+			t.Fatalf("%s: the gap under the mouse is lit, the row below not", view)
+		}
+
+		m.Update(tea.MouseMotionMsg{X: m.mainX() + 20, Y: 1 + m.stripH() + y + 1})
+
+		if lit(y) {
+			t.Fatalf("%s: the gap goes dim as the mouse leaves", view)
+		}
+	}
+}
+
 // TestGotoLineUnfolds: Go to Line to a line hidden in a gap unfolds it and
 // lands there.
 func TestGotoLineUnfolds(t *testing.T) {
