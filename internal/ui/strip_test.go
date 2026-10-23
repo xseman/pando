@@ -293,20 +293,24 @@ func TestEditorRule(t *testing.T) {
 }
 
 // TestSessionTabTint sets a session's tab apart from the files' tabs beside
-// it: on session_tab_bg, the active one too.
+// it: its glyph in Spaces' color, on a much softer shade of it, the active
+// tab too.
 func TestSessionTabTint(t *testing.T) {
 	m := testModel(t)
 	drainInputs(m)
 	fire(m, m.openFile(filepath.Join(m.ws, "README.md"), false))
-
-	if strip := m.editorStrip(m.mainW()); strings.Contains(strip, bgParams(pal.sessTabBg)) {
-		t.Fatalf("a file's tab is tinted: %q", strip)
-	}
-
 	m.switchSession("s1")
 
-	if strip := m.editorStrip(m.mainW()); !strings.Contains(strip, bgParams(pal.sessTabBg)) {
-		t.Fatalf("the session's tab is not tinted: %q", strip)
+	g, c := m.tabGlyph(*m.session("s1"))
+	tint := m.tabTint(c)
+
+	if g == "" || tint == nil || hexColor(tint) == hexColor(c) {
+		t.Fatalf("glyph %q in %v on %v", g, c, tint)
+	}
+
+	strip := m.editorStrip(m.mainW())
+	if strings.Count(strip, bgParams(tint)) < 2 || !strings.Contains(strip, fgParams(c)) {
+		t.Fatalf("the session's tab is not on its glyph's tint: %q", strip)
 	}
 }
 

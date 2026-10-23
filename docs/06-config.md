@@ -210,7 +210,7 @@ Overrides survive a theme switch; invalid ones are skipped. Keys (`colorKeys`):
 - diff: `diff_del_bg` `diff_del_word_bg` `diff_add_bg` `diff_add_word_bg` `diff_del_mark` `diff_add_mark` `diff_mod_mark`
 - merge: `merge_current_head_bg` `merge_current_bg` `merge_incoming_head_bg` `merge_incoming_bg` `merge_common_head_bg` `merge_common_bg`
 - status: `ok` `warn` `error` `attention`
-- sessions: `blocked_bg` `done_bg` `blocked_soft_bg` `done_soft_bg` `session_tab_bg` (a session's tab among the file tabs)
+- sessions: `blocked_bg` `done_bg` `blocked_soft_bg` `done_soft_bg`
 - chrome: `bar_bg` (the side activity bar and the status bar) `tab_border` `panel_border` `scrollbar_slider` `scrollbar_slider_hover` `scrollbar_slider_active` `scrollbar_track` `overview_ruler_border`
 - Markdown: `md_code` `md_code_bg`
 

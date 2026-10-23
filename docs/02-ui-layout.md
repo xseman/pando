@@ -337,9 +337,10 @@ group has one strip, the files' tabs then the sessions'.
   (unsaved, its `●` turns into it), in any group; a click on it closes that
   tab. It raises like a button while the mouse is on it (`overX`,
   `closeHot`).
-- A session's tab in the editor strip sits on `session_tab_bg`, active or
-  not, so it reads apart from the files'; a session_highlight tint or
-  `hover_bg` takes its place.
+- A session's tab in the editor strip shows its glyph in Spaces' color and
+  sits on a much softer shade of it (`tabTint`), active or not, so it reads
+  apart from the files'; a session_highlight tint or `hover_bg` takes its
+  place.
 - Press picks a tab up (`grabTab`, `dragStrip`), an accent `│` marks the slot
   (`stripSlot`), release moves it. While held, the tab rides a row under the
   pointer, as VS Code's drag image (`dragGhost`, `sel_bg`, an accent `▎`); off its own strip it goes to a group

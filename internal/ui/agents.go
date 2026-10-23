@@ -2795,17 +2795,48 @@ func (m *Model) ensureTerm() tea.Cmd {
 	return m.newTerm()
 }
 
+// tabGlyph is session s's glyph in a tab and its color, as Spaces draws
+// them. A shell's screen says nothing about an agent's state: a server
+// printing logs would read as working. Only an agent shows a glyph, one
+// started by hand in a terminal too; a shell gets "".
+func (m *Model) tabGlyph(s proto.Session) (string, color.Color) {
+	if s.Agent == termAgent && !m.runsAgent(s) {
+		return "", nil
+	}
+
+	g, c := sessionGlyph(s)
+
+	return m.spin(g, s), c
+}
+
+// tabTint is c 7% of the way from the terminal's background to it: a
+// session tab's fill, its glyph's color much softer. nil for a color that is
+// not RGB, an ANSI palette's.
+func (m *Model) tabTint(c color.Color) color.Color {
+	bg := hex(ifElse(pal.light, "#ffffff", "#000000"))
+	if m.bg != "" {
+		bg = hex(m.bg)
+	}
+
+	if !isRGB(c) || !isRGB(bg) {
+		return nil
+	}
+
+	// Mixed in sRGB as VS Code flattens a translucent color: lipgloss's
+	// Blend1D allocates its whole gradient, every frame.
+	r1, g1, b1, _ := c.RGBA()
+	r2, g2, b2, _ := bg.RGBA()
+	mix := func(a, b uint32) uint8 { return uint8((7*a + 93*b) / 100 >> 8) }
+
+	return color.RGBA{mix(r1, r2), mix(g1, g2), mix(b1, b2), 255}
+}
+
 // sessLabel is session s's tab label in a strip with room cells for tabs,
 // its ✕ shown when closable, and its tip when the label cuts its name.
 func (m *Model) sessLabel(s proto.Session, closable bool, room int) (label, tip string) {
-	// A shell's screen says nothing about an agent's state: a server
-	// printing logs would read as working. Only an agent shows a glyph, one
-	// started by hand in a terminal too.
-	glyph := ""
-
-	if s.Agent != termAgent || m.runsAgent(s) {
-		g, _ := sessionGlyph(s)
-		glyph = m.spin(g, s) + " "
+	glyph, _ := m.tabGlyph(s)
+	if glyph != "" {
+		glyph += " "
 	}
 
 	name, end := m.fx.text("sess:"+s.ID, sessionName(s)), " "+tabClose(closable)

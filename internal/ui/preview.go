@@ -1009,7 +1009,7 @@ type edTab struct {
 	active  bool
 	id      string      // a session's
 	tip     string      // a session's whole name, when the label cuts it
-	bg      color.Color // a session's session_highlight tint
+	bg      color.Color // a session's session_highlight tint, else its glyph's (tabTint)
 }
 
 // editorTabs lays the strip out: the open files, then the sessions opened
@@ -1044,7 +1044,11 @@ func (m *Model) editorTabs(w int) []edTab {
 		s := *m.session(id)
 		active := sessOn && id == m.sess
 		label, tip := m.sessLabel(s, active || id == m.overTab, w-3)
-		items = append(items, edTab{i: -1, id: id, w: ansi.StringWidth(label), label: label, tip: tip, active: active, bg: m.highlight(s)})
+		g, c := m.tabGlyph(s)
+		items = append(items, edTab{
+			i: -1, id: id, w: ansi.StringWidth(label), label: label, tip: tip, active: active,
+			icon: ifElse(g == "", seg{}, sg(g, fg(c))), bg: cmp.Or(m.highlight(s), ifElse(g == "", nil, m.tabTint(c))),
+		})
 	}
 
 	at, total := -1, 0
@@ -1134,29 +1138,29 @@ func (m *Model) editorStrip(w int) string {
 
 	tabs := m.editorTabs(w)
 	for _, t := range tabs {
-		if t.i < 0 { // tinted apart from the files', the active one too
-			chip := tabSegs([]sessTab{{id: t.id, label: t.label, active: t.active, bg: cmp.Or(t.bg, pal.sessTabBg)}}, m.overTab, m.overX)
-			if t.active && pal.sessTabBg != nil {
-				chip[0].st = chip[0].st.Background(pal.sessTabBg)
+		var chip []seg
+
+		switch {
+		case t.i < 0: // on its glyph's tint, apart from the files', the active one too
+			chip = tabSegs([]sessTab{{id: t.id, label: t.label, active: t.active, bg: t.bg}}, m.overTab, m.overX)
+			if t.active && t.bg != nil {
+				chip[0].st = chip[0].st.Background(t.bg)
 			}
 
-			segs = append(segs, chip...)
+		default:
+			var bg color.Color
+			if m.editors[t.i].id() == m.overTab {
+				bg = pal.hoverBg
+			}
 
-			continue
-		}
+			chip = tabChip(t.label, t.active, bg)
+			if m.editors[t.i].id() == m.overX {
+				chip, m.tip = closeHot(chip), ifElse(t.active, "Close  ^w", "Close")
+			}
 
-		var bg color.Color
-		if m.editors[t.i].id() == m.overTab {
-			bg = pal.hoverBg
-		}
-
-		chip := tabChip(t.label, t.active, bg)
-		if m.editors[t.i].id() == m.overX {
-			chip, m.tip = closeHot(chip), ifElse(t.active, "Close  ^w", "Close")
-		}
-
-		if m.editors[t.i].transient {
-			chip[0].st = chip[0].st.Italic(true).Bold(false)
+			if m.editors[t.i].transient {
+				chip[0].st = chip[0].st.Italic(true).Bold(false)
+			}
 		}
 
 		if t.icon.s != "" { // the icon keeps its color on the chip's background
