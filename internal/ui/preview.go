@@ -2,6 +2,7 @@ package ui
 
 import (
 	"bytes"
+	"cmp"
 	"errors"
 	"fmt"
 	"image/color"
@@ -1133,8 +1134,13 @@ func (m *Model) editorStrip(w int) string {
 
 	tabs := m.editorTabs(w)
 	for _, t := range tabs {
-		if t.i < 0 {
-			segs = append(segs, tabSegs([]sessTab{{id: t.id, label: t.label, active: t.active, bg: t.bg}}, m.overTab, m.overX)...)
+		if t.i < 0 { // tinted apart from the files', the active one too
+			chip := tabSegs([]sessTab{{id: t.id, label: t.label, active: t.active, bg: cmp.Or(t.bg, pal.sessTabBg)}}, m.overTab, m.overX)
+			if t.active && pal.sessTabBg != nil {
+				chip[0].st = chip[0].st.Background(pal.sessTabBg)
+			}
+
+			segs = append(segs, chip...)
 
 			continue
 		}

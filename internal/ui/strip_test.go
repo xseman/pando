@@ -292,6 +292,24 @@ func TestEditorRule(t *testing.T) {
 	}
 }
 
+// TestSessionTabTint sets a session's tab apart from the files' tabs beside
+// it: on session_tab_bg, the active one too.
+func TestSessionTabTint(t *testing.T) {
+	m := testModel(t)
+	drainInputs(m)
+	fire(m, m.openFile(filepath.Join(m.ws, "README.md"), false))
+
+	if strip := m.editorStrip(m.mainW()); strings.Contains(strip, bgParams(pal.sessTabBg)) {
+		t.Fatalf("a file's tab is tinted: %q", strip)
+	}
+
+	m.switchSession("s1")
+
+	if strip := m.editorStrip(m.mainW()); !strings.Contains(strip, bgParams(pal.sessTabBg)) {
+		t.Fatalf("the session's tab is not tinted: %q", strip)
+	}
+}
+
 // TestSessionStripHint puts what the session header used to say at the right
 // end of its strip, and leaves no header row under it.
 func TestSessionStripHint(t *testing.T) {

@@ -40,6 +40,7 @@ type palette struct {
 	ok, warn, errc, attention                                                                                  color.Color
 	blockedBg, doneBg                                                                                          color.Color // session_highlight: error and attention over the sidebar
 	blockedSoftBg, doneSoftBg                                                                                  color.Color // the other shade of their pulse
+	sessTabBg                                                                                                  color.Color // a session's tab among the editors' file tabs, a faint tint of the accent; nil draws it as a file's
 	sliderBg, sliderHoverBg, sliderActiveBg, rulerBorder                                                       color.Color // VS Code's scrollbarSlider at rest, hovered and held over the editor, and editorOverviewRuler.border, the same as activityBar.border
 	trackBg                                                                                                    color.Color // the scrollbar's track, a solid column; nil draws a thin rule in rulerBorder
 	tabBorder                                                                                                  color.Color // tab.border, a shade stronger for a terminal
@@ -82,7 +83,7 @@ var (
 		tabBorder: hex("#3c3d40"), panelBorder: hex("#5f5f5f"),
 		sashHover: hex("#2c7092"), whitespace: hex("#3e3f40"), indentGuide: hex("#585858"), mdCode: hex("#ff7b72"), mdCodeBg: hex("#242526"),
 		lineNumber: hex("#6e7681"), lineNumberActive: hex("#cccccc"), descFg: hex("#9d9d9d"),
-		barBg: hex("#191a1b"),
+		barBg: hex("#191a1b"), sessTabBg: hex("#1d292e"),
 	}
 	// simpleLight is Simple Light (github.com/xseman/simple-light), the
 	// author's VS Code and Zed theme on Light Modern: black text, few
@@ -118,7 +119,7 @@ var (
 		tabBorder: hex("#d0d0d6"), panelBorder: hex("#c4c4c4"),
 		sashHover: hex("#5c9fe0"), whitespace: hex("#d3d3d3"), indentGuide: hex("#919191"), mdCode: hex("#ab6526"), mdCodeBg: hex("#f8f8f8"),
 		lineNumber: hex("#6e7681"), lineNumberActive: hex("#171184"), descFg: hex("#616161"),
-		barBg: hex("#f8f8f8"),
+		barBg: hex("#f8f8f8"), sessTabBg: hex("#ebf2f9"),
 	}
 	// terminalPal inherits the terminal profile's ANSI colors. Diff tints stay
 	// RGB: an ANSI background would collide with remapped syntax colors.
@@ -201,7 +202,7 @@ func (p *palette) colorKeys() map[string]*color.Color {
 		"merge_incoming_head_bg": &p.mergeIncomingHeadBg, "merge_incoming_bg": &p.mergeIncomingBg,
 		"merge_common_head_bg": &p.mergeCommonHeadBg, "merge_common_bg": &p.mergeCommonBg,
 		"ok": &p.ok, "warn": &p.warn, "error": &p.errc, "attention": &p.attention,
-		"blocked_bg": &p.blockedBg, "done_bg": &p.doneBg, "blocked_soft_bg": &p.blockedSoftBg, "done_soft_bg": &p.doneSoftBg,
+		"blocked_bg": &p.blockedBg, "done_bg": &p.doneBg, "blocked_soft_bg": &p.blockedSoftBg, "done_soft_bg": &p.doneSoftBg, "session_tab_bg": &p.sessTabBg,
 		"scrollbar_slider": &p.sliderBg, "scrollbar_slider_hover": &p.sliderHoverBg, "scrollbar_slider_active": &p.sliderActiveBg, "overview_ruler_border": &p.rulerBorder, "scrollbar_track": &p.trackBg,
 		"tab_border": &p.tabBorder, "panel_border": &p.panelBorder, "sash_hover": &p.sashHover, "whitespace": &p.whitespace, "indent_guide": &p.indentGuide,
 		"md_code": &p.mdCode, "md_code_bg": &p.mdCodeBg, "bar_bg": &p.barBg,
