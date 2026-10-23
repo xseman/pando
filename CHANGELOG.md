@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.7.0](https://github.com/xseman/pando/compare/v0.6.0...v0.7.0) (2026-10-23)
+
+
+### Features
+
+* **ui:** carry a dragged tab under the pointer, as VS Code does ([2c263d7](https://github.com/xseman/pando/commit/2c263d77e2078ed3d7b74fc02034898e3901f51a))
+* **ui:** compare HEAD with a picked branch, tag or typed revision ([e1d4d26](https://github.com/xseman/pando/commit/e1d4d26886abe50354bb0793168e39b924c8c863))
+* **ui:** ctrl+p and ctrl+shift+p reach their palettes from anywhere ([1c0d1b5](https://github.com/xseman/pando/commit/1c0d1b5a8f8577f16102808fc7f2ea60435bd7ff))
+* **ui:** editor groups in place of the docked session column ([bf85723](https://github.com/xseman/pando/commit/bf8572300c34fcfe1181f42a5ed89b3b7a517456))
+* **ui:** light a diff's hidden-lines row under the mouse ([4603941](https://github.com/xseman/pando/commit/460394142de08e67a6333fcb44fce1252f564dca))
+* **ui:** session tabs in their Spaces glyph color ([4fd03de](https://github.com/xseman/pando/commit/4fd03de7f362364d539f963874627ec33b636736))
+* **ui:** show a tab's close button while the mouse is on it ([ec7dba8](https://github.com/xseman/pando/commit/ec7dba8bdef267fb28b604fdfe5bb6c21aaf6543))
+* **ui:** tint session tabs apart from file tabs ([d63e08b](https://github.com/xseman/pando/commit/d63e08baacb62717f2f687647cc2a8c54ae91e10))
+
+
+### Bug Fixes
+
+* **proto:** start the daemon in a systemd scope of its own ([eecc07d](https://github.com/xseman/pando/commit/eecc07d1ede88d638e085dcb010160272e1fa743))
+* **ui:** a darker green for ok in the light theme ([0d08c4e](https://github.com/xseman/pando/commit/0d08c4e963318873c3746f44beabd81e9eb1c56a))
+* **ui:** offer no split for a group's only tab dragged over its own group ([b5a0fe4](https://github.com/xseman/pando/commit/b5a0fe472da7aac7ac947159718737a23d9f9b57))
+* **ui:** put the status bar's border right on the bar ([da66fd8](https://github.com/xseman/pando/commit/da66fd8a10c0e86129331bded80916591dc3f070))
+
+
+### Documentation
+
+* **demo:** a hero still with Spaces on the right, tui.gif in the tour ([2367e5f](https://github.com/xseman/pando/commit/2367e5fb2d344e70291e130cace3d96ce8e43237))
+* **demo:** hero with a file and a session side by side, groups.gif ([66c44ce](https://github.com/xseman/pando/commit/66c44ce23ac54783c5692a1b2777e141bfe3420b))
+* **demo:** hero with the activity bar ([8be7869](https://github.com/xseman/pando/commit/8be786939ba018b1afd7f2583e7ed30db8980e68))
+* editor groups replace the session column ([a4af052](https://github.com/xseman/pando/commit/a4af052006df2e92a9c7ec98364efdab3daa2aee))
+* **skill:** name sessions after the house style, branch or task ([27dcee9](https://github.com/xseman/pando/commit/27dcee9105efd11ec168b2aad7e840e0c4178391))
+
 ## [0.6.0](https://github.com/xseman/pando/compare/v0.5.0...v0.6.0) (2026-10-20)
 
 
