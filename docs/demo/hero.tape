@@ -18,7 +18,7 @@ Set Width 2080
 Set Height 1144
 Source docs/demo/setup.tape
 # VHS cannot send a palette command: Move Editor into Left Group is ctrl+e here.
-Type `cfg 22 hero claude-edits claude-ask ctrl+e=view.moveEditorIntoLeftGroup` Enter
+Type `cfg 27 hero claude-edits claude-ask ctrl+e=view.moveEditorIntoLeftGroup` Enter
 Type "go build ./... >/dev/null 2>&1; pando project add . >/dev/null; for b in discount readme; do pando ws new $b >/dev/null; done" Enter
 # A second project, so Spaces holds two.
 Type "web=$STATE/web; git init -q -b main $web && echo '<h1>shop</h1>' > $web/index.html && git -C $web add -A && git -C $web -c user.name=Demo -c user.email=demo@example.com commit -qm 'a page'" Enter

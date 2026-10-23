@@ -7,7 +7,7 @@
 #   cfg 34 claude-edits claude-ask       # and agent ask: one that asks before every command, whatever settings.json says
 #   cfg 26 vim ctrl+k=editor.saveFile    # a setting of its own
 #   cfg 30 resume                        # claude resumed in the foreground, in the demo's palette
-#   cfg 22 hero                          # Spaces on the right, the rest on the left
+#   cfg 27 hero                          # Spaces on the right, the rest on the left
 #
 # VHS cannot send ctrl+s, F12 or a drag, so every tape binds what it needs to a
 # ctrl letter; keeping the presets here is what stops every tape from repeating
