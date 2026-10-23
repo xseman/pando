@@ -1755,6 +1755,36 @@ func TestCompareDrawer(t *testing.T) {
 	if m.scm.cmp.spec != "" || len(files()) != 0 || m.drawers()[0].Title != cmpTitle {
 		t.Fatalf("after ✕: %q %v", m.scm.cmp.spec, files())
 	}
+	// The empty drawer's line picks a ref to compare HEAD with, as GitLens does.
+	mustGit(t, m.ws, "-c", "tag.gpgSign=false", "tag", "v1", one)
+
+	for _, msg := range runAll(m.scm.loadDrawers(m)) {
+		m.Update(msg)
+	}
+
+	m.scm.sel = line(cmpTitle, "Compare main with")
+
+	update("enter")
+
+	if m.modal == nil || m.modal.title != "Compare main with" {
+		t.Fatalf("no ref picker: %+v", m.modal)
+	}
+
+	choose(icTag.s() + " v1")
+
+	if m.scm.cmp.spec != "v1..HEAD" || m.scm.cmp.label != "v1 ↔ main" || len(files()) != 2 {
+		t.Fatalf("with a tag: %q %q %v", m.scm.cmp.spec, m.scm.cmp.label, files())
+	}
+	// Or a revision typed into the filter, GitLens' # prefix allowed.
+	m.scm.drawerMenu(m, cmpTitle, 0, 0)
+	choose("Compare main with…")
+	m.modal.input.SetValue("#" + two)
+	m.modal.refilter()
+	choose("Compare with the typed revision")
+
+	if m.scm.cmp.spec != two+"..HEAD" || len(files()) != 0 {
+		t.Fatalf("with a typed revision: %q %v", m.scm.cmp.spec, files())
+	}
 
 	checkWidths(t, m)
 }

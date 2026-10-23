@@ -192,7 +192,9 @@ message when the mouse rests on it; right click copies it.
 as GitLens does; ⏎ on a file opens its diff. A commit's right-click menu
 compares it with HEAD, with the working tree, or with a commit picked by
 _Select for Compare_; _Open Changed Files_ on a pull request in GitHub does
-the same for the pull request. The ✕ on the drawer's header clears it. Each
+the same for the pull request. The empty drawer, or its header's right-click
+menu, compares the branch with a branch or tag picked from a list, or with any
+revision typed into it, as GitLens' _Compare with_ does. The ✕ on the drawer's header clears it. Each
 project keeps its own comparison.
 
 A diff shows the changes with three lines around them and the rest as

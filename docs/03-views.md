@@ -121,7 +121,9 @@ A Commit with nothing staged is muted too, and a click on it does nothing.
   (`scmView.cmp`, `git.Compare`), as a tree or a list like the changes; ⏎ on a
   file opens preview kind `cmp`. One comparison per project (`scmView.cmps`
   keeps the others while another project shows), not saved; the ✕ on the
-  header (`cmpCloseX`) or its right-click menu drops it:
+  header (`cmpCloseX`) or its right-click menu drops it. The empty drawer's
+  line and the header's menu open `comparePicker`: the refs but HEAD, or a
+  revision typed into the filter, `#` dropped as GitLens takes it:
 
 | Source                                    | Range                        |
 | ----------------------------------------- | ---------------------------- |
@@ -129,6 +131,7 @@ A Commit with nothing staged is muted too, and a click on it does nothing.
 | Compare with HEAD                         | `h..HEAD`                    |
 | Compare Working Tree to Here              | `h`                          |
 | Select for Compare, then Compare with `s` | `s..h`                       |
+| Compare `b` with… (`comparePicker`)       | `r..HEAD`                    |
 | Open Changed Files on a PR or its notice  | `git.FetchPR`: `base...head` |
 
 ## Spaces

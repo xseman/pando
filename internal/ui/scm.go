@@ -138,9 +138,10 @@ type stageMsg struct {
 }
 
 type refsMsg struct {
-	root string
-	refs []git.Ref
-	err  error
+	root    string
+	refs    []git.Ref
+	err     error
+	compare bool // for comparePicker, not branchPicker
 }
 
 // remotesMsg answers publish: the remotes to pick from, and whether gh can
@@ -1171,14 +1172,14 @@ func (s *scmView) loadDrawers(m *Model) tea.Cmd {
 			continue
 		}
 
-		title, args, file, c := d.Title, d.Args, s.history, s.cmp
+		title, args, file, c, head := d.Title, d.Args, s.history, s.cmp, s.head(root)
 
 		cmds = append(cmds, func() tea.Msg {
 			switch {
 			case args != nil:
 				return drawerMsg{root, title, git.Lines(root, args...)}
 			case title == cmpTitle && c.spec == "":
-				return drawerMsg{root, title, []string{"select a commit to see the files it changed"}}
+				return drawerMsg{root, title, []string{"Compare " + head + " with <branch, tag, or ref>…", "or select a commit to see the files it changed"}}
 			case title == cmpTitle:
 				c.open = false
 				c.files, c.err = git.Compare(root, c.spec)
@@ -2460,6 +2461,10 @@ func (s *scmView) drawerMenu(m *Model, title string, x, y int) tea.Cmd {
 	}
 
 	var items []item
+	if title == cmpTitle {
+		items = append(items, item{label: "Compare " + s.head(s.root()) + " with…", run: s.comparePicker})
+	}
+
 	if title == cmpTitle && s.cmp.spec != "" {
 		items = append(items, item{label: "Close Comparison", run: s.closeCompare})
 	}
@@ -2483,7 +2488,12 @@ func (s *scmView) drawerMenu(m *Model, title string, x, y int) tea.Cmd {
 }
 
 // branchPicker loads refs for VS Code's "Select a branch or tag to checkout".
-func (s *scmView) branchPicker(_ *Model) tea.Cmd {
+func (s *scmView) branchPicker(_ *Model) tea.Cmd { return s.loadRefs(false) }
+
+// comparePicker loads refs for GitLens' "Compare <branch> with".
+func (s *scmView) comparePicker(_ *Model) tea.Cmd { return s.loadRefs(true) }
+
+func (s *scmView) loadRefs(compare bool) tea.Cmd {
 	root := s.root()
 	if root == "" {
 		return flash("no git repository in this workspace", true)
@@ -2491,8 +2501,13 @@ func (s *scmView) branchPicker(_ *Model) tea.Cmd {
 
 	return func() tea.Msg {
 		refs, err := git.Refs(root)
-		return refsMsg{root, refs, err}
+		return refsMsg{root, refs, err, compare}
 	}
+}
+
+// head names what HEAD is in root: its branch, else HEAD.
+func (s *scmView) head(root string) string {
+	return cmp.Or(s.status[root].Branch, "HEAD")
 }
 
 func (s *scmView) onRefs(m *Model, msg refsMsg) tea.Cmd {
@@ -2501,6 +2516,11 @@ func (s *scmView) onRefs(m *Model, msg refsMsg) tea.Cmd {
 	}
 
 	root, refs := msg.root, msg.refs
+	if msg.compare {
+		s.onCompareRefs(m, root, refs)
+		return nil
+	}
+
 	md := s.refPicker(m, "Select a branch or tag to checkout", refs, func(_ *Model, r git.Ref) tea.Cmd {
 		return s.checkout(root, refs, r, false)
 	})
@@ -2527,6 +2547,31 @@ func (s *scmView) onRefs(m *Model, msg refsMsg) tea.Cmd {
 	md.refilter()
 
 	return nil
+}
+
+// onCompareRefs picks what to compare HEAD with: a ref, or a revision typed
+// into the filter (GitLens' "#" prefix allowed), as `rev..HEAD`.
+func (s *scmView) onCompareRefs(m *Model, root string, refs []git.Ref) {
+	head := s.head(root)
+	with := func(rev string) tea.Cmd {
+		rev = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(rev), "#"))
+		switch {
+		case rev == "":
+			return flash("type a branch, tag or commit to compare with", true)
+		case strings.HasPrefix(rev, "-"): // git diff would take it for an option
+			return flash("not a revision: "+rev, true)
+		}
+
+		return s.compare(rev+" ↔ "+head, func(string) (string, error) { return rev + "..HEAD", nil })
+	}
+
+	others := slices.DeleteFunc(slices.Clone(refs), func(r git.Ref) bool { return r.Head })
+	md := s.refPicker(m, "Compare "+head+" with", others, func(_ *Model, r git.Ref) tea.Cmd { return with(r.Name) })
+	md.input.Placeholder = "a branch, tag or commit"
+	md.items = append(md.items, item{label: "Compare with the typed revision", always: true, run: func(*Model) tea.Cmd {
+		return with(md.input.Value())
+	}})
+	md.refilter()
 }
 
 // refGroups orders the picker's refs the way VS Code groups them: local
@@ -2717,6 +2762,8 @@ func (s *scmView) lineAction(m *Model, r *scmRow) tea.Cmd {
 
 	text := strings.TrimSpace(r.text)
 	switch r.title {
+	case cmpTitle: // its lines only stand in for a comparison
+		return s.comparePicker(m)
 	case "Stashes":
 		ref, _, _ := strings.Cut(text, ":")
 		return m.openShow(root, ref)
