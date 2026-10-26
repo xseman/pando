@@ -596,46 +596,86 @@ func (p *preview) sortLines(m *Model) tea.Cmd {
 	return cmd
 }
 
-// toggleComment comments or uncomments the selected lines, VS Code's ⌃/.
+// toggleComment comments or uncomments every line the selection touches, VS
+// Code's ⌃/. The marks line up at the shallowest indent, and the selection
+// stays on the lines, so a second ⌃/ takes them back.
 func (p *preview) toggleComment(m *Model) tea.Cmd {
 	a, z, ok := p.selection()
 	if !ok {
 		a, z = p.at(), p.at()
+	} else if z.col == 0 && z.line > a.line { // as changedLines: a selection ending at column 0 leaves that line out
+		z.line--
 	}
 
 	mark := commentOf(p.path)
-	on := false
-
-	for i := a.line; i <= z.line; i++ {
-		l := strings.TrimSpace(string(p.buf.line(i)))
-		if l != "" && !strings.HasPrefix(l, mark) {
-			on = true
-			break
-		}
-	}
-
-	var out []string
+	on, ind := false, -1 // ind is the shallowest indent, where the marks go
 
 	for i := a.line; i <= z.line; i++ {
 		l := string(p.buf.line(i))
+		if strings.TrimSpace(l) == "" {
+			continue
+		}
+
+		n := len(indentOf(p.buf.line(i)))
+		if ind < 0 || n < ind {
+			ind = n
+		}
+
+		on = on || !strings.HasPrefix(l[n:], mark)
+	}
+
+	out := make([]string, 0, z.line-a.line+1)
+
+	for i := a.line; i <= z.line; i++ {
+		l := string(p.buf.line(i))
+		n := len(indentOf(p.buf.line(i)))
+
 		switch {
-		case on && strings.TrimSpace(l) == "":
+		case strings.TrimSpace(l) == "":
 			// an empty line keeps its emptiness
 		case on:
-			indent := indentOf(p.buf.line(i))
-			l = indent + mark + " " + strings.TrimPrefix(l, indent)
-
+			l = l[:ind] + mark + " " + l[ind:]
 		default:
-			trimmed := strings.TrimSpace(l)
-			l = strings.Replace(l, trimmed, strings.TrimPrefix(strings.TrimPrefix(trimmed, mark), " "), 1)
+			l = l[:n] + strings.TrimPrefix(strings.TrimPrefix(l[n:], mark), " ")
 		}
 
 		out = append(out, l)
 	}
 
-	last := pos{z.line, p.lineLen(z.line)}
-	cmd := p.edit(m, pos{a.line, 0}, last, strings.Join(out, "\n"))
-	p.setCursor(m, pos{z.line, p.lineLen(z.line)})
+	// keep moves a position past the mark with its text, in buffer coordinates.
+	keep := func(c pos) pos {
+		c = p.rawPos(c)
+		if c.line < a.line || c.line > z.line {
+			return c
+		}
+
+		old := p.buf.line(c.line)
+
+		at := ind
+		if !on {
+			at = len(indentOf(old))
+		}
+
+		if c.col > at {
+			c.col = max(at, c.col+len([]rune(out[c.line-a.line]))-len(old))
+		}
+
+		return c
+	}
+
+	cur, anchor := keep(p.at()), p.anchor
+	if anchor != nil {
+		k := keep(*anchor)
+		anchor = &k
+	}
+
+	cmd := p.edit(m, pos{a.line, 0}, pos{z.line, p.lineLen(z.line)}, strings.Join(out, "\n"))
+	if anchor != nil { // edit clears the anchor
+		k := p.dispPos(*anchor)
+		p.anchor = &k
+	}
+
+	p.setCursor(m, p.dispPos(cur))
 
 	return cmd
 }
