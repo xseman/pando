@@ -153,7 +153,7 @@ dirty one. Every jump is a history entry with cursor and scroll for Go Back.
 | Command                   | How it works                                                   |
 | ------------------------- | -------------------------------------------------------------- |
 | Copy / Move Line Up, Down | one splice, one undo step                                      |
-| Toggle Line Comment       | selected lines at the shallowest indent, `commentOf`'s marker  |
+| Toggle Line Comment       | `commentOf`: lexer → VS Code's token; `commentIn`: `<script>`  |
 | Sort Lines Ascending      | `sortLines`: selected lines or the whole file; palette, menu   |
 | Expand / Shrink Selection | `smartSel`: word, trimmed line, line, bracket pairs, file      |
 | Save                      | `errChangedOnDisk` asks before overwriting a newer file        |

@@ -72,7 +72,10 @@ func (p *preview) inComment() bool {
 	r := p.rawPos(p.at())
 	bl := p.buf.line(r.line)
 
-	return strings.Contains(string(bl[:min(r.col, len(bl))]), commentOf(p.path))
+	c, _ := commentOf(p.path, "")
+	tok := cmp.Or(c.line, c.open)
+
+	return tok != "" && strings.Contains(string(bl[:min(r.col, len(bl))]), tok)
 }
 
 func (p *preview) closeComp() { p.comp = completion{seq: p.comp.seq} }

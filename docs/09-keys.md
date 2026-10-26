@@ -130,7 +130,7 @@ Editable only:
 - `ctrl+shift+k`: delete the line or selection
 - `alt+↑` `alt+↓`: move the line
 - `alt+shift+↑`, `alt+shift+↓` `ctrl+d`: copy the line up, down
-- `ctrl+/`: toggle a comment on the line or every selected line
+- `ctrl+/`: toggle a comment on the line or every selected line, in the language there (a `<script>`, a code fence); a block where it has no line comment (HTML, CSS, Markdown)
 - `ctrl+space`: suggestions (`⏎` `tab` accept, `esc` close)
 
 Read-only views add letters: `hjkl` `0` `$` move, `b` `f` `space` page, `g`

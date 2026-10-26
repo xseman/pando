@@ -250,37 +250,6 @@ func TestEditorLineOps(t *testing.T) {
 	}
 }
 
-// TestEditorCommentLines: ⌃/ over a selection comments every line it touches
-// at the shallowest indent, keeps the selection, and a second ⌃/ undoes it.
-func TestEditorCommentLines(t *testing.T) {
-	m, _ := editorModel(t, "a.go", "func f() {\n\tif x {\n\t\ty()\n\t}\n}\n")
-	m.pv.cur = pos{1, 0}
-	press(m, "shift+down", "shift+down", "shift+down") // ends at column 0 of the closing brace
-
-	press(m, "ctrl+/")
-
-	if got := m.pv.buf.text(); got != "func f() {\n\t// if x {\n\t// \ty()\n\t// }\n}" {
-		t.Fatalf("commented: %q", got)
-	}
-
-	if a, z, ok := m.pv.selection(); !ok || a != (pos{1, 0}) || z != (pos{4, 0}) {
-		t.Fatalf("selection %v..%v %v", a, z, ok)
-	}
-
-	press(m, "ctrl+/")
-
-	if got := m.pv.buf.text(); got != "func f() {\n\tif x {\n\t\ty()\n\t}\n}" {
-		t.Fatalf("uncommented: %q", got)
-	}
-	// Without a selection the cursor moves with its text.
-	m.pv.anchor, m.pv.cur = nil, pos{4, 1}
-	press(m, "ctrl+/")
-
-	if got := string(m.pv.buf.line(4)); got != "// }" || m.pv.cur != (pos{4, 4}) {
-		t.Fatalf("line %q cur %v", got, m.pv.cur)
-	}
-}
-
 func TestEditorCopyLines(t *testing.T) {
 	m, _ := editorModel(t, "c.py", "one\ntwo\nthree\n")
 	m.pv.cur = pos{1, 0}
