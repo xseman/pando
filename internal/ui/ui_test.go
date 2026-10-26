@@ -2223,6 +2223,41 @@ func TestSectionActions(t *testing.T) {
 	}
 }
 
+// TestDiscardFolder: a folder in Changes has a ↶ beside its +, which asks
+// first and puts back every tracked file under it.
+func TestDiscardFolder(t *testing.T) {
+	m := gitModel(t)
+	for _, a := range [][]string{{"init", "-q", "-b", "main"}, {"config", "user.email", "t@t"}, {"config", "user.name", "t"}} {
+		mustGit(t, m.ws, a...)
+	}
+
+	mustWrite(t, filepath.Join(m.ws, "a", "b.go"), "package a\n")
+	mustGit(t, m.ws, "add", "-A")
+	mustGit(t, m.ws, "commit", "-qm", "init")
+	mustWrite(t, filepath.Join(m.ws, "a", "b.go"), "package b\n")
+	press(m, "t")
+
+	top := m.bodyTop(viewGit)
+	d := slices.IndexFunc(m.scm.rows, func(r scmRow) bool { return r.kind == rowDir && r.title == "Changes" && r.path == "a" })
+	m.Update(tea.MouseMotionMsg{X: 3, Y: top + d})
+
+	if got := sidebarRow(t, m, d); !strings.Contains(got, "↶  +  ") {
+		t.Fatalf("hovered folder row = %q", got)
+	}
+
+	click(m, m.scm.actions(m.scm.rows[d], m.colRect(0).w)[0].x, top+d, tea.MouseLeft)
+
+	if m.modal == nil || m.modal.title != "Discard changes in a?" {
+		t.Fatalf("↶ on a folder: %+v", m.modal)
+	}
+
+	fire(m, m.modal.choose(m, 0))
+
+	if got := mustRead(t, filepath.Join(m.ws, "a", "b.go")); got != "package a\n" {
+		t.Fatalf("Discard puts the folder back: %q", got)
+	}
+}
+
 func TestSplitDiff(t *testing.T) {
 	_, _, meta, _ := render(pvDiff, "src/app.ts", sampleDiff, true)
 	if got := splitRows(meta); !slices.Equal(got, []splitRow{{0, 0, false}, {1, 2, false}, {-1, 3, false}, {4, 4, false}}) {

@@ -676,7 +676,8 @@ func (s *scmView) actions(r scmRow, w int) []rowAction {
 			add(icDiscard, "Delete Untracked Files…  d", func(m *Model) tea.Cmd { return s.confirmDeleteUntracked(m, root, dir.Path) })
 			add(icAdd, "Stage Changes", git1("staging", func(root string) error { return git.Stage(root, dir) }))
 
-		default:
+		case "Changes":
+			add(icDiscard, "Discard Changes…  d", func(m *Model) tea.Cmd { return s.confirmDiscard(m, root, dir) })
 			add(icAdd, "Stage Changes", git1("staging", func(root string) error { return git.Stage(root, dir) }))
 		}
 

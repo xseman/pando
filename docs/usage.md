@@ -213,7 +213,7 @@ the same cell.
 | --------- | ---------------------------------------------------------- |
 | `⏎`       | stage or unstage the file; `o` opens its diff              |
 | `a` / `u` | stage / unstage all; `U` stages the untracked              |
-| `d`       | discard the file or the section, after asking              |
+| `d`       | discard the file, folder or section, after asking          |
 | `c`       | focus the message box; `A` has `claude` write the message  |
 | `↑` / `↓` | in the message box: older / newer commit messages          |
 | `C`       | commit                                                     |

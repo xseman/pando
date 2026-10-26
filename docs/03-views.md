@@ -83,6 +83,7 @@ Show Hidden Files and Sort by Type / Name (`explorer_sort`) added.
 | ----------------- | ---------------------------------------------------------------------------------------- |
 | Merge Changes     | no discard; staging marks resolved, asks if markers remain; `UD`/`DU` ask keep or delete |
 | Staged, Changes   | Stage All and `+` leave merge entries alone                                              |
+| Changes           | a folder's `↶` runs `git checkout -- <folder>` after a dialog (`confirmDiscard`)         |
 | Untracked Changes | `↶` deletes after a dialog (`confirmDeleteUntracked`, `git.DeleteUntracked`)             |
 
 `d` runs the row's `↶`. Scrolled, the repository head and current section
