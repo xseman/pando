@@ -2007,6 +2007,7 @@ func (m *Model) headerActions(s int, v view, w int) []titleAction {
 		add(icAdd, "New Session…  n", func(m *Model) tea.Cmd { return m.ag.newSession(m, m.ag.selected(m)) })
 		add(icResume, "Resume Session…", func(m *Model) tea.Cmd { return m.ag.resume(m, m.ag.selected(m)) })
 		add(icWorktree, "New Worktree…  w", func(m *Model) tea.Cmd { return m.ag.newWorktree(m, m.ag.selected(m)) })
+		add(icFind, "Search  ^f", func(m *Model) tea.Cmd { return m.startFilter(viewAgents) })
 		add(icRefresh, "Refresh  r", func(*Model) tea.Cmd { return tea.Batch(loadState(), loadWorkspaces(), loadSessions()) })
 		add(icOptions, "View Options…  o", func(m *Model) tea.Cmd { return m.ag.viewMenu(m, m.mouseX, m.mouseY+1) })
 	}

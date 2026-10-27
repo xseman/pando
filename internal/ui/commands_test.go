@@ -1356,6 +1356,32 @@ func TestSpacesHeaderResume(t *testing.T) {
 	checkWidths(t, m)
 }
 
+// TestSpacesHeaderSearch clicks the search button in Spaces' header: it
+// opens the list's filter, ready to type, as ctrl+f does.
+func TestSpacesHeaderSearch(t *testing.T) {
+	m := testModel(t)
+	press(m, "3")
+
+	s := m.colOf(viewAgents)
+	rc := m.colRect(s)
+	m.Update(tea.MouseMotionMsg{X: rc.x + 1, Y: m.barH(s)})
+
+	acts := m.headerActions(s, viewAgents, rc.w)
+
+	i := slices.IndexFunc(acts, func(a titleAction) bool { return a.tip == "Search  ^f" })
+	if i < 0 {
+		t.Fatal("Spaces' header has a search button")
+	}
+
+	click(m, rc.x+m.barW(s)*b2i(m.side(s) == 0)+acts[i].x, m.barH(s), tea.MouseLeft)
+
+	if f := m.filters[viewAgents]; !f.on || !f.editing || m.focus != s {
+		t.Fatalf("the click opens the filter and focuses Spaces: on=%v editing=%v focus=%d", f.on, f.editing, m.focus)
+	}
+
+	checkWidths(t, m)
+}
+
 // TestSpacesDragWorktree drags a project's checkout below its linked
 // worktree: the slot is marked under that worktree's last session, a
 // workspaces event mid-drag keeps it, the release moves each with its

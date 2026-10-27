@@ -406,6 +406,7 @@ var (
 	icUnfold     = glyph{"unfold", "\ueb73", "full", ""}
 	icFold       = glyph{"fold", "\ueaf5", "changes", ""}
 	icSearch     = glyph{"search", "\uea6d", "Search", "🔍"}
+	icFind       = glyph{"search", "\uea6d", "⌕", ""} // icSearch for a header button: one cell without the font
 	icCase       = glyph{"case-sensitive", "\ueab1", "Aa", ""}
 	icWord       = glyph{"whole-word", "\ueb7e", "ab", ""}
 	icRegex      = glyph{"regex", "\ueb38", ".*", ""}

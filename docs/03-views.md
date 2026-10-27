@@ -29,7 +29,8 @@ items(m) ──▶ context menu + command palette
 | GitHub         | `6` | `github.go`    | pull requests, notifications, issues; needs `gh`                             |
 | Databases      | `7` | `databases.go` | SQLite files, `.env` and `[databases]` servers, their tables; needs a client |
 
-`ctrl+f` filters a list (`startFilter`) from a framed box under the header.
+`ctrl+f` filters a list (`startFilter`) from a framed box under the header;
+Spaces' header has a search button for it.
 
 ## Explorer
 
