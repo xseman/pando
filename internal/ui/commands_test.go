@@ -3303,6 +3303,23 @@ func TestSwitchKeepsShownSession(t *testing.T) {
 	}
 }
 
+// TestSessionRowKeepsTab clicks the row of the session on screen: it keeps
+// its tab and takes the keyboard, as VS Code's Explorer does with an open file.
+func TestSessionRowKeepsTab(t *testing.T) {
+	m := testModelSized(t, 140, 30)
+	press(m, "3")
+
+	rows := m.ag.rows(m)
+	k := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agSession })
+	m.ag.activate(m, &rows[k])
+	m.focus = m.colOf(viewAgents)
+	m.ag.activate(m, &rows[k])
+
+	if !m.showsSession() || !slices.Contains(m.stripSessions(), "s1") || m.focus != onMain {
+		t.Fatalf("on screen %v, strip %v, focus %d", m.showsSession(), m.stripSessions(), m.focus)
+	}
+}
+
 // TestSessionOverEditorTabs: a session opens over the editor area as a tab
 // beside the files'. Opening a file keeps its tab; a click shows it again.
 // Its ✕ closes the tab, the session running on.

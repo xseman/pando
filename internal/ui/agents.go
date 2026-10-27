@@ -1204,32 +1204,11 @@ func (a *agents) activate(m *Model, r *agRow) tea.Cmd {
 
 	case agWorkspace:
 		return tea.Batch(m.switchWorkspace(r.ws.Path), m.refreshGit(), m.fetchScreen())
-	case agSession:
-		if m.putsAway(r.s.ID) {
-			return m.hideSession()
-		}
-
+	case agSession: // the one on screen too: it keeps its tab and takes the keyboard, as VS Code's open file does
 		return m.openSession(r.s.ID)
 	}
 
 	return nil
-}
-
-// putsAway reports a click on session id's row hiding it: a second click.
-func (m *Model) putsAway(id string) bool { return m.sess == id && m.inView(m.sess) }
-
-// click is a left click's activate. A session it puts away leaves nothing
-// selected, so its row no longer reads as the one open; ↵ keeps the
-// selection for the keys that follow.
-func (a *agents) click(m *Model, r *agRow) tea.Cmd {
-	hides := r != nil && r.kind == agSession && m.putsAway(r.s.ID)
-
-	cmd := a.activate(m, r)
-	if hides {
-		a.l.sel = -1
-	}
-
-	return cmd
 }
 
 // workspaceFor picks the workspace a new session from row r goes into: a
@@ -1915,7 +1894,7 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 			}
 		}
 
-		return a.click(m, &rows[i])
+		return a.activate(m, &rows[i])
 	}
 
 	return nil
@@ -1940,7 +1919,7 @@ func (a *agents) dragRowTo(m *Model, d *drag, y int, release bool) tea.Cmd {
 
 	m.drag = nil
 	if !d.moved {
-		return a.click(m, a.selected(m))
+		return a.activate(m, a.selected(m))
 	}
 
 	switch {

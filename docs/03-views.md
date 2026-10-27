@@ -197,7 +197,7 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
 
 | Action         | Session                    | Worktree                                            | Project                  |
 | -------------- | -------------------------- | --------------------------------------------------- | ------------------------ |
-| click          | open; again puts it away   | switch                                              | fold                     |
+| click          | open; on screen, focus     | switch                                              | fold                     |
 | `x`            | kill                       | linked: delete folder, keep branch; checkout: close | close (`project.remove`) |
 | drag, `alt+↑↓` | reorder (`session.move`)   | reorder (`workspace.move`)                          | reorder (`project.move`) |
 | `n`, hover btn | its worktree's harness     | the harness (`harnessPicker`)                       | a worktree or a new one  |
