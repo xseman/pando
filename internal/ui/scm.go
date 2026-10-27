@@ -420,7 +420,7 @@ func (s *scmView) build(m *Model) {
 
 	lq := strings.ToLower(q)
 
-	for _, d := range m.drawers() {
+	for _, d := range s.shownDrawers(m) {
 		s.heads = append(s.heads, len(s.rows))
 
 		s.rows = append(s.rows, scmRow{kind: rowDrawer, title: d.Title})
@@ -517,7 +517,10 @@ func (s *scmView) onCompare(m *Model, msg cmpMsg) tea.Cmd {
 
 	s.cmp = msg
 
-	var cmd tea.Cmd
+	var unfold, cmd tea.Cmd
+	if msg.open && m.st.Settings.GitFold { // a comparison opened shows, the drawers unfolded
+		unfold = s.foldDrawers(m)
+	}
 
 	shown := slices.ContainsFunc(m.drawers(), func(d git.Drawer) bool { return d.Title == cmpTitle })
 	if msg.open && (!shown || !m.pane(cmpTitle).Open) {
@@ -532,13 +535,89 @@ func (s *scmView) onCompare(m *Model, msg cmpMsg) tea.Cmd {
 		}
 	}
 
-	return cmd
+	return tea.Batch(unfold, cmd)
 }
 
 // cmpCloseX is the column of the ✕ on the Compare drawer's header: before
 // the ⇕ of an open drawer, else last.
 func (s *scmView) cmpCloseX(m *Model) int {
 	return m.bodyW(viewGit) - 2 - 2*b2i(m.pane(cmpTitle).Open)
+}
+
+// toolsTitle names the one row the drawers fold into.
+const toolsTitle = "Tools"
+
+// shownDrawers is m.drawers, none while they are folded into one row.
+func (s *scmView) shownDrawers(m *Model) []git.Drawer {
+	if m.st.Settings.GitFold {
+		return nil
+	}
+
+	return m.drawers()
+}
+
+// toolsRow is the one row the drawers fold into, as a project folds its
+// sessions in Spaces: a click unfolds them.
+func (s *scmView) toolsRow(m *Model, w int, hovered bool) string {
+	bg, base := m.rowColors(viewGit, false, hovered)
+
+	return row(w, bg, []seg{sg(" "+chevron(false), base.Bold(true)), sg(toolsTitle, base.Bold(true))}, sg(" "+strconv.Itoa(len(m.drawers()))+" ", dim), sg(" ", plain))
+}
+
+// ruleActions are the buttons at the end of the rule over the unfolded
+// drawers: Collapse All Drawers while one is open, and the fold into Tools.
+func (s *scmView) ruleActions(m *Model, w int) []rowAction {
+	var acts []rowAction
+	if slices.ContainsFunc(m.drawers(), func(d git.Drawer) bool { return m.pane(d.Title).Open }) {
+		acts = append(acts, rowAction{g: icCollapse, tip: "Collapse All Drawers", run: s.collapseDrawers})
+	}
+
+	acts = append(acts, rowAction{g: icChevron, tip: "Fold into Tools", run: s.foldDrawers})
+	layoutRight(acts, w-1, 2)
+
+	return acts
+}
+
+// drawersRule is the rule over the unfolded drawers. With the mouse over
+// them, as the header's actions linger, it ends in ruleActions, the one
+// under the mouse raised; onRule is whether the mouse is on the rule.
+func (s *scmView) drawersRule(m *Model, w int, hot, onRule bool) string {
+	if !hot || time.Since(m.mouseAt) > actionsLinger {
+		return clickRule(w, onRule)
+	}
+
+	acts, mx := s.ruleActions(m, w), -1
+	if onRule {
+		mx = m.mouseCol(viewGit)
+		if a, ok := hit(acts, mx); ok {
+			m.tip = a.tip
+		}
+	}
+
+	segs := append(drawActions(acts, mx), sg(" ", plain))
+	bw := 0
+
+	for _, sg := range segs {
+		bw += ansi.StringWidth(sg.s)
+	}
+
+	return row(w, ifElse(onRule, pal.hoverBg, nil), []seg{sg(strings.Repeat("─", max(w-bw-1, 0))+" ", fg(pal.inputBorder))}, segs...)
+}
+
+// clickRule is the rule over the drawers, on a row's hover background under
+// the mouse: a click on it folds or unfolds them.
+func clickRule(w int, hovered bool) string {
+	if !hovered {
+		return fg(pal.inputBorder).Render(strings.Repeat("─", w))
+	}
+
+	return row(w, pal.hoverBg, []seg{sg(strings.Repeat("─", w), fg(pal.inputBorder))})
+}
+
+// foldDrawers folds the drawers into one Tools row, each keeping whether
+// it is open, or unfolds them.
+func (s *scmView) foldDrawers(m *Model) tea.Cmd {
+	return tea.Batch(m.setSettings(map[string]any{"git_drawers_folded": !m.st.Settings.GitFold}), s.loadDrawers(m))
 }
 
 // closeCompare drops the comparison the Compare drawer shows.
@@ -928,6 +1007,13 @@ func (s *scmView) paneH(m *Model) int { return m.bodyH(viewGit) }
 // fixed order and the changes pane takes the rest, keeping at least 3 rows.
 func (s *scmView) geometry(m *Model, h int) (changesH int, ds []drawerGeom) {
 	drawers := m.drawers()
+	switch {
+	case len(drawers) == 0:
+		return h, nil
+	case m.st.Settings.GitFold: // the rule and the Tools row
+		return max(h-2, 0), nil
+	}
+
 	ds = make([]drawerGeom, len(drawers))
 	budget := h - 3
 
@@ -1168,7 +1254,7 @@ func (s *scmView) loadDrawers(m *Model) tea.Cmd {
 
 	var cmds []tea.Cmd
 
-	for _, d := range m.drawers() {
+	for _, d := range s.shownDrawers(m) {
 		if !m.pane(d.Title).Open {
 			continue
 		}
@@ -1306,9 +1392,18 @@ func (s *scmView) lines(m *Model, w, h int) []string {
 	s.guides = activeGuide(len(s.rows), s.sel, func(i int) int { return s.rows[i].level() })
 
 	out := s.renderPane(m, w, ch, "", 0, s.changesEnd(), hover)
+	rule := fg(pal.inputBorder).Render(strings.Repeat("─", w))
+
+	if m.st.Settings.GitFold && len(m.drawers()) > 0 {
+		return append(out, clickRule(w, hover == len(out)), s.toolsRow(m, w, hover == len(out)+1))
+	}
+
 	for j := range s.heads {
-		if ds[j].sep {
-			out = append(out, fg(pal.inputBorder).Render(strings.Repeat("─", w)))
+		switch {
+		case j == 0:
+			out = append(out, s.drawersRule(m, w, hover >= ch, hover == ch))
+		case ds[j].sep:
+			out = append(out, rule)
 		}
 
 		out = append(out, s.renderRow(m, s.heads[j], w, hover == len(out)))
@@ -1537,7 +1632,7 @@ func (s *scmView) renderRow(m *Model, i, w int, hovered bool) string {
 		st = st.Bold(true)
 	}
 
-	return row(w, bg, []seg{sg("   "+r.text, st)})
+	return row(w, bg, []seg{sg("   "+expandTabs(r.text), st)}) // git remote -v parts its columns with a tab, which takes no cell in a row
 }
 
 // commitPlaceholder is the message box's hint: during a merge or
@@ -1904,8 +1999,9 @@ func (s *scmView) toggleTree(m *Model) tea.Cmd {
 	return m.setSettings(map[string]any{"git_tree": !m.st.Settings.GitTree})
 }
 
-// collapseAll folds every tree directory, or every section in list mode.
-func (s *scmView) collapseAll(m *Model) {
+// collapseAll folds every tree directory, or every section in list mode,
+// and closes the drawers.
+func (s *scmView) collapseAll(m *Model) tea.Cmd {
 	for _, r := range s.rows {
 		switch {
 		case r.kind == rowDir:
@@ -1916,6 +2012,8 @@ func (s *scmView) collapseAll(m *Model) {
 	}
 
 	s.build(m)
+
+	return s.collapseDrawers(m)
 }
 
 func (s *scmView) run(root, label string, fn func(root string) scmMsg) tea.Cmd {
@@ -2454,6 +2552,27 @@ func (s *scmView) setDrawer(m *Model, title string, open bool) tea.Cmd {
 	return tea.Batch(cmd, s.loadDrawers(m))
 }
 
+// collapseDrawers closes every open drawer in one settings write, the
+// drawers keeping the order they show in.
+func (s *scmView) collapseDrawers(m *Model) tea.Cmd {
+	panes, order := map[string]proto.Pane{}, []string{}
+
+	for _, d := range m.drawers() {
+		if p := m.pane(d.Title); p.Open {
+			p.Open = false
+			panes[d.Title] = p
+		}
+
+		order = append(order, d.Title)
+	}
+
+	if len(panes) == 0 {
+		return nil
+	}
+
+	return m.setSettings(map[string]any{"git_panes": panes, "git_drawers": order})
+}
+
 // drawerMenu hides the drawer under the pointer or toggles any other, like
 // a right click on a VS Code Source Control section.
 func (s *scmView) drawerMenu(m *Model, title string, x, y int) tea.Cmd {
@@ -2471,10 +2590,17 @@ func (s *scmView) drawerMenu(m *Model, title string, x, y int) tea.Cmd {
 	}
 
 	if title != "" {
-		items = append(items, item{label: "Hide '" + title + "'", run: toggle(title)}, item{})
+		items = append(items, item{label: "Hide '" + title + "'", run: toggle(title)})
 	}
 
 	shown := m.drawers()
+	if slices.ContainsFunc(shown, func(d git.Drawer) bool { return m.pane(d.Title).Open }) {
+		items = append(items, item{label: "Collapse All Drawers", run: s.collapseDrawers})
+	}
+
+	if len(items) > 0 {
+		items = append(items, item{})
+	}
 
 	for _, d := range git.Drawers {
 		mark := "  "
@@ -2961,8 +3087,9 @@ func (s *scmView) items(m *Model) []item {
 		item{label: "Publish Branch", run: s.publish},
 		item{label: "Switch Branch…", hint: "B", run: s.branchPicker})
 	group(item{label: mode, hint: "t", run: s.toggleTree},
-		item{label: "Collapse All", run: func(m *Model) tea.Cmd { s.collapseAll(m); return nil }},
-		item{label: "History Drawers…", run: func(m *Model) tea.Cmd { return s.drawerMenu(m, "", 0, m.bodyH(viewGit)/2) }})
+		item{label: "Collapse All", run: s.collapseAll},
+		item{label: "History Drawers…", run: func(m *Model) tea.Cmd { return s.drawerMenu(m, "", 0, m.bodyH(viewGit)/2) }},
+		item{label: ifElse(m.st.Settings.GitFold, "Unfold Tools", "Fold Tools"), run: s.foldDrawers})
 
 	return items
 }
@@ -2990,6 +3117,28 @@ func (s *scmView) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 	ch, ds := s.geometry(m, s.paneH(m))
 
 	key, start, n, py, h := "", 0, s.changesEnd(), y, ch
+	if m.st.Settings.GitFold && y >= ch { // the rule or the Tools row unfolds
+		switch {
+		case !click || y > ch+1:
+			return nil
+		case mo.Button == tea.MouseRight:
+			return s.drawerMenu(m, "", mo.X, mo.Y)
+		}
+
+		return s.foldDrawers(m)
+	}
+
+	if len(ds) > 0 && y == ds[0].head-1 { // the rule over the drawers: a click folds them, but on its buttons
+		switch a, ok := hit(s.ruleActions(m, m.bodyW(viewGit)), x); {
+		case !click || mo.Button != tea.MouseLeft:
+			return nil
+		case ok:
+			return a.run(m)
+		}
+
+		return s.foldDrawers(m)
+	}
+
 	if y >= ch {
 		key = "-"
 

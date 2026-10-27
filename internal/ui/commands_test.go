@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -1567,6 +1568,163 @@ func TestDrawerStack(t *testing.T) {
 
 	if !m.pane("Stashes").Open || m.pane("Remotes").Open {
 		t.Fatalf("panes %+v", m.st.Settings.GitPanes)
+	}
+
+	checkWidths(t, m)
+}
+
+// TestCollapseDrawers closes every open drawer from a drawer's right-click
+// menu, the drawers staying where they show; with none open it is not
+// offered. The header's Collapse All closes them as well.
+func TestCollapseDrawers(t *testing.T) {
+	m := gitModel(t)
+	m.st.Settings.GitPanes = map[string]proto.Pane{"Commits": {Open: true, H: 4}, "Remotes": {Open: true, H: 6}}
+	m.scm.build(m)
+
+	var want []string
+	for _, d := range m.drawers() {
+		want = append(want, d.Title)
+	}
+
+	m.scm.drawerMenu(m, "Graph", 0, 0)
+	choose(t, m, "Collapse All Drawers")
+
+	if slices.ContainsFunc(m.drawers(), func(d git.Drawer) bool { return m.pane(d.Title).Open }) || m.pane("Remotes").H != 6 {
+		t.Fatalf("panes %+v", m.st.Settings.GitPanes)
+	}
+
+	if !slices.Equal(m.st.Settings.Drawers, want) {
+		t.Fatalf("order %v, want %v", m.st.Settings.Drawers, want)
+	}
+
+	m.scm.drawerMenu(m, "Graph", 0, 0)
+
+	if slices.Contains(labels(m), "Collapse All Drawers") {
+		t.Fatalf("offered with none open: %v", labels(m))
+	}
+
+	m.modal = nil
+	// The header's Collapse All closes them too.
+	m.st.Settings.GitPanes["Graph"] = proto.Pane{Open: true, H: 4}
+
+	s := m.colOf(viewGit)
+	rc := m.colRect(s)
+	m.Update(tea.MouseMotionMsg{X: rc.x + 1, Y: m.barH(s)})
+
+	acts := m.headerActions(s, viewGit, rc.w)
+
+	i := slices.IndexFunc(acts, func(a titleAction) bool { return a.tip == "Collapse All" })
+	if i < 0 {
+		t.Fatalf("no Collapse All in the header: %+v", acts)
+	}
+
+	acts[i].run(m)
+
+	if m.pane("Graph").Open {
+		t.Fatalf("Collapse All leaves Graph open: %+v", m.st.Settings.GitPanes)
+	}
+
+	checkWidths(t, m)
+}
+
+// TestFoldDrawers works the buttons at the end of the rule over the
+// drawers, shown with the mouse over them: ⊟ closes them all, ∨ folds them
+// into one Tools row, each keeping whether it is open, as a click on the
+// rule does; a click on the row or the rule, or a comparison opened, unfolds
+// them.
+func TestFoldDrawers(t *testing.T) {
+	m := gitModel(t)
+	m.st.Settings.GitPanes = map[string]proto.Pane{"Graph": {Open: true, H: 4}, "Remotes": {Open: true, H: 3}}
+	m.scm.drawers["Remotes"] = []string{"origin\tgit@host:a/b (fetch)"}
+	m.scm.build(m)
+
+	s := m.colOf(viewGit)
+	x0 := m.colRect(s).x + m.barW(s)*b2i(m.side(s) == 0)
+	line := func(y int) string { return ansi.Strip(strings.Split(m.View().Content, "\n")[y]) }
+	rule := func() int {
+		_, ds := m.scm.geometry(m, m.scm.paneH(m))
+		return m.bodyTop(viewGit) + ds[0].head - 1
+	}
+	press := func(tip string) {
+		t.Helper()
+
+		y := rule()
+		m.Update(tea.MouseMotionMsg{X: x0 + 3, Y: y + 1}) // over the drawers
+
+		acts := m.scm.ruleActions(m, m.bodyW(viewGit))
+		i := slices.IndexFunc(acts, func(a rowAction) bool { return a.tip == tip })
+
+		if i < 0 || !strings.Contains(line(y), acts[i].g.s()) {
+			t.Fatalf("no %q on the rule: %+v %q", tip, acts, line(y))
+		}
+
+		click(m, x0+acts[i].x+1, y, tea.MouseLeft)
+	}
+
+	if l := line(rule()); strings.Contains(l, icChevron.s()) || !strings.Contains(line(rule()+1), "▾ Graph") {
+		t.Fatalf("away from the mouse the rule is bare, the drawers under it: %q", l)
+	}
+
+	raw := func(y int) string { return strings.Split(m.View().Content, "\n")[y] }
+
+	m.Update(tea.MouseMotionMsg{X: x0 + 3, Y: rule() + 1})
+
+	if strings.Contains(raw(rule()), bgParams(pal.hoverBg)) {
+		t.Fatal("off the rule it is not lit")
+	}
+
+	m.Update(tea.MouseMotionMsg{X: x0 + 3, Y: rule()})
+
+	if !strings.Contains(raw(rule()), bgParams(pal.hoverBg)) {
+		t.Fatalf("under the mouse the rule takes the hover background: %q", raw(rule()))
+	}
+
+	press("Collapse All Drawers")
+
+	if m.pane("Graph").Open || m.st.Settings.GitFold {
+		t.Fatalf("⊟ closes the drawers, no fold: %+v %v", m.st.Settings.GitPanes, m.st.Settings.GitFold)
+	}
+
+	m.st.Settings.GitPanes["Remotes"] = proto.Pane{Open: true, H: 3}
+	m.scm.build(m)
+	checkWidths(t, m) // the remote's tab takes its cells
+	press("Fold into Tools")
+
+	if !m.st.Settings.GitFold || len(m.scm.heads) != 0 || !m.pane("Remotes").Open {
+		t.Fatalf("folded=%v heads=%v panes=%+v", m.st.Settings.GitFold, m.scm.heads, m.st.Settings.GitPanes)
+	}
+
+	ch, _ := m.scm.geometry(m, m.scm.paneH(m))
+	y := m.bodyTop(viewGit) + ch + 1
+
+	if l := line(y); !strings.Contains(l, "▸ Tools") || !strings.Contains(l, strconv.Itoa(len(m.drawers()))) {
+		t.Fatalf("the folded Tools row: %q", l)
+	}
+
+	checkWidths(t, m)
+	click(m, x0+3, y, tea.MouseLeft)
+
+	if m.st.Settings.GitFold || len(m.scm.heads) != len(m.drawers()) {
+		t.Fatalf("unfolded=%v heads=%v", !m.st.Settings.GitFold, m.scm.heads)
+	}
+	// A click on the rule, off its buttons, folds them too; on it folded, unfolds.
+	click(m, x0+3, rule(), tea.MouseLeft)
+
+	if !m.st.Settings.GitFold {
+		t.Fatal("a click on the rule folds the drawers")
+	}
+
+	click(m, x0+3, y-1, tea.MouseLeft)
+
+	if m.st.Settings.GitFold {
+		t.Fatal("a click on the rule over Tools unfolds them")
+	}
+	// A comparison opened while folded unfolds them, to show it.
+	m.scm.foldDrawers(m)
+	m.Update(cmpMsg{root: m.ws, spec: "HEAD", label: "HEAD", open: true})
+
+	if m.st.Settings.GitFold || !m.pane(cmpTitle).Open || m.drawers()[0].Title != cmpTitle {
+		t.Fatalf("folded=%v drawers=%v", m.st.Settings.GitFold, m.drawers())
 	}
 
 	checkWidths(t, m)

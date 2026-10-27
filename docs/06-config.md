@@ -66,6 +66,7 @@ config.toml edited ───────────┘  └─ "state" event �
 | `git_deco`             | `true`      | Explorer colors entries by git status                                          |
 | `git_tree`             | `true`      | Source Control changes as a tree                                               |
 | `git_drawers`          | 5 drawers   | Graph, Commits, Branches, Remotes, Stashes; top to bottom, any drawer's title  |
+| `git_drawers_folded`   | `false`     | the drawers folded into one Tools row                                          |
 | `git_panes`            | none        | per drawer: `open`, `h` rows; the TUI writes it                                |
 | `diff_view`            | `inline`    | `inline`, `split` (from 90 columns)                                            |
 | `diff_full`            | `false`     | a file's diff shows the whole file, not only the changes (`z`)                 |

@@ -195,6 +195,7 @@ func (c *config) encode() []byte {
 	kv("Show Source Control changes as a tree instead of a flat list.", "git_tree", s.GitTree)
 	kv("Group quick open (ctrl+p) results by directory.", "quick_open_tree", s.QuickTree)
 	kv("Source Control history drawers to show: Graph, Commits, File History, Branches,\nWorktrees, Remotes, Stashes, Tags.", "git_drawers", list(s.Drawers))
+	kv("Fold those drawers into one Tools row.", "git_drawers_folded", s.GitFold)
 	kv("Frame each panel with a titled border.", "panel_borders", s.Borders)
 	kv("Default widths of left and right sidebar columns without their own width.", "width", s.Width)
 	kv("", "width_right", s.WidthR)

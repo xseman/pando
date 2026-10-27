@@ -51,8 +51,9 @@ type Settings struct {
 	Left      Columns         `json:"left" toml:"left"` // sidebar columns from the screen edge to main; unlisted views dock left
 	Right     Columns         `json:"right" toml:"right"`
 	GitTree   bool            `json:"git_tree" toml:"git_tree"`
-	Drawers   []string        `json:"git_drawers" toml:"git_drawers"` // visible Source Control drawers
-	GitPanes  map[string]Pane `json:"git_panes" toml:"git_panes"`     // Git drawers by title
+	Drawers   []string        `json:"git_drawers" toml:"git_drawers"`               // visible Source Control drawers
+	GitPanes  map[string]Pane `json:"git_panes" toml:"git_panes"`                   // Git drawers by title
+	GitFold   bool            `json:"git_drawers_folded" toml:"git_drawers_folded"` // the drawers folded into one Tools row
 	QuickTree bool            `json:"quick_open_tree" toml:"quick_open_tree"`
 	Theme     string          `json:"color_theme" toml:"color_theme"`             // "vscode" (dark or light by background) | "vscode-dark" | "vscode-light" | "terminal"
 	DiffView  string          `json:"diff_view" toml:"diff_view"`                 // "inline" | "split"

@@ -76,7 +76,7 @@ Show Hidden Files and Sort by Type / Name (`explorer_sort`) added.
      api.go src                  src ↶ − A   hover actions
  ▾ Changes                             [2]
  ▾ Untracked Changes                   [1]
- ─────────────────────────────────────────
+ ────────────────────────────────── ⊟  ∨     on hover: close all drawers, fold them into Tools
  ▸ Graph ▸ Commits ▸ File History …          drawers, drag a header to resize
 ```
 
@@ -115,7 +115,17 @@ A Commit with nothing staged is muted too, and a click on it does nothing.
   open and height live in `git_panes`.
 - Drawers stack like Spaces' projects (`flipDrawer`): open ones above closed
   ones, an opened drawer on top, a closed one on top of the closed, in
-  `git_drawers` order.
+  `git_drawers` order. _Collapse All Drawers_ (the rule's ⊟ or a header's
+  menu; `collapseDrawers`) closes the open ones where they show; the view's
+  Collapse All (`collapseAll`) closes them with the tree.
+- The rule over the drawers (`drawersRule`) ends in `ruleActions` while the
+  mouse is over the drawers, lingering as the header's do: ⊟, with one
+  open, and ∨, which folds them, as _Fold Tools_ in the view's menu does,
+  into one `▸ Tools  N` row (`toolsRow`, `git_drawers_folded`), not built
+  nor loaded, each keeping whether it is open; a click on the rule off its
+  buttons does too, the rule lit with `hover_bg` under the mouse
+  (`clickRule`). A click on the row or the rule, or a comparison opened,
+  unfolds them.
 - A commit line (Graph, Commits, File History) shows its whole message in a
   box by the mouse after `tipDelay` (`tipBox`); its right-click menu has
   _Copy Commit Message_.

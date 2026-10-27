@@ -188,7 +188,12 @@ its background job and its `claude attach` together.
 Source Control (`2`) follows VS Code: Merge / Staged / Changes / Untracked,
 a message box, and drawers for the graph, commits, file history, branches,
 worktrees, remotes, stashes and tags. A commit in a drawer shows its whole
-message when the mouse rests on it; right click copies it.
+message when the mouse rests on it; right click copies it. The header's
+Collapse All button closes the drawers with the tree. With the mouse over
+the drawers, the line above them ends in two buttons: ⊟ closes only the
+drawers, ∨ folds them all into one Tools row, as a project folds in
+Spaces, as a click on the line does; a click on Tools or the line brings
+them back as they were.
 
 ⏎ on a commit lists the files it changed in the Compare drawer, read-only,
 as GitLens does; ⏎ on a file opens its diff. A commit's right-click menu

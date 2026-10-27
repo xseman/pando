@@ -1983,7 +1983,7 @@ func (m *Model) headerActions(s int, v view, w int) []titleAction {
 		add(icCheck, "Commit  C", m.scm.commit)
 		add(ifElse(tree, icList, icTree), ifElse(tree, "View as List  t", "View as Tree  t"), m.scm.toggleTree)
 		add(icRefresh, "Refresh  r", func(m *Model) tea.Cmd { return tea.Batch(m.refreshGit(), m.scm.loadDrawers(m)) })
-		add(icCollapse, "Collapse All", func(m *Model) tea.Cmd { m.scm.collapseAll(m); return nil })
+		add(icCollapse, "Collapse All", m.scm.collapseAll)
 
 	case viewSearch:
 		add(icReplace, "Toggle Replace  ^h", func(*Model) tea.Cmd { return m.sr.toggleReplace() })
