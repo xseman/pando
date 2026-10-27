@@ -215,6 +215,7 @@ func (f *dirForm) lines(w int) []string {
 	out := []string{dim.Render("╭") + bold.Render(title) + dim.Render(strings.Repeat("─", max(f.iw-ansi.StringWidth(title), 0))+"╮"), empty}
 
 	f.in.SetWidth(f.iw - 4)
+	f.in.SetStyles(boxStyles(f.in.Styles()))
 	out = append(out, side+fit(" "+realCaret(f.in.View()), f.iw)+side)
 
 	lw := f.iw - dirPlacesW - 2

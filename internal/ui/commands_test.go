@@ -2805,6 +2805,25 @@ func TestDragByTitle(t *testing.T) {
 	}
 }
 
+// TestProjectPickerBlurredPath draws the path in its own color once the
+// folders have the keyboard: bubbles' ANSI 7 vanishes on a light theme.
+func TestProjectPickerBlurredPath(t *testing.T) {
+	m := testModelSized(t, 120, 30)
+	m.addProjectPrompt()
+	press(m, "down")
+
+	f, ok := m.modal.form.(*dirForm)
+	if !ok || f.at != dirList {
+		t.Fatalf("↓ moves to the folders: %+v", m.modal)
+	}
+
+	for _, l := range f.lines(72) {
+		if strings.Contains(l, "\x1b[37m") || strings.Contains(l, ";37m") {
+			t.Fatalf("the picker draws in ANSI 7: %q", ansi.Strip(l))
+		}
+	}
+}
+
 // TestProjectPicker adds a project from the folder picker: the typed path
 // lists its folders, what follows its last slash filtering them (.. always
 // there, dotted ones once a dot is typed); a folder clicked twice, or ⏎ on
