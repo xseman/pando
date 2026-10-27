@@ -3284,6 +3284,25 @@ func TestClosingTabKeepsAnotherFocused(t *testing.T) {
 	}
 }
 
+// TestSwitchKeepsShownSession switches from a session shown without a tab,
+// as a worktree switch or a restart brings one back, to another of the
+// worktree: the first keeps its tab beside the second's.
+func TestSwitchKeepsShownSession(t *testing.T) {
+	m := testModelSized(t, 140, 30)
+	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: m.ws, Agent: "shell"}, Status: "idle"})
+	m.sess = "s1" // in front, in no strip
+
+	if got := m.stripSessions(); !slices.Equal(got, []string{"s1"}) {
+		t.Fatalf("shown, it has a tab: %v", got)
+	}
+
+	m.switchSession("s2")
+
+	if got := m.stripSessions(); !slices.Equal(got, []string{"s1", "s2"}) {
+		t.Fatalf("after switching to s2: %v", got)
+	}
+}
+
 // TestSessionOverEditorTabs: a session opens over the editor area as a tab
 // beside the files'. Opening a file keeps its tab; a click shows it again.
 // Its ✕ closes the tab, the session running on.

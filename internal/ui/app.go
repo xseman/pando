@@ -2184,6 +2184,10 @@ func (m *Model) switchSession(id string) tea.Cmd {
 
 	m.acknowledge(id) // clicked: its state is seen
 
+	if m.showsSession() { // shown without a tab, as a worktree or a restart brings one back: it keeps one
+		m.openSessTab(m.sess)
+	}
+
 	switched := m.switchWorkspace(s.Workspace)
 	if p := m.holder(id); p != nil { // its tab is in another group: that one shows it
 		switched = tea.Batch(switched, m.focusGroup(p))
