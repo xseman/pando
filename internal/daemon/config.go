@@ -51,6 +51,7 @@ func defaultConfig() config {
 			SpSort: "created", SpGroup: "workspace", SpProj: "manual", ExSort: "name",
 			Sounds: true, SoundDone: done, SoundReq: req, Updates: true, Anim: true, Tips: true, Blanks: "selection", ClaudeBg: true, TabSize: 4, MDWidth: 80,
 			Drawers: []string{"Commits", "Graph", "Branches", "Stashes", "Remotes"},
+			Right:   proto.Columns{{Views: []string{"agents"}}},
 		},
 		Agents: map[string][]string{
 			"claude": {"claude"}, "codex": {"codex"}, "gemini": {"gemini"}, "agy": {"agy"}, "grok": {"grok"},

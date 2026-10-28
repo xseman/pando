@@ -60,7 +60,7 @@ config.toml edited ───────────┘  └─ "state" event �
 | `tooltips`             | `true`      | an icon button's name and key, or a cut session name, in a box by the pointer  |
 | `width`                | `40`        | default column width                                                           |
 | `width_right`          | `32`        | right                                                                          |
-| `left`, `right`        | `[]`        | sidebar columns: [Columns](#columns)                                           |
+| `left`, `right`        | `[]`        | sidebar columns: [Columns](#columns); `right` starts with Spaces               |
 | `hidden`               | `true`      | Explorer shows dotfiles                                                        |
 | `explorer_sort`        | `name`      | Explorer files by `name` or `type` (extension, then name), folders first       |
 | `auto_reveal`          | `true`      | Explorer selects the editor's file or diff, in front unless Search/Git in use  |
@@ -143,7 +143,8 @@ right = []
 
 Columns run from the screen edge toward main. Views: `files`, `git`, `agents`,
 `search`, `github`, `databases`, `terminal`. A flat list is one column; an
-unlisted view joins the left column next to main.
+unlisted view joins the left column next to main. Without a `right` key,
+Spaces (`agents`) has the right side to itself.
 
 ## Keys
 
