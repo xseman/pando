@@ -169,9 +169,10 @@ re-roots Explorer and Source Control to its worktree.
 
 ▸ · folded              folded projects sink to the bottom (pinFolded): no rule, no button
 ▸ · folded
-▾ · NO SESSIONS      21   a strip over the projects with no session (bareHead), open and folded as above
+▾ · NO SESSIONS      21   a strip over the projects with no session (bareHead), folds as a heading
 ──────────────────────────  its rule, under it
-▸ · dotfiles
+   · dotfiles  + ⎇       a row each (bare), dimmed, no fold: buttons as a heading holding its checkout
+   · kolibrik
 ```
 
 - A project heading holds its own checkout when that is its only worktree
@@ -179,8 +180,11 @@ re-roots Explorer and Source Control to its worktree.
   `⏎` switches to it, a click elsewhere or `space` folds. A linked worktree
   splits them again.
 - Projects with no session, listed or filtered, go under _No Sessions_
-  (`bareHead`, `busyProjects`), last; nothing moves across it (`apart`).
-  A switch into one opens it (`reveal`).
+  (`bareHead`, `busyProjects`), last, in the project Sort's order: a row
+  each, their fold kept for later but not shown (`shut`). A click or `⏎`
+  switches to its first worktree, `n` starts a session as on a heading;
+  nothing moves across the strip (`apart`). A switch into one opens it
+  (`reveal`).
 - Scrolled down, the heading of the tree's first row covers that line
   (`sticky`), VS Code's sticky scroll: a click there is the heading's, and a
   selection under it scrolls into view. Off while a row drags.

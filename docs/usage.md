@@ -33,7 +33,8 @@ app                      project: pando ~/code/app, or `a` in Spaces
 A project whose only worktree is its own checkout shows it on its line,
 `app  ⌂ main`, its sessions right under it; a click on the branch switches
 to it. An idle session says how long it has been idle (`3h`). Projects with
-no session wait under _No Sessions_ at the bottom. Scrolled down, the
+no session wait under _No Sessions_ at the bottom, a dimmed line each: a
+click switches to it, `n` starts a session in it. Scrolled down, the
 project of the top row stays on the first line.
 
 | Key      | In Spaces                                                                 |

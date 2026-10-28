@@ -669,7 +669,8 @@ func TestTimeBucket(t *testing.T) {
 func TestSpacesFoldsRestored(t *testing.T) {
 	root := t.TempDir()
 	st := proto.State{Settings: proto.Settings{Width: 30, Icons: "ascii"}, Projects: []string{root}, Folded: []string{root}}
-	m := New(st, []proto.Workspace{{Path: root, Project: root, Branch: "main", Main: true}}, nil, root, nil)
+	ss := []proto.Session{{SessionSpec: proto.SessionSpec{ID: "s1", Workspace: root, Agent: "shell"}, Status: "idle"}} // with no session it is a row of No Sessions, no fold
+	m := New(st, []proto.Workspace{{Path: root, Project: root, Branch: "main", Main: true}}, ss, root, nil)
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
 
 	if !m.ag.collapsed[root] || slices.ContainsFunc(m.ag.rows(m), func(r agRow) bool { return r.kind == agWorkspace }) {

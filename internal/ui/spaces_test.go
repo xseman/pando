@@ -134,8 +134,9 @@ func TestSpacesIdleAge(t *testing.T) {
 
 // TestSpacesNoSessions lists the projects with no session last, under a
 // heading of their own that counts them, folds like a project and sinks to
-// the bottom edge folded; nothing moves across it, and a switch into one
-// opens it.
+// the bottom edge folded; each is one dimmed row with no fold, folded or not,
+// ⏎ on it switches into it, nothing moves across the heading, and a switch
+// into one opens it.
 func TestSpacesNoSessions(t *testing.T) {
 	m := testModel(t)
 	b1, b2 := addProject(t, m, "main"), addProject(t, m, "main")
@@ -179,6 +180,30 @@ func TestSpacesNoSessions(t *testing.T) {
 	if !slices.Equal(m.st.Projects, []string{m.ws, b1, b2}) {
 		t.Fatalf("alt+up does not take a project out from under the heading: %v", m.st.Projects)
 	}
+
+	first := m.ws
+	m.ag.fold(b1, true)
+
+	rows = m.ag.rows(m)
+	if l := ansi.Strip(m.ag.lines(m, 40, m.bodyH(viewAgents))[head+2]); !strings.HasPrefix(l, "   · "+filepath.Base(b1)+" ") || rows[head+3].project != b2 {
+		t.Fatalf("folded too, a row in the project order, no chevron, no branch: %q", l)
+	}
+
+	m.ag.l.sel = head + 2
+	press(m, "n")
+
+	if m.modal == nil || m.modal.title != "New session in "+filepath.Base(b1) {
+		t.Fatalf("n starts in its only checkout: %+v", m.modal)
+	}
+
+	m.modal = nil
+	press(m, "enter")
+
+	if m.ws != b1 {
+		t.Fatalf("enter switches into it: ws %q", m.ws)
+	}
+
+	m.switchWorkspace(first)
 
 	m.ag.activate(m, &rows[head])
 
