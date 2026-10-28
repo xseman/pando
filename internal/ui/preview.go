@@ -4948,9 +4948,19 @@ func (p *preview) closeNow(m *Model) tea.Cmd {
 
 func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	switch {
-	case p.kind == "": // the welcome screen: n starts a session as ^n a file
-		if k.String() == "n" && m.ws != "" {
-			return m.harnessPicker(m.ws)
+	case p.kind == "": // the welcome screen: the keys its text lists, as Spaces takes them
+		switch k.String() {
+		case "n":
+			if m.ws != "" {
+				return m.harnessPicker(m.ws)
+			}
+
+		case "w":
+			return m.ag.newWorktree(m, nil)
+		case "a":
+			return m.addProjectPrompt()
+		case "3":
+			return m.showView(viewAgents)
 		}
 
 		return nil

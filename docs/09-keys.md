@@ -57,8 +57,9 @@ T: also in a terminal; the rest are the shell's there.
 | `ctrl+alt+-` `ctrl+-` `alt+,` `super+←`                | back through visited editors                            |
 | `ctrl+shift+-` `alt+.` `super+→`                       | forward                                                 |
 
-The empty editor area (the welcome text) focused: `n` new session, `ctrl+n`
-new file; in a split `ctrl+w` `ctrl+d` close that group.
+The empty editor area (the welcome text) focused: `n` new session, `w` new
+worktree, `a` add project, `3` Spaces, `ctrl+n` new file; in a split `ctrl+w`
+`ctrl+d` close that group.
 
 ## Sidebar lists
 

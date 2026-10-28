@@ -561,12 +561,30 @@ func TestSaveAsSuggestsOnceAsked(t *testing.T) {
 	}
 }
 
-func TestWelcomeNewSession(t *testing.T) {
+func TestWelcomeKeys(t *testing.T) {
+	for key, title := range map[string]string{"n": "New session in ", "w": "New worktree branch in "} {
+		m := testModelSized(t, 100, 24)
+		m.sess, m.focus = "", onMain
+		press(m, key)
+
+		if m.modal == nil || !strings.HasPrefix(m.modal.title, title) {
+			t.Fatalf("%s on the empty main area opens %q", key, title)
+		}
+	}
+
 	m := testModelSized(t, 100, 24)
 	m.sess, m.focus = "", onMain
-	press(m, "n")
+	press(m, "a")
 
-	if m.modal == nil || m.modal.title != "New session in "+filepath.Base(m.ws) {
-		t.Fatalf("n on the empty main area asks for the harness: %+v", m.modal)
+	if m.modal == nil || m.modal.form == nil {
+		t.Fatal("a on the empty main area opens the folder picker")
+	}
+
+	m = testModelSized(t, 100, 24)
+	m.sess, m.focus = "", onMain
+	press(m, "3")
+
+	if v, _ := m.viewOn(m.focus); m.focus == onMain || v != viewAgents {
+		t.Fatalf("3 on the empty main area focuses Spaces, focus %d", m.focus)
 	}
 }
