@@ -1177,8 +1177,8 @@ func TestSpacesNewSession(t *testing.T) {
 		t.Fatalf("the project's button asks for the branch: drag %+v, %+v", m.drag, m.modal)
 	}
 
-	if acts := m.ag.actions(m, rows[feat], 80); len(acts) != 2 || acts[0].text != "New Session" || acts[1].text != "Resume" || acts[1].x != acts[0].x+acts[0].w {
-		t.Fatalf("a worktree's buttons start a session and, right after, resume one: %+v", acts)
+	if acts := m.ag.actions(m, rows[feat], 80); len(acts) != 3 || acts[0].text != "New Session" || acts[1].text != "Resume" || acts[1].x != acts[0].x+acts[0].w || acts[2].x != 80-acts[2].w {
+		t.Fatalf("a worktree's buttons start a session and, right after, resume one; its ✕ ends the row: %+v", acts)
 	}
 
 	// n on the project row asks which worktree.
@@ -4345,6 +4345,48 @@ func TestSpacesSubagents(t *testing.T) {
 	if m.ag.l.sel != i || m.sess != "s1" {
 		t.Fatalf("a click on the subagent goes to s1: sel %d, on screen %q", m.ag.l.sel, m.sess)
 	}
+}
+
+// TestSpacesWorktreeKillButton is a linked worktree row's ✕: after its
+// session count on the row under the pointer only, it asks to delete the
+// worktree, as x does. The project's own checkout has none.
+func TestSpacesWorktreeKillButton(t *testing.T) {
+	m := testModel(t)
+	wt := t.TempDir()
+	m.Update(workspacesMsg{m.wss[0], {Path: wt, Project: m.ws, Branch: "feat"}})
+	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s9", Workspace: wt, Agent: "shell"}, Status: "idle"})
+	press(m, "3")
+
+	rows := m.ag.rows(m)
+	main := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agWorkspace && r.ws.Main })
+	i := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agWorkspace && r.ws.Path == wt })
+	w := m.bodyW(viewAgents)
+	line := func() string { return strings.TrimRight(ansi.Strip(m.ag.lines(m, w, m.bodyH(viewAgents))[i]), " ") }
+
+	if acts := m.ag.actions(m, rows[main], w); slices.ContainsFunc(acts, func(a rowAction) bool { return a.g == icClose }) {
+		t.Fatalf("the project's own checkout has no ✕: %+v", acts)
+	}
+
+	if l := line(); strings.Contains(l, icClose.s()) {
+		t.Fatalf("no ✕ off the pointer: %q", l)
+	}
+
+	acts := m.ag.actions(m, rows[i], w)
+	kill := acts[len(acts)-1]
+	x, y := m.colRect(m.colOf(viewAgents)).x+kill.x+1, m.bodyTop(viewAgents)+i
+	m.Update(tea.MouseMotionMsg{X: x, Y: y})
+
+	if l := line(); !strings.HasSuffix(l, "1 "+icClose.s()) || m.tip != "Delete Worktree…  x" {
+		t.Fatalf("the hovered row ends in its count and ✕, its tip under the pointer: %q, tip %q", l, m.tip)
+	}
+
+	click(m, x, y, tea.MouseLeft)
+
+	if m.modal == nil || m.modal.items[0].label != "Delete Worktree" {
+		t.Fatalf("the ✕ asks to delete the worktree: %+v", m.modal)
+	}
+
+	checkWidths(t, m)
 }
 
 func TestSpacesPinnedPane(t *testing.T) {

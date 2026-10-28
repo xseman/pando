@@ -1069,13 +1069,21 @@ func (a *agents) lines(m *Model, w, h int) []string {
 
 		bg, base := m.rowColors(viewAgents, i == a.l.sel, y == hover)
 
-		var plus []seg // the + under the pointer, or on the selection while Spaces has the keyboard
+		var plus, kill []seg // the + under the pointer, or on the selection while Spaces has the keyboard; a worktree's ✕ on hover only
 
 		pointed := y == hover || i == a.l.sel && m.focused(viewAgents)
 		if pointed && r.kind != agSession { // a session's is its pin, in the gutter
 			acts := a.actions(m, r, rw)
 			if act, ok := hit(acts, mx); ok && y == hover && act.tip != "" {
 				m.tip = act.tip
+			}
+
+			if n := len(acts); n > 0 && acts[n-1].g == icClose {
+				if y == hover {
+					kill = drawActions(acts[n-1:], mx)
+				}
+
+				acts = acts[:n-1]
 			}
 
 			plus = drawActions(acts, mx)
@@ -1149,7 +1157,12 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		case agWorkspace:
 			left := append([]seg{sg("   ", plain)}, m.wsSegs(r.ws, base)...)
 
-			return row(rw, bg, append(left, plus...), sg(wsRight(m, r, rw), dim))
+			right := wsRight(m, r, rw)
+			if kill != nil {
+				right = strings.TrimSuffix(right, " ")
+			}
+
+			return row(rw, bg, append(left, plus...), append([]seg{sg(right, dim)}, kill...)...)
 
 		case agSub: // under its session's glyph, on the tree's guide while sessions follow
 			guide := "   "
@@ -1228,7 +1241,6 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		// whole in a tip.
 		g, after, right := m.spin(glyph, r.s), titleAfter(r.s), " "+status+" "
 
-		var kill []seg
 		if y == hover {
 			right, kill = " "+status, drawActions(acts[1:], mx)
 		}
@@ -1904,7 +1916,8 @@ func wsRight(m *Model, r agRow, rw int) string {
 // Worktree (then its harness), a worktree's New Session and Resume, a
 // project heading holding its checkout all three, as glyphs with a tip; a
 // session's are its pin, in the gutter before it, and its ✕ at the row's
-// right end, x's kill. On a row w cells wide a
+// right end, x's kill, as a linked worktree's ✕ is x's delete, last after
+// its session count. On a row w cells wide a
 // button that would run into the row's right end is left out, whole.
 func (a *agents) actions(m *Model, r agRow, w int) []rowAction {
 	if r.kind == agSession {
@@ -1913,11 +1926,7 @@ func (a *agents) actions(m *Model, r agRow, w int) []rowAction {
 			pin.g = icPinned
 		}
 
-		kill := rowAction{g: icClose, tip: removeLabel(&r) + "  x", run: func(m *Model) tea.Cmd { return a.remove(m, &r) }}
-		kill.w = ansi.StringWidth(kill.label())
-		kill.x = w - kill.w
-
-		return []rowAction{pin, kill}
+		return []rowAction{pin, a.killAction(r, w)}
 	}
 
 	head := " " + chevron(!a.collapsed[r.project]) + "· " + agLabel(r) // any status glyph is a cell and a space
@@ -1950,19 +1959,37 @@ func (a *agents) actions(m *Model, r agRow, w int) []rowAction {
 		return nil
 	}
 
+	var kill []rowAction
+
 	if r.kind == agWorkspace {
-		w -= ansi.StringWidth(wsRight(m, r, w))
+		right := wsRight(m, r, w)
+		if !r.ws.Main {
+			kill = []rowAction{a.killAction(r, w)}
+			right = strings.TrimSuffix(right, " ")
+			w -= kill[0].w
+		}
+
+		w -= ansi.StringWidth(right)
 	}
 
 	x := ansi.StringWidth(head)
 	for i := range acts {
 		acts[i].x, acts[i].w = x, ansi.StringWidth(acts[i].label())
 		if x += acts[i].w; x > w {
-			return acts[:i]
+			return append(acts[:i], kill...)
 		}
 	}
 
-	return acts
+	return append(acts, kill...)
+}
+
+// killAction is row r's ✕ at the right end of a row w cells wide: x on it.
+func (a *agents) killAction(r agRow, w int) rowAction {
+	kill := rowAction{g: icClose, tip: removeLabel(&r) + "  x", run: func(m *Model) tea.Cmd { return a.remove(m, &r) }}
+	kill.w = ansi.StringWidth(kill.label())
+	kill.x = w - kill.w
+
+	return kill
 }
 
 // sessionsIn are the sessions to kill to empty workspaces paths. A Terminal

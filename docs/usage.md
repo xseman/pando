@@ -41,7 +41,7 @@ project of the top row stays on the first line.
 | `a`      | add a project from the folder picker: places, folders, a path             |
 | `w`      | add a worktree to the selected project                                    |
 | `n`      | start an agent or a terminal in the worktree, or a row's `+`              |
-| `x`      | kill a session (its row's `✕` too), delete a worktree, or close a project |
+| `x`      | kill a session, delete a worktree (its row's `✕` too), or close a project |
 | `o`      | filter, sort and group the list                                           |
 | `alt+↑↓` | reorder sessions and worktrees                                            |
 

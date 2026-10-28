@@ -161,7 +161,7 @@ re-roots Explorer and Source Control to its worktree.
  ⊙ ├─ ◐ claude · fix   running ✕       ⊙ pinned, ✕ kills it (hover)
    │  ↳ Explore · Trace tabs        a subagent it runs (agSub): ↑↓ walk past, a click is its session's
    └─ ○ shell            3h   idle since (shortAgo); a shell says shell, other states their word
-   ⑂ feat/x         1   linked worktree (dimmed)
+   ⑂ feat/x       1 ✕   linked worktree (dimmed), ✕ deletes it (hover)
    └─ ○ shell          idle   no Updated yet
 ──────────────────────────  a rule over every open heading but the first, none after a lone heading (withGaps)
 ▾ ○ other  ⌂ main + ↺ ⎇  its checkout alone: on the heading (merged), buttons as glyphs with tips
@@ -232,7 +232,8 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
   own (Rename, Pin, Move), go to / view options, then remove. A session's title
   menu: Rename and Pin, then Close, Sleep and Kill.
 - `x` kills the sessions in the way first (`killThen`), after asking; a
-  session's `✕` (on hover, at its row's right end) is its `x`.
+  session's or a linked worktree's `✕` (on hover, at its row's right end)
+  is its `x`.
 - _New Worktree…_ (`w`) offers a random branch (`workspace.new`).
 - Session reordering applies under Sort by Created + Group by Workspace only;
   an open project's under Sort Projects Manually only.
