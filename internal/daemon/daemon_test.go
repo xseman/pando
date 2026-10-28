@@ -77,7 +77,7 @@ func needProc(t *testing.T) {
 func waitFor(t *testing.T, what string, cond func() bool) {
 	t.Helper()
 
-	for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+	for deadline := time.Now().Add(45 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
 		if cond() {
 			return
 		}

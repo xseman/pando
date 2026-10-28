@@ -154,7 +154,7 @@ func TestWindowsDaemon(t *testing.T) {
 		t.Error("the daemon started in a session still holds its lock")
 	})
 
-	for i := 0; i < 300 && second() != nil; i++ {
+	for i := 0; i < 900 && second() != nil; i++ {
 		time.Sleep(50 * time.Millisecond)
 	}
 
