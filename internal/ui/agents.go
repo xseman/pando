@@ -913,10 +913,13 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		}
 		// The gutter before it holds the pin: lit on a pinned session, dim
 		// on the row under the pointer (not the selection), raised with its
-		// tip under the pointer.
-		pin := a.actions(m, r, rw)[0]
+		// tip under the pointer. The row under the pointer ends in its ✕.
+		acts := a.actions(m, r, rw)
+		pin := acts[0]
 		_, onPin := hit([]rowAction{pin}, mx)
 		onPin = onPin && y == hover
+		_, onKill := hit(acts[1:], mx)
+		onKill = onKill && y == hover
 
 		gutter := sg("   ", dim)
 
@@ -970,13 +973,23 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		// A name the row cuts, at 32 cells or at the column's edge, shows
 		// whole in a tip.
 		g, after, right := m.spin(glyph, r.s), titleAfter(r.s), " "+status+" "
-		if full := fullName(r.s); y == hover && !onPin && (full != sessionName(r.s) || 3+ansi.StringWidth(conn+g+full+after+right) > rw) {
+
+		var kill []seg
+		if y == hover {
+			right, kill = " "+status, drawActions(acts[1:], mx)
+		}
+
+		if onKill {
+			m.tip = acts[1].tip
+		}
+
+		if full := fullName(r.s); y == hover && !onPin && !onKill && (full != sessionName(r.s) || 3+ansi.StringWidth(conn+g+full+after+right) > rw) {
 			m.tip = full + after
 		}
 
 		left := append(append(lead, sg(conn, dim), sg(g, fg(c))), m.fx.segs("sess:"+r.s.ID, sessionName(r.s), nameSt)...)
 
-		return row(rw, bg, append(left, sg(after, nameSt)), sg(right, statusSt))
+		return row(rw, bg, append(left, sg(after, nameSt)), append([]seg{sg(right, statusSt)}, kill...)...)
 	}
 
 	var out []string
@@ -1602,7 +1615,8 @@ func wsRight(m *Model, r agRow, rw int) string {
 
 // actions are row r's hover buttons, right after its name: a project's New
 // Worktree (then its harness), a worktree's New Session and Resume; a
-// session's is its pin, in the gutter before it. On a row w cells wide a
+// session's are its pin, in the gutter before it, and its ✕ at the row's
+// right end, x's kill. On a row w cells wide a
 // button that would run into the row's right end is left out, whole.
 func (a *agents) actions(m *Model, r agRow, w int) []rowAction {
 	if r.kind == agSession {
@@ -1611,7 +1625,11 @@ func (a *agents) actions(m *Model, r agRow, w int) []rowAction {
 			pin.g = icPinned
 		}
 
-		return []rowAction{pin}
+		kill := rowAction{g: icClose, tip: removeLabel(&r) + "  x", run: func(m *Model) tea.Cmd { return a.remove(m, &r) }}
+		kill.w = ansi.StringWidth(kill.label())
+		kill.x = w - kill.w
+
+		return []rowAction{pin, kill}
 	}
 
 	head := " " + chevron(!a.collapsed[r.project]) + "· " + agLabel(r) // any status glyph is a cell and a space
@@ -1868,7 +1886,12 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 			return a.menu(m, mo.X, mo.Y)
 		}
 
-		if act, ok := hit(a.actions(m, rows[i], m.bodyW(viewAgents)), x); ok && mo.Button == tea.MouseLeft {
+		w := m.bodyW(viewAgents)
+		if y >= 1 && y < 1+p.h && p.n-1 > p.h || y >= p.lines && len(rows)-p.n > h-p.lines {
+			w-- // the Pinned pane's or the tree's scrollbar takes the last column, as lines draws it
+		}
+
+		if act, ok := hit(a.actions(m, rows[i], w), x); ok && mo.Button == tea.MouseLeft {
 			return act.run(m)
 		}
 		// A project row drags up and down the list; a press that never leaves

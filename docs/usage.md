@@ -30,14 +30,14 @@ app                      project: pando ~/code/app, or `a` in Spaces
    └─ × claude           session: waits for you
 ```
 
-| Key      | In Spaces                                                       |
-| -------- | --------------------------------------------------------------- |
-| `a`      | add a project from the folder picker: places, folders, a path   |
-| `w`      | add a worktree to the selected project                          |
-| `n`      | start an agent or a terminal in the worktree, or a row's `+`    |
-| `x`      | kill a session, delete a worktree, or close a project           |
-| `o`      | filter, sort and group the list                                 |
-| `alt+↑↓` | reorder sessions and worktrees                                  |
+| Key      | In Spaces                                                                 |
+| -------- | ------------------------------------------------------------------------- |
+| `a`      | add a project from the folder picker: places, folders, a path             |
+| `w`      | add a worktree to the selected project                                    |
+| `n`      | start an agent or a terminal in the worktree, or a row's `+`              |
+| `x`      | kill a session (its row's `✕` too), delete a worktree, or close a project |
+| `o`      | filter, sort and group the list                                           |
+| `alt+↑↓` | reorder sessions and worktrees                                            |
 
 A session runs an agent: the picker lists the installed `[agents]` presets
 (claude, codex, gemini, opencode, …), then _terminal_, a plain shell. An

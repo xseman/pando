@@ -4253,6 +4253,52 @@ func TestSpacesPin(t *testing.T) {
 // TestSpacesPinnedPane frames Pinned as a pane over the tree: its strip, its
 // sessions and a heavy border under them; as tall as its rows, at most a
 // third of the view, past that it scrolls on its own.
+// TestSpacesKillButton is a session row's ✕: shown at its right end on the
+// row under the pointer only, it asks to kill the session, as x does.
+func TestSpacesKillButton(t *testing.T) {
+	m := testModel(t)
+	press(m, "3")
+
+	rows := m.ag.rows(m)
+	i := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agSession })
+	w := m.bodyW(viewAgents)
+	line := func() string { return strings.TrimRight(ansi.Strip(m.ag.lines(m, w, m.bodyH(viewAgents))[i]), " ") }
+
+	if l := line(); strings.Contains(l, icClose.s()) {
+		t.Fatalf("no ✕ off the pointer: %q", l)
+	}
+
+	kill := m.ag.actions(m, rows[i], w)[1]
+	x, y := m.colRect(m.colOf(viewAgents)).x+kill.x+1, m.bodyTop(viewAgents)+i
+	m.Update(tea.MouseMotionMsg{X: x, Y: y})
+
+	if l := line(); !strings.HasSuffix(l, "idle "+icClose.s()) || m.tip != "Kill Session…  x" {
+		t.Fatalf("the hovered row ends in its ✕, its tip under the pointer: %q, tip %q", l, m.tip)
+	}
+
+	click(m, x, y, tea.MouseLeft)
+
+	if m.modal == nil || m.modal.items[0].label != "Kill Session" {
+		t.Fatalf("the ✕ asks to kill the session: %+v", m.modal)
+	}
+	// With a scrollbar the row is a cell narrower, its ✕ too.
+	m.modal = nil
+	ss := []proto.Session{m.sessions[0]}
+
+	for k := range 2 * m.bodyH(viewAgents) {
+		ss = append(ss, proto.Session{SessionSpec: proto.SessionSpec{ID: fmt.Sprint("s", k+2), Workspace: m.ws, Agent: "shell"}, Status: "idle"})
+	}
+
+	m.Update(sessionsMsg(ss))
+
+	kill = m.ag.actions(m, m.ag.rows(m)[i], w-1)[1]
+	click(m, m.colRect(m.colOf(viewAgents)).x+kill.x, y, tea.MouseLeft)
+
+	if m.modal == nil {
+		t.Fatal("the ✕'s first cell left of the scrollbar asks to kill too")
+	}
+}
+
 func TestSpacesPinnedPane(t *testing.T) {
 	m := testModelSized(t, 100, 21) // 20 rows of view under the status bar's rule
 

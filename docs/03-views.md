@@ -158,7 +158,7 @@ re-roots Explorer and Source Control to its worktree.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━  its border, heavy in tab_border
 ▾ ◐ repo +⎇ New Worktree  project: most demanding session's glyph (· none), button (hover)
    ⌂ main + New Session  ↺ Resume 2  the project's own checkout, buttons (hover; one that does not fit before the count is left out), session count
- ⊙ ├─ ◐ claude · fix   running         ⊙ pinned
+ ⊙ ├─ ◐ claude · fix   running ✕       ⊙ pinned, ✕ kills it (hover)
    └─ ○ shell          idle
    ⑂ feat/x         1   linked worktree (dimmed)
    └─ ○ shell          idle
@@ -217,7 +217,8 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
   (New Session, Resume Session, New Worktree, Add / Open Project), the row's
   own (Rename, Pin, Move), go to / view options, then remove. A session's title
   menu: Rename and Pin, then Close, Sleep and Kill.
-- `x` kills the sessions in the way first (`killThen`), after asking.
+- `x` kills the sessions in the way first (`killThen`), after asking; a
+  session's `✕` (on hover, at its row's right end) is its `x`.
 - _New Worktree…_ (`w`) offers a random branch (`workspace.new`).
 - Session reordering applies under Sort by Created + Group by Workspace only;
   an open project's under Sort Projects Manually only.
