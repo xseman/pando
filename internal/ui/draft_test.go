@@ -560,3 +560,13 @@ func TestSaveAsSuggestsOnceAsked(t *testing.T) {
 		t.Fatalf("tab did not complete: %q", v)
 	}
 }
+
+func TestWelcomeNewSession(t *testing.T) {
+	m := testModelSized(t, 100, 24)
+	m.sess, m.focus = "", onMain
+	press(m, "n")
+
+	if m.modal == nil || m.modal.title != "New session in "+filepath.Base(m.ws) {
+		t.Fatalf("n on the empty main area asks for the harness: %+v", m.modal)
+	}
+}

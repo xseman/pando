@@ -4948,8 +4948,13 @@ func (p *preview) closeNow(m *Model) tea.Cmd {
 
 func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	switch {
-	case p.kind == "":
+	case p.kind == "": // the welcome screen: n starts a session as ^n a file
+		if k.String() == "n" && m.ws != "" {
+			return m.harnessPicker(m.ws)
+		}
+
 		return nil
+
 	case p.kind == pvTable && p.tbl != nil:
 		return p.tbl.key(m, k)
 	case p.kind == pvSettings && p.set != nil:
