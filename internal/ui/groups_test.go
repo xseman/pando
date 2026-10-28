@@ -107,6 +107,45 @@ func TestSplitEven(t *testing.T) {
 	checkWidths(t, m)
 }
 
+// TestEvenPair: a double click on a divider shares the room of the two
+// groups beside it evenly, the third keeping its width.
+func TestEvenPair(t *testing.T) {
+	m := groupsModel(t)
+	fire(m, m.openFile(filepath.Join(m.ws, "src", "deep", "x.go"), false))
+	press(m, `ctrl+\`)
+	fire(m, m.focusGroupN(0))
+	press(m, `ctrl+\`) // README.md | .env | x.go
+
+	widths := func() []int {
+		var w []int
+		for _, p := range m.grid.leaves() {
+			w = append(w, p.boxIn(m.area()).w)
+		}
+
+		return w
+	}
+
+	mid := m.grid.leaves()[1].boxIn(m.area())
+	x := mid.x + mid.w // between .env and x.go
+
+	m.Update(tea.MouseClickMsg{X: x, Y: 10, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: x + 20, Y: 10, Button: tea.MouseLeft})
+	m.Update(tea.MouseReleaseMsg{X: x + 20, Y: 10, Button: tea.MouseLeft})
+
+	was := widths()
+
+	for range 2 {
+		m.Update(tea.MouseClickMsg{X: x + 20, Y: 10, Button: tea.MouseLeft})
+		m.Update(tea.MouseReleaseMsg{X: x + 20, Y: 10, Button: tea.MouseLeft})
+	}
+
+	if w := widths(); w[0] != was[0] || w[1]-w[2] > 1 || w[2]-w[1] > 1 || w[1]+w[2] != was[1]+was[2] {
+		t.Fatalf("the two beside the divider even, README.md's kept: %v, was %v", w, was)
+	}
+
+	checkWidths(t, m)
+}
+
 // TestDragTabToGroup carries a tab under the pointer and drops it on another
 // group's middle, which closes the group it left empty, and on an edge, which
 // splits that group there.

@@ -102,6 +102,48 @@ func (p *pane) units(row bool) []*pane {
 	return append(p.a.units(row), p.b.units(row)...)
 }
 
+// evenPair is a double click on split p's divider, VS Code's on a sash: the
+// two panes beside it share their room evenly, the others keeping theirs.
+func (m *Model) evenPair(p *pane) tea.Cmd {
+	a, size := m.area(), map[*pane]int{}
+
+	for _, u := range p.units(p.row) {
+		b := u.boxIn(a)
+		size[u] = ifElse(p.row, b.w, b.h)
+	}
+
+	l, r := p.a.units(p.row), p.b.units(p.row)
+	pl, pr := l[len(l)-1], r[0]
+	size[pl], size[pr] = (size[pl]+size[pr])/2, (size[pl]+size[pr]+1)/2
+
+	var (
+		cells func(q *pane) int
+		fit   func(q *pane)
+	)
+
+	cells = func(q *pane) int { // q's units and a divider between each two
+		if q.g != nil || q.row != p.row {
+			return size[q]
+		}
+
+		return cells(q.a) + 1 + cells(q.b)
+	}
+
+	fit = func(q *pane) {
+		if q.g != nil || q.row != p.row {
+			return
+		}
+
+		q.ratio = float64(cells(q.a)) / float64(cells(q)-1)
+		fit(q.a)
+		fit(q.b)
+	}
+
+	fit(p)
+
+	return tea.Batch(m.fetchScreen(), m.saveEditors())
+}
+
 // fits reports every group under p with its least room in b.
 func (p *pane) fits(b box) bool {
 	if p.g != nil {

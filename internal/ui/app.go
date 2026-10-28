@@ -3273,7 +3273,11 @@ func (m *Model) groupMouse(msg tea.MouseMsg, click bool) tea.Cmd {
 
 	if m.tiled() {
 		if p := m.splitAt(mo.X, mo.Y); p != nil {
-			if click && mo.Button == tea.MouseLeft {
+			switch {
+			case !click || mo.Button != tea.MouseLeft:
+			case m.clicks.double(mo.X, mo.Y):
+				return m.evenPair(p)
+			default:
 				m.drag = &drag{kind: dragGrid, split: p}
 			}
 

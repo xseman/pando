@@ -156,8 +156,9 @@ take a message (`previewMsg`, `onScreen`, drafts).
   group without the keyboard draws its active tab and cursor unlit
   (`offMain`). The status bar follows the focused group.
 - A divider drags (`dragSplit`), each group keeping `minGroupW` × `minGroupH`
-  (20 × 5). A split is refused without room; an area too small for every
-  group draws the focused one alone, the tree kept.
+  (20 × 5); a double click shares the room of the two beside it evenly, the
+  others kept (`evenPair`). A split is refused without room; an area too
+  small for every group draws the focused one alone, the tree kept.
 - The strip's □ (`maxAct`, _Toggle Maximized Editor Group_) draws the focused
   group alone until pressed again.
 - Each worktree keeps its tree, ratios, tabs (sessions' too), the focused

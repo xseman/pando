@@ -207,7 +207,8 @@ in every mode.
 - In a file: drag selects, double click a word, triple click a line.
 - A file's or session's tab dragged over an editor group: its edge splits the
   group there, its middle or strip moves the tab in. A divider between groups
-  drags; a click focuses the group, the wheel scrolls it where it is.
+  drags, a double click evens the two beside it; a click focuses the group,
+  the wheel scrolls it where it is.
 - Tilt or `shift`+wheel pans. The wheel scrolls a session's scrollback unless
   the app takes the mouse or the alternate screen; scrolled back, the page
   stays on its text as output goes on below.
