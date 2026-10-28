@@ -396,7 +396,7 @@ func (d *Daemon) Serve(ln net.Listener) error {
 				changed = s.setProgram(prog) || changed
 				r, seen := d.remember(s, pid, prog)
 				dirty, saw = r || dirty, seen || saw
-				changed = s.setSubagents(now) || changed
+				changed = s.setSubagents(pid, prog, now) || changed
 			}
 
 			if dirty {

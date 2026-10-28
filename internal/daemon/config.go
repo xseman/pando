@@ -53,7 +53,7 @@ func defaultConfig() config {
 			Drawers: []string{"Commits", "Graph", "Branches", "Stashes", "Remotes"},
 		},
 		Agents: map[string][]string{
-			"claude": {"claude"}, "codex": {"codex"}, "gemini": {"gemini"},
+			"claude": {"claude"}, "codex": {"codex"}, "gemini": {"gemini"}, "agy": {"agy"}, "grok": {"grok"},
 			"opencode": {"opencode"}, "shell": {shell}, "terminal": {shell},
 		},
 		Resume: map[string][]string{

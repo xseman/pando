@@ -173,13 +173,18 @@ under the worker) as shell, its ◐ blue. Each tick, `session.tick` decides:
   by the next tick. The worker is the foreground process, or, under `claude
   attach`, the background job's process. So a `run_in_background` shell keeps
   an idle claude running.
-- `Session.Subagents` (`setSubagents`, each tick): what the conversation
-  remember found runs now, from claude's `<transcript>/subagents/agent-<id>.meta.json`.
-  Written as a subagent starts, rewritten with `finished` as it ends; one left
-  unwritten 15 min (`subagentStale`, past claude's 10 min tool call) is a
-  crash's leftover. A finished one is not read again (`subScan`). Codex,
-  gemini and opencode report none: their subagents need the conversation
-  first, which only claude says (`conversations`).
+- `Session.Subagents` (`setSubagents`, each tick, `subagentReaders` by
+  program in front):
+
+  | Agent  | Reads                                                                           | Works while                                            |
+  | ------ | ------------------------------------------------------------------------------- | ------------------------------------------------------ |
+  | claude | `<transcript>/subagents/agent-<id>.meta.json`                                   | no `finished`, written within 15 min (`subagentStale`) |
+  | codex  | the rollouts it holds open (`openFiles`), `thread_spawn` in `session_meta`      | its last task event is `task_started`                  |
+  | agy    | `brain/<id>/.system_generated/subagents/*.json`, `<id>` its `presence` lock     | `ALIVE`, its transcript's last step no final reply     |
+  | grok   | `<session>/subagents/*/meta.json` of each session whose `events.jsonl` it holds | `running`, its own session held open too               |
+
+  An agy subagent waiting on a background command has ended its turn and
+  is left out until woken. Gemini and opencode report none.
 - `/proc` is Linux only; elsewhere (macOS, Windows) only the screen and
   output timing decide, and an agent's session is taken to run the agent
   itself (`ownAgent`): a restart runs its `[resume]` in its place.

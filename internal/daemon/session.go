@@ -465,14 +465,21 @@ func (s *session) info() proto.Session {
 	}
 }
 
-// setSubagents records the subagents of the conversation the session has
-// open, the one remember found; it reports a change clients show.
-func (s *session) setSubagents(now time.Time) bool {
+// setSubagents records the subagents program prog, process pid in front,
+// runs now (subagentReaders); it reports a change clients show.
+func (s *session) setSubagents(pid int, prog string, now time.Time) bool {
+	if pid == 0 { // the terminal cannot tell what runs (no /proc), as remember
+		pid, prog = s.ownAgent()
+	}
+
 	s.mu.Lock()
 	c := s.spec.Conversation
 	s.mu.Unlock()
 
-	subagents := subagentsOf(c, now) // files read outside s.mu, which info waits on
+	var subagents []proto.Subagent
+	if read := subagentReaders[prog]; read != nil {
+		subagents = read(pid, c, now) // files read outside s.mu, which info waits on
+	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()

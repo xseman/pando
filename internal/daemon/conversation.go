@@ -34,8 +34,6 @@ type conversationSource interface {
 	// title is conversation c's title as the agent keeps it, "" when it has
 	// none: what names a session attached to a job that has no name.
 	title(c proto.Conversation) string
-	// subagents are the subagents conversation c runs now, oldest first.
-	subagents(c proto.Conversation, now time.Time) []proto.Subagent
 }
 
 // conversations are the agents whose open conversation pando can tell, by
@@ -234,103 +232,6 @@ func (claudeSource) title(c proto.Conversation) string {
 	t.read()
 
 	return cmp.Or(t.custom, t.ai)
-}
-
-// subagentStale is how long an unfinished subagent's files may go unwritten
-// before it counts as one a crash left: claude writes nothing while a tool
-// call runs, and caps one at 10 minutes.
-// ponytail: a subagent in one call longer than this drops off the list, and
-// a crash's leftover stays on it this long after a resume.
-const subagentStale = 15 * time.Minute
-
-// subagents reads the transcript's subagents directory: claude writes
-// agent-<id>.meta.json as a subagent starts and rewrites it with "finished"
-// when it ends. A finished one is not read again.
-func (claudeSource) subagents(c proto.Conversation, now time.Time) []proto.Subagent {
-	subs.Lock()
-	defer subs.Unlock()
-
-	sc := subs.m[c.ID]
-	if sc == nil {
-		m, _ := filepath.Glob(filepath.Join(claudeDirIn(c.Env), "projects", "*", c.ID+".jsonl"))
-		if len(m) == 0 {
-			return nil
-		}
-
-		sc = &subScan{dir: filepath.Join(strings.TrimSuffix(m[0], ".jsonl"), "subagents"), done: map[string]bool{}}
-		subs.m[c.ID] = sc
-	}
-
-	es, _ := os.ReadDir(sc.dir) // none yet: the directory comes with the first
-
-	var out []proto.Subagent
-
-	for _, e := range es {
-		name, ok := strings.CutSuffix(e.Name(), ".meta.json")
-		if !ok || sc.done[name] {
-			continue
-		}
-
-		meta, err := e.Info()
-		if err != nil {
-			continue
-		}
-
-		b, err := os.ReadFile(filepath.Join(sc.dir, e.Name()))
-
-		var v struct {
-			Type        string `json:"agentType"`
-			Description string `json:"description"`
-			Finished    bool   `json:"finished"`
-		}
-
-		if err != nil || json.Unmarshal(b, &v) != nil { // caught half written: read again next tick
-			continue
-		}
-
-		last := meta.ModTime()
-		if t, err := os.Stat(filepath.Join(sc.dir, name+".jsonl")); err == nil && t.ModTime().After(last) { // written a moment after the meta
-			last = t.ModTime()
-		}
-
-		if v.Finished {
-			sc.done[name] = true
-			continue
-		}
-
-		if now.Sub(last) > subagentStale { // back on the list once it writes again
-			continue
-		}
-
-		out = append(out, proto.Subagent{Type: v.Type, Description: v.Description, Started: meta.ModTime()})
-	}
-
-	slices.SortFunc(out, func(a, b proto.Subagent) int { return a.Started.Compare(b.Started) })
-
-	return out
-}
-
-// subs are the subagents directories subagents has read, by conversation.
-var subs = struct {
-	sync.Mutex
-	m map[string]*subScan
-}{m: map[string]*subScan{}}
-
-// subScan is a conversation's subagents directory and the subagents in it
-// that ended.
-type subScan struct {
-	dir  string
-	done map[string]bool
-}
-
-// subagentsOf are the subagents conversation c runs now, nil for no
-// conversation or an agent that does not say.
-func subagentsOf(c *proto.Conversation, now time.Time) []proto.Subagent {
-	if c == nil || conversations[c.Agent] == nil {
-		return nil
-	}
-
-	return conversations[c.Agent].subagents(*c, now)
 }
 
 // titles are the transcripts title has read, by conversation.

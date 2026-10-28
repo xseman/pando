@@ -308,8 +308,8 @@ type Session struct {
 	// first 30 s, the agent coming back, do not count.
 	Updated time.Time `json:"updated,omitzero"`
 	// Subagents are the subagents its agent runs now, oldest first, where
-	// the agent records them (claude); they live inside its process, so
-	// they are seen, not attached to.
+	// the agent records them (claude, codex, agy, grok); they live inside its
+	// process, so they are seen, not attached to.
 	Subagents []Subagent `json:"subagents,omitempty"`
 }
 

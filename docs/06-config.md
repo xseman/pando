@@ -115,7 +115,7 @@ dropdown with its `opts`.
 | `[format]`     | extension or language id to formatter; go: `gofmt` built in                                                            |
 | `[profiles]`   | per preset, profile name to the `KEY=VALUE` a new session of it can run with                                           |
 | `[databases]`  | name to a `postgres://`, `mariadb://`, `mysql://` or `sqlite:///path` URL the Databases view lists; its form writes it |
-| `[agents]`     | preset to a new session's command: claude, codex, gemini, opencode, shell, terminal                                    |
+| `[agents]`     | preset to a new session's command: claude, codex, gemini, agy, grok, opencode, shell, terminal                         |
 | `[resume]`     | program to its "continue last": claude, codex, opencode                                                                |
 | `[resume_id]`  | program to its "continue `{id}`": claude                                                                               |
 | `[resume_job]` | program to its "re-attach job `{id}`": claude                                                                          |

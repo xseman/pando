@@ -136,6 +136,20 @@ func commandsUnder(pid int) []int {
 		return nil
 	}
 
+	var out []int
+
+	for _, c := range childrenOf(pid) {
+		if shellCommand(cmdline(c)) {
+			out = append(out, c)
+		}
+	}
+
+	return out
+}
+
+// childrenOf are process pid's direct children, from each of its threads'
+// /proc children list; none where /proc does not say.
+func childrenOf(pid int) []int {
 	dir := "/proc/" + strconv.Itoa(pid) + "/task/"
 
 	tasks, err := os.ReadDir(dir)
@@ -152,7 +166,7 @@ func commandsUnder(pid int) []int {
 		}
 
 		for f := range strings.FieldsSeq(string(b)) {
-			if c, err := strconv.Atoi(f); err == nil && shellCommand(cmdline(c)) {
+			if c, err := strconv.Atoi(f); err == nil {
 				out = append(out, c)
 			}
 		}

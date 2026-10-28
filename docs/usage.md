@@ -47,7 +47,7 @@ project of the top row stays on the first line.
 | `alt+↑↓` | reorder sessions and worktrees                                            |
 
 A session runs an agent: the picker lists the installed `[agents]` presets
-(claude, codex, gemini, opencode, …), then _terminal_, a plain shell. An
+(claude, codex, gemini, agy, grok, opencode, …), then _terminal_, a plain shell. An
 agent with profiles asks which one next: _default_, the `[profiles]` in
 `config.toml`, then every config pando saw it run in, such as a claude
 started as `CLAUDE_CONFIG_DIR=~/.claude-work claude` in a session.
@@ -125,8 +125,9 @@ checkout.
   the worktree; one found in neither (`go test`'s `x_test.go:42`, `rg -l`'s
   `ui/app.go`) opens the one file whose path ends in it, else quick open
   lists them. The pointer over a link underlines it.
-- A claude session's subagents, while they run, list under its row in
-  Spaces: their kind and what they do. They live inside the session; a
+- The subagents a claude, codex, agy or grok session runs list under its row in
+  Spaces while they work: their kind (codex: the name it gave the agent)
+  and what they do. They live inside the session; a
   click on one opens the session.
 - `p` in Spaces, the `⊙` left of a session's row or its right-click menu
   pins it: Spaces lists it in the Pinned pane on top, and in its tree as

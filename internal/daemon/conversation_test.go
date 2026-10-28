@@ -280,7 +280,7 @@ func TestClaudeSubagents(t *testing.T) {
 
 	c := proto.Conversation{Agent: "claude", ID: "conv-s"}
 	now := time.Now().Truncate(time.Second)
-	list := func() []proto.Subagent { return claudeSource{}.subagents(c, now) }
+	list := func() []proto.Subagent { return claudeSubagents(c, now) }
 
 	if got := list(); got != nil {
 		t.Fatalf("no transcript yet: %v", got)
