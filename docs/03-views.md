@@ -160,17 +160,30 @@ re-roots Explorer and Source Control to its worktree.
    ⌂ main + New Session  ↺ Resume 2  the project's own checkout, buttons (hover; one that does not fit before the count is left out), session count
  ⊙ ├─ ◐ claude · fix   running ✕       ⊙ pinned, ✕ kills it (hover)
    │  ↳ Explore · Trace tabs        a subagent it runs (agSub): ↑↓ walk past, a click is its session's
-   └─ ○ shell          idle
+   └─ ○ shell            3h   idle since (shortAgo); a shell says shell, other states their word
    ⑂ feat/x         1   linked worktree (dimmed)
-   └─ ○ shell          idle
-──────────────────────────  a rule over every open heading but the first (withGaps)
-▾ ○ other
-   ⌂ main           1
-   └─ ○ shell          idle
+   └─ ○ shell          idle   no Updated yet
+──────────────────────────  a rule over every open heading but the first, none after a lone heading (withGaps)
+▾ ○ other  ⌂ main + ↺ ⎇  its checkout alone: on the heading (merged), buttons as glyphs with tips
+   └─ ○ shell           12m
 
 ▸ · folded              folded projects sink to the bottom (pinFolded): no rule, no button
 ▸ · folded
+▾ · NO SESSIONS      21   a strip over the projects with no session (bareHead), open and folded as above
+──────────────────────────  its rule, under it
+▸ · dotfiles
 ```
+
+- A project heading holds its own checkout when that is its only worktree
+  (`merged`): its row goes, `n` and `+` start in it, a click on `⌂ main` or
+  `⏎` switches to it, a click elsewhere or `space` folds. A linked worktree
+  splits them again.
+- Projects with no session, listed or filtered, go under _No Sessions_
+  (`bareHead`, `busyProjects`), last; nothing moves across it (`apart`).
+  A switch into one opens it (`reveal`).
+- Scrolled down, the heading of the tree's first row covers that line
+  (`sticky`), VS Code's sticky scroll: a click there is the heading's, and a
+  selection under it scrolls into view. Off while a row drags.
 
 ### Status
 
@@ -249,6 +262,7 @@ settings (`spaces_hide`, `spaces_sort`, `spaces_group`) read by
 | Sort Projects …     | saved order, or newest session change first          |
 | Group by Workspace  | the tree above                                       |
 | Group by Time       | `agTime` headings Today … Older; rows add the branch |
+| Group by State      | Blocked … Asleep, counted; rows add project, age     |
 | Collapse All Groups | folds every project or heading                       |
 
 ### Sessions and tabs

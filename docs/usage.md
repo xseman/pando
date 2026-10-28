@@ -30,6 +30,12 @@ app                      project: pando ~/code/app, or `a` in Spaces
    └─ × claude           session: waits for you
 ```
 
+A project whose only worktree is its own checkout shows it on its line,
+`app  ⌂ main`, its sessions right under it; a click on the branch switches
+to it. An idle session says how long it has been idle (`3h`). Projects with
+no session wait under _No Sessions_ at the bottom. Scrolled down, the
+project of the top row stays on the first line.
+
 | Key      | In Spaces                                                                 |
 | -------- | ------------------------------------------------------------------------- |
 | `a`      | add a project from the folder picker: places, folders, a path             |

@@ -233,7 +233,7 @@ func TestAgentsTreeAndSounds(t *testing.T) {
 	press(m, "3")
 
 	out := checkWidths(t, m)
-	for _, want := range []string{"▾ × ", "├─ ○ shell", "└─ × claude", "   ⌂ main"} { // the project carries its most demanding session
+	for _, want := range []string{"▾ × " + filepath.Base(m.ws) + "  ⌂ main", "├─ ○ shell", "└─ × claude"} { // the project carries its most demanding session, and its only checkout
 		if !strings.Contains(out, want) {
 			t.Fatalf("agents tree lacks %q:\n%s", want, out)
 		}
@@ -425,6 +425,7 @@ func TestAgentsTreeGaps(t *testing.T) {
 	other := t.TempDir()
 	m.st.Projects = append(m.st.Projects, other)
 	m.wss = append(m.wss, proto.Workspace{Path: other, Project: other, Branch: "main", Main: true})
+	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: other, Agent: "shell"}, Status: "idle"})
 	press(m, "3")
 	rows := m.ag.rows(m)
 
@@ -689,6 +690,7 @@ func TestSpacesDragReorder(t *testing.T) {
 	other := t.TempDir()
 	m.st.Projects = append(m.st.Projects, other)
 	m.wss = append(m.wss, proto.Workspace{Path: other, Project: other, Branch: "main", Main: true})
+	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: other, Agent: "shell"}, Status: "idle"})
 	first := m.ws
 	press(m, "3")
 	m.ag.fold(other, true)
@@ -832,6 +834,7 @@ func TestSpacesFoldedSink(t *testing.T) {
 	m.st.Projects = []string{first, second, third}
 	for _, p := range []string{second, third} {
 		m.wss = append(m.wss, proto.Workspace{Path: p, Project: p, Branch: "main", Main: true})
+		m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: p, Workspace: p, Agent: "shell"}, Status: "idle"})
 	}
 
 	press(m, "3")
@@ -906,6 +909,7 @@ func TestSpacesDragProjectMark(t *testing.T) {
 		p := t.TempDir()
 		m.st.Projects = append(m.st.Projects, p)
 		m.wss = append(m.wss, proto.Workspace{Path: p, Project: p, Branch: "main", Main: true})
+		m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: p, Workspace: p, Agent: "shell"}, Status: "idle"})
 	}
 
 	press(m, "3")
@@ -924,52 +928,52 @@ func TestSpacesDragProjectMark(t *testing.T) {
 		return m.drag.to
 	}
 
-	m.Update(tea.MouseClickMsg{X: x, Y: top, Button: tea.MouseLeft}) // first: project, main, its session, gap
+	m.Update(tea.MouseClickMsg{X: x, Y: top, Button: tea.MouseLeft}) // each: project holding main, its session, gap
 
 	if m.drag == nil || m.drag.proj != first {
 		t.Fatalf("a press on a project row starts a drag: %+v", m.drag)
 	}
 
-	if got := to(4); got != "" {
+	if got := to(3); got != "" {
 		t.Fatalf("the second's upper half is the first's own place: to %q", got)
 	}
 
-	if got := to(5); got != second {
+	if got := to(4); got != second {
 		t.Fatalf("the second's lower half puts it below: to %q", got)
 	}
 
-	if at, mark, _ := m.ag.dropSlot(m, m.ag.rows(m)); at != 7 || mark != 2 {
+	if at, mark, _ := m.ag.dropSlot(m, m.ag.rows(m)); at != 6 || mark != 2 {
 		t.Fatalf("the mark goes past the gap after the second: at %d, rows %d", at, mark)
 	}
 
 	lines := strings.Split(m.View().Content, "\n")
-	if !strings.Contains(lines[top+7], bgParams(pal.selBg)) || strings.Contains(lines[top+8], bgParams(pal.selBg)) {
-		t.Fatalf("the band, then a blank row before the next project:\n%q\n%q", lines[top+7], lines[top+8])
+	if !strings.Contains(lines[top+6], bgParams(pal.selBg)) || strings.Contains(lines[top+7], bgParams(pal.selBg)) {
+		t.Fatalf("the band, then a blank row before the next project:\n%q\n%q", lines[top+6], lines[top+7])
 	}
 
-	if got := to(6); got != second {
+	if got := to(5); got != second {
 		t.Fatalf("the gap above the third puts it there: to %q", got)
 	}
 
-	if got := to(8); got != second {
+	if got := to(7); got != second {
 		t.Fatalf("over the mark it stays: to %q", got)
 	}
 
-	if got := to(9); got != second {
+	if got := to(8); got != second {
 		t.Fatalf("the third's upper half puts it above the third: to %q", got)
 	}
 
-	if got := to(10); got != third {
+	if got := to(9); got != third {
 		t.Fatalf("the third's lower half puts it below: to %q", got)
 	}
 
 	lines = strings.Split(m.View().Content, "\n")
-	if at, mark, _ := m.ag.dropSlot(m, m.ag.rows(m)); at != 9 || mark != 2 ||
-		strings.Contains(lines[top+9], bgParams(pal.selBg)) || !strings.Contains(lines[top+10], bgParams(pal.selBg)) {
-		t.Fatalf("past the last, a blank row keeps the gap above the mark: at %d, rows %d\n%q\n%q", at, mark, lines[top+9], lines[top+10])
+	if at, mark, _ := m.ag.dropSlot(m, m.ag.rows(m)); at != 8 || mark != 2 ||
+		strings.Contains(lines[top+8], bgParams(pal.selBg)) || !strings.Contains(lines[top+9], bgParams(pal.selBg)) {
+		t.Fatalf("past the last, a blank row keeps the gap above the mark: at %d, rows %d\n%q\n%q", at, mark, lines[top+8], lines[top+9])
 	}
 
-	if got := to(12); got != third {
+	if got := to(11); got != third {
 		t.Fatalf("past the end of the list it goes last: to %q", got)
 	}
 }
@@ -1003,35 +1007,35 @@ func TestSpacesDragSession(t *testing.T) {
 		return strings.Join(out, " ")
 	}
 
-	m.Update(tea.MouseClickMsg{X: x, Y: top + 2, Button: tea.MouseLeft}) // project, worktree, s1
+	m.Update(tea.MouseClickMsg{X: x, Y: top + 1, Button: tea.MouseLeft}) // project holding its checkout, s1
 
 	if m.drag == nil || m.drag.sess != "s1" {
 		t.Fatalf("a press on a session row starts a drag: %+v", m.drag)
 	}
 
-	m.Update(tea.MouseMotionMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: x, Y: top + 2, Button: tea.MouseLeft})
 
-	if got := ids(); got != "s1 s2 s2t s3" || m.drag.to != "s2" || dropRow(m) != 4 {
+	if got := ids(); got != "s1 s2 s2t s3" || m.drag.to != "s2" || dropRow(m) != 3 {
 		t.Fatalf("the tree stays put, the slot under s2: %q, to %q, slot %d", got, m.drag.to, dropRow(m))
 	}
 
-	if line := strings.Split(m.View().Content, "\n")[top+4]; !strings.Contains(line, bgParams(pal.selBg)) {
+	if line := strings.Split(m.View().Content, "\n")[top+3]; !strings.Contains(line, bgParams(pal.selBg)) {
 		t.Fatalf("the slot is drawn as a band of its own under s2: %q", line)
 	}
 
-	m.Update(tea.MouseMotionMsg{X: x, Y: top + 4, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
 
 	if m.drag.to != "s2" {
 		t.Fatalf("over the line the mark stays: to %q", m.drag.to)
 	}
 
-	m.Update(tea.MouseMotionMsg{X: x, Y: top + 5, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: x, Y: top + 4, Button: tea.MouseLeft})
 
 	if m.drag.to != "s3" {
 		t.Fatalf("below the line the rows sit a line lower: to %q", m.drag.to)
 	}
 
-	m.Update(tea.MouseMotionMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: x, Y: top + 2, Button: tea.MouseLeft})
 
 	m.Update(daemon)
 
@@ -1039,7 +1043,7 @@ func TestSpacesDragSession(t *testing.T) {
 		t.Fatalf("a sessions event mid-drag keeps the mark: %q, to %q", got, m.drag.to)
 	}
 
-	_, cmd := m.Update(tea.MouseReleaseMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
+	_, cmd := m.Update(tea.MouseReleaseMsg{X: x, Y: top + 2, Button: tea.MouseLeft})
 	if cmd == nil || m.drag != nil || ids() != "s2 s2t s1 s3" {
 		t.Fatalf("the release moves it past s2 and its tab and saves: cmd %v drag %+v, %q", cmd != nil, m.drag, ids())
 	}
@@ -1049,8 +1053,8 @@ func TestSpacesDragSession(t *testing.T) {
 	}
 
 	// Let go off the list, nothing moves.
-	m.Update(tea.MouseClickMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
-	m.Update(tea.MouseMotionMsg{X: x, Y: top + 2, Button: tea.MouseLeft})
+	m.Update(tea.MouseClickMsg{X: x, Y: top + 2, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: x, Y: top + 1, Button: tea.MouseLeft})
 
 	if _, cmd := m.Update(tea.MouseReleaseMsg{X: x, Y: top + 15, Button: tea.MouseLeft}); cmd != nil || ids() != "s2 s2t s1 s3" {
 		t.Fatalf("a drop off the list moves nothing: %q", ids())
@@ -1063,7 +1067,7 @@ func TestSpacesDragSession(t *testing.T) {
 	}
 
 	press(m, "3")
-	click(m, x, top+4, tea.MouseLeft)
+	click(m, x, top+3, tea.MouseLeft)
 
 	if m.drag != nil || m.focus != onMain || m.sess != "s3" {
 		t.Fatalf("a click that never moved opens the session: drag %+v, sess %q", m.drag, m.sess)
@@ -1071,7 +1075,7 @@ func TestSpacesDragSession(t *testing.T) {
 	// Sorted by Updated the clock orders sessions: a press opens at once.
 	m.st.Settings.SpSort = "updated"
 	press(m, "3")
-	m.Update(tea.MouseClickMsg{X: x, Y: top + 2, Button: tea.MouseLeft})
+	m.Update(tea.MouseClickMsg{X: x, Y: top + 1, Button: tea.MouseLeft})
 
 	if m.drag != nil {
 		t.Fatalf("no drag when sorted by Updated: %+v", m.drag)
@@ -1094,7 +1098,7 @@ func TestSpacesSelectionFollowsSort(t *testing.T) {
 	cs, _ := m.layout()
 	x, top := cs[m.colOf(viewAgents)].x+4, m.bodyTop(viewAgents) // past the pin in the gutter
 
-	click(m, x, top+3-m.ag.l.top, tea.MouseLeft) // project, worktree, s1, s2
+	click(m, x, top+2-m.ag.l.top, tea.MouseLeft) // project holding its checkout, s1, s2
 
 	if r := m.ag.selected(m); r == nil || r.s.ID != "s2" || m.sess != "s2" {
 		t.Fatalf("the click selects and opens s2: %+v, %q", r, m.sess)
@@ -1116,6 +1120,7 @@ func TestSpacesSelectionFollowsSort(t *testing.T) {
 func TestSpacesActionsFit(t *testing.T) {
 	m := testModel(t)
 	m.sessions = []proto.Session{{SessionSpec: proto.SessionSpec{ID: "s1", Workspace: m.ws, Agent: "claude", Cmd: []string{"claude"}}, Status: "idle"}}
+	m.wss = append(m.wss, proto.Workspace{Path: t.TempDir(), Project: m.ws, Branch: "feat"}) // the checkout keeps a row of its own
 	press(m, "3")
 
 	rows := m.ag.rows(m)
@@ -1263,6 +1268,7 @@ func TestSpacesResume(t *testing.T) {
 	m.st.Agents = map[string][]string{"shell": {"sh"}, "claude": {"sh"}, "codex": {"sh"}, "gemini": {"sh"}, "gone": {"pando-no-such-harness"}}
 	m.st.Resume = map[string][]string{"claude": {"claude", "--continue"}, "codex": {"codex", "resume", "--last"}, "gone": {"gone", "--continue"}}
 	m.st.ResumeID = map[string][]string{"claude": {"claude", "--resume", "{id}"}}
+	m.wss = append(m.wss, proto.Workspace{Path: t.TempDir(), Project: m.ws, Branch: "feat"}) // the checkout keeps a row of its own
 	press(m, "3")
 
 	rows := m.ag.rows(m) // the project, its checkout, s1
@@ -1333,18 +1339,19 @@ func TestSpacesHeaderResume(t *testing.T) {
 		t.Fatalf("Resume follows New Session in the header: %+v", acts)
 	}
 
-	m.ag.l.sel = 1 // the checkout, under the project
+	m.ag.l.sel = 0 // the project, holding its only checkout
 	acts[1].run(m)
 
 	if m.modal == nil || m.modal.title != "Resume in "+filepath.Base(m.ws) || !slices.Equal(labels(m), []string{"claude", "codex"}) {
-		t.Fatalf("the selected worktree resumes in itself: %+v %v", m.modal, labels(m))
+		t.Fatalf("the selected project holding its checkout resumes in it: %+v %v", m.modal, labels(m))
 	}
 
 	m.modal = nil
+	m.wss = append(m.wss, proto.Workspace{Path: t.TempDir(), Project: m.ws, Branch: "feat"})
 	m.ag.l.sel = 0
 	acts[1].run(m)
 
-	if m.modal == nil || !slices.Equal(labels(m), []string{"⌂ main"}) {
+	if m.modal == nil || len(labels(m)) != 2 || labels(m)[0] != "⌂ main" {
 		t.Fatalf("the selected project asks which worktree, no new one: %v", labels(m))
 	}
 
@@ -2921,8 +2928,9 @@ func TestStatusProjects(t *testing.T) {
 	if m.ws != other || m.modal != nil {
 		t.Fatalf("switched to %s", m.ws)
 	}
-	// Agents selects the project's worktree, unfolded, as a click on it does.
-	if r := m.ag.selected(m); r == nil || r.kind != agWorkspace || r.ws.Path != other {
+	// Agents selects the project's worktree, unfolded, as a click on it does:
+	// its heading, which holds its only checkout, under No Sessions.
+	if r := m.ag.selected(m); r == nil || !r.shows(other) || m.ag.collapsed[timeKey(bareHead)] {
 		t.Fatalf("agents selection after the switch: %+v", r)
 	}
 
@@ -3280,7 +3288,7 @@ func TestSessionNameTips(t *testing.T) {
 	press(m, "3")
 
 	i := m.colOf(viewAgents)
-	x, y := m.colRect(i).x+m.barW(i)+8, m.bodyTop(viewAgents)+2 // s1's row, under its project and checkout
+	x, y := m.colRect(i).x+m.barW(i)+8, m.bodyTop(viewAgents)+1 // s1's row, under its project holding its checkout
 	rest(x, y)
 
 	if out := checkWidths(t, m); !tip(long) {
@@ -4104,10 +4112,10 @@ func TestSpacesPin(t *testing.T) {
 		return out
 	}
 
-	m.ag.l.sel = 3 // s2 in the tree
+	m.ag.l.sel = 2 // s2 in the tree, under its project holding its checkout
 	press(m, "p")
 
-	if want := []string{"Pinned", "pin:ws", "pin:s2", "ws", "ws", "s1", "s2"}; !slices.Equal(m.st.Pinned, []string{"s2"}) || !slices.Equal(shape(), want) {
+	if want := []string{"Pinned", "pin:ws", "pin:s2", "ws", "s1", "s2"}; !slices.Equal(m.st.Pinned, []string{"s2"}) || !slices.Equal(shape(), want) {
 		t.Fatalf("p pins s2: %v, rows %q want %q", m.st.Pinned, shape(), want)
 	}
 
@@ -4130,23 +4138,23 @@ func TestSpacesPin(t *testing.T) {
 		t.Fatalf("a heavy border under Pinned, no rule over its rows: %q", l)
 	}
 
-	m.ag.l.sel = 5 // s1, selected while Spaces has the keyboard
+	m.ag.l.sel = 4 // s1, selected while Spaces has the keyboard
 
-	if l := ansi.Strip(m.ag.lines(m, 40, m.bodyH(viewAgents))[6]); !strings.HasPrefix(l, "   ├─ ") {
+	if l := ansi.Strip(m.ag.lines(m, 40, m.bodyH(viewAgents))[5]); !strings.HasPrefix(l, "   ├─ ") {
 		t.Fatalf("an unpinned row keeps its gutter blank, selected too: %q", l)
 	}
 
-	m.ag.l.sel = 6
+	m.ag.l.sel = 5
 
-	if l := ansi.Strip(lines[7]); !strings.HasPrefix(l, " ⊙ └─ ") {
+	if l := ansi.Strip(lines[6]); !strings.HasPrefix(l, " ⊙ └─ ") {
 		t.Fatalf("the tree's copy shows its pin: %q", l)
 	}
 	// The gutter of s1's row pins it, after s2; its tip wins over a cut name's.
 	m.sessions[0].Name = strings.Repeat("long", 10)
-	x, y := m.colRect(m.colOf(viewAgents)).x+1, m.bodyTop(viewAgents)+6
+	x, y := m.colRect(m.colOf(viewAgents)).x+1, m.bodyTop(viewAgents)+5
 	m.Update(tea.MouseMotionMsg{X: x, Y: y})
 
-	if l := ansi.Strip(m.ag.lines(m, 40, m.bodyH(viewAgents))[6]); !strings.HasPrefix(l, " ⊙ ├─ ") || m.tip != "Pin Session  p" {
+	if l := ansi.Strip(m.ag.lines(m, 40, m.bodyH(viewAgents))[5]); !strings.HasPrefix(l, " ⊙ ├─ ") || m.tip != "Pin Session  p" {
 		t.Fatalf("the hovered row shows the pin button, its tip under the pointer: %q, tip %q", l, m.tip)
 	}
 
@@ -4229,7 +4237,7 @@ func TestSpacesPin(t *testing.T) {
 	m.ag.l.sel = 0
 	press(m, "enter")
 
-	if want := []string{"Pinned", "ws", "ws", "s1", "s2"}; !slices.Equal(shape(), want) || !m.ag.collapsed[timeKey(pinnedHead)] {
+	if want := []string{"Pinned", "ws", "s1", "s2"}; !slices.Equal(shape(), want) || !m.ag.collapsed[timeKey(pinnedHead)] {
 		t.Fatalf("folded Pinned: %q want %q", shape(), want)
 	}
 

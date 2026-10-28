@@ -1465,7 +1465,7 @@ func TestFilesAndAgentsFilter(t *testing.T) {
 		kinds = append(kinds, r.kind)
 	}
 
-	if !slices.Equal(kinds, []int{agProject, agWorkspace, agSession}) {
+	if !slices.Equal(kinds, []int{agProject, agSession}) { // the project holds its only checkout
 		t.Fatalf("agents filter keeps ancestors: %v", kinds)
 	}
 

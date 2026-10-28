@@ -495,7 +495,7 @@ func New(st proto.State, wss []proto.Workspace, ss []proto.Session, ws string, e
 		m.ag.fold(k, true)
 	}
 
-	m.ag.l.sel = slices.IndexFunc(m.ag.rows(m), func(r agRow) bool { return r.kind == agWorkspace && r.ws.Path == ws && !r.pinned })
+	m.ag.l.sel = slices.IndexFunc(m.ag.rows(m), func(r agRow) bool { return r.shows(ws) })
 
 	return m
 }

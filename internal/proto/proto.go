@@ -88,7 +88,7 @@ type Settings struct {
 	SoundDone string              `json:"sound_done" toml:"sound_done"`               // the files played, "" for the terminal bell
 	SoundReq  string              `json:"sound_request" toml:"sound_request"`
 	SpSort    string              `json:"spaces_sort" toml:"spaces_sort"`                 // Spaces sessions by "created" or "updated"
-	SpGroup   string              `json:"spaces_group" toml:"spaces_group"`               // Spaces rows: "workspace" (the project tree) or "time" (Today, Yesterday, …)
+	SpGroup   string              `json:"spaces_group" toml:"spaces_group"`               // Spaces rows: "workspace" (the project tree), "time" (Today, Yesterday, …) or "state" (Blocked, Working, …)
 	SpProj    string              `json:"spaces_project_sort" toml:"spaces_project_sort"` // Spaces projects in their "manual" order or by "updated" (their sessions' last output)
 	SpHide    []string            `json:"spaces_hide" toml:"spaces_hide"`                 // session states Spaces leaves out: blocked, running, done, idle, asleep, exited
 	Sleep     int                 `json:"sleep_after" toml:"sleep_after"`                 // minutes an idle session goes unused before it is put to sleep; 0 never
