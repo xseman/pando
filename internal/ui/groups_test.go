@@ -2,6 +2,7 @@ package ui
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -70,6 +71,40 @@ func TestSplitEditor(t *testing.T) {
 	if len(m.grid.leaves()) != 2 || !strings.Contains(m.msg, "nothing to split") {
 		t.Fatalf("a group of one tab does not split: %d groups, flash %q", len(m.grid.leaves()), m.msg)
 	}
+}
+
+// TestSplitEven: each split shares the area out evenly again, however many
+// groups there are, and a group that closes gives its room to all of them.
+func TestSplitEven(t *testing.T) {
+	m := groupsModel(t)
+	fire(m, m.openFile(filepath.Join(m.ws, "src", "deep", "x.go"), false))
+
+	widths := func() []int {
+		var w []int
+		for _, p := range m.grid.leaves() {
+			w = append(w, p.boxIn(m.area()).w)
+		}
+
+		return w
+	}
+
+	press(m, `ctrl+\`) // x.go on the right
+	fire(m, m.focusGroupN(0))
+	press(m, `ctrl+\`) // .env between README.md and x.go
+
+	w := widths()
+	if len(w) != 3 || slices.Max(w)-slices.Min(w) > 1 {
+		t.Fatalf("three groups as wide as each other: %v", w)
+	}
+
+	fire(m, m.closeEditor(0)) // .env, the middle group's only tab
+	fire(m, m.prune())
+
+	if w := widths(); len(w) != 2 || slices.Max(w)-slices.Min(w) > 1 {
+		t.Fatalf("two groups left, as wide as each other: %v", w)
+	}
+
+	checkWidths(t, m)
 }
 
 // TestDragTabToGroup carries a tab under the pointer and drops it on another

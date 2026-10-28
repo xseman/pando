@@ -80,6 +80,28 @@ func (p *pane) halves(b box) (box, box) {
 	return box{b.x, b.y, b.w, h}, box{b.x, b.y + h + 1, b.w, b.h - h - 1}
 }
 
+// even shares the room under p evenly, VS Code's distribute: the groups in a
+// row as wide as each other, those in a column as tall.
+func (p *pane) even() {
+	if p.g != nil {
+		return
+	}
+
+	p.ratio = float64(len(p.a.units(p.row))) / float64(len(p.units(p.row)))
+	p.a.even()
+	p.b.even()
+}
+
+// units are the panes p puts side by side (row) or one over the other, left
+// to right or top to bottom.
+func (p *pane) units(row bool) []*pane {
+	if p.g != nil || p.row != row {
+		return []*pane{p}
+	}
+
+	return append(p.a.units(row), p.b.units(row)...)
+}
+
 // fits reports every group under p with its least room in b.
 func (p *pane) fits(b box) bool {
 	if p.g != nil {
@@ -232,8 +254,8 @@ func (m *Model) replace(p, n *pane) {
 	n.up = p.up
 }
 
-// splitPane puts a new group on side of p, the two halving p's room, and
-// returns it.
+// splitPane puts a new group on side of p, every group then sharing the
+// room evenly, and returns it.
 func (m *Model) splitPane(p *pane, side int) *pane {
 	q := newPane()
 	s := &pane{row: side == sideLeft || side == sideRight, ratio: 0.5}
@@ -246,13 +268,17 @@ func (m *Model) splitPane(p *pane, side int) *pane {
 
 	p.up, q.up = s, s
 
+	m.grid.even()
+
 	return q
 }
 
-// dropPane takes group p out of the grid, its neighbour taking the room.
+// dropPane takes group p out of the grid, the others sharing its room
+// evenly.
 func (m *Model) dropPane(p *pane) {
 	if s := p.up; s != nil {
 		m.replace(s, ifElse(s.a == p, s.b, s.a))
+		m.grid.even()
 	}
 }
 

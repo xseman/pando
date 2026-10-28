@@ -148,8 +148,9 @@ take a message (`previewMsg`, `onScreen`, drafts).
   group's only tab offers nothing over its own group. `ctrl+\`
   moves the active tab into a new group on the right (`splitEditor`), the
   palette's _Move Editor into Left / Right Group, Group Above / Below_ into
-  the neighbour or a new group (`moveEditor`). A new group takes half the
-  room; a group left empty closes (`prune`).
+  the neighbour or a new group (`moveEditor`). A group added or closed
+  shares the room out evenly again (`even`): groups side by side as wide as
+  each other, stacked as tall; a group left empty closes (`prune`).
 - `ctrl+1`…`ctrl+9` focus group N, `ctrl+]` walks the groups, a click focuses
   the one under it; the wheel scrolls a group without moving the focus. A
   group without the keyboard draws its active tab and cursor unlit
