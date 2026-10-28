@@ -26,6 +26,7 @@ const (
 	agProject = iota
 	agWorkspace
 	agSession
+	agSub  // a subagent the session above runs: seen, never selected; a click goes to its session
 	agGap  // the row before an open heading, drawn as a rule over it; blank before the folded and as the padding that sinks them; nothing selects it
 	agTime // a heading of no project: Pinned, or Group by Time's Today, Yesterday, …
 )
@@ -40,6 +41,7 @@ type agRow struct {
 	s       proto.Session
 	when    string // agTime: the heading
 	pinned  bool   // a row under Pinned: a session's copy, or its worktree's
+	sub     proto.Subagent
 }
 
 // agents is the Project → Workspace → Session tree.
@@ -64,10 +66,42 @@ func (a *agents) rows(m *Model) []agRow {
 	// Pinned is a pane of its own over the tree, its border the gap.
 	pins := a.pinnedRows(m, sessions, q)
 	if q == "" {
-		return append(pins, a.pinFolded(m, a.withGaps(out), a.pane(pins, m.bodyH(viewAgents)).lines)...)
+		return append(pins, a.pinFolded(m, a.withGaps(withSubagents(out)), a.pane(pins, m.bodyH(viewAgents)).lines)...)
 	}
 
-	return append(matching(q, pins), a.withGaps(matching(q, out))...)
+	return append(matching(q, pins), a.withGaps(withSubagents(matching(q, out)))...)
+}
+
+// withSubagents puts the subagents a session runs under its row in the tree;
+// Pinned's copy goes without.
+func withSubagents(rows []agRow) []agRow {
+	out := make([]agRow, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, r)
+		if r.kind != agSession || r.pinned {
+			continue
+		}
+
+		for _, sub := range r.s.Subagents {
+			out = append(out, agRow{kind: agSub, project: r.project, ws: r.ws, s: r.s, sub: sub})
+		}
+	}
+
+	return out
+}
+
+// inert reports a row nothing selects: a gap, or a subagent's.
+func (r agRow) inert() bool { return r.kind == agGap || r.kind == agSub }
+
+// moreSessions reports whether another session follows row i's in its
+// worktree, past the subagents under it.
+func moreSessions(rows []agRow, i int) bool {
+	j := i + 1
+	for j < len(rows) && rows[j].kind == agSub {
+		j++
+	}
+
+	return j < len(rows) && rows[j].kind == agSession
 }
 
 // matching are the rows that match q, plus the heading and worktree they sit
@@ -599,6 +633,8 @@ func agLabel(r agRow) string {
 		return r.when
 	case agGap:
 		return ""
+	case agSub:
+		return r.sub.Type + " · " + r.sub.Description
 	}
 
 	return r.s.Agent + " " + sessionName(r.s) + " " + r.s.Title
@@ -905,10 +941,22 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			left := append([]seg{sg("   ", plain), sg(wtGlyph(r.ws).s()+" ", glyphSt)}, m.fx.segs("ws:"+r.ws.Path, wsName(r.ws), nameSt)...)
 
 			return row(rw, bg, append(left, plus...), sg(wsRight(m, r, rw), dim))
+
+		case agSub: // under its session's glyph, on the tree's guide while sessions follow
+			guide := "   "
+			if moreSessions(rows, i) {
+				guide = "│  "
+			}
+
+			if label := agLabel(r); y == hover && 8+ansi.StringWidth(label) > rw {
+				m.tip = label
+			}
+
+			return row(rw, bg, []seg{sg("   "+guide+"↳ ", dim), sg(r.sub.Type, base), sg(" · "+r.sub.Description, dim)})
 		}
 		// herdr's tree: sessions hang off their branch, the last one on └─.
 		conn := "├─ "
-		if i+1 == len(rows) || rows[i+1].kind != agSession {
+		if !moreSessions(rows, i) {
 			conn = "└─ "
 		}
 		// The gutter before it holds the pin: lit on a pinned session, dim
@@ -1053,7 +1101,7 @@ func (a *agents) reveal(m *Model, path string) tea.Cmd {
 
 // selected is the highlighted row, nil when nothing is selected.
 func (a *agents) selected(m *Model) *agRow {
-	if rows := a.rows(m); a.l.sel >= 0 && a.l.sel < len(rows) && rows[a.l.sel].kind != agGap {
+	if rows := a.rows(m); a.l.sel >= 0 && a.l.sel < len(rows) && !rows[a.l.sel].inert() {
 		return &rows[a.l.sel]
 	}
 
@@ -1106,7 +1154,7 @@ func (a *agents) step(m *Model, rows []agRow, d int) {
 		a.l.sel = max(0, min(n-1, a.l.sel+d))
 	}
 
-	for a.l.sel < n && rows[a.l.sel].kind == agGap {
+	for a.l.sel < n && rows[a.l.sel].inert() {
 		if (s < 0 && a.l.sel == 0) || (s > 0 && a.l.sel == n-1) {
 			s = -s
 		}
@@ -1122,7 +1170,7 @@ func (a *agents) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	h, n := m.bodyH(viewAgents), len(rows)
 
 	var r *agRow
-	if a.l.sel >= 0 && a.l.sel < n && rows[a.l.sel].kind != agGap {
+	if a.l.sel >= 0 && a.l.sel < n && !rows[a.l.sel].inert() {
 		r = &rows[a.l.sel]
 	}
 
@@ -1877,6 +1925,10 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 
 	case tea.MouseClickMsg:
 		i := a.rowAt(m, rows, y)
+		for i > 0 && rows[i].kind == agSub { // a subagent's row is its session's
+			i--
+		}
+
 		if i < 0 || rows[i].kind == agGap {
 			return nil
 		}
@@ -2056,7 +2108,7 @@ func (a *agents) dropSlot(m *Model, rows []agRow) (at, h, band int) {
 		return to, 1, 0
 	}
 
-	for k := rows[to].kind; to+1 < len(rows) && rows[to+1].kind > k && rows[to+1].kind <= agSession; { // the tree under it
+	for k := rows[to].kind; to+1 < len(rows) && rows[to+1].kind > k && rows[to+1].kind <= agSub; { // the tree under it
 		to++
 	}
 
@@ -2131,13 +2183,13 @@ func (a *agents) projectDrop(m *Model, p string, rows []agRow, i int) string {
 			gap = slices.Index(order, rows[above].project) + 1
 		}
 
-	case rows[i].kind <= agSession:
+	case rows[i].kind <= agSub:
 		start, end := i, i
 		for start > 0 && rows[start].kind != agProject {
 			start--
 		}
 
-		for end+1 < len(rows) && rows[end+1].kind > agProject && rows[end+1].kind <= agSession {
+		for end+1 < len(rows) && rows[end+1].kind > agProject && rows[end+1].kind <= agSub {
 			end++
 		}
 
@@ -2216,7 +2268,7 @@ func (a *agents) sessionAt(m *Model, y int) string {
 	}
 
 	rows := a.rows(m)
-	if i := a.rowAt(m, rows, y); i >= 0 && rows[i].kind == agSession && !rows[i].pinned {
+	if i := a.rowAt(m, rows, y); i >= 0 && (rows[i].kind == agSession || rows[i].kind == agSub) && !rows[i].pinned { // a subagent's row is its session's
 		return rows[i].s.ID
 	}
 

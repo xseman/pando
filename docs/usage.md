@@ -118,6 +118,9 @@ checkout.
   the worktree; one found in neither (`go test`'s `x_test.go:42`, `rg -l`'s
   `ui/app.go`) opens the one file whose path ends in it, else quick open
   lists them. The pointer over a link underlines it.
+- A claude session's subagents, while they run, list under its row in
+  Spaces: their kind and what they do. They live inside the session; a
+  click on one opens the session.
 - `p` in Spaces, the `⊙` left of a session's row or its right-click menu
   pins it: Spaces lists it in the Pinned pane on top, and in its tree as
   before.

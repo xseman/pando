@@ -306,6 +306,17 @@ type Session struct {
 	// Updated is its last input or change of status, Created before either;
 	// it starts over when a restarted daemon respawns the session.
 	Updated time.Time `json:"updated,omitzero"`
+	// Subagents are the subagents its agent runs now, oldest first, where
+	// the agent records them (claude); they live inside its process, so
+	// they are seen, not attached to.
+	Subagents []Subagent `json:"subagents,omitempty"`
+}
+
+// Subagent is one a session's agent runs, as the agent describes it.
+type Subagent struct {
+	Type        string    `json:"type"` // the kind the agent ran: Explore, a custom agent's name, fork
+	Description string    `json:"description"`
+	Started     time.Time `json:"started"`
 }
 
 // Update is what the daemon knows about a newer pando: the reply to

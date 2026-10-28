@@ -4299,6 +4299,46 @@ func TestSpacesKillButton(t *testing.T) {
 	}
 }
 
+// TestSpacesSubagents is a session's subagents: a row each under it, on the
+// tree's guide, which ↑↓ walk past and a click takes for the session's.
+func TestSpacesSubagents(t *testing.T) {
+	m := testModel(t)
+	s1 := m.sessions[0]
+	s1.Subagents = []proto.Subagent{{Type: "Explore", Description: "Trace session tabs"}}
+	s2 := proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: m.ws, Agent: "claude"}, Status: "idle"}
+	m.Update(sessionsMsg{s1, s2})
+	press(m, "3")
+
+	rows := m.ag.rows(m)
+	i := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agSession && r.s.ID == "s1" })
+
+	if i < 0 || i+2 >= len(rows) || rows[i+1].kind != agSub || rows[i+2].s.ID != "s2" {
+		t.Fatalf("the subagent under s1, then s2: %+v", rows)
+	}
+
+	lines := m.ag.lines(m, 40, m.bodyH(viewAgents))
+	if l := ansi.Strip(lines[i]); !strings.HasPrefix(l, "   ├─ ") {
+		t.Fatalf("s1 stays on the guide past its subagent: %q", l)
+	}
+
+	if l := strings.TrimRight(ansi.Strip(lines[i+1]), " "); l != "   │  ↳ Explore · Trace session tabs" {
+		t.Fatalf("the subagent's row: %q", l)
+	}
+
+	m.ag.l.sel = i
+	press(m, "down")
+
+	if r := m.ag.selected(m); r == nil || r.s.ID != "s2" {
+		t.Fatalf("↓ walks past the subagent onto s2: %+v", r)
+	}
+
+	click(m, m.colRect(m.colOf(viewAgents)).x+10, m.bodyTop(viewAgents)+i+1-m.ag.l.top, tea.MouseLeft)
+
+	if m.ag.l.sel != i || m.sess != "s1" {
+		t.Fatalf("a click on the subagent goes to s1: sel %d, on screen %q", m.ag.l.sel, m.sess)
+	}
+}
+
 func TestSpacesPinnedPane(t *testing.T) {
 	m := testModelSized(t, 100, 21) // 20 rows of view under the status bar's rule
 

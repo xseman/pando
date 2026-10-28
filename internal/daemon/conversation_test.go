@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -268,5 +269,68 @@ func TestTranscriptTitleAppends(t *testing.T) {
 
 	if got := title(); got != "New" {
 		t.Fatalf("rewritten: %q", got)
+	}
+}
+
+// subagents lists what a conversation runs now, oldest first: a subagent
+// started and not finished. A finished one, or one left unwritten past
+// subagentStale, is gone; one caught half written comes once it parses.
+func TestClaudeSubagents(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+
+	c := proto.Conversation{Agent: "claude", ID: "conv-s"}
+	now := time.Now().Truncate(time.Second)
+	list := func() []proto.Subagent { return claudeSource{}.subagents(c, now) }
+
+	if got := list(); got != nil {
+		t.Fatalf("no transcript yet: %v", got)
+	}
+
+	mustWrite(t, filepath.Join(claudeDir(), "projects", "-ws", "conv-s.jsonl"), "{}\n")
+
+	if got := list(); got != nil {
+		t.Fatalf("no subagents directory yet: %v", got)
+	}
+
+	dir := filepath.Join(claudeDir(), "projects", "-ws", "conv-s", "subagents")
+	meta := func(id, body string, at time.Time) {
+		t.Helper()
+
+		p := filepath.Join(dir, "agent-"+id+".meta.json")
+		mustWrite(t, p, body)
+
+		if err := os.Chtimes(p, at, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	meta("b", `{"agentType":"Explore","description":"Second"}`, now.Add(-time.Minute))
+	meta("a", `{"agentType":"deep-task","description":"First"}`, now.Add(-2*time.Minute))
+	mustWrite(t, filepath.Join(dir, "agent-a.jsonl"), "{}\n") // written since: it still started with its meta
+	meta("done", `{"agentType":"Explore","description":"Done","finished":true}`, now.Add(-3*time.Minute))
+	meta("stale", `{"agentType":"Explore","description":"Crashed"}`, now.Add(-time.Hour))
+	meta("torn", `{"agentType":"Expl`, now)
+
+	first := proto.Subagent{Type: "deep-task", Description: "First", Started: now.Add(-2 * time.Minute)}
+	second := proto.Subagent{Type: "Explore", Description: "Second", Started: now.Add(-time.Minute)}
+
+	if got := list(); !slices.Equal(got, []proto.Subagent{first, second}) {
+		t.Fatalf("the running ones, oldest first: %v", got)
+	}
+
+	meta("b", `{"agentType":"Explore","description":"Second","finished":true}`, now)
+	meta("torn", `{"agentType":"Explore","description":"Whole"}`, now)
+
+	whole := proto.Subagent{Type: "Explore", Description: "Whole", Started: now}
+	if got := list(); !slices.Equal(got, []proto.Subagent{first, whole}) {
+		t.Fatalf("finished leaves, the torn one comes whole: %v", got)
+	}
+	// A stale one that writes again, after a tool call longer than the
+	// window, is back.
+	jsonl := filepath.Join(dir, "agent-stale.jsonl")
+	mustWrite(t, jsonl, "{}\n")
+
+	if got := list(); len(got) != 3 || got[0].Description != "Crashed" {
+		t.Fatalf("written again, the stale one is back: %v", got)
 	}
 }

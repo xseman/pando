@@ -115,6 +115,11 @@ behalf** — read it and ask, unless the user already told you how to answer.
 
 `attention` is a UI flag for the human, not a state. Ignore it.
 
+`subagents` lists what a claude session's agent runs inside it right now
+(`type`, `description`, `started`), oldest first. They are part of that
+session, not sessions of their own: there is nothing to read, wait on or send
+to but the session itself.
+
 ## Wait instead of polling
 
 `pando session wait` blocks until the session settles. Never poll `session

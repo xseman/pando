@@ -76,11 +76,12 @@ type session struct {
 	cursorStyle   int      // DECSCUSR the app sent last: one for both screens, as in xterm
 	mouse         map[int]bool
 	status        string
-	screenAt      time.Time // lastOutput when the screen was last classified
-	screenProg    string    // the program it was classified for
-	seen          string    // screenState of it: blocked, running, idle or ""
-	commands      []int     // the shell commands under the foreground, as last seen
-	command       bool      // one of them was there the tick before too
+	screenAt      time.Time        // lastOutput when the screen was last classified
+	screenProg    string           // the program it was classified for
+	seen          string           // screenState of it: blocked, running, idle or ""
+	commands      []int            // the shell commands under the foreground, as last seen
+	command       bool             // one of them was there the tick before too
+	subagents     []proto.Subagent // what its agent runs now (setSubagents)
 
 	started  time.Time  // set before the session is registered, read-only after
 	fallback [][]string // the shells left to try if this one fails at once
@@ -453,10 +454,36 @@ func (s *session) info() proto.Session {
 		updated = s.spec.Created
 	}
 
+	subagents := s.subagents
+	if status == "asleep" || status == "exited" { // nothing runs them: the ticker no longer looks
+		subagents = nil
+	}
+
 	return proto.Session{
 		SessionSpec: s.spec, Status: status, ExitCode: s.exitCode, Attention: s.attention, Shell: status == "running" && s.command,
-		Title: s.shownTitle(), Program: s.program, Updated: updated,
+		Title: s.shownTitle(), Program: s.program, Updated: updated, Subagents: subagents,
 	}
+}
+
+// setSubagents records the subagents of the conversation the session has
+// open, the one remember found; it reports a change clients show.
+func (s *session) setSubagents(now time.Time) bool {
+	s.mu.Lock()
+	c := s.spec.Conversation
+	s.mu.Unlock()
+
+	subagents := subagentsOf(c, now) // files read outside s.mu, which info waits on
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if slices.Equal(s.subagents, subagents) {
+		return false
+	}
+
+	s.subagents = subagents
+
+	return true
 }
 
 // shownTitle is the title clients show: a background job's name while the
