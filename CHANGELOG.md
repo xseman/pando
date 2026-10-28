@@ -1,5 +1,69 @@
 # Changelog
 
+## [0.7.0](https://github.com/xseman/pando/compare/v0.6.0...v0.7.0) (2026-10-28)
+
+
+### Features
+
+* **config:** Spaces docks on the right by default ([b357326](https://github.com/xseman/pando/commit/b357326b86e966a3bfcba70ee452fe950ada3c54))
+* **daemon:** list codex, agy and grok subagents too ([d91649c](https://github.com/xseman/pando/commit/d91649c2d2681a22466c3288f9b6bc5e53570b2f))
+* list a claude session's running subagents in Spaces ([9260c9d](https://github.com/xseman/pando/commit/9260c9d626b818b81b313653dc3f5b0cc7b4c0f5))
+* **ui:** a double click on a divider evens the two groups beside it ([36744e7](https://github.com/xseman/pando/commit/36744e7040feef1edce4f6e43279573003da7d5d))
+* **ui:** a group added or closed shares the room evenly ([87acc79](https://github.com/xseman/pando/commit/87acc7926f8b89df859f512aa5a589382d1af4f7))
+* **ui:** a linked worktree's ✕ in Spaces on hover deletes it ([b227a87](https://github.com/xseman/pando/commit/b227a870ec216de50698731ca0ec7e6b5ccf323b))
+* **ui:** a rule over No Sessions folded too ([5bc05fc](https://github.com/xseman/pando/commit/5bc05fc2a4a247ec262ceeb515ac3c8b18769a44))
+* **ui:** a search button in Spaces' header ([6b5c8fd](https://github.com/xseman/pando/commit/6b5c8fd0ac1e4e1bd03ba5349bd46ac48c1e9bb9))
+* **ui:** a session's ✕ in Spaces on hover kills it ([c1fc850](https://github.com/xseman/pando/commit/c1fc850d98283a7d2874eda0bc5b9906d1e04a0e))
+* **ui:** carry a dragged tab under the pointer, as VS Code does ([2c263d7](https://github.com/xseman/pando/commit/2c263d77e2078ed3d7b74fc02034898e3901f51a))
+* **ui:** collapse or fold the Source Control drawers at once ([2ce0cb8](https://github.com/xseman/pando/commit/2ce0cb8ddc74adff41913eac66f2644a48da51a1))
+* **ui:** compare HEAD with a picked branch, tag or typed revision ([e1d4d26](https://github.com/xseman/pando/commit/e1d4d26886abe50354bb0793168e39b924c8c863))
+* **ui:** ctrl+p and ctrl+shift+p reach their palettes from anywhere ([1c0d1b5](https://github.com/xseman/pando/commit/1c0d1b5a8f8577f16102808fc7f2ea60435bd7ff))
+* **ui:** ctrl+w or ctrl+d closes a split's group showing nothing ([2ae6a0a](https://github.com/xseman/pando/commit/2ae6a0ac199120de567c6d37e2ee56e5fd9be3ba))
+* **ui:** discard a folder's changes in Source Control ([da68dd5](https://github.com/xseman/pando/commit/da68dd5297aad80c36ea03966f724b4f3175946d))
+* **ui:** editor groups in place of the docked session column ([bf85723](https://github.com/xseman/pando/commit/bf8572300c34fcfe1181f42a5ed89b3b7a517456))
+* **ui:** frame the focused group, pulse one whose session needs you ([c82a617](https://github.com/xseman/pando/commit/c82a61750825300d7b0d583d6143527685ba79e5))
+* **ui:** light a diff's hidden-lines row under the mouse ([4603941](https://github.com/xseman/pando/commit/460394142de08e67a6333fcb44fce1252f564dca))
+* **ui:** n on the welcome screen starts a session ([74146ef](https://github.com/xseman/pando/commit/74146ef9e1478ade770bfe91e5eb83d5c6583646))
+* **ui:** No Sessions lists its projects a dimmed row each ([4186e1b](https://github.com/xseman/pando/commit/4186e1b8745fb56c73c5b9862ed7a5849343b40d))
+* **ui:** session tabs in their Spaces glyph color ([4fd03de](https://github.com/xseman/pando/commit/4fd03de7f362364d539f963874627ec33b636736))
+* **ui:** show a tab's close button while the mouse is on it ([ec7dba8](https://github.com/xseman/pando/commit/ec7dba8bdef267fb28b604fdfe5bb6c21aaf6543))
+* **ui:** Spaces holds a lone checkout on its heading, groups by state ([db9cdc2](https://github.com/xseman/pando/commit/db9cdc23e2b88784187e8bd5fed49f3ae5500403))
+* **ui:** Split Sessions in Spaces opens a worktree's sessions side by side ([59fe12e](https://github.com/xseman/pando/commit/59fe12ee7d674b530cfd70bc061ffec47e475a6b))
+* **ui:** tint session tabs apart from file tabs ([d63e08b](https://github.com/xseman/pando/commit/d63e08baacb62717f2f687647cc2a8c54ae91e10))
+* **ui:** toggle comments in every language chroma colours ([501a7e5](https://github.com/xseman/pando/commit/501a7e5aee9ab60b4bcdf1b0df6b7822ace9f4c8))
+* **ui:** w, a and 3 on the welcome screen do what its text says ([351d9f6](https://github.com/xseman/pando/commit/351d9f696fc63ca27a92f51b41b1318f6ca635fa))
+
+
+### Bug Fixes
+
+* **daemon:** a redraw under claude's idle prompt is not running ([21c313e](https://github.com/xseman/pando/commit/21c313ec2288c95f42adfb8d8840c38b5e816600))
+* **daemon:** a restart keeps a session's Updated ([eab0e3e](https://github.com/xseman/pando/commit/eab0e3eb27bab0fccf60c5356b5f55446b13d505))
+* **proto:** start the daemon in a systemd scope of its own ([eecc07d](https://github.com/xseman/pando/commit/eecc07d1ede88d638e085dcb010160272e1fa743))
+* **ui:** a click on the session on screen keeps its tab ([0474ebc](https://github.com/xseman/pando/commit/0474ebc38c6560a0755283fb5f529e12d6468acd))
+* **ui:** a darker green for ok in the light theme ([0d08c4e](https://github.com/xseman/pando/commit/0d08c4e963318873c3746f44beabd81e9eb1c56a))
+* **ui:** a session shown without a tab keeps one when another opens ([1ebd5d2](https://github.com/xseman/pando/commit/1ebd5d248ab53a9cdb8db846428540559e1bc030))
+* **ui:** ctrl+/ comments a whole selection and takes it back ([18626c7](https://github.com/xseman/pando/commit/18626c7e7c5e21d1b3b5f1a80855c5bb316b50ec))
+* **ui:** keep the folder picker's path readable without focus ([49b3c12](https://github.com/xseman/pando/commit/49b3c12747eb8e19bf2c8f0986f4fde4cbbfbdd5))
+* **ui:** offer no split for a group's only tab dragged over its own group ([b5a0fe4](https://github.com/xseman/pando/commit/b5a0fe472da7aac7ac947159718737a23d9f9b57))
+* **ui:** put the status bar's border right on the bar ([da66fd8](https://github.com/xseman/pando/commit/da66fd8a10c0e86129331bded80916591dc3f070))
+
+
+### Documentation
+
+* bring the docs in line with the last week's changes ([2fecdfe](https://github.com/xseman/pando/commit/2fecdfed7681407b424ea64adbd3b419f2971119))
+* **demo:** a hero still with Spaces on the right, tui.gif in the tour ([2367e5f](https://github.com/xseman/pando/commit/2367e5fb2d344e70291e130cace3d96ce8e43237))
+* **demo:** hero with a file and a session side by side, groups.gif ([66c44ce](https://github.com/xseman/pando/commit/66c44ce23ac54783c5692a1b2777e141bfe3420b))
+* **demo:** hero with the activity bar ([8be7869](https://github.com/xseman/pando/commit/8be786939ba018b1afd7f2583e7ed30db8980e68))
+* **demo:** re-record every GIF and the hero ([76013bc](https://github.com/xseman/pando/commit/76013bca94a3f7c9065654c9c2c4d98ad3884502))
+* editor groups replace the session column ([a4af052](https://github.com/xseman/pando/commit/a4af052006df2e92a9c7ec98364efdab3daa2aee))
+* **skill:** name sessions after the house style, branch or task ([27dcee9](https://github.com/xseman/pando/commit/27dcee9105efd11ec168b2aad7e840e0c4178391))
+
+
+### Testing
+
+* **e2e:** pin the right sidebar empty, Spaces starts there now ([fe65877](https://github.com/xseman/pando/commit/fe658773e3af7e644a85895514a76bc07ac23e70))
+* **windows:** give PowerShell 45s to start on a slow runner ([bf13824](https://github.com/xseman/pando/commit/bf13824780eb106ae1371f3413216bf6be46db57))
+
 ## [0.6.0](https://github.com/xseman/pando/compare/v0.5.0...v0.6.0) (2026-10-20)
 
 
