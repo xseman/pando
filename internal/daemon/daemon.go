@@ -211,6 +211,7 @@ func (d *Daemon) respawn(spec proto.SessionSpec, by map[string]string, cols, row
 
 	s.mu.Lock()
 	s.touched = spec.Active // the use it had, which sleep_after goes on counting from
+	s.active = spec.Active  // and Updated: a restart is no change of its own
 	s.mu.Unlock()
 
 	s.resumeWith(argv, leftover)

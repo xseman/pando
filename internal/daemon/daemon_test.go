@@ -473,6 +473,26 @@ func TestUpdatedSkipsRedraw(t *testing.T) {
 	}
 }
 
+// TestUpdatedSkipsStartGrace keeps Updated through the status changes of a
+// session's first startGrace, its agent coming back after a restart, so an
+// idle session does not read as just changed.
+func TestUpdatedSkipsStartGrace(t *testing.T) {
+	now := time.Now()
+	before := now.Add(-3 * time.Hour)
+
+	s := &session{status: "running", started: now.Add(-5 * time.Second), active: before, lastOutput: now.Add(-2 * time.Second)}
+	if !s.tick(now) || s.status != "idle" || !s.info().Updated.Equal(before) {
+		t.Fatalf("settling after the start: %+v", s.info())
+	}
+
+	s.started = now.Add(-time.Minute)
+	s.lastOutput = now
+
+	if !s.tick(now) || s.status != "running" || !s.info().Updated.Equal(now) {
+		t.Fatalf("past the grace a change moves it: %+v", s.info())
+	}
+}
+
 // TestViewingClearsAttentionForClients guards a stale "✓": session.screen
 // cleared attention behind tick's back, so no "sessions" event went out and
 // an attached TUI kept showing the session as unseen.

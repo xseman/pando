@@ -304,7 +304,8 @@ type Session struct {
 	Title     string `json:"title"`
 	Program   string `json:"program,omitempty"` // what runs in its foreground: the shell, or claude started in it
 	// Updated is its last input or change of status, Created before either;
-	// it starts over when a restarted daemon respawns the session.
+	// a restarted daemon keeps its last use (Active), and the changes of its
+	// first 30 s, the agent coming back, do not count.
 	Updated time.Time `json:"updated,omitzero"`
 	// Subagents are the subagents its agent runs now, oldest first, where
 	// the agent records them (claude); they live inside its process, so

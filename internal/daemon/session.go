@@ -430,7 +430,7 @@ func (s *session) tick(now time.Time) bool {
 		s.attention = false
 	}
 
-	if prev != s.status {
+	if prev != s.status && now.Sub(s.started) >= startGrace { // within it, its agent coming back
 		s.active = now
 	}
 

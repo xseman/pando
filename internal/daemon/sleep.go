@@ -33,7 +33,7 @@ func dormant(spec proto.SessionSpec, cols, rows int) *session {
 
 	s := &session{
 		spec: spec, done: make(chan struct{}), emu: vt.NewEmulator(cols, rows),
-		cursorVisible: true, mouse: map[int]bool{}, status: "asleep", exited: true, asleep: true, touched: spec.Active,
+		cursorVisible: true, mouse: map[int]bool{}, status: "asleep", exited: true, asleep: true, touched: spec.Active, active: spec.Active,
 	}
 	s.keepBack()
 	close(s.done)
