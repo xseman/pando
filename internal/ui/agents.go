@@ -1925,7 +1925,8 @@ func wsRight(m *Model, r agRow, rw int) string {
 
 // actions are row r's hover buttons, right after its name: a project's New
 // Worktree (then its harness), a worktree's New Session and Resume, a
-// project heading holding its checkout all three, as glyphs with a tip; a
+// project heading holding its checkout all three, as glyphs with a tip, and
+// either's Split Sessions with two sessions or more; a
 // session's are its pin, in the gutter before it, and its ✕ at the row's
 // right end, x's kill, as a linked worktree's ✕ is x's delete, last after
 // its session count. On a row w cells wide a
@@ -1976,6 +1977,10 @@ func (a *agents) actions(m *Model, r agRow, w int) []rowAction {
 
 	default:
 		return nil
+	}
+
+	if r.ws.Path != "" && m.sessionCount(r.ws.Path) > 1 {
+		acts = append(acts, rowAction{g: icSplitAll, tip: "Split Sessions", run: func(m *Model) tea.Cmd { return m.splitSessions(r.ws.Path) }})
 	}
 
 	var kill []rowAction

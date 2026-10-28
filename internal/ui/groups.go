@@ -456,6 +456,64 @@ func (m *Model) splitEditor(side int) tea.Cmd {
 	return m.moveTabTo(id, m.cur, side)
 }
 
+// splitSessions is Spaces' Split Sessions on worktree path: its sessions a
+// group each, side by side and as wide as each other, the files of the
+// groups it had in the first, as they were, unsaved edits too.
+func (m *Model) splitSessions(path string) tea.Cmd {
+	var ids []string
+
+	for _, s := range m.mainSessions() {
+		if s.Workspace == path {
+			ids = append(ids, s.ID)
+		}
+	}
+
+	if len(ids) < 2 {
+		return flash("one session: nothing to split", false)
+	}
+
+	if len(ids)*(minGroupW+1)-1 > m.area().w {
+		return flash("no room for a group each", true)
+	}
+
+	cmds := []tea.Cmd{m.switchWorkspace(path)}
+
+	m.eachGroup(m.saveSpot)
+	m.stash()
+
+	first := m.cur
+	g := first.g
+
+	for _, p := range m.grid.leaves() {
+		for _, e := range p.g.editors {
+			if p != first && !slices.ContainsFunc(g.editors, func(o preview) bool { return o.id() == e.id() }) {
+				g.editors = append(g.editors, e)
+			}
+		}
+	}
+
+	if g.sess != ids[0] {
+		g.term = term{}
+	}
+
+	g.sess, g.tabs, g.preview = ids[0], []string{ids[0]}, false
+	m.grid, first.up = first, nil
+
+	for p, i := first, 1; i < len(ids); i++ {
+		p = m.splitPane(p, sideRight)
+		p.g.sess, p.g.tabs = ids[i], []string{ids[i]}
+	}
+
+	m.load(first)
+	m.maxed, m.focus = false, onMain
+
+	for _, id := range ids {
+		cmds = append(cmds, m.wake(id))
+	}
+
+	return tea.Batch(append(cmds, m.syncTabs(), m.fetchScreen(), m.saveEditors())...)
+}
+
 // neighbour is the group on side of the active one, the nearest to its
 // middle, nil at the area's edge.
 func (m *Model) neighbour(side int) *pane {

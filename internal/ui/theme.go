@@ -402,6 +402,7 @@ var (
 	icError      = glyph{"error", "\uea87", "✖", ""}
 	icWarning    = glyph{"warning", "\uea6c", "⚠", ""}
 	icSplit      = glyph{"split-horizontal", "", "split", ""}
+	icSplitAll   = glyph{"split-horizontal (sessions)", "\ueb56", "▥", ""} // Spaces' Split Sessions: one cell without the font
 	icInline     = glyph{"diff", "", "inline", ""}
 	icUnfold     = glyph{"unfold", "\ueb73", "full", ""}
 	icFold       = glyph{"fold", "\ueaf5", "changes", ""}
@@ -436,7 +437,7 @@ var (
 	icView       = glyph{"eye", "\uea70", "◫", ""} // a view of a database: rows read, never written
 	allGlyphs    = []glyph{
 		icFiles, icGit, icSpaces, icGear, icNewFile, icNewDir, icRefresh, icCollapse, icTree, icList,
-		icAdd, icRemove, icDiscard, icWorktree, icSparkle, icCheck, icChevron, icClose, icMax, icRestore, icBranch, icPublish, icSync, icError, icWarning, icSplit, icInline, icUnfold, icFold,
+		icAdd, icRemove, icDiscard, icWorktree, icSparkle, icCheck, icChevron, icClose, icMax, icRestore, icBranch, icPublish, icSync, icError, icWarning, icSplit, icSplitAll, icInline, icUnfold, icFold,
 		icSearch, icCase, icWord, icRegex, icEllipsis, icClearAll, icOptions, icPreview, icSource,
 		icPrevRev, icNextRev, icUp, icDown, icHistory, icTag, icDetach, icReplace, icPreserve, icReplaceAll, icTerminal, icDot,
 		icMainWt, icLinkedWt, icResume, icPin, icPinned, icWrap, icGitHub, icPR, icPRDraft, icPRNew, icIssue, icBell, icBellDot, icCheckAll,

@@ -36,6 +36,8 @@ to it. An idle session says how long it has been idle (`3h`). Projects with
 no session wait under _No Sessions_ at the bottom, a dimmed line each: a
 click switches to it, `n` starts a session in it. Scrolled down, the
 project of the top row stays on the first line.
+A worktree with two sessions or more has a split button on hover: its
+sessions open side by side, a group each.
 
 | Key      | In Spaces                                                                 |
 | -------- | ------------------------------------------------------------------------- |

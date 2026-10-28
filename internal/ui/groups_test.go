@@ -8,6 +8,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/xseman/pando/internal/proto"
 )
 
 // groupsModel has README.md and .env open, .env in front, the keyboard in
@@ -447,4 +449,49 @@ func TestCloseIdleGroup(t *testing.T) {
 	if m.grid.g == nil || m.cur != m.grid || filepath.Base(m.pv.path) != ".env" {
 		t.Fatalf("⌃d closes it, the files' group left: %q", m.pv.path)
 	}
+}
+
+// TestSplitSessions: a worktree's Split Sessions in Spaces puts each of its
+// sessions in a group of its own, side by side and as wide as each other,
+// the files of both groups open before in the first, which takes the keyboard.
+func TestSplitSessions(t *testing.T) {
+	m := groupsModel(t)
+	press(m, `ctrl+\`) // .env in a group of its own
+
+	var ss []proto.Session
+	for _, id := range []string{"s1", "s2", "s3"} {
+		ss = append(ss, proto.Session{SessionSpec: proto.SessionSpec{ID: id, Workspace: m.ws, Agent: "shell", Name: id}, Status: "idle"})
+	}
+
+	m.Update(sessionsMsg(ss))
+	press(m, "3")
+
+	rows := m.ag.rows(m)
+	i := slices.IndexFunc(rows, func(r agRow) bool { return r.shows(m.ws) })
+	acts := m.ag.actions(m, rows[i], m.bodyW(viewAgents))
+
+	j := slices.IndexFunc(acts, func(a rowAction) bool { return a.g == icSplitAll })
+	if j < 0 {
+		t.Fatalf("the worktree with three sessions has Split Sessions: %+v", acts)
+	}
+
+	fire(m, acts[j].run(m))
+
+	ps := m.grid.leaves()
+
+	var w []int
+
+	for n, p := range ps {
+		if p.g.sess != ss[n].ID {
+			t.Fatalf("group %d shows %q", n, p.g.sess)
+		}
+
+		w = append(w, p.boxIn(m.area()).w)
+	}
+
+	if len(ps) != 3 || !m.grid.row || m.cur != ps[0] || !m.showsSession() || len(m.editors) != 2 || slices.Max(w)-slices.Min(w) > 1 {
+		t.Fatalf("three groups side by side, the first with the keyboard %v, the files and s1 in it: %d files, widths %v", m.cur == ps[0], len(m.editors), w)
+	}
+
+	checkWidths(t, m)
 }

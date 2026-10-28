@@ -157,7 +157,7 @@ re-roots Explorer and Source Control to its worktree.
  ⊙ └─ ◐ claude · fix   running   pinned sessions in the order pinned, copies: each stays in the tree too
 ━━━━━━━━━━━━━━━━━━━━━━━━━━  its border, heavy in tab_border
 ▾ ◐ repo +⎇ New Worktree  project: most demanding session's glyph (· none), button (hover)
-   ⌂ main + New Session  ↺ Resume 2  the project's own checkout, buttons (hover; one that does not fit before the count is left out), session count
+   ⌂ main + New Session  ↺ Resume ▥ 2  the project's own checkout, buttons (hover; one that does not fit before the count is left out), session count
  ⊙ ├─ ◐ claude · fix   running ✕       ⊙ pinned, ✕ kills it (hover)
    │  ↳ Explore · Trace tabs        a subagent it runs (agSub): ↑↓ walk past, a click is its session's
    └─ ○ shell            3h   idle since (shortAgo); a shell says shell, other states their word
@@ -240,6 +240,9 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
   session's or a linked worktree's `✕` (on hover, at its row's right end)
   is its `x`.
 - _New Worktree…_ (`w`) offers a random branch (`workspace.new`).
+- A worktree with two sessions or more has _Split Sessions_ (`▥`, hover,
+  `splitSessions`): a group each, side by side and as wide as each other,
+  the files of the groups it had in the first.
 - Session reordering applies under Sort by Created + Group by Workspace only;
   an open project's under Sort Projects Manually only.
 - `p`, the gutter's ⊙ (on hover) or the menu pins a session, or unpins it
