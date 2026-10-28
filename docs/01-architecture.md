@@ -5,7 +5,8 @@ protocol, how a session's status is decided, and how sessions come back after
 a restart. The TUI is in [02-ui-layout.md](02-ui-layout.md).
 
 - [Processes](#processes) · [Protocol](#protocol) · [Sessions](#sessions) ·
-  [Status](#status) · [Resume after a restart](#resume-after-a-restart)
+  [Status](#status) · [Resume after a restart](#resume-after-a-restart) ·
+  [Sleep](#sleep)
 
 ## Processes
 
@@ -65,8 +66,8 @@ Methods (`Daemon.dispatch`; `subscribe` in `Daemon.handle`):
 - projects: `project.add` `project.remove` `project.move`
 - worktrees: `workspace.list` `workspace.new` `workspace.remove` `workspace.move`
 - sessions: `session.new` `session.get` `session.list` `session.kill`
-  `session.rename` `session.move` `session.input` `session.screen`
-  `session.read` `session.wait`
+  `session.rename` `session.move` `session.sleep` `session.wake`
+  `session.input` `session.screen` `session.read` `session.wait`
 - updates: `update.status` `update.check` `update.install`
 
 Events are notifications; the client re-reads what changed: `sessions` →
@@ -78,8 +79,9 @@ Events are notifications; the client re-reads what changed: `sessions` →
   make every client re-read the state.
 - A subscriber that falls 256 events behind is dropped.
 - `session.wait` is the one call that blocks: it returns when the status is in
-  `until` (default `idle`, `blocked`, `exited`, dropped when only `match` is
-  given), the screen matches `match`, or fails when `timeout_ms` passes. Every other method answers at once.
+  `until` (default `idle`, `blocked`, `asleep`, `exited`: `proto.Settled`;
+  dropped when only `match` is given), the screen matches `match`, or fails
+  when `timeout_ms` passes. Every other method answers at once.
 
 [SKILL.md](../skills/pando/SKILL.md) is the contract an agent reads before
 driving the API.
@@ -155,9 +157,10 @@ under the worker) as shell, its ◐ blue. Each tick, `session.tick` decides:
 - Output of its own is the app's: not within 500 ms (`redrawWindow`) of a
   resize, its redraw, or of an input, its echo. It says running over any
   screen, claude's idle ❯ too: claude takes its spinner down while it streams
-  the answer, the prompt still under it. Not under the idle ❯ when the text
-  above it (less the rule and the notice line over the rule) stays: claude
-  redraws its footer (`← N agents`) or a notice in every session at once.
+  the answer, the prompt still under it. Output that leaves the text above
+  the idle ❯ as it was (`aboveInput`: less the rule over ❯ and the notice
+  line over the rule) is not its own: claude redraws its footer
+  (`← N agents`) or a notice in every session at once.
   Idle shows once it stops, 1.5 s (`busyWindow`) after its last output or
   the user's last input.
 - `held`: a wheel up sent to an app that takes the mouse scrolls its own view.
@@ -168,16 +171,17 @@ under the worker) as shell, its ◐ blue. Each tick, `session.tick` decides:
   scrolled shows `running` until then.
 
 - `agentRules` in `internal/daemon/detect.go` holds the phrases per agent
-  (`claude`, `codex`, `gemini`, `opencode`). The screen is reclassified only
-  after output or a change of foreground program.
+  (`claude`, `codex`, `gemini`, `opencode`); agy and grok have none, output
+  timing alone decides. The screen is reclassified only after output or a
+  change of foreground program.
 - Foreground program: the PTY's process group (`TIOCGPGRP`, `/proc/<pgid>/cmdline`).
 - Shell commands: `commandsUnder` keeps the worker's direct children that run a
   command line (`sh -c`, `bash -lc`). An MCP server is no shell; a hook is gone
   by the next tick. The worker is the foreground process, or, under `claude
   attach`, the background job's process. So a `run_in_background` shell keeps
   an idle claude running.
-- `Session.Subagents` (`setSubagents`, each tick, `subagentReaders` by
-  program in front):
+- `Session.Subagents`: each tick `setSubagents` runs the reader for the
+  program in front (`subagentReaders`); none while asleep or exited:
 
   | Agent  | Reads                                                                           | Works while                                            |
   | ------ | ------------------------------------------------------------------------------- | ------------------------------------------------------ |
@@ -189,7 +193,8 @@ under the worker) as shell, its ◐ blue. Each tick, `session.tick` decides:
   An agy subagent waiting on a background command has ended its turn and
   is left out until woken. Gemini and opencode report none.
 - `/proc` is Linux only; elsewhere (macOS, Windows) only the screen and
-  output timing decide, and an agent's session is taken to run the agent
+  output timing decide, codex, agy and grok list no subagents (their readers
+  need `/proc/<pid>/fd`), and an agent's session is taken to run the agent
   itself (`ownAgent`): a restart runs its `[resume]` in its place.
 
 ## Resume after a restart
@@ -235,6 +240,8 @@ Scrollback is lost. A claude resumes by id from its `sessions/<pid>.json`
   jobs its Terminal shells attached to, and waits for each to let go of its
   conversation; `claude --resume` still opens it.
 - An attach sets no title: the session shows the job's name or transcript title.
+- `Updated` carries over as `Active`, its last use (a view included); status
+  changes within `startGrace` (30 s) of the respawn do not move it.
 
 ## Sleep
 
@@ -251,12 +258,12 @@ session, put off until `session.wake` (`sleep.go`).
  restart: spec.Asleep ─▶ dormant: a screen, no process, until woken
 ```
 
-| A session in front runs…                  | By hand | On its own | Wakes to                |
-| ----------------------------------------- | ------- | ---------- | ----------------------- |
-| an agent with a resume (spec.Resume)      | yes     | when idle  | the agent, resumed      |
-| its shell, at the prompt                  | yes     | when idle  | a new shell             |
-| something else (a server, an editor)      | yes     | no         | a new shell             |
-| a known agent with no `[resume]` (gemini) | refused | no         | -                       |
+| A session in front runs…                             | By hand | On its own | Wakes to           |
+| ---------------------------------------------------- | ------- | ---------- | ------------------ |
+| an agent with a resume (spec.Resume)                 | yes     | when idle  | the agent, resumed |
+| its shell, at the prompt                             | yes     | when idle  | a new shell        |
+| something else (a server, an editor)                 | yes     | no         | a new shell        |
+| a known agent with no `[resume]` (gemini, agy, grok) | refused | no         | -                  |
 
 - On its own: `sleep_after` minutes since `used`: the last input, a client's
   `session.screen` (a TUI asks for the session it shows every 30 s while

@@ -42,9 +42,11 @@ The binary is the authority for syntax:
 pando help
 ```
 
-Every command prints JSON except `pando session read` (the screen as text) and
-`pando project ls` (one path per line). Read ids and state out of those
-responses; never guess them.
+A command that answers prints JSON, except `pando session read` (the screen
+as text) and `pando project ls` (one path per line); one that only acts
+(`kill`, `sleep`, `rename`, `move`, `rm`, `switch`, `send`, `keys`) prints
+nothing and fails with an error. Read ids and state out of those responses;
+never guess them.
 
 `pando call METHOD '{"json":"params"}'` reaches any API method directly,
 including the ones with no CLI verb. `pando help` lists the methods.
@@ -104,21 +106,23 @@ pando session get reviewer
 | `exited`  | the process is gone; `exit_code` says how         |
 
 pando reads the screen for the agents it recognizes (claude, codex, gemini,
-opencode); output an agent writes on its own keeps it `running` whatever its
-screen says, and `idle` comes once its output has stopped for 1.5 s. A human
-scrolling an agent's view leaves the status as it was. A shell command
-the agent runs keeps it `running`, a background one too: waiting for `idle`
-waits for the agent's background shells, a dev server included; `shell` is
-set while one is what keeps it `running`. A `blocked`
-screen is an approval or a question **that you must not answer on the user's
-behalf** — read it and ask, unless the user already told you how to answer.
+opencode; agy and grok only by their output); output an agent writes on its
+own keeps it `running` whatever its screen says, and `idle` comes once its
+output has stopped for 1.5 s. A human scrolling an agent's view leaves the
+status as it was. A shell command the agent runs keeps it `running`, a
+background one too: waiting for `idle` waits for the agent's background
+shells, a dev server included; `shell` is set while one is what keeps it
+`running`. A `blocked` screen is an approval or a question **that you must not
+answer on the user's behalf** — read it and ask, unless the user already told
+you how to answer.
 
 `attention` is a UI flag for the human, not a state. Ignore it.
 
-`subagents` lists what a claude, codex, agy or grok session's agent runs inside it right now
-(`type`, `description`, `started`), oldest first. They are part of that
-session, not sessions of their own: there is nothing to read, wait on or send
-to but the session itself.
+`subagents` lists what the agent of a claude, codex, agy or grok session runs
+inside it right now (`type`, `description`, `started`), oldest first; codex,
+agy and grok on Linux only, none while `asleep` or `exited`. They are part of
+that session, not sessions of their own: there is nothing to read, wait on or
+send to but the session itself.
 
 ## Wait instead of polling
 

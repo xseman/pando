@@ -98,7 +98,7 @@ vrow{line, from, to}   screen rows; wrapped when wrap is on
   selected; a diff tint, a conflict or Go to Line's line wins.
 - The gutter's first column, before the numbers, marks lines against the file's staged
   text (`base`, read with each load), VS Code's quick diff (`gutter.go`):
-  `lineChanges` diffs by Myers' algorithm the lines between a common prefix
+  `diffChanges` diffs by Myers' algorithm the lines between a common prefix
   and suffix (`editScript`, at most `maxEdits`), in a command after each edit
   (`noteGutter`, keyed by buffer, edits and base); a change that only added is
   a thin bar `▎` added, one that also removed `▎` modified (the color tells
@@ -141,25 +141,31 @@ The strip above the main area lists open editors (`●` unsaved).
 A `transient` editor (VS Code's preview editor, italic) is what Explorer,
 Search and Source Control open: `setPreview` puts the next transient one in
 its tab. `pin` keeps it: `editRaw`, or a double click on the tab or the row.
-Quick open, F12 and menus open pinned; `editorsSpec` drops the flag.
+Quick open, F12 and menus open pinned; `groupSpec` drops the flag.
 `editor_limit` closes the tab with the lowest `used`, never the active or a
 dirty one. Every jump is a history entry with cursor and scroll for Go Back.
-`saveEditors` sends `editorsSpec` (`file` and `rev` tabs only) to the daemon;
-`restoreEditors` reopens them. Go to Line takes `:120`, `:120:5`, `:120,5`.
+`saveEditors` sends the groups (`gridSpec`, each a `groupSpec`: `file` and
+`rev` tabs only) to the daemon; `restoreEditors` reopens them. Go to Line
+takes `:120`, `:120:5`, `:120,5`.
 
 `preview.key` offers a key to `compKey` (suggest), `findKey`, `vimKey`, then
 `editKey`; the first to claim it wins.
 
-| Command                   | How it works                                                   |
-| ------------------------- | -------------------------------------------------------------- |
-| Copy / Move Line Up, Down | one splice, one undo step                                      |
-| Toggle Line Comment       | `commentOf`: lexer → VS Code's token; `commentIn`: `<script>`  |
-| Sort Lines Ascending      | `sortLines`: selected lines or the whole file; palette, menu   |
-| Expand / Shrink Selection | `smartSel`: word, trimmed line, line, bracket pairs, file      |
-| Save                      | `errChangedOnDisk` asks before overwriting a newer file        |
-| Find (`ctrl+f`)           | VS Code's widget: case, word, regex; hits tinted (`rehit`)     |
-| Replace (`ctrl+h`)        | `$1` in regex mode, preserve case; `replaceAll` is one undo    |
+| Command                   | How it works                                                 |
+| ------------------------- | ------------------------------------------------------------ |
+| Copy / Move Line Up, Down | one splice, one undo step                                    |
+| Toggle Line Comment       | `toggleComment`, below                                       |
+| Sort Lines Ascending      | `sortLines`: selected lines or the whole file; palette, menu |
+| Expand / Shrink Selection | `smartSel`: word, trimmed line, line, bracket pairs, file    |
+| Save                      | `errChangedOnDisk` asks before overwriting a newer file      |
+| Find (`ctrl+f`)           | VS Code's widget: case, word, regex; hits tinted (`rehit`)   |
+| Replace (`ctrl+h`)        | `$1` in regex mode, preserve case; `replaceAll` is one undo  |
 
+- Toggle Line Comment puts the language's token at the selection's
+  shallowest indent, else a block (`toggleBlock`); the selection stays, so
+  a second one takes it back. `commentOf` finds the language by file name,
+  extension, then lexer; `commentIn` the one inside a `<script>`, a
+  `<style>` or a code fence. Plain text flashes that it has none.
 - Smart select brackets come from `plain`, no lexer; moving drops the chain.
 - Occurrence highlight: `hlWord` paints the identifier under the cursor
   wherever it shows. An edit sets `typed` and hides it until the cursor

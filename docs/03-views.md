@@ -102,7 +102,7 @@ The action button (`scmView.action`):
 
 A Commit with nothing staged is muted too, and a click on it does nothing.
 
-- Publish (`git.publish`): one remote pushes, several open a picker, none
+- Publish (`git.Publish`): one remote pushes, several open a picker, none
   offers _Publish to GitHub_ via `gh`.
 - During a merge or cherry-pick an empty box commits `MERGE_MSG`.
 - The box grows to `maxMsgLines` (10). The `∨` opens `suggestMenu`
@@ -111,21 +111,27 @@ A Commit with nothing staged is muted too, and a click on it does nothing.
 - `↑` on the box's top line walks back through `git.Messages`, the draft
   first in `scmView.past`; `↓` on the bottom line walks forward to it.
 - Drawers (`Graph`, `Commits`, `File History`, `Compare`, `Branches`,
-  `Worktrees`, `Remotes`, `Stashes`, `Tags`) run one git command each; shown,
-  open and height live in `git_panes`.
+  `Worktrees`, `Remotes`, `Stashes`, `Tags`) run one git command each
+  (`git.Drawers`), File History the selected file's log, Compare its range;
+  which show and their order live in `git_drawers`, open and height in
+  `git_panes`.
 - Drawers stack like Spaces' projects (`flipDrawer`): open ones above closed
   ones, an opened drawer on top, a closed one on top of the closed, in
   `git_drawers` order. _Collapse All Drawers_ (the rule's ⊟ or a header's
   menu; `collapseDrawers`) closes the open ones where they show; the view's
   Collapse All (`collapseAll`) closes them with the tree.
 - The rule over the drawers (`drawersRule`) ends in `ruleActions` while the
-  mouse is over the drawers, lingering as the header's do: ⊟, with one
-  open, and ∨, which folds them, as _Fold Tools_ in the view's menu does,
-  into one `▸ Tools  N` row (`toolsRow`, `git_drawers_folded`), not built
-  nor loaded, each keeping whether it is open; a click on the rule off its
-  buttons does too, the rule lit with `hover_bg` under the mouse
-  (`clickRule`). A click on the row or the rule, or a comparison opened,
-  unfolds them.
+  mouse is over the drawers, lingering as the header's do; folded, the
+  drawers are one `▸ Tools  N` row (`toolsRow`, `git_drawers_folded`), not
+  built nor loaded, each keeping whether it is open:
+
+| On the rule (`clickRule`, lit in `hover_bg`) | Does                                        |
+| -------------------------------------------- | ------------------------------------------- |
+| ⊟, while one is open                         | _Collapse All Drawers_ (`collapseDrawers`)  |
+| ∨ (_Fold into Tools_), a click off a button  | folds them, as the view menu's _Fold Tools_ |
+| folded, a click on the rule or Tools row     | unfolds them, as a comparison opened does   |
+| right click on the rule or the Tools row     | the drawers' menu (`drawerMenu`)            |
+
 - A commit line (Graph, Commits, File History) shows its whole message in a
   box by the mouse after `tipDelay` (`tipBox`); its right-click menu has
   _Copy Commit Message_.
@@ -157,7 +163,7 @@ re-roots Explorer and Source Control to its worktree.
  ⊙ └─ ◐ claude · fix   running   pinned sessions in the order pinned, copies: each stays in the tree too
 ━━━━━━━━━━━━━━━━━━━━━━━━━━  its border, heavy in tab_border
 ▾ ◐ repo +⎇ New Worktree  project: most demanding session's glyph (· none), button (hover)
-   ⌂ main + New Session  ↺ Resume ▥ 2  the project's own checkout, buttons (hover; one that does not fit before the count is left out), session count
+   ⌂ main + New Session  ↺ Resume ▥ 2  the project's own checkout, buttons (hover; ▥ Split Sessions; one that does not fit before the count is left out), session count
  ⊙ ├─ ◐ claude · fix   running ✕       ⊙ pinned, ✕ kills it (hover)
    │  ↳ Explore · Trace tabs        a subagent it runs (agSub): ↑↓ walk past, a click is its session's
    └─ ○ shell            3h   idle since (shortAgo); a shell says shell, other states their word

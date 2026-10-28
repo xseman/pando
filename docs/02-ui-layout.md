@@ -150,17 +150,19 @@ take a message (`previewMsg`, `onScreen`, drafts).
   palette's _Move Editor into Left / Right Group, Group Above / Below_ into
   the neighbour or a new group (`moveEditor`). A group added or closed
   shares the room out evenly again (`even`): groups side by side as wide as
-  each other, stacked as tall; a group left empty closes (`prune`).
+  each other, stacked as tall; a group left empty closes (`prune`). One
+  showing nothing but kept by a session tab that ended closes on `ctrl+w`
+  or `ctrl+d` (`idleGroup`, `closeGroup`), its neighbour taking the keyboard.
 - `ctrl+1`…`ctrl+9` focus group N, `ctrl+]` walks the groups, a click focuses
   the one under it; the wheel scrolls a group without moving the focus. A
   group without the keyboard draws its active tab and cursor unlit
-  (`offMain`). The focused group is framed in `sash_hover`: the rule under its
-  strip, the dividers beside it and the edge of a column beside it (`frames`,
-  `paneLines`, `editorRule`, `View`). A group showing a session that waits,
-  failed or finished unseen is framed in that state's color instead
-  (`alert`), pulsing until the group is focused; `session_highlight`
-  `steady` keeps it still, `off` drops it. The status bar follows the
-  focused group.
+  (`offMain`). In a split the focused group is framed in `sash_hover`: the
+  rule under its strip, the dividers beside it and the edge of a column
+  beside it (`frames`, `paneLines`, `editorRule`, `View`). A group showing a
+  session that waits or failed is framed in `error` instead, one that
+  finished unseen in `attention` (`alert`), pulsing until the group is
+  focused; `session_highlight` `steady` keeps it still, `off` drops it. The
+  status bar follows the focused group.
 - A divider drags (`dragSplit`), each group keeping `minGroupW` × `minGroupH`
   (20 × 5); a double click shares the room of the two beside it evenly, the
   others kept (`evenPair`). A split is refused without room; an area too

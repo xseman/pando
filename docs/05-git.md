@@ -84,6 +84,9 @@ after anything it changes (a save, a stage, a commit):
   diffs against `/dev/null`.
 - `Continue` runs `rebase --continue`, or commits a merge or cherry-pick,
   with git's `MERGE_MSG` (`--cleanup=strip`) when the box is empty.
+- `Discard`: `checkout -- PATH`, a file or a folder, an untracked one
+  removed; `DiscardTracked`: `checkout -- .`; `DeleteUntracked` removes
+  paths, refusing one outside the root.
 
 ## Staging selected lines
 
@@ -160,13 +163,15 @@ leading dashes go, so "fix the login?" makes `fix-the-login-`.
 
 `github.go` holds every gh call. `GH` runs gh in the workspace (gh finds the
 repository by its remotes) with the 60 s timeout and `GH_PROMPT_DISABLED=1`;
-JSON decodes straight into structs.
+JSON decodes straight into structs. `GHLogin` and `PublishGitHub` run gh
+directly, without the timeout.
 
 - `PullRequests`, `Issues`: `pr list` / `issue list --json …`.
 - `Notifications`: `api repos/{owner}/{repo}/notifications`.
 - `CheckoutPR`: `pr checkout N --branch B`, never `--force` (it would reset an
   existing branch).
-- `PublishGitHub`: `repo create NAME --source ROOT --remote origin --push`.
+- `PublishGitHub`: `repo create NAME --public|--private --source ROOT
+  --remote origin --push`.
 - `Item.Checks` sums the check rollup as VS Code does: fail, else pending,
   else pass.
 

@@ -44,7 +44,7 @@ sessions open side by side, a group each.
 | `a`      | add a project from the folder picker: places, folders, a path             |
 | `w`      | add a worktree to the selected project                                    |
 | `n`      | start an agent or a terminal in the worktree, or a row's `+`              |
-| `x`      | kill a session, delete a worktree (its row's `✕` too), or close a project |
+| `x`      | kill a session, delete a worktree or close a project; a row's `✕` too     |
 | `o`      | filter, sort and group the list                                           |
 | `alt+↑↓` | reorder sessions and worktrees                                            |
 
@@ -62,8 +62,8 @@ work = ["CLAUDE_CONFIG_DIR=~/.claude-work"]
 client = ["CODEX_HOME=~/codex-client"]
 ```
 
-A project's `+` asks for one of its worktrees, or a new one, first. The agent exiting closes its session;
-a failure stays listed as `exit N`.
+A project's `+` asks for one of its worktrees, or a new one, first. The
+agent exiting closes its session; a failure stays listed as `exit N`.
 
 Deleting a worktree keeps its branch; closing a project never removes its
 checkout.
@@ -97,11 +97,12 @@ checkout.
   moves it into the group left, right, above or below. `ctrl+1`…`ctrl+9`
   focus group N, the button at the right end of a group's tab strip maximizes
   it. Adding or closing a group shares the room out evenly again; a double
-  click on a divider evens the two groups beside it. The focused group's frame
-  is drawn in the accent's shade; a group whose session waits for you, failed
-  or finished is framed red or in the attention color, pulsing until you
-  focus it. A group left empty closes. Each worktree keeps its groups, a
-  restart too.
+  click on a divider evens the two groups beside it. In a split the focused
+  group's frame is drawn in the accent's shade; a group whose session waits
+  for you or failed is framed red, one that finished in the attention color,
+  pulsing until you focus it. A group left empty closes; one showing nothing
+  closes with `ctrl+w` or `ctrl+d`. Each worktree keeps its groups, a restart
+  too.
 - Drag a view's tab to move it, a divider to resize. A second click on the
   open view's icon hides its sidebar; `ctrl+b` hides both.
 - Rest the pointer on an icon button for its name and key, or on a session
@@ -199,7 +200,7 @@ its background job and its `claude attach` together.
   that ran in it does not come back.
 - codex (`resume --last`) and opencode (`--continue`) continue the latest
   conversation in the worktree: two of one in the same worktree can swap.
-  gemini, with nothing in `[resume]`, is not put to sleep.
+  gemini, agy and grok, with nothing in `[resume]`, are not put to sleep.
 
 ## Review and commit
 
@@ -209,9 +210,9 @@ worktrees, remotes, stashes and tags. A commit in a drawer shows its whole
 message when the mouse rests on it; right click copies it. The header's
 Collapse All button closes the drawers with the tree. With the mouse over
 the drawers, the line above them ends in two buttons: ⊟ closes only the
-drawers, ∨ folds them all into one Tools row, as a project folds in
-Spaces, as a click on the line does; a click on Tools or the line brings
-them back as they were.
+drawers, ∨ or a click on the line folds them into one Tools row, as a
+project folds in Spaces; a click on Tools or the line brings them back as
+they were.
 
 ⏎ on a commit lists the files it changed in the Compare drawer, read-only,
 as GitLens does; ⏎ on a file opens its diff. A commit's right-click menu
@@ -219,20 +220,20 @@ compares it with HEAD, with the working tree, or with a commit picked by
 _Select for Compare_; _Open Changed Files_ on a pull request in GitHub does
 the same for the pull request. The empty drawer, or its header's right-click
 menu, compares the branch with a branch or tag picked from a list, or with any
-revision typed into it, as GitLens' _Compare with_ does. The ✕ on the drawer's header clears it. Each
-project keeps its own comparison.
+revision typed into it, as GitLens' _Compare with_ does. The ✕ on the
+drawer's header clears it. Each project keeps its own comparison.
 
-A diff shows the changes with three lines around them and the rest as
-`N hidden lines` rows: ⏎ on one or a click shows those lines in place, and
-they stay shown while the tab is open; find (`ctrl+f`) looks in them too
-and unfolds the one with the match. `z` (or the header's fold button) shows
-a file's whole diff, for every file until toggled back. `]` and
-`[` (VS Code's `alt+F5`, `shift+alt+F5`, or the header's `↓` `↑`) go to the
-next and previous change, `}` and `{` to the next and previous file: of a
-commit, or of Source Control from a file's diff; a file's diff opens on its
-first change. The scrollbar marks every change: green added, red deleted,
-blue changed lines; a click on a mark goes there, again to the next one in
-the same cell.
+A diff shows the changes with three lines around them and the rest as `N
+hidden lines` rows: ⏎ on one or a click shows those lines in place, and they
+stay shown while the tab is open; find (`ctrl+f`) looks in them too and
+unfolds the one with the match. `z` (or the header's fold button) shows a
+file's whole diff, for every file until toggled back. `]` and `[` (VS Code's
+`alt+F5`, `shift+alt+F5`, or the header's `↓` `↑`) go to the next and previous
+change, `}` and `{` to the next and previous file: of a commit, or of Source
+Control from a file's diff; a file's diff opens on its first change. The
+scrollbar marks every change: green added, red deleted, yellow changed lines
+(blue on the light theme); a click on a mark goes there, again to the next one
+in the same cell.
 
 | Key       | In Source Control                                          |
 | --------- | ---------------------------------------------------------- |
@@ -377,6 +378,9 @@ column and a blob are read only.
 - Undo, find & replace, quick open (`ctrl+p`, recent files first,
   `:` line, `@` symbol), suggestions, merge-conflict _Accept_ actions.
 - The cursor's line is lit faintly across the editor, as VS Code's.
+- `ctrl+/` comments the line or the selection out, and a second time back in,
+  in the language under the cursor (a `<script>`, a code fence); HTML, CSS
+  and Markdown get a block comment.
 - The gutter marks the lines changed since the file was staged, as VS Code's
   does, while you type, in a thin bar before the line numbers: `▎` green added,
   yellow modified (blue on the light theme), `▾` red where lines were deleted;
@@ -390,8 +394,8 @@ column and a blob are read only.
 - Indent guides as VS Code draws them: a `│` at each indent level, the block
   around the cursor's lit (`indent_guide`), a file indented by 2 spaces
   getting one every 2 cells.
-- A file's path shows under its tab (`breadcrumbs`); click a folder to browse it, ⏎ opens a
-  file or unfolds a folder.
+- A file's path shows under its tab (`breadcrumbs`); click a folder to browse
+  it, ⏎ opens a file or unfolds a folder.
 - `ctrl+shift+v` renders Markdown, `alt+v` beside the source.
 - A file opened from Explorer, Search or Source Control takes the preview
   tab, in italics, which the next one replaces; an edit or a double click

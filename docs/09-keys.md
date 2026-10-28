@@ -31,7 +31,7 @@ T: also in a terminal; the rest are the shell's there.
 | Key                                                    | Action                                                  |
 | ------------------------------------------------------ | ------------------------------------------------------- |
 | `ctrl+]` T                                             | cycle focus: left sidebar, each editor group, panel, …  |
-| `ctrl+shift+p` T, `F1`                                 | command palette, over any modal too                     |
+| `ctrl+shift+p` T, `F1`                                 | command palette; `ctrl+shift+p` over any modal too      |
 | `F10`                                                  | Manage menu (⚙): palette, settings, keys, categories    |
 | `ctrl+shift+e` `ctrl+shift+g` `ctrl+shift+f` T         | Explorer, Source Control, Search                        |
 | `ctrl+shift+h` T                                       | Search with replace                                     |
@@ -56,6 +56,9 @@ T: also in a terminal; the rest are the shell's there.
 | `ctrl+shift+v`, `alt+v` (in a file)                    | rendered Markdown, side by side                         |
 | `ctrl+alt+-` `ctrl+-` `alt+,` `super+←`                | back through visited editors                            |
 | `ctrl+shift+-` `alt+.` `super+→`                       | forward                                                 |
+
+The empty editor area (the welcome text) focused: `n` new session, `ctrl+n`
+new file; in a split `ctrl+w` `ctrl+d` close that group.
 
 ## Sidebar lists
 
@@ -130,7 +133,10 @@ Editable only:
 - `ctrl+shift+k`: delete the line or selection
 - `alt+↑` `alt+↓`: move the line
 - `alt+shift+↑`, `alt+shift+↓` `ctrl+d`: copy the line up, down
-- `ctrl+/`: toggle a comment on the line or every selected line, in the language there (a `<script>`, a code fence); a block where it has no line comment (HTML, CSS, Markdown)
+- `ctrl+/`: toggle a comment on the line or every selected line, in the
+  language there (a `<script>`, a code fence); a block where it has no line
+  comment (HTML, CSS, Markdown); the selection stays, so a second `ctrl+/`
+  takes it back
 - `ctrl+space`: suggestions (`⏎` `tab` accept, `esc` close)
 
 Read-only views add letters: `hjkl` `0` `$` move, `b` `f` `space` page, `g`
@@ -203,8 +209,7 @@ in every mode.
 ## Mouse and clipboard
 
 - Right click: menu. Middle click: close a tab. Double click on the empty
-  editor area: untitled file; `n` there: new session, `ctrl+w` `ctrl+d` in a
-  split: close that group.
+  editor area: untitled file.
 - In a file: drag selects, double click a word, triple click a line.
 - A file's or session's tab dragged over an editor group: its edge splits the
   group there, its middle or strip moves the tab in. A divider between groups

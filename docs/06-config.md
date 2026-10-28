@@ -41,7 +41,8 @@ config.toml edited ───────────┘  └─ "state" event �
 
 - `pando set KEY VALUE` takes VALUE as JSON, else a string; unknown keys fail.
 - `encode` rewrites the file with its own comments; yours are lost. Unknown
-  keys in it are logged.
+  keys in it are logged, bar `session_position` (gone with the session
+  column).
 - A file that does not parse is kept; the last good values (at startup the
   defaults) stay and saving is refused until it is fixed.
 - A save keeps the file's mode: `chmod 600` it to keep a password written
@@ -65,7 +66,7 @@ config.toml edited ───────────┘  └─ "state" event �
 | `auto_reveal`          | `true`      | Explorer selects the editor's file or diff, in front unless Search/Git in use  |
 | `git_deco`             | `true`      | Explorer colors entries by git status                                          |
 | `git_tree`             | `true`      | Source Control changes as a tree                                               |
-| `git_drawers`          | 5 drawers   | Graph, Commits, Branches, Remotes, Stashes; top to bottom, any drawer's title  |
+| `git_drawers`          | 5 drawers   | Commits, Graph, Branches, Stashes, Remotes; top to bottom, any drawer's title  |
 | `git_drawers_folded`   | `false`     | the drawers folded into one Tools row                                          |
 | `git_panes`            | none        | per drawer: `open`, `h` rows; the TUI writes it                                |
 | `diff_view`            | `inline`    | `inline`, `split` (from 90 columns)                                            |
@@ -141,8 +142,8 @@ right = []
 ```
 
 Columns run from the screen edge toward main. Views: `files`, `git`, `agents`,
-`search`, `session`, `github`, `databases`, `terminal`. A flat list is one
-column; an unlisted view joins the left column next to main.
+`search`, `github`, `databases`, `terminal`. A flat list is one column; an
+unlisted view joins the left column next to main.
 
 ## Keys
 

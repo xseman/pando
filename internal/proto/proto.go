@@ -159,7 +159,7 @@ type State struct {
 	ResumeEnv map[string][]string `json:"resume_env"` // agent to the variables that pick its config, carried into the command that continues it
 	Databases map[string]string   `json:"databases"`  // name to the URL of a database the Databases view lists: a server's, or sqlite:///path
 	Drafts    map[string]string   `json:"drafts"`
-	Editors   map[string]Editors  `json:"editors"` // per workspace: what its tab strip had open
+	Editors   map[string]Editors  `json:"editors"` // per workspace: its editor groups and what each had open
 	// Terminals is per workspace: whether its Terminal panel was open, and
 	// the shell it showed.
 	Terminals map[string]Terminal `json:"terminals"`
