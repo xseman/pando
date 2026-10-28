@@ -1257,6 +1257,10 @@ func (m *Model) editorRule(w int) string {
 		marks = append(marks, ruleMark{t.x, t.w, t.active && m.focus != offMain, m.tabID(t) == m.overTab})
 	}
 
+	if st, _, ok := m.ownFrame(); ok { // the top of the group's frame
+		return markedRule(w, marks, "─", st)
+	}
+
 	return ruleRow(w, marks)
 }
 

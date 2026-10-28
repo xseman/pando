@@ -2,10 +2,12 @@ package ui
 
 import (
 	"cmp"
+	"image/color"
 	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/xseman/pando/internal/proto"
 )
@@ -244,6 +246,10 @@ func (m *Model) focusGroup(p *pane) tea.Cmd {
 	m.stash()
 	m.load(p)
 	m.refs = nil // the References inline were the other group's
+
+	if m.showsSession() { // its frame stops pulsing
+		m.acknowledge(m.sess)
+	}
 
 	return tea.Batch(m.syncTabs(), m.fetchScreen()) // tabs as wide as its file has them
 }
@@ -608,42 +614,149 @@ func (m *Model) areaLines(w int) []string {
 		return m.editorLines(w)
 	}
 
-	return m.paneLines(m.grid, m.area())
+	return m.paneLines(m.grid, m.area(), m.frames())
 }
 
-func (m *Model) paneLines(p *pane, b box) []string {
+func (m *Model) paneLines(p *pane, b box, fs []groupFrame) []string {
 	if p.g != nil {
 		var out []string
 
-		focus := m.focus
-		if p != m.cur {
-			m.focus = offMain
-		}
-
-		m.within(p, func() { out = m.editorLines(b.w) })
-		m.focus = focus
+		m.asDrawn(p, func() { out = m.editorLines(b.w) })
 
 		return out[:b.h]
 	}
 
 	ba, bb := p.halves(b)
-	a, c := m.paneLines(p.a, ba), m.paneLines(p.b, bb)
+	a, c := m.paneLines(p.a, ba, fs), m.paneLines(p.b, bb, fs)
 
 	st, lit := m.sashStyle(gridSash(p))
-	if !lit {
+	if lit {
+		fs = nil // a divider lit under the pointer or dragged shows that instead
+	} else {
 		st = fg(pal.panelBorder)
 	}
 
 	if p.row {
-		div := renderText(st, ifElse(lit, "┃", "│"))
+		x, glyph := ba.x+ba.w, ifElse(lit, "┃", "│")
 		for i := range a {
-			a[i] += div + c[i]
+			a[i] += frameRun(fs, x, ba.y+i, 1, glyph, st) + c[i]
 		}
 
 		return a
 	}
 
-	return append(append(a, renderText(st, strings.Repeat(ifElse(lit, "━", "─"), b.w))), c...)
+	return append(append(a, frameRun(fs, b.x, ba.y+ba.h, b.w, ifElse(lit, "━", "─"), st)), c...)
+}
+
+// asDrawn runs f with group p in Model as paneLines draws it: a group
+// without the keyboard has its focus offMain.
+func (m *Model) asDrawn(p *pane, f func()) {
+	focus := m.focus
+	if p != m.cur {
+		m.focus = offMain
+	}
+
+	m.within(p, f)
+	m.focus = focus
+}
+
+// groupFrame is a group's frame while the grid is tiled: where the group is
+// and its style.
+type groupFrame struct {
+	b     box
+	st    lipgloss.Style
+	alert bool
+}
+
+// alert is the color of the frame the session shown in the group in Model
+// gives it, as session_highlight tints its tab: waiting for an answer or
+// ended in the error's, finished unseen in the attention's; it pulses until
+// the group has the keyboard. nil while nothing there needs you.
+func (m *Model) alert() (c color.Color, pulse bool) {
+	s := m.session(m.sess)
+	if s == nil || !m.showsSession() || m.st.Settings.SessHi == "off" {
+		return nil, false
+	}
+
+	switch sessionState(*s) {
+	case "blocked", "exited":
+		c = pal.errc
+	case "done":
+		c = pal.attention
+	default:
+		return nil, false
+	}
+
+	return c, m.pulses(*s)
+}
+
+// ownFrame is the frame of the group in Model while the grid is tiled: its
+// alert, gone on the pulse's off beat, else the accent's shade around the
+// group with the keyboard.
+func (m *Model) ownFrame() (st lipgloss.Style, alert, ok bool) {
+	if !m.tiled() {
+		return st, false, false
+	}
+
+	if c, pulse := m.alert(); c != nil {
+		return fg(c), true, !pulse || m.blinkOn
+	}
+
+	return fg(pal.sashHover), false, m.focus != offMain
+}
+
+// frames are the frames of the groups drawn now, none unless tiled.
+func (m *Model) frames() (fs []groupFrame) {
+	if !m.tiled() {
+		return nil
+	}
+
+	a := m.area()
+	for _, p := range m.grid.leaves() {
+		m.asDrawn(p, func() {
+			if st, alert, ok := m.ownFrame(); ok {
+				fs = append(fs, groupFrame{p.boxIn(a), st, alert})
+			}
+		})
+	}
+
+	return fs
+}
+
+// frameAt is the frame drawn at cell (x, y) of the editor area, beside a
+// group: an alert's over the focused group's; -1 for none.
+func frameAt(fs []groupFrame, x, y int) int {
+	at := -1
+
+	for i, f := range fs {
+		b := f.b
+		side := (x == b.x-1 || x == b.x+b.w) && y >= b.y && y < b.y+b.h
+		edge := (y == b.y-1 || y == b.y+b.h) && x >= b.x && x < b.x+b.w
+
+		if (side || edge) && (at < 0 || f.alert) {
+			at = i
+		}
+	}
+
+	return at
+}
+
+// frameRun is n cells of glyph from cell (x0, y), in st or in the frame of
+// the group beside each.
+func frameRun(fs []groupFrame, x0, y, n int, glyph string, st lipgloss.Style) string {
+	var sb strings.Builder
+
+	for x := x0; x < x0+n; {
+		at, e := frameAt(fs, x, y), x+1
+		for e < x0+n && frameAt(fs, e, y) == at {
+			e++
+		}
+
+		sb.WriteString(renderText(ifElse(at < 0, st, fs[max(at, 0)].st), strings.Repeat(glyph, e-x)))
+		x = e
+	}
+
+	return sb.String()
 }
 
 // gridSpec is the grid under p as state.json keeps it.

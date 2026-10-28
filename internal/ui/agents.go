@@ -998,9 +998,10 @@ func (m *Model) inView(id string) (in bool) {
 	return in
 }
 
-// wantsBlink reports a session out of view whose tint pulses.
+// wantsBlink reports a session whose tint pulses: out of view, or on the
+// frame of a group without the keyboard.
 func (m *Model) wantsBlink() bool {
-	return slices.ContainsFunc(m.mainSessions(), func(s proto.Session) bool { return m.pulses(s) && !m.inView(s.ID) })
+	return slices.ContainsFunc(m.mainSessions(), m.pulses)
 }
 
 // blink starts the blink ticker when a tint wants one and none runs; the

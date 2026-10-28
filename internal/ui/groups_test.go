@@ -146,6 +146,44 @@ func TestEvenPair(t *testing.T) {
 	checkWidths(t, m)
 }
 
+// TestGroupFrame: the active group's rule under its strip and the dividers
+// beside it, a column's edge too, are drawn in a shade of the accent; a click
+// moves the frame, and a group drawn alone has none.
+func TestGroupFrame(t *testing.T) {
+	m := groupsModel(t)
+	press(m, `ctrl+\`) // .env on the right, with the keyboard
+
+	ps := m.grid.leaves()
+	l, r := ps[0].boxIn(m.area()), ps[1].boxIn(m.area())
+	framedFrom := func(y int) int { // the first column of the frame in row y, -1 for none
+		line := strings.Split(m.View().Content, "\n")[y]
+
+		i := strings.Index(line, fgParams(pal.sashHover))
+		if i < 0 {
+			return -1
+		}
+
+		return ansi.StringWidth(line[:strings.LastIndex(line[:i], "\x1b")])
+	}
+
+	if x, d := framedFrom(r.y+1), framedFrom(r.y+5); x != r.x-1 || d != r.x-1 {
+		t.Fatalf("the right group framed from the divider: rule from %d, divider at %d, want %d", x, d, r.x-1)
+	}
+
+	click(m, l.x+5, l.y+5, tea.MouseLeft)
+
+	if x := framedFrom(l.y + 1); x != l.x-1 {
+		t.Fatalf("a click frames the left group from the Explorer's edge: rule from %d, want %d", x, l.x-1)
+	}
+
+	fire(m, m.toggleMaxGroup())
+	checkWidths(t, m)
+
+	if x := framedFrom(l.y + 1); x != -1 {
+		t.Fatalf("a group drawn alone has no frame: from %d", x)
+	}
+}
+
 // TestDragTabToGroup carries a tab under the pointer and drops it on another
 // group's middle, which closes the group it left empty, and on an edge, which
 // splits that group there.
@@ -310,6 +348,61 @@ func TestSessionInGroup(t *testing.T) {
 
 	if m.grid.g == nil || m.sess != "s1" || len(m.editors) != 2 {
 		t.Fatalf("back beside the files: grid %v, sess %q, %d tabs", m.grid.g != nil, m.sess, len(m.editors))
+	}
+}
+
+// TestGroupAlert: a group whose session waits for an answer is framed in the
+// error's color, the Explorer's edge beside it too; without the keyboard the
+// frame pulses until the group is focused, then stays steady.
+func TestGroupAlert(t *testing.T) {
+	m := groupsModel(t)
+	m.st.Settings.SessHi = "tint"
+	m.switchSession("s1")
+	fire(m, m.moveEditor(sideLeft)) // s1 on the left, beside the Explorer
+
+	ps := m.grid.leaves()
+	l := ps[0].boxIn(m.area())
+	_ = m.focusGroup(ps[1])
+
+	ss := slices.Clone(m.sessions)
+	for i := range ss {
+		if ss[i].ID == "s1" {
+			ss[i].Status = "blocked"
+		}
+	}
+
+	m.Update(sessionsMsg(ss))
+
+	red := fgParams(pal.errc)
+	framed := func() (edge, div bool) {
+		rows := strings.Split(m.View().Content, "\n")
+		at := func(x int) bool {
+			pre := ansi.Cut(rows[5], 0, x+1)
+			i := strings.LastIndex(pre, "\x1b[3")
+
+			return i >= 0 && strings.HasPrefix(pre[i+2:], red)
+		}
+
+		return at(l.x - 1), at(l.x + l.w)
+	}
+
+	if !m.blinking {
+		t.Fatal("a group without the keyboard pulses")
+	}
+
+	for i, on := range []bool{true, false} {
+		m.Update(blinkMsg{})
+
+		if e, d := framed(); e != on || d != on {
+			t.Fatalf("beat %d: the Explorer's edge red %v, the divider red %v, want %v", i, e, d, on)
+		}
+	}
+
+	_ = m.focusGroup(ps[0])
+	m.Update(blinkMsg{})
+
+	if e, d := framed(); !e || !d || m.blinking {
+		t.Fatalf("focused, the frame stays red, steady: edge %v, divider %v, pulsing %v", e, d, m.blinking)
 	}
 }
 

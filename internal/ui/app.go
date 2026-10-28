@@ -2421,10 +2421,8 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.ag.follow(m, sel)
 
-		for _, s := range m.mainSessions() { // what is on screen is seen as it changes
-			if m.inView(s.ID) {
-				m.acknowledge(s.ID)
-			}
+		if m.showsSession() { // what the focused group shows is seen as it changes; another group's pulses on its frame
+			m.acknowledge(m.sess)
 		}
 
 		cmd = tea.Batch(cmd, m.blink())
@@ -3763,6 +3761,28 @@ func (m *Model) View() tea.View {
 		}
 	}
 
+	// The edges of the editor area beside a group's frame, unless they light
+	// as a sash: main's frame edges, or the dividers before and after it.
+	mj := slices.IndexFunc(ps, func(p panel) bool { return p.focus == onMain })
+	lit := func(j int) bool { _, ok := m.sashStyle(colSash(owner(j))); return ok }
+	hasL := (b == 1 || mj > 0) && (mj == 0 || !lit(mj))
+	hasR := (b == 1 || mj+1 < len(ps)) && (mj+1 == len(ps) || !lit(mj+1))
+	fs := m.frames()
+
+	// frameEdge is main's edge at column x on row i in the frame of the group
+	// beside it, "" for none.
+	frameEdge := func(x, i int, has bool) string {
+		if !has || i >= m.areaH() {
+			return ""
+		}
+
+		if at := frameAt(fs, x, i); at >= 0 {
+			return renderText(fs[at].st, "│")
+		}
+
+		return ""
+	}
+
 	lines := make([]string, m.panelH()+m.ruled()+1) // the panel rows, the rule, then the status bar
 	for i := range m.panelH() {
 		var sb strings.Builder
@@ -3774,10 +3794,25 @@ func (m *Model) View() tea.View {
 
 		sb.Grow(n)
 
+		el, er := frameEdge(c.x-1, i, hasL), frameEdge(c.x+c.w, i, hasR)
+
 		for j, p := range ps {
-			sb.WriteString(ls[j])
+			l, r := ls[j], rs[j]
+
+			switch {
+			case j == mj && el != "":
+				l = el
+			case j == mj+1 && b == 0 && er != "":
+				l = er
+			}
+
+			if j == mj && b == 1 && er != "" {
+				r = er
+			}
+
+			sb.WriteString(l)
 			sb.WriteString(p.lines[i])
-			sb.WriteString(rs[j])
+			sb.WriteString(r)
 		}
 
 		lines[i] = sb.String()

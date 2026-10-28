@@ -209,7 +209,8 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
   a shell's screen reads like an agent's, so a server's logs would show as
   working.
 - `session_highlight` tints blocked, exited and done tabs (`sessionTint`);
-  the tint pulses until the session is clicked or shown (`pulses`). A
+  the tint pulses until the session is clicked or shown in the focused
+  group (`pulses`); shown in another group it pulses on that group's frame. A
   Spaces row is never tinted, so none reads as selected: its status says
   `input`, `done` or `exit N` in its symbol's color, bold on the pulse's
   beat. `"steady"` drops the pulse, `"off"` the tint and

@@ -95,8 +95,11 @@ checkout.
   moves it into the group left, right, above or below. `ctrl+1`…`ctrl+9`
   focus group N, the button at the right end of a group's tab strip maximizes
   it. Adding or closing a group shares the room out evenly again; a double
-  click on a divider evens the two groups beside it. A group left empty
-  closes. Each worktree keeps its groups, a restart too.
+  click on a divider evens the two groups beside it. The focused group's frame
+  is drawn in the accent's shade; a group whose session waits for you, failed
+  or finished is framed red or in the attention color, pulsing until you
+  focus it. A group left empty closes. Each worktree keeps its groups, a
+  restart too.
 - Drag a view's tab to move it, a divider to resize. A second click on the
   open view's icon hides its sidebar; `ctrl+b` hides both.
 - Rest the pointer on an icon button for its name and key, or on a session

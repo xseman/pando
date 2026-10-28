@@ -61,13 +61,16 @@ type ruleMark struct {
 // under the one the mouse is on. A lit rule (a strip that is a sash while it
 // lights or drags) is drawn heavy in that style between the marks.
 func ruleRow(w int, marks []ruleMark, lit ...lipgloss.Style) string {
-	rule := func(n int) seg {
-		if len(lit) > 0 {
-			return sg(strings.Repeat("━", max(n, 0)), lit[0])
-		}
-
-		return sg(strings.Repeat("─", max(n, 0)), fg(pal.rulerBorder))
+	if len(lit) > 0 {
+		return markedRule(w, marks, "━", lit[0])
 	}
+
+	return markedRule(w, marks, "─", fg(pal.rulerBorder))
+}
+
+// markedRule is ruleRow's line: glyph in st between the marks.
+func markedRule(w int, marks []ruleMark, glyph string, st lipgloss.Style) string {
+	rule := func(n int) seg { return sg(strings.Repeat(glyph, max(n, 0)), st) }
 
 	var segs []seg
 
