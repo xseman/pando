@@ -71,7 +71,7 @@ func TestE2E(t *testing.T) {
 	mustWrite(t, filepath.Join(repo, "README.md"), "# e2e changed\n")
 	// Pin the defaults that depend on installed fonts or move click targets,
 	// and give the session picker a harness that is installed everywhere.
-	mustWrite(t, filepath.Join(tmp, "cfg", "config.toml"), "icons = \"ascii\"\npanel_borders = false\n\n[agents]\ne2e = [\"sh\"]\n")
+	mustWrite(t, filepath.Join(tmp, "cfg", "config.toml"), "icons = \"ascii\"\npanel_borders = false\nright = []\n\n[agents]\ne2e = [\"sh\"]\n")
 
 	env := []string{
 		"PANDO_TEST_MAIN=1", "PANDO_RUNTIME_DIR=" + run, "PANDO_CONFIG_DIR=" + filepath.Join(tmp, "cfg"),
