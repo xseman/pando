@@ -357,6 +357,24 @@ func (m *Model) prune() (cmd tea.Cmd) {
 	return cmd
 }
 
+// idleGroup reports the active group one of several and showing nothing: the
+// tab of a session that ended keeps it from prune.
+func (m *Model) idleGroup() bool {
+	return m.grid.g == nil && len(m.editors) == 0 && m.pv.kind == "" && !m.showsSession() && len(m.stripSessions()) == 0
+}
+
+// closeGroup takes the active group out of the grid, its neighbour taking
+// the keyboard; a session behind it runs on, in Spaces.
+func (m *Model) closeGroup() tea.Cmd {
+	p := m.cur
+	next := ifElse(p.up.a == p, p.up.b, p.up.a).leaves()[0]
+	m.dropPane(p)
+	m.load(next)
+	m.maxed = m.maxed && m.grid.g == nil
+
+	return tea.Batch(m.syncTabs(), m.fetchScreen(), m.saveEditors())
+}
+
 // moveTabTo moves the active group's tab id, a file's or a session's, into
 // group dst or into a new group on side of it, and gives that group the
 // keyboard: VS Code's Move Editor into Group, and a tab dropped on a group.

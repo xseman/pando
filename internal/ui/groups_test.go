@@ -429,3 +429,22 @@ func TestSessionBehindFiles(t *testing.T) {
 		t.Fatalf("in the focused group, gone from the other: right %v, left's %q", m.cur == ps[1], ps[0].g.sess)
 	}
 }
+
+// TestCloseIdleGroup: a group whose session ended shows nothing; ⌃w or ⌃d
+// closes it, the other group taking the keyboard.
+func TestCloseIdleGroup(t *testing.T) {
+	m := groupsModel(t)
+	m.switchSession("s1")
+	fire(m, m.moveEditor(sideRight))
+	m.Update(sessionsMsg{})
+
+	if m.grid.g != nil || !m.idleGroup() {
+		t.Fatalf("the ended session's group stays, showing nothing: grid %v, kind %q, sess %q, strip %v", m.grid.g != nil, m.pv.kind, m.sess, m.stripSessions())
+	}
+
+	press(m, "ctrl+d")
+
+	if m.grid.g == nil || m.cur != m.grid || filepath.Base(m.pv.path) != ".env" {
+		t.Fatalf("⌃d closes it, the files' group left: %q", m.pv.path)
+	}
+}

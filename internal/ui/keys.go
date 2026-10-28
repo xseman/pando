@@ -182,6 +182,9 @@ var keybindings = []keybinding{
 	// back in a message only its Update knows. A shell keeps ctrl+v, claude
 	// its image paste.
 	{keys: []string{"ctrl+v"}, when: ctxText | ctxInput, run: func(*Model, string) tea.Cmd { return pasteClipboard }},
+	// A group in a split showing nothing closes: VS Code's ctrl+w with no
+	// editor, and a shell's ctrl+d.
+	{keys: []string{"ctrl+w", "ctrl+d"}, when: ctxEditor, cond: (*Model).idleGroup, run: func(m *Model, _ string) tea.Cmd { return m.closeGroup() }},
 	{keys: []string{"ctrl+w"}, when: ctxEditor | ctxText, run: func(m *Model, _ string) tea.Cmd { return m.closeEditor(m.edIdx) }},
 	// Go Back / Go Forward: VS Code's Linux ctrl+alt+- and ctrl+shift+-, its
 	// Mac ctrl+-, and alt+, alt+. ctrl+← ctrl+→ move by words in an editor and

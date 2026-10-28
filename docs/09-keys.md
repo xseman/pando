@@ -203,7 +203,8 @@ in every mode.
 ## Mouse and clipboard
 
 - Right click: menu. Middle click: close a tab. Double click on the empty
-  editor area: untitled file.
+  editor area: untitled file; `ctrl+w` `ctrl+d` in a split: close that
+  group.
 - In a file: drag selects, double click a word, triple click a line.
 - A file's or session's tab dragged over an editor group: its edge splits the
   group there, its middle or strip moves the tab in. A divider between groups
