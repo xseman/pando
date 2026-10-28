@@ -169,7 +169,7 @@ re-roots Explorer and Source Control to its worktree.
 
 ▸ · folded              folded projects sink to the bottom (pinFolded): no rule, no button
 ▸ · folded
-▾ · NO SESSIONS      21   a strip over the projects with no session (bareHead), folds as a heading
+▾ · NO SESSIONS      21   a strip over the projects with no session (bareHead), folds as a heading, a rule over it folded too
 ──────────────────────────  its rule, under it
    · dotfiles  + ⎇       a row each (bare), dimmed, no fold: buttons as a heading holding its checkout
    · kolibrik

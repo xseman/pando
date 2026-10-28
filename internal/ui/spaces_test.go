@@ -211,6 +211,10 @@ func TestSpacesNoSessions(t *testing.T) {
 		t.Fatalf("folded, the heading sits on the bottom edge: %d rows of %d", len(rows), m.bodyH(viewAgents))
 	}
 
+	if lines := m.ag.lines(m, 40, m.bodyH(viewAgents)); strings.Trim(ansi.Strip(lines[len(lines)-2]), "─ ") != "" || strings.Trim(ansi.Strip(lines[len(lines)-3]), " ") != "" {
+		t.Fatalf("folded, a rule right over it, blank above:\n%s", strings.Join(lines, "\n"))
+	}
+
 	m.ag.reveal(m, b2)
 
 	if r := m.ag.selected(m); m.ag.collapsed[timeKey(bareHead)] || r == nil || !r.shows(b2) {

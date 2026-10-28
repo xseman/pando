@@ -1061,8 +1061,8 @@ func (a *agents) lines(m *Model, w, h int) []string {
 
 	draw := func(i, y, rw int) string { // row i on line y
 		r := rows[i]
-		if r.kind == agGap { // the rule over an open heading or under bareHead, or a blank
-			if h := i + 1; h < len(rows) && (rows[h].kind == agProject || rows[h].kind == agTime) && (!a.collapsed[foldKey(rows[h])] || m.query(viewAgents) != "") || i > 0 && rows[i-1].when == bareHead {
+		if r.kind == agGap { // the rule over an open heading, over and under bareHead (folded too, it is no project), or a blank
+			if h := i + 1; h < len(rows) && (rows[h].kind == agProject || rows[h].kind == agTime) && (!a.collapsed[foldKey(rows[h])] || m.query(viewAgents) != "" || rows[h].when == bareHead) || i > 0 && rows[i-1].when == bareHead {
 				return ruleRow(rw, nil)
 			}
 
