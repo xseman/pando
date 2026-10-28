@@ -114,6 +114,35 @@ func TestOutputOverIdlePrompt(t *testing.T) {
 	}
 }
 
+// Claude redraws under its idle prompt in every session at once, as its
+// "← N agents" footer counts a background agent or a notice appears over the
+// input: the text above stays, nothing ran. A new line of an answer runs.
+func TestRedrawUnderIdlePrompt(t *testing.T) {
+	s := &session{status: "idle", program: "claude", emu: vt.NewEmulator(60, 10)}
+	at := time.Now()
+
+	draw := func(text, notice, footer string) string {
+		at = at.Add(time.Minute)
+		s.lastOutput = at
+		_, _ = s.emu.WriteString("\x1b[H\x1b[2J" + text + "\r\n\r\n" + notice + "\r\n────\r\n❯ \r\n────\r\n  ⏵⏵ bypass permissions on · " + footer)
+		s.tick(at)
+
+		return s.status
+	}
+
+	draw("● Done.", "", "← 12 agents") // the first screen the daemon sees
+
+	for _, c := range []struct{ text, notice, footer, want string }{
+		{"● Done.", "", "← 11 agents", "idle"},
+		{"● Done.", "  ✔ Update installed", "← 11 agents", "idle"},
+		{"● Done.\r\n● More.", "  ✔ Update installed", "← 11 agents", "running"},
+	} {
+		if got := draw(c.text, c.notice, c.footer); got != c.want {
+			t.Fatalf("%q over %q: %q, want %q", c.text, c.footer, got, c.want)
+		}
+	}
+}
+
 // A wheel up sent to an app that takes the mouse scrolls its own view: claude
 // then shows history under its prompt and draws nothing while it works. The
 // status holds through it, until a key, or output the app writes on its own.

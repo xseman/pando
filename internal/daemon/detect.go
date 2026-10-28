@@ -101,6 +101,19 @@ func screenState(program, title string, lines []string) string {
 	return ""
 }
 
+// aboveInput is the screen above its last ❯ line, without the rule over that
+// line and the notice or hint above the rule ("✔ Update installed"): the text
+// a turn writes into. Empty with no prompt in view.
+func aboveInput(lines []string) string {
+	for i := len(lines) - 1; i >= 0; i-- {
+		if promptLine.MatchString(lines[i]) {
+			return strings.Join(lines[:max(i-2, 0)], "\n")
+		}
+	}
+
+	return ""
+}
+
 // shells are what agents run a tool's command line in: claude's Bash tool is
 // `bash -c source …/shell-snapshots/… && eval …`, codex's `bash -lc`,
 // gemini's and opencode's `bash -c`.

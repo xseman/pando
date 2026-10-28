@@ -155,8 +155,11 @@ under the worker) as shell, its ◐ blue. Each tick, `session.tick` decides:
 - Output of its own is the app's: not within 500 ms (`redrawWindow`) of a
   resize, its redraw, or of an input, its echo. It says running over any
   screen, claude's idle ❯ too: claude takes its spinner down while it streams
-  the answer, the prompt still under it. Idle shows once it stops, 1.5 s
-  (`busyWindow`) after its last output or the user's last input.
+  the answer, the prompt still under it. Not under the idle ❯ when the text
+  above it (less the rule and the notice line over the rule) stays: claude
+  redraws its footer (`← N agents`) or a notice in every session at once.
+  Idle shows once it stops, 1.5 s (`busyWindow`) after its last output or
+  the user's last input.
 - `held`: a wheel up sent to an app that takes the mouse scrolls its own view.
   Scrolled, claude shows history over its prompt and draws nothing while it
   works, so neither its screen nor its output says anything; the status stays

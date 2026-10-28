@@ -79,6 +79,8 @@ type session struct {
 	screenAt      time.Time        // lastOutput when the screen was last classified
 	screenProg    string           // the program it was classified for
 	seen          string           // screenState of it: blocked, running, idle or ""
+	body          string           // aboveInput of it
+	still         bool             // it is an idle prompt with the same body as before
 	commands      []int            // the shell commands under the foreground, as last seen
 	command       bool             // one of them was there the tick before too
 	subagents     []proto.Subagent // what its agent runs now (setSubagents)
@@ -388,12 +390,19 @@ func (s *session) tick(now time.Time) bool {
 	viewed := now.Sub(s.lastViewed) < viewedWindow
 	if s.emu != nil && (s.screenAt != s.lastOutput || s.screenProg != s.program) {
 		s.screenAt, s.screenProg = s.lastOutput, s.program
-		s.seen = screenState(s.program, s.title, strings.Split(s.emu.String(), "\n"))
+		lines := strings.Split(s.emu.String(), "\n")
+		s.seen = screenState(s.program, s.title, lines)
+
+		body := aboveInput(lines)
+		s.still = s.seen == "idle" && body == s.body
+		s.body = body
 	}
 
 	// live is output the app wrote on its own: not its redraw for a resize,
-	// nor its echo of an input, both of which an idle app does too.
-	live := now.Sub(s.lastOutput) < busyWindow && s.lastOutput.Sub(s.resized) > redrawWindow && s.lastOutput.Sub(s.inputAt) > redrawWindow
+	// nor its echo of an input, both of which an idle app does too, nor a
+	// redraw under an idle prompt (claude's "← N agents" footer, in every
+	// session at once), which leaves the text above it as it was.
+	live := now.Sub(s.lastOutput) < busyWindow && s.lastOutput.Sub(s.resized) > redrawWindow && s.lastOutput.Sub(s.inputAt) > redrawWindow && !s.still
 	if live { // it draws for itself again: its screen is its own
 		s.held = false
 	}
