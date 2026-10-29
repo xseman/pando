@@ -245,6 +245,7 @@ focused one alone ([Editor groups](#editor-groups)).
 | column divider                            | width, saved on release                    |
 | editor group divider                      | the groups' ratio, saved                   |
 | editor or session tab over a group        | split it or move in (`gridDrop`)           |
+| Explorer file, Spaces session over one    | the same (`dragOpen`, `dragRowTo`)         |
 | terminal rule and strip's empty part      | `terminal_height`                          |
 | Source Control drawer, GitHub pane header | the pane's top edge                        |
 | tab onto a bar, or the half facing main   | slot between chips (`slotAt`, `placeView`) |
@@ -254,7 +255,15 @@ focused one alone ([Editor groups](#editor-groups)).
 `dropAt` picks the target, `dropBox` draws it. A Spaces row moves only on
 release, onto the row of its kind under the pointer (`dropOn`); a project
 goes above a project's upper half, below its lower half, and into a gap
-between projects (`projectDrop`). Let go anywhere else, it stays. A sash lights after `sashDelay` (300 ms) in
+between projects (`projectDrop`). Let go anywhere else, it stays.
+A file pressed in Explorer opens in the preview tab, a session of the
+worktree in view in Spaces opens as a click opens it, and held on, its tab
+goes over the editor area as one off its strip (`dragOpenTo`). A session
+that moves among its worktree's opens on the release instead, over the
+editor area (`dragRowTo`). Another worktree's session has no group to go
+to: the groups are the worktree in view's.
+
+A sash lights after `sashDelay` (300 ms) in
 `sash_hover`, the accent while dragged (`trackSash`, `sashUnder`,
 `sashRule`).
 

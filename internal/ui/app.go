@@ -70,6 +70,7 @@ const (
 	dragMsgSel
 	dragStrip
 	dragGrid
+	dragOpen
 )
 
 // actH is the height of a sidebar's activity bar: the icons, then the row
@@ -101,13 +102,13 @@ type drag struct {
 	ws     string // dragRow: the worktree being moved under its project instead
 	to     string // dragRow: the one of its kind whose place it would take on release, "" none
 	strip  int    // dragStrip: the tab strip, stripEditor and on
-	tab    string // dragStrip: the tab being moved, an editor's or a session's id
+	tab    string // dragStrip: the tab being moved, an editor's or a session's id; dragOpen: the file's held from Explorer, or the session's from Spaces
 	org    int    // dragStrip: the screen column of the strip's first cell
 	slot   int    // dragStrip: where the tab would land, an index in stripOrder; -1 nowhere
 	x0     int    // dragTab, dragStrip: where it was picked up; dragMsgSel: the message text's screen origin, with y0
 	drop   *dropTarget
 	split  *pane // dragGrid: the split whose divider moves
-	dst    *pane // dragStrip: the group the tab would go to, or beside on side
+	dst    *pane // dragStrip, dragOpen, dragRow's session: the group the tab would go to, or beside on side
 	side   int
 	y0, h0 int
 	moved  bool
@@ -3607,13 +3608,15 @@ func (m *Model) dragMouse(msg tea.MouseMsg) tea.Cmd {
 	case dragTerm:
 		return m.dragTerm(d, mo.Y, release)
 	case dragRow:
-		return m.ag.dragRowTo(m, d, mo.Y, release)
+		return m.ag.dragRowTo(m, d, mo.X, mo.Y, release)
 	case dragScroll:
 		return m.barDragTo(d.bar, mo.X, mo.Y, release)
 	case dragStrip:
 		return m.dragStripTo(d, mo.X, mo.Y, release)
 	case dragGrid:
 		return m.dragSplit(d, mo.X, mo.Y, release)
+	case dragOpen:
+		return m.dragOpenTo(d, mo.X, mo.Y, release)
 	case dragMsgSel:
 		m.scm.input.ExtendSelection(mo.X-d.x0, mo.Y-d.y0)
 
@@ -3824,7 +3827,7 @@ func (m *Model) View() tea.View {
 	}
 
 	lines[len(lines)-1] = status
-	if m.drag != nil && (m.drag.kind == dragTab || m.drag.kind == dragStrip) && m.drag.drop != nil {
+	if m.drag != nil && m.drag.drop != nil {
 		m.dropBox(lines[:m.panelH()], *m.drag.drop)
 	}
 

@@ -497,3 +497,82 @@ func TestSplitSessions(t *testing.T) {
 
 	checkWidths(t, m)
 }
+
+// TestDragFileFromExplorer carries a file from Explorer over the editor area
+// as a tab held off its strip: onto an edge it opens in a new group there.
+func TestDragFileFromExplorer(t *testing.T) {
+	m := groupsModel(t)
+	x, top := m.colRect(m.colOf(viewFiles)).x+4, m.bodyTop(viewFiles) // row 0 is src, row 1 README.md
+	a := m.area()
+
+	m.Update(tea.MouseClickMsg{X: x, Y: top + 1, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: a.x + a.w - 2, Y: a.y + a.h/2, Button: tea.MouseLeft})
+
+	if out := checkWidths(t, m); !strings.Contains(out, "Split Right") {
+		t.Fatalf("the drop target says where it goes:\n%s", out)
+	}
+
+	m.Update(tea.MouseReleaseMsg{X: a.x + a.w - 2, Y: a.y + a.h/2, Button: tea.MouseLeft})
+
+	if ps := m.grid.leaves(); len(ps) != 2 || m.cur != ps[1] || filepath.Base(m.pv.path) != "README.md" || len(m.editors) != 1 {
+		t.Fatalf("README.md alone on the right: %d groups, %q, %d tabs", len(ps), m.pv.path, len(m.editors))
+	}
+
+	checkWidths(t, m)
+}
+
+// TestDragSessionFromSpaces carries a session of the worktree in view from
+// Spaces into a new group; one of another project's stays in Spaces.
+func TestDragSessionFromSpaces(t *testing.T) {
+	m := groupsModel(t)
+	other := addProject(t, m, "dev", "s9")
+	m.focus = m.colOf(viewFiles)
+	press(m, "3") // Spaces in Explorer's place
+
+	x, top := m.colRect(m.colOf(viewAgents)).x+4, m.bodyTop(viewAgents)
+	a := m.area()
+	o := slices.IndexFunc(m.ag.rows(m), func(r agRow) bool { return r.kind == agSession && r.s.ID == "s9" })
+
+	m.Update(tea.MouseClickMsg{X: x, Y: top + o, Button: tea.MouseLeft})
+
+	if m.drag != nil || m.ws != other {
+		t.Fatalf("another project's session switches on the press, no drag: %+v, ws %q", m.drag, m.ws)
+	}
+
+	m.Update(tea.MouseReleaseMsg{X: x, Y: top + o, Button: tea.MouseLeft})
+	fire(m, m.switchWorkspace(m.wss[0].Path))
+
+	m.Update(tea.MouseClickMsg{X: x, Y: top + 1, Button: tea.MouseLeft}) // s1, under the heading holding its checkout
+	m.Update(tea.MouseMotionMsg{X: a.x + a.w - 2, Y: a.y + a.h/2, Button: tea.MouseLeft})
+
+	if out := checkWidths(t, m); !strings.Contains(out, "Split Right") || m.drag.to != "" {
+		t.Fatalf("the drop target over the editor area, no slot in Spaces:\n%s", out)
+	}
+
+	m.Update(tea.MouseReleaseMsg{X: a.x + a.w - 2, Y: a.y + a.h/2, Button: tea.MouseLeft})
+
+	if ps := m.grid.leaves(); len(ps) != 2 || m.cur != ps[1] || m.sess != "s1" || !m.showsSession() {
+		t.Fatalf("s1 in a group on the right: %d groups, session %q", len(ps), m.sess)
+	}
+
+	// One that moves among its worktree's opens on the release instead, here
+	// in a group of its own under the right one.
+	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: m.ws, Agent: "shell"}, Status: "idle"})
+	o = slices.IndexFunc(m.ag.rows(m), func(r agRow) bool { return r.kind == agSession && r.s.ID == "s2" })
+	r := m.boxOf(m.cur)
+
+	m.Update(tea.MouseClickMsg{X: x, Y: top + o, Button: tea.MouseLeft})
+
+	if m.drag == nil || m.drag.kind != dragRow || m.sess != "s1" {
+		t.Fatalf("a row drag, nothing opened yet: %+v, session %q", m.drag, m.sess)
+	}
+
+	m.Update(tea.MouseMotionMsg{X: r.x + r.w/2, Y: r.y + r.h - 2, Button: tea.MouseLeft})
+	m.Update(tea.MouseReleaseMsg{X: r.x + r.w/2, Y: r.y + r.h - 2, Button: tea.MouseLeft})
+
+	if ps := m.grid.leaves(); len(ps) != 3 || m.cur != ps[2] || m.sess != "s2" {
+		t.Fatalf("s2 under s1: %d groups, session %q", len(ps), m.sess)
+	}
+
+	checkWidths(t, m)
+}

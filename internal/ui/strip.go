@@ -381,7 +381,7 @@ func (m *Model) dragStripTo(d *drag, x, y int, release bool) tea.Cmd {
 		d.slot = m.stripSlot(d.strip, x-d.org)
 	case d.strip == stripEditor:
 		var t dropTarget
-		if d.dst, d.side, t = m.gridDrop(x, y); d.dst != nil {
+		if d.dst, d.side, t = m.gridDrop(x, y, d.tab); d.dst != nil {
 			d.drop = &t
 		}
 	}

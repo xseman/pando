@@ -702,6 +702,10 @@ func (e *explorer) mouse(m *Model, msg tea.MouseMsg, y int) tea.Cmd {
 			m.pin()
 		}
 
+		if m.edIdx >= 0 && m.edIdx < len(m.editors) && m.editors[m.edIdx].path == n.path { // held, it drags out to a group
+			m.drag = &drag{kind: dragOpen, tab: m.editors[m.edIdx].id()}
+		}
+
 		return cmd
 	}
 

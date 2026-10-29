@@ -2306,7 +2306,16 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 			}
 		}
 
-		return a.activate(m, &rows[i])
+		// A session of the worktree in view, the editor groups' own, drags
+		// its tab out to them as Explorer's file does.
+		out := mo.Button == tea.MouseLeft && rows[i].kind == agSession && rows[i].ws.Path == m.ws
+
+		cmd := a.activate(m, &rows[i])
+		if out {
+			m.drag = &drag{kind: dragOpen, tab: rows[i].s.ID}
+		}
+
+		return cmd
 	}
 
 	return nil
@@ -2328,12 +2337,23 @@ func (a *agents) onBranch(r agRow, x int) bool {
 // a tinted row between the rows (dropSlot), and the release moves it there and tells the
 // daemon. Let go anywhere else it stays; a press that never left its row is a
 // click instead.
-func (a *agents) dragRowTo(m *Model, d *drag, y int, release bool) tea.Cmd {
+func (a *agents) dragRowTo(m *Model, d *drag, x, y int, release bool) tea.Cmd {
 	if y != d.y0 {
 		d.moved = true
 	}
 
-	if d.moved {
+	d.drop = nil
+	if s := m.session(d.sess); s != nil && s.Workspace == m.ws { // over the editor area, as its tab held off the strip
+		var t dropTarget
+		if d.dst, d.side, t = m.gridDrop(x, y, d.sess); d.dst != nil {
+			d.drop, d.moved = &t, true
+		}
+	}
+
+	switch {
+	case d.drop != nil:
+		d.to = ""
+	case d.moved:
 		d.to = a.dropOn(m, d)
 	}
 
@@ -2344,6 +2364,12 @@ func (a *agents) dragRowTo(m *Model, d *drag, y int, release bool) tea.Cmd {
 	m.drag = nil
 	if !d.moved {
 		return a.activate(m, a.selected(m))
+	}
+
+	if d.drop != nil {
+		shown := m.switchSession(d.sess) // into the group holding it, or the active one
+
+		return tea.Batch(shown, m.moveTabTo(d.sess, d.dst, d.side))
 	}
 
 	switch {

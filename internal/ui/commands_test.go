@@ -1073,13 +1073,14 @@ func TestSpacesDragSession(t *testing.T) {
 	if m.drag != nil || m.focus != onMain || m.sess != "s3" {
 		t.Fatalf("a click that never moved opens the session: drag %+v, sess %q", m.drag, m.sess)
 	}
-	// Sorted by Updated the clock orders sessions: a press opens at once.
+	// Sorted by Updated the clock orders sessions: a press opens at once,
+	// only its tab drags on, out to the editor area.
 	m.st.Settings.SpSort = "updated"
 	press(m, "3")
 	m.Update(tea.MouseClickMsg{X: x, Y: top + 1, Button: tea.MouseLeft})
 
-	if m.drag != nil {
-		t.Fatalf("no drag when sorted by Updated: %+v", m.drag)
+	if m.drag == nil || m.drag.kind != dragOpen || m.sess != m.drag.tab {
+		t.Fatalf("no row drag when sorted by Updated: %+v, sess %q", m.drag, m.sess)
 	}
 }
 

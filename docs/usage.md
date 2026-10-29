@@ -93,6 +93,8 @@ checkout.
   (`ctrl+shift+u`: the language servers' logs and every error in full).
 - Editor groups, as VS Code's: drag a file's or a session's tab to a group's
   edge to split it there, onto its middle or tab strip to move the tab in.
+  A file dragged from Explorer, or a session of the worktree in view from
+  Spaces, goes the same way.
   `ctrl+\` moves the active tab into a new group on the right; the palette
   moves it into the group left, right, above or below. `ctrl+1`…`ctrl+9`
   focus group N, the button at the right end of a group's tab strip maximizes

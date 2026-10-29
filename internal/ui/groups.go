@@ -630,12 +630,13 @@ func (m *Model) dragSplit(d *drag, x, y int, release bool) tea.Cmd {
 	return tea.Batch(m.fetchScreen(), m.saveEditors())
 }
 
-// gridDrop is where the active group's tab held over the editor area at
-// (x, y) would land: into the group under it, on its strip or its middle,
-// or into a new group at the edge it is near, a quarter of the group's width
-// or height; dst is nil where it would not move, and over its own group when
-// it is the only tab there, which no split would leave anything behind.
-func (m *Model) gridDrop(x, y int) (dst *pane, side int, t dropTarget) {
+// gridDrop is where tab id held over the editor area at (x, y) would land:
+// into the group under it, on its strip or its middle, or into a new group
+// at the edge it is near, a quarter of the group's width or height; dst is
+// nil where it would not move: into the active group holding it, and beside
+// it when it is the only tab there, which no split would leave anything
+// behind. A session held from Spaces may be in no group yet.
+func (m *Model) gridDrop(x, y int, id string) (dst *pane, side int, t dropTarget) {
 	dst = m.cur
 	if m.tiled() {
 		dst = m.paneAt(x, y)
@@ -664,13 +665,38 @@ func (m *Model) gridDrop(x, y int) (dst *pane, side int, t dropTarget) {
 		side, b.y, b.h = sideDown, b.y+b.h-b.h/2, b.h/2
 	}
 
-	if dst == m.cur && (side == sideInto || len(m.editors)+len(m.stripSessions()) < 2) {
+	held := slices.Contains(m.stripSessions(), id) || slices.ContainsFunc(m.editors, func(e preview) bool { return e.id() == id })
+	if dst == m.cur && held && (side == sideInto || len(m.editors)+len(m.stripSessions()) < 2) {
 		return nil, 0, t
 	}
 
 	label := []string{"Move Here", "Split Left", "Split Right", "Split Up", "Split Down"}[side]
 
 	return dst, side, dropTarget{rc: rect{b.x, b.w}, y: b.y, h: b.h, fill: true, col: -1, label: label}
+}
+
+// dragOpenTo follows a file held from Explorer, or a session from Spaces,
+// that the press opened, over the editor area as its tab held off the strip:
+// let go, it goes to the group under it, or a new one at the edge it is near.
+func (m *Model) dragOpenTo(d *drag, x, y int, release bool) tea.Cmd {
+	d.drop = nil
+
+	var t dropTarget
+	if d.dst, d.side, t = m.gridDrop(x, y, d.tab); d.dst != nil {
+		d.drop = &t
+	}
+
+	if !release {
+		return nil
+	}
+
+	m.drag = nil
+
+	if d.drop == nil {
+		return nil
+	}
+
+	return m.moveTabTo(d.tab, d.dst, d.side)
 }
 
 // maxAct is the strip's maximize button while there are groups to leave:
