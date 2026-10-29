@@ -393,6 +393,8 @@ var (
 	icSparkle    = glyph{"star-full", "\ueb59", "✦", ""} // a codicon: one cell, where mdi's creation often draws two
 	icCheck      = glyph{"check", "", "✓", ""}
 	icChevron    = glyph{"chevron-down", "", "∨", ""}
+	icTwistyR    = glyph{"chevron-right (twistie)", "\ueab6", "▸", ""} // a folded tree node's, VS Code's twistie
+	icTwistyD    = glyph{"chevron-down (twistie)", "\ueab4", "▾", ""}  // an open one's
 	icClose      = glyph{"close", "", "✕", ""}
 	icMax        = glyph{"screen-full", "\ueb4c", "□", ""}
 	icRestore    = glyph{"screen-normal", "\ueb4d", "❐", ""}
@@ -437,7 +439,7 @@ var (
 	icView       = glyph{"eye", "\uea70", "◫", ""} // a view of a database: rows read, never written
 	allGlyphs    = []glyph{
 		icFiles, icGit, icSpaces, icGear, icNewFile, icNewDir, icRefresh, icCollapse, icTree, icList,
-		icAdd, icRemove, icDiscard, icWorktree, icSparkle, icCheck, icChevron, icClose, icMax, icRestore, icBranch, icPublish, icSync, icError, icWarning, icSplit, icSplitAll, icInline, icUnfold, icFold,
+		icAdd, icRemove, icDiscard, icWorktree, icSparkle, icCheck, icChevron, icTwistyR, icTwistyD, icClose, icMax, icRestore, icBranch, icPublish, icSync, icError, icWarning, icSplit, icSplitAll, icInline, icUnfold, icFold,
 		icSearch, icCase, icWord, icRegex, icEllipsis, icClearAll, icOptions, icPreview, icSource,
 		icPrevRev, icNextRev, icUp, icDown, icHistory, icTag, icDetach, icReplace, icPreserve, icReplaceAll, icTerminal, icDot,
 		icMainWt, icLinkedWt, icResume, icPin, icPinned, icWrap, icGitHub, icPR, icPRDraft, icPRNew, icIssue, icBell, icBellDot, icCheckAll,

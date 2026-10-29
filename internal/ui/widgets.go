@@ -521,12 +521,13 @@ func center(s string, w int) string {
 	return blank(l) + s + blank(w-sw-l)
 }
 
+// chevron is a tree node's twistie and the space after it.
 func chevron(open bool) string {
 	if open {
-		return "▾ "
+		return icTwistyD.s() + " "
 	}
 
-	return "▸ "
+	return icTwistyR.s() + " "
 }
 
 // guides is a tree's active indent guide, VS Code's: lit at level lit on the
