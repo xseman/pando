@@ -105,7 +105,7 @@ type drag struct {
 	tab    string // dragStrip: the tab being moved, an editor's or a session's id; dragOpen: the file's held from Explorer, or the session's from Spaces
 	org    int    // dragStrip: the screen column of the strip's first cell
 	slot   int    // dragStrip: where the tab would land, an index in stripOrder; -1 nowhere
-	x0     int    // dragTab, dragStrip: where it was picked up; dragMsgSel: the message text's screen origin, with y0
+	x0     int    // dragTab, dragStrip: where it was picked up; dragRow: the row's column pressed; dragMsgSel: the message text's screen origin, with y0
 	drop   *dropTarget
 	split  *pane // dragGrid: the split whose divider moves
 	dst    *pane // dragStrip, dragOpen, dragRow's session: the group the tab would go to, or beside on side

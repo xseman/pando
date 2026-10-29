@@ -1520,6 +1520,21 @@ func (a *agents) activate(m *Model, r *agRow) tea.Cmd {
 	return nil
 }
 
+// click is a click on row r at column x: a project heading folds on its
+// chevron only; elsewhere one holding its checkout switches to it, as ⏎
+// does, and another stays selected.
+func (a *agents) click(m *Model, r *agRow, x int) tea.Cmd {
+	if r == nil || r.kind != agProject || r.bare || x < ansi.StringWidth(" "+chevron(true)) {
+		return a.activate(m, r)
+	}
+
+	if r.merged() {
+		return a.activate(m, &agRow{kind: agWorkspace, project: r.project, ws: r.ws})
+	}
+
+	return nil
+}
+
 // workspaceFor picks the workspace a new session from row r goes into: a
 // worktree's or a session's own, a project heading's that holds its
 // checkout, else the one in view.
@@ -2284,9 +2299,9 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 			return a.activate(m, &agRow{kind: agWorkspace, project: r.project, ws: r.ws})
 		}
 		// A project row drags up and down the list; a press that never leaves
-		// its row is the click that folds it, so the fold waits for the release.
+		// its row is a click, so it waits for the release.
 		if p := rows[i].project; mo.Button == tea.MouseLeft && rows[i].kind == agProject && p != "" && len(m.st.Projects) > 1 && a.projectMovable(m, p) {
-			m.drag = &drag{kind: dragRow, proj: p, y0: mo.Y}
+			m.drag = &drag{kind: dragRow, proj: p, x0: x, y0: mo.Y}
 			return nil
 		}
 		// A worktree drags the same way among its project's, taking its
@@ -2310,7 +2325,7 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 		// its tab out to them as Explorer's file does.
 		out := mo.Button == tea.MouseLeft && rows[i].kind == agSession && rows[i].ws.Path == m.ws
 
-		cmd := a.activate(m, &rows[i])
+		cmd := a.click(m, &rows[i], x)
 		if out {
 			m.drag = &drag{kind: dragOpen, tab: rows[i].s.ID}
 		}
@@ -2363,7 +2378,7 @@ func (a *agents) dragRowTo(m *Model, d *drag, x, y int, release bool) tea.Cmd {
 
 	m.drag = nil
 	if !d.moved {
-		return a.activate(m, a.selected(m))
+		return a.click(m, a.selected(m), d.x0)
 	}
 
 	if d.drop != nil {

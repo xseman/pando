@@ -31,8 +31,8 @@ func addProject(t *testing.T, m *Model, branch string, ids ...string) string {
 // TestSpacesMergedCheckout shows a project's only worktree, its own
 // checkout, on the project's heading: its sessions hang straight off it, its
 // buttons are the checkout's and the project's, n asks only for the harness,
-// and a click on the branch switches to it. A linked worktree splits them
-// again.
+// a click on the branch or the name switches to it, on the chevron folds it.
+// A linked worktree splits them again.
 func TestSpacesMergedCheckout(t *testing.T) {
 	m := testModel(t)
 	other := addProject(t, m, "dev", "s2")
@@ -82,8 +82,14 @@ func TestSpacesMergedCheckout(t *testing.T) {
 
 	click(m, x-3, m.bodyTop(viewAgents)+o, tea.MouseLeft)
 
+	if m.ws != other || m.ag.collapsed[other] {
+		t.Fatalf("a click on the name switches to its checkout, as enter, folding nothing: ws %q", m.ws)
+	}
+
+	click(m, m.colRect(i).x+m.barW(i)+1, m.bodyTop(viewAgents)+o, tea.MouseLeft)
+
 	if !m.ag.collapsed[other] || slices.ContainsFunc(m.ag.rows(m), func(r agRow) bool { return r.project == other && r.merged() }) {
-		t.Fatal("a click on the name folds it, the branch with it")
+		t.Fatal("a click on the chevron folds it, the branch with it")
 	}
 
 	m.wss = append(m.wss, proto.Workspace{Path: t.TempDir(), Project: m.wss[0].Project, Branch: "feat"})
@@ -91,6 +97,13 @@ func TestSpacesMergedCheckout(t *testing.T) {
 	rows = m.ag.rows(m)
 	if rows[0].merged() || rows[1].kind != agWorkspace || rows[1].ws.Path != m.wss[0].Path {
 		t.Fatalf("a linked worktree gives the checkout its row back: %+v", rows[:2])
+	}
+
+	ws := m.ws
+	click(m, m.colRect(i).x+m.barW(i)+5, m.bodyTop(viewAgents), tea.MouseLeft)
+
+	if m.ag.collapsed[m.wss[0].Project] || m.ws != ws || m.ag.l.sel != 0 {
+		t.Fatalf("a click on its name selects it, folding and switching nothing: ws %q, sel %d", m.ws, m.ag.l.sel)
 	}
 }
 

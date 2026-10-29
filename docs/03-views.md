@@ -182,9 +182,10 @@ re-roots Explorer and Source Control to its worktree.
 ```
 
 - A project heading holds its own checkout when that is its only worktree
-  (`merged`): its row goes, `n` and `+` start in it, a click on `⌂ main` or
-  `⏎` switches to it, a click elsewhere or `space` folds. A linked worktree
-  splits them again.
+  (`merged`): its row goes, `n` and `+` start in it, a click on its name or
+  `⌂ main` or `⏎` switches to it. A linked worktree splits them again.
+- A project heading folds on a click on its chevron or `space` (`click`); a
+  click elsewhere on one with worktrees of its own only selects it.
 - Projects with no session, listed or filtered, go under _No Sessions_
   (`bareHead`, `busyProjects`), last, in the project Sort's order: a row
   each, their fold kept for later but not shown (`shut`). A click or `⏎`
