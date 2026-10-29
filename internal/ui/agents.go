@@ -1600,6 +1600,33 @@ func (m *Model) harnessPicker(ws string) tea.Cmd {
 		return m.newSession(ws, "shell", nil) // the daemon picks the shell
 	}})
 
+	// The harnesses of the newest sessions come first, under their own
+	// heading, as quick open lists the files opened last.
+	ss := m.mainSessions()
+	slices.SortStableFunc(ss, func(a, b proto.Session) int { return b.Created.Compare(a.Created) })
+
+	var recent []item
+
+	for _, s := range ss {
+		i := slices.IndexFunc(items, func(it item) bool { return it.label == s.Agent || s.Agent == "shell" && it.label == "terminal" })
+		if i >= 0 && len(recent) < 3 {
+			recent = append(recent, items[i])
+			items = slices.Delete(items, i, i+1)
+		}
+	}
+
+	if len(recent) > 0 && len(items) > 0 { // headings only when both groups hold some
+		for i := range recent {
+			recent[i].group = recentGroup
+		}
+
+		for i := range items {
+			items[i].group = "harnesses"
+		}
+	}
+
+	items = append(recent, items...)
+
 	m.modal = newPicker("New session in "+filepath.Base(ws), items)
 
 	return nil

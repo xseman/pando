@@ -1141,6 +1141,31 @@ func TestSpacesActionsFit(t *testing.T) {
 	}
 }
 
+func TestHarnessPickerRecent(t *testing.T) {
+	m := testModel(t)
+	m.st.Agents = map[string][]string{"shell": {"sh"}, "a": {"sh"}, "b": {"sh"}, "c": {"sh"}}
+	now := time.Now()
+	m.sessions = []proto.Session{
+		{SessionSpec: proto.SessionSpec{ID: "1", Agent: "b", Created: now.Add(-time.Hour)}},
+		{SessionSpec: proto.SessionSpec{ID: "2", Agent: "shell", Created: now}},
+		{SessionSpec: proto.SessionSpec{ID: "3", Agent: "b", Created: now.Add(-time.Minute)}},
+	}
+
+	m.harnessPicker(m.ws)
+
+	want := []string{"recently opened", "terminal", "b", "", "harnesses", "a", "c"}
+	if got := labels(m); !slices.Equal(got, want) {
+		t.Fatalf("recent harnesses first, newest first: %q", got)
+	}
+
+	m.sessions = nil
+	m.harnessPicker(m.ws)
+
+	if got := labels(m); !slices.Equal(got, []string{"a", "b", "c", "terminal"}) {
+		t.Fatalf("no sessions, no headings: %q", got)
+	}
+}
+
 func TestSpacesNewSession(t *testing.T) {
 	m := testModel(t)
 	root, wt := m.ws, t.TempDir()
@@ -1154,7 +1179,7 @@ func TestSpacesNewSession(t *testing.T) {
 	m.ag.l.sel = feat
 	press(m, "n")
 
-	if m.modal == nil || m.modal.title != "New session in "+filepath.Base(wt) || !slices.Equal(labels(m), []string{"sh-agent", "terminal"}) {
+	if m.modal == nil || m.modal.title != "New session in "+filepath.Base(wt) || !slices.Equal(labels(m), []string{"recently opened", "terminal", "", "harnesses", "sh-agent"}) {
 		t.Fatalf("n on a worktree offers the installed harnesses and a terminal: %v", labels(m))
 	}
 
@@ -1193,7 +1218,7 @@ func TestSpacesNewSession(t *testing.T) {
 
 	m.modal.choose(m, 2)
 
-	if m.modal == nil || m.modal.title != "New session in "+filepath.Base(wt) || !slices.Equal(labels(m), []string{"sh-agent", "terminal"}) {
+	if m.modal == nil || m.modal.title != "New session in "+filepath.Base(wt) || !slices.Equal(labels(m), []string{"recently opened", "terminal", "", "harnesses", "sh-agent"}) {
 		t.Fatalf("a worktree picked, the harness next: %v", labels(m))
 	}
 
@@ -1235,11 +1260,11 @@ func TestNewSessionProfile(t *testing.T) {
 		press(m, "3")
 		press(m, "n")
 
-		if m.modal == nil || !slices.Equal(labels(m), []string{"claude", "terminal"}) {
+		if m.modal == nil || !slices.Equal(labels(m), []string{"recently opened", "terminal", "", "harnesses", "claude"}) {
 			t.Fatalf("the harness picker: %v", labels(m))
 		}
 
-		m.modal.choose(m, 0)
+		m.modal.choose(m, 4)
 	}
 
 	newClaude()

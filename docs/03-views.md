@@ -284,7 +284,8 @@ settings (`spaces_hide`, `spaces_sort`, `spaces_group`) read by
 
 A new session runs a harness: an `[agents]` preset whose program is on the
 `PATH`, `shell` and `terminal` aside (`harnesses`), then _terminal_, a `shell`
-session that opens the `shell` setting. An agent with profiles asks which
+session that opens the `shell` setting. The harnesses of the three newest
+sessions come first, under _recently opened_. An agent with profiles asks which
 (`profilePicker`): _default_, its `[profiles.<agent>]`, then the configs the
 daemon saw it run in (`seen_env`) that no profile sets; the choice goes in
 `session.new`'s `env`. A project's `+` asks for its worktree first
