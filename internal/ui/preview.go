@@ -156,6 +156,11 @@ type preview struct {
 	// pointer stays on the screen cell where it found it.
 	probTip *tipAt
 	guide   indentGuides // the file's indent guides, set as view draws
+	// guideOf is the text guide's levels were counted in: a frame over the
+	// same lines (an edit makes new ones) counts them again only for the
+	// cursor's active guide.
+	guideOf  [][]rune
+	guideTab int // the tab_size its unit fell back on
 	// base is a file's staged text, which its gutter marks the lines against
 	// (chg, for the text chgKey names), VS Code's quick diff; nil for none.
 	// head is its committed text when that differs, its staged changes then
@@ -2563,6 +2568,13 @@ func (p *preview) indentGuides() indentGuides {
 		return indentGuides{}
 	}
 
+	bar := [2]string{renderText(fg(pal.whitespace), "│"), renderText(fg(pal.indentGuide), "│")}
+	if lv := p.guide.lv; sameLines(p.guideOf, p.plain) && p.guideTab == tabW && len(lv) == len(p.plain) {
+		return indentGuides{lv, p.guide.unit, activeGuide(len(lv), p.at().line, func(i int) int { return lv[i] }), bar}
+	}
+
+	p.guideOf, p.guideTab = p.plain, tabW
+
 	in, steps, prev := make([]int, len(p.plain)), map[int]int{}, 0 // leading blanks, -1 for a blank line
 	for i, l := range p.plain {
 		n := 0
@@ -2620,9 +2632,13 @@ func (p *preview) indentGuides() indentGuides {
 		}
 	}
 
-	bar := [2]string{renderText(fg(pal.whitespace), "│"), renderText(fg(pal.indentGuide), "│")}
-
 	return indentGuides{lv, unit, activeGuide(len(lv), p.at().line, func(i int) int { return lv[i] }), bar}
+}
+
+// sameLines reports a and b to be one slice: the lines are never changed in
+// place, an edit puts new ones in (buffer.go's splice).
+func sameLines(a, b [][]rune) bool {
+	return len(a) == len(b) && (len(a) == 0 || &a[0] == &b[0])
 }
 
 // guideRoom clears render_whitespace's marks off row vr's guide cells, as

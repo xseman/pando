@@ -561,6 +561,18 @@ func TestIndentGuides(t *testing.T) {
 		t.Fatalf("the blank line inside the if carries its guides: %q", blankRow)
 	}
 
+	m.pv.cur = pos{4, 0} // one level deeper: the guides counted again for the edited text
+	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	rows = strings.Split(m.View().Content, "\n")
+
+	if y := ansi.Strip(row("y()")); !strings.Contains(y, top+rule+rule+"y()") {
+		t.Fatalf("an edit's guides: %q", y)
+	}
+
+	m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+	m.pv.cur = pos{4, tabW * 2}
+	rows = strings.Split(m.View().Content, "\n")
+
 	m.pv.anchor = &pos{3, 0} // selected, a guide keeps the selection under it
 	rows = strings.Split(m.View().Content, "\n")
 
