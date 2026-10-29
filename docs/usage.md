@@ -465,6 +465,14 @@ The daemon checks GitHub once a day (`update_check`). A newer version shows
 in the status bar; a click or `pando update` installs it, verified, for the
 next start.
 
+Without a Nerd Font installed, the status bar offers _Symbols Nerd Font Mono_
+(Linux, macOS): a click downloads it from the nerd-fonts release, checks its
+SHA-256, installs it for your user (on Linux with its fontconfig rule) and sets
+`icons = "nerd"`; `×` stops the offer (`nerd_font_offer`). It is not offered
+over SSH, where the font would land on the server, nor in kitty, WezTerm or
+Ghostty, which bring the icons. A terminal already open may need a restart to
+pick the font up.
+
 ## CLI
 
 Every command talks to the daemon and prints JSON, bar `session read` (text)

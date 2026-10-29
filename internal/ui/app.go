@@ -24,6 +24,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/xseman/pando/internal/font"
 	"github.com/xseman/pando/internal/git"
 	"github.com/xseman/pando/internal/lsp"
 	"github.com/xseman/pando/internal/proto"
@@ -273,6 +274,7 @@ type Model struct {
 	restoring bool
 
 	upd   proto.Update // what the daemon's last update check found
+	nf    string       // the Nerd Font offer: "offer", "installing" or "" for none
 	term  term
 	modal *modal
 }
@@ -364,7 +366,7 @@ func Run(dir, open string) error {
 	m := New(st, wss, ss, ws, events)
 	m.open = open
 
-	if fam := terminalFont(); st.Settings.Icons == "nerd" && fam != "" && !nerdFamily(fam) {
+	if fam := terminalFont(); st.Settings.Icons == "nerd" && fam != "" && !nerdFamily(fam) && !font.Installed() { // an installed one is the fallback
 		m.flash("terminal font lacks Nerd Font icons · pando doctor", true)
 	}
 
@@ -512,7 +514,7 @@ func (m *Model) Init() tea.Cmd {
 	// m.pv is the editor New restored for the workspace; its content loads here.
 	cmds := []tea.Cmd{
 		waitEvent(m.events), tick(), tea.RequestBackgroundColor, tea.RequestForegroundColor,
-		m.refreshGit(), m.pv.load(m), m.loadDrafts(), loadUpdate(), m.ensureTerm(), m.gh.shown(m), m.loadGHUser(), m.diagIn.waitDiags(), m.logIn.waitLogs(),
+		m.refreshGit(), m.pv.load(m), m.loadDrafts(), loadUpdate(), checkFont(), m.ensureTerm(), m.gh.shown(m), m.loadGHUser(), m.diagIn.waitDiags(), m.logIn.waitLogs(),
 	}
 	if m.open != "" { // over the restored editor, whose answer is then for another
 		cmds = append(cmds, m.openSpec(m.open))
@@ -2384,6 +2386,8 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case updateMsg:
 		return m, m.onUpdate(proto.Update(msg))
+	case fontMsg, fontDoneMsg:
+		return m, m.onFont(msg)
 	case workspacesMsg:
 		m.wss = msg
 
@@ -4633,6 +4637,14 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 
 	if chip, run := m.updateChip(); chip != nil {
 		addSegs(map[string]string{"available": "Install pando v" + m.upd.Latest, "ready": "Restart to Update"}[m.upd.State], run, chip...)
+	}
+
+	if chip, run := m.fontChip(); chip != nil {
+		addSegs("Install Symbols Nerd Font Mono", run, chip...)
+
+		if run != nil { // not while it installs
+			add(" × ", ink, "Don't Offer the Nerd Font Again", (*Model).dismissFont)
+		}
 	}
 
 	// VS Code's bell at the right end: the agents waiting on you, its dot and

@@ -3,6 +3,7 @@ package font
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -30,5 +31,47 @@ func TestNerdFontIn(t *testing.T) {
 		if !nerdFontIn(dir, other) {
 			t.Errorf("%s not found", name)
 		}
+	}
+}
+
+func TestOfferSkipsSSHAndTerminalsWithTheIcons(t *testing.T) {
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+		t.Skip("Install is for Linux and macOS")
+	}
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, "data"))
+
+	for _, v := range []string{"SSH_CONNECTION", "SSH_TTY", "KITTY_WINDOW_ID", "WEZTERM_PANE", "GHOSTTY_RESOURCES_DIR"} {
+		t.Setenv(v, "")
+	}
+
+	if Installed() {
+		t.Skip("this machine has a Nerd Font installed system-wide")
+	}
+
+	if !Offer() {
+		t.Fatal("no offer in a local terminal without a Nerd Font")
+	}
+
+	t.Setenv("SSH_TTY", "/dev/pts/1")
+
+	if Offer() {
+		t.Error("an offer over SSH")
+	}
+
+	t.Setenv("SSH_TTY", "")
+	t.Setenv("KITTY_WINDOW_ID", "1")
+
+	if Offer() {
+		t.Error("an offer in kitty")
+	}
+
+	t.Setenv("KITTY_WINDOW_ID", "")
+	mustWrite(t, filepath.Join(home, "data", "fonts", "SymbolsNerdFontMono-Regular.ttf"), "")
+
+	if Offer() {
+		t.Error("an offer with a Nerd Font installed")
 	}
 }

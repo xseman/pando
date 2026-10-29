@@ -14,6 +14,24 @@ import (
 // the user keep fonts.
 func Installed() bool { return nerdFontIn(dirs()...) }
 
+// Offer reports whether to offer Install: on Linux or macOS, in a terminal
+// on this machine (over SSH the font would land on the server) that does not
+// bring the icons itself, as kitty, WezTerm and Ghostty do, while no Nerd Font
+// is installed.
+func Offer() bool {
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+		return false
+	}
+
+	for _, v := range []string{"SSH_CONNECTION", "SSH_TTY", "KITTY_WINDOW_ID", "WEZTERM_PANE", "GHOSTTY_RESOURCES_DIR"} {
+		if os.Getenv(v) != "" {
+			return false
+		}
+	}
+
+	return !Installed()
+}
+
 // dirs are where the system and the user install fonts; the user's own comes
 // first.
 func dirs() []string {

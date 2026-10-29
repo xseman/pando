@@ -49,7 +49,7 @@ func defaultConfig() config {
 			Theme: "vscode", DiffView: "inline", Borders: true, FmtSave: true, Diags: true,
 			ActBar: "side", TermPos: "bottom", TermH: 12, SessHi: "tint",
 			SpSort: "created", SpGroup: "workspace", SpProj: "manual", ExSort: "name",
-			Sounds: true, SoundDone: done, SoundReq: req, Updates: true, Anim: true, Tips: true, Blanks: "selection", ClaudeBg: true, TabSize: 4, MDWidth: 80,
+			Sounds: true, SoundDone: done, SoundReq: req, Updates: true, FontOffer: true, Anim: true, Tips: true, Blanks: "selection", ClaudeBg: true, TabSize: 4, MDWidth: 80,
 			Drawers: []string{"Commits", "Graph", "Branches", "Stashes", "Remotes"},
 			Right:   proto.Columns{{Views: []string{"agents"}}},
 		},
@@ -225,6 +225,8 @@ func (c *config) encode() []byte {
 	kv("", "sound_done", s.SoundDone)
 	kv("", "sound_request", s.SoundReq)
 	kv("Check GitHub once a day for a newer pando and offer it in the status bar.\nThe update replaces the pando binary; restart pando to run it.", "update_check", s.Updates)
+	kv("Offer Symbols Nerd Font Mono, the icons alone, in the status bar while no Nerd Font is\n"+
+		"installed, for icons = \"nerd\"; not over SSH, nor in kitty, WezTerm or Ghostty, which bring them.", "nerd_font_offer", s.FontOffer)
 	kv("Text effects: a renamed session or a switched branch morphs through noise, a new one\n"+
 		"decodes in, counts roll and busy labels shimmer.", "animations", s.Anim)
 	kv("An icon button the pointer rests on names itself and its key in a box by the pointer,\n"+

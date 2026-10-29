@@ -87,6 +87,7 @@ config.toml edited ───────────┘  └─ "state" event �
 | `sound_done`           | desktop     | file on finish; `""`: bell                                                     |
 | `sound_request`        | desktop     | file on a question; `""`: bell                                                 |
 | `update_check`         | `true`      | ask GitHub daily for a newer pando                                             |
+| `nerd_font_offer`      | `true`      | status bar offers Symbols Nerd Font Mono while no Nerd Font is installed       |
 | `claude_background`    | `true`      | resume claude in the background (`pando claude`)                               |
 | `vim_mode`             | `false`     | editors open in vim normal mode                                                |
 | `word_wrap`            | `false`     | wrap long lines; off, a horizontal scrollbar                                   |
