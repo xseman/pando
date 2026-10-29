@@ -156,10 +156,10 @@ func checksum(sums, name string) string {
 	return ""
 }
 
-// Download fetches the release binary into dir and returns the path of the
-// file, which is left there only when its SHA-256 matches. progress, when it
-// is not nil, is called as bytes arrive; total is 0 when the server sends no
-// length.
+// Download fetches rel's file, the release binary or another download, into
+// dir ("" for the temporary directory) and returns its path; the file is left
+// there only when its SHA-256 matches. progress, when it is not nil, is
+// called as bytes arrive; total is 0 when the server sends no length.
 func Download(ctx context.Context, rel Release, dir string, progress func(done, total int64)) (string, error) {
 	req, err := request(ctx, rel.URL)
 	if err != nil {
@@ -192,7 +192,7 @@ func Download(ctx context.Context, rel Release, dir string, progress func(done, 
 
 	if got := hex.EncodeToString(sum.Sum(nil)); got != rel.SHA256 {
 		_ = os.Remove(f.Name())
-		return "", fmt.Errorf("checksum of %s is %s, want %s", Asset(), got, rel.SHA256)
+		return "", fmt.Errorf("checksum of %s is %s, want %s", rel.URL, got, rel.SHA256)
 	}
 
 	return f.Name(), nil

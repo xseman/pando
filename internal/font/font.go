@@ -1,4 +1,5 @@
-// Package font finds a Nerd Font among the installed fonts.
+// Package font finds a Nerd Font among the installed fonts and installs
+// Symbols Nerd Font Mono when there is none.
 package font
 
 import (

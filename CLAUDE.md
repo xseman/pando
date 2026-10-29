@@ -36,6 +36,7 @@ libgit2: git is shelled out.
 | `internal/db`     | databases through sqlite3, psql, mariadb: pages, edits    |
 | `internal/lsp`    | language server client                                    |
 | `internal/update` | release check, verified download, self-update             |
+| `internal/font`   | Nerd Font detection, Symbols Nerd Font Mono install       |
 | `internal/ui`     | Bubble Tea model (`app.go`), views, preview/editor, theme |
 | `skills/pando`    | `SKILL.md`, the agent guide `pando skill` prints          |
 
