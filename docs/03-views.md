@@ -173,8 +173,8 @@ re-roots Explorer and Source Control to its worktree.
 ▾ ○ other  ⌂ main + ↺ ⎇  its checkout alone: on the heading (merged), buttons as glyphs with tips
    └─ ○ shell           12m
 
-▸ · folded              folded projects sink to the bottom (pinFolded): no rule, no button
-▸ · folded
+▸ ○ folded            2   folded projects sink to the bottom (pinFolded): no rule, no button, a session count
+▸ ○ folded            1
 ▾ · NO SESSIONS      21   a strip over the projects with no session (bareHead), folds as a heading, a rule over it folded too
 ──────────────────────────  its rule, under it
    · dotfiles  + ⎇       a row each (bare), dimmed, no fold: buttons as a heading holding its checkout

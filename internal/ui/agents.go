@@ -1159,6 +1159,10 @@ func (a *agents) lines(m *Model, w, h int) []string {
 				left = append(append(left, sg("  ", plain)), m.wsSegs(r.ws, base)...)
 			}
 
+			if !open { // how many it hides, as bareHead's strip counts
+				return row(rw, bg, append(left, plus...), sg(strconv.Itoa(len(ss))+" ", dim))
+			}
+
 			return row(rw, bg, append(left, plus...))
 
 		case agWorkspace:

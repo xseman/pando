@@ -94,6 +94,24 @@ func TestSpacesMergedCheckout(t *testing.T) {
 	}
 }
 
+// TestSpacesFoldedCount counts the sessions a folded project hides on its
+// heading; open, its rows say it.
+func TestSpacesFoldedCount(t *testing.T) {
+	m := testModel(t)
+	other := addProject(t, m, "dev", "s2", "s3")
+	press(m, "3")
+
+	m.ag.collapsed[other] = true
+	if out := checkWidths(t, m); !strings.Contains(out, "▸ ○ "+filepath.Base(other)) || !strings.Contains(out, " 2 ") {
+		t.Fatalf("the folded heading counts its sessions:\n%s", out)
+	}
+
+	m.ag.collapsed[other] = false
+	if out := checkWidths(t, m); strings.Contains(out, " 2 ") {
+		t.Fatalf("an open heading counts nothing:\n%s", out)
+	}
+}
+
 // TestSpacesIdleAge says how long an idle session has been idle where it
 // said idle; the other states keep their word.
 func TestSpacesIdleAge(t *testing.T) {
