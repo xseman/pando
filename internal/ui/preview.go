@@ -1920,24 +1920,25 @@ func (p *preview) rowBg(line int) color.Color {
 func (p *preview) gutterText(line int, first bool) string {
 	gw, bg := p.gutter(), p.rowBg(line)
 
-	st := dim
-	if p.meta == nil { // VS Code's editorLineNumber colors, the cursor's line lit
-		st = lineNumSt(line == p.cur.line)
-	}
-
 	if bg == nil && p.lineHi(line) {
 		bg = pal.lineHiBg
-	}
-
-	if bg != nil {
-		st = st.Background(bg)
 	}
 
 	if gw == 0 {
 		return ""
 	}
 
-	pre, suf := renderSides(st)
+	k := numKey{diff: p.meta != nil, bg: bg}
+	if !k.diff { // VS Code's editorLineNumber colors, the cursor's line lit
+		k.fg = ifElse(line == p.cur.line, pal.lineNumberActive, pal.lineNumber)
+	}
+
+	var st lipgloss.Style // a change mark's, built only for a row that has one
+	if line < len(p.chg) && p.chg[line] != 0 {
+		st = k.style()
+	}
+
+	pre, suf := numSides(k)
 
 	// A file's change mark leads, in the margin before the numbers (numPad).
 	switch sp := pre + " " + suf; {
@@ -1950,6 +1951,47 @@ func (p *preview) gutterText(line int, first bool) string {
 	}
 
 	return diffGutter(p.meta[line], p.numW, bg)
+}
+
+// numKey is what a gutter's number is drawn in: dim in a diff, else the
+// line number color fg (nil: plain), on bg.
+type numKey struct {
+	diff   bool
+	fg, bg color.Color
+}
+
+func (k numKey) style() lipgloss.Style {
+	st := dim
+
+	switch {
+	case k.diff:
+	case k.fg == nil:
+		st = plain
+	default:
+		st = fg(k.fg)
+	}
+
+	if k.bg != nil {
+		st = st.Background(k.bg)
+	}
+
+	return st
+}
+
+// numStyles holds renderSides of each numKey: the rows of a frame share a
+// few, and a style built per row cost a tenth of the frame.
+var numStyles sync.Map
+
+func numSides(k numKey) (pre, suf string) {
+	if v, ok := numStyles.Load(k); ok {
+		s, _ := v.([2]string)
+		return s[0], s[1]
+	}
+
+	pre, suf = renderSides(k.style())
+	numStyles.Store(k, [2]string{pre, suf})
+
+	return pre, suf
 }
 
 func runeCells(r rune) int {
