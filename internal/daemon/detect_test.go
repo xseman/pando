@@ -210,6 +210,22 @@ func TestBackgroundAgentRuns(t *testing.T) {
 	}
 }
 
+// Where the terminal cannot tell what runs (macOS: no /proc), an agent's
+// session is read by its agent's rules: claude's permission prompt says
+// blocked while the pending tool's ● blinks over it.
+func TestBlockedWithoutProgram(t *testing.T) {
+	now := time.Now()
+
+	s := &session{status: "running", spec: proto.SessionSpec{Agent: "claude"}, emu: vt.NewEmulator(80, 8), lastOutput: now}
+	_, _ = s.emu.WriteString("● Clean index\r\nBash command\r\nDo you want to proceed?\r\n❯ 1. Yes\r\n  2. No\r\n\r\nEsc to cancel · Tab to amend")
+
+	s.tick(now)
+
+	if s.status != "blocked" {
+		t.Fatalf("a permission prompt, no program known: %q, want blocked", s.status)
+	}
+}
+
 func TestShellCommand(t *testing.T) {
 	cases := []struct {
 		argv []string

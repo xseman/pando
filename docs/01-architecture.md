@@ -195,7 +195,8 @@ under the worker) as shell, its ◐ blue. Each tick, `session.tick` decides:
 - `/proc` is Linux only; elsewhere (macOS, Windows) only the screen and
   output timing decide, codex, agy and grok list no subagents (their readers
   need `/proc/<pid>/fd`), and an agent's session is taken to run the agent
-  itself (`ownAgent`): a restart runs its `[resume]` in its place.
+  itself (`ownAgent`): its agent's `agentRules` read the screen, and a
+  restart runs its `[resume]` in its place.
 
 ## Resume after a restart
 

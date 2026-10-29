@@ -388,10 +388,16 @@ func (s *session) tick(now time.Time) bool {
 	prev, prevAttn := s.status, s.attention
 
 	viewed := now.Sub(s.lastViewed) < viewedWindow
-	if s.emu != nil && (s.screenAt != s.lastOutput || s.screenProg != s.program) {
-		s.screenAt, s.screenProg = s.lastOutput, s.program
+
+	prog := s.program
+	if prog == "" && !isShellAgent(s.spec.Agent) { // the terminal cannot tell what runs (no /proc): an agent's session runs the agent, as ownAgent
+		prog = s.spec.Agent
+	}
+
+	if s.emu != nil && (s.screenAt != s.lastOutput || s.screenProg != prog) {
+		s.screenAt, s.screenProg = s.lastOutput, prog
 		lines := strings.Split(s.emu.String(), "\n")
-		s.seen = screenState(s.program, s.title, lines)
+		s.seen = screenState(prog, s.title, lines)
 
 		body := aboveInput(lines)
 		s.still = s.seen == "idle" && body == s.body
