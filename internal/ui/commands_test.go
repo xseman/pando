@@ -3249,16 +3249,20 @@ func TestSessionNames(t *testing.T) {
 	bare.Title = ""
 	named := claude
 	named.Name = "deploy"
+	keyed := claude
+	keyed.Name, keyed.Title = "jira-dev-43739", "✳ DEV-43739 CZ export"
+	unkeyed := keyed
+	unkeyed.Name = "jiradev-43739"
 
 	panel := proto.Session{SessionSpec: proto.SessionSpec{Agent: termAgent, Cmd: []string{"/bin/zsh"}}, Program: "zsh"}
-	for want, s := range map[string]proto.Session{"shell": sh, "Add a Count method": claude, "claude": bare, "deploy": named, "zsh": panel} {
+	for want, s := range map[string]proto.Session{"shell": sh, "Add a Count method": claude, "claude": bare, "deploy": named, "zsh": panel, "DEV-43739 CZ export": keyed, "jiradev-43739": unkeyed} {
 		if got := sessionName(s); got != want {
 			t.Errorf("sessionName(%+v) = %q, want %q", s, got, want)
 		}
 	}
 
-	if titleAfter(claude) != "" || titleAfter(sh) != " · ~/c/shop" {
-		t.Fatalf("titles after names: %q %q", titleAfter(claude), titleAfter(sh))
+	if titleAfter(claude) != "" || titleAfter(sh) != " · ~/c/shop" || titleAfter(keyed) != "" {
+		t.Fatalf("titles after names: %q %q %q", titleAfter(claude), titleAfter(sh), titleAfter(keyed))
 	}
 
 	m := testModelSized(t, 120, 30)

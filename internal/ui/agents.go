@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -3300,12 +3301,18 @@ func sessionName(s proto.Session) string { return ansi.Truncate(fullName(s), 32,
 
 // fullName is a session's whole name: the name it was renamed to, else what
 // runs in it, in the words of its terminal title (Claude Code titles the task
-// it works on), else its agent, or its shell's program.
+// it works on), else its agent, or its shell's program. A title that starts
+// with the issue key the name ends in says the name, and more: it goes in the
+// name's place.
 func fullName(s proto.Session) string {
 	name := s.Agent
 	switch {
 	case s.Name != "":
 		name = s.Name
+		if t := cleanTitle(s.Title); keyedBy(t, name) {
+			name = t
+		}
+
 	case s.Program != "" && !slices.Contains(shells, s.Program):
 		name = s.Program
 		if t := cleanTitle(s.Title); t != "" {
@@ -3317,6 +3324,22 @@ func fullName(s proto.Session) string {
 	}
 
 	return name
+}
+
+// issueKey is the issue key a title starts with: DEV-43739.
+var issueKey = regexp.MustCompile(`^[A-Za-z]+-\d+\b`)
+
+// keyedBy reports title t starting with the issue key name ends in, as
+// "DEV-43739 CZ export" does for jira-dev-43739.
+func keyedBy(t, name string) bool {
+	k, n := strings.ToLower(issueKey.FindString(t)), strings.ToLower(name)
+	if k == "" || !strings.HasSuffix(n, k) {
+		return false
+	}
+
+	r, _ := utf8.DecodeLastRuneInString(n[:len(n)-len(k)]) // none, or no letter or digit: the key is a word of its own
+
+	return !unicode.IsLetter(r) && !unicode.IsDigit(r)
 }
 
 // titleAfter is " · title" for a title the session's name does not already say.

@@ -191,6 +191,9 @@ re-roots Explorer and Source Control to its worktree.
   switches to its first worktree, `n` starts a session as on a heading;
   nothing moves across the strip (`apart`). A switch into one opens it
   (`reveal`).
+- A session row says its name, then its title where the name does not say
+  it (`titleAfter`). A title starting with the issue key a set name ends in
+  (`DEV-43739 …` for `jira-dev-43739`) takes the name's place (`keyedBy`).
 - Scrolled down, the heading of the tree's first row covers that line
   (`sticky`), VS Code's sticky scroll: a click there is the heading's, and a
   selection under it scrolls into view. Off while a row drags.
