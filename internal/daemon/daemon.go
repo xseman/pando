@@ -24,6 +24,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/xseman/pando/internal/font"
 	"github.com/xseman/pando/internal/git"
 	"github.com/xseman/pando/internal/proto"
 	"github.com/xseman/pando/internal/update"
@@ -129,7 +130,12 @@ func New(configDir, stateDir, dataDir string) (*Daemon, error) {
 	c, err := loadConfig(d.cfgPath)
 
 	d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID, d.state.ResumeJob, d.state.StopJob, d.state.ResumeEnv, d.state.Databases = c.Settings, c.Agents, c.Resume, c.ResumeID, c.ResumeJob, c.StopJob, c.ResumeEnv, c.Databases
+
 	if errors.Is(err, os.ErrNotExist) {
+		if font.Installed() { // a first config: icons the installed fonts can draw
+			d.state.Settings.Icons = "nerd"
+		}
+
 		if err := d.saveConfig(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}

@@ -53,7 +53,7 @@ config.toml edited ───────────┘  └─ "state" event �
 | Key                    | Default     | Meaning                                                                        |
 | ---------------------- | ----------- | ------------------------------------------------------------------------------ |
 | `color_theme`          | `vscode`    | `vscode` (by background), `vscode-dark`, `vscode-light`, `terminal` (ANSI)     |
-| `icons`                | `ascii`     | `ascii`, `nerd` (needs a Nerd Font), `emoji`                                   |
+| `icons`                | `ascii`     | `ascii`, `nerd` (needs a Nerd Font, first run picks it if installed), `emoji`  |
 | `activity_bar`         | `side`      | `side` (down the sidebar edge), `top` (above the view)                         |
 | `panel_borders`        | `true`      | titled border around each panel                                                |
 | `animations`           | `true`      | names morph, counts roll, busy labels shimmer                                  |

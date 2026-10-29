@@ -43,7 +43,8 @@ installs it to `~/.local/bin` (`PANDO_VERSION` pins a release,
 Needs git. Optional: `gh` for GitHub, `rg` for search, `sqlite3` (3.37+),
 `psql` and `mariadb` (or `mysql`) for databases, language servers (`gopls`,
 …), the `claude` CLI for commit messages, and a Nerd Font for `icons =
-"nerd"` (_Symbols Nerd Font Mono_ as a fallback font is enough).
+"nerd"` (_Symbols Nerd Font Mono_ as a fallback font is enough; the first
+run picks `nerd` when one is installed).
 
 ![pando with Explorer on the left and Spaces on the right, two projects and their claude sessions in it, one working, one waiting for a yes, one done; between them two editor groups side by side, store.go and the claude session that just changed it](docs/demo/hero.png)
 
