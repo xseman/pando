@@ -258,10 +258,12 @@ goes above a project's upper half, below its lower half, and into a gap
 between projects (`projectDrop`). Let go anywhere else, it stays.
 A file pressed in Explorer opens in the preview tab, a session of the
 worktree in view in Spaces opens as a click opens it, and held on, its tab
-goes over the editor area as one off its strip (`dragOpenTo`). A session
-that moves among its worktree's opens on the release instead, over the
-editor area (`dragRowTo`). Another worktree's session has no group to go
-to: the groups are the worktree in view's.
+goes over the editor area as one off its strip (`dragOpenTo`), the tab it
+opens in riding under the pointer (`dragGhost`). A session that moves among
+its worktree's opens on the release instead, over the editor area
+(`dragRowTo`); off the list's rows the tab it would get rides along.
+Another worktree's session has no group to go to: the groups are the
+worktree in view's.
 
 A sash lights after `sashDelay` (300 ms) in
 `sash_hover`, the accent while dragged (`trackSash`, `sashUnder`,

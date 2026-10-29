@@ -508,8 +508,13 @@ func TestDragFileFromExplorer(t *testing.T) {
 	m.Update(tea.MouseClickMsg{X: x, Y: top + 1, Button: tea.MouseLeft})
 	m.Update(tea.MouseMotionMsg{X: a.x + a.w - 2, Y: a.y + a.h/2, Button: tea.MouseLeft})
 
-	if out := checkWidths(t, m); !strings.Contains(out, "Split Right") {
+	out := checkWidths(t, m)
+	if !strings.Contains(out, "Split Right") {
 		t.Fatalf("the drop target says where it goes:\n%s", out)
+	}
+
+	if ghost := ansi.Strip(strings.Split(out, "\n")[a.y+a.h/2+1]); !strings.Contains(ghost, "▎") || !strings.Contains(ghost, "README.md") {
+		t.Fatalf("its tab follows the pointer, a row under it: %q", ghost)
 	}
 
 	m.Update(tea.MouseReleaseMsg{X: a.x + a.w - 2, Y: a.y + a.h/2, Button: tea.MouseLeft})
@@ -545,8 +550,13 @@ func TestDragSessionFromSpaces(t *testing.T) {
 	m.Update(tea.MouseClickMsg{X: x, Y: top + 1, Button: tea.MouseLeft}) // s1, under the heading holding its checkout
 	m.Update(tea.MouseMotionMsg{X: a.x + a.w - 2, Y: a.y + a.h/2, Button: tea.MouseLeft})
 
-	if out := checkWidths(t, m); !strings.Contains(out, "Split Right") || m.drag.to != "" {
+	out := checkWidths(t, m)
+	if !strings.Contains(out, "Split Right") || m.drag.to != "" {
 		t.Fatalf("the drop target over the editor area, no slot in Spaces:\n%s", out)
+	}
+
+	if ghost := ansi.Strip(strings.Split(out, "\n")[a.y+a.h/2+1]); !strings.Contains(ghost, "▎") || !strings.Contains(ghost, sessionName(*m.session("s1"))) {
+		t.Fatalf("its tab follows the pointer, a row under it: %q", ghost)
 	}
 
 	m.Update(tea.MouseReleaseMsg{X: a.x + a.w - 2, Y: a.y + a.h/2, Button: tea.MouseLeft})
@@ -568,6 +578,11 @@ func TestDragSessionFromSpaces(t *testing.T) {
 	}
 
 	m.Update(tea.MouseMotionMsg{X: r.x + r.w/2, Y: r.y + r.h - 2, Button: tea.MouseLeft})
+
+	if ghost := ansi.Strip(strings.Split(checkWidths(t, m), "\n")[r.y+r.h-1]); !strings.Contains(ghost, sessionName(*m.session("s2"))) {
+		t.Fatalf("the tab it would get follows the pointer: %q", ghost)
+	}
+
 	m.Update(tea.MouseReleaseMsg{X: r.x + r.w/2, Y: r.y + r.h - 2, Button: tea.MouseLeft})
 
 	if ps := m.grid.leaves(); len(ps) != 3 || m.cur != ps[2] || m.sess != "s2" {

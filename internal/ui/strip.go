@@ -322,10 +322,21 @@ func (m *Model) grabTab(s int, id string, x int) {
 
 // dragGhost is the held tab lifted off its strip and carried by the pointer,
 // as VS Code drags a tab's image: the cell it was picked up by stays under
-// the pointer, a row lower so the drop mark on the strip stays in sight.
+// the pointer, a row lower so the drop mark on the strip stays in sight. A
+// file held from Explorer, or a session from Spaces, rides as the tab it
+// opens in, its label starting under the pointer.
 func (m *Model) dragGhost() (box []string, x, y int, ok bool) {
 	d := m.drag
-	if d == nil || d.kind != dragStrip || !d.moved {
+	if d == nil || !d.moved {
+		return nil, 0, 0, false
+	}
+
+	id := d.tab
+	switch s := m.session(d.sess); {
+	case d.kind == dragStrip, d.kind == dragOpen:
+	case d.kind == dragRow && s != nil && s.Workspace == m.ws && d.to == "": // out to the groups, not onto a row of the list
+		id = d.sess
+	default:
 		return nil, 0, 0, false
 	}
 
@@ -333,22 +344,33 @@ func (m *Model) dragGhost() (box []string, x, y int, ok bool) {
 
 	tx := 0
 
-	if d.strip == stripEditor {
+	if d.kind != dragStrip || d.strip == stripEditor {
 		for _, t := range m.editorTabs(m.mainW()) {
-			if t.id == d.tab || t.i >= 0 && m.editors[t.i].id() == d.tab {
-				label, tx = t.label, t.x
-			}
-		}
-	} else {
-		for _, t := range m.termTabs(m.termStripW()) {
-			if t.id == d.tab {
+			if t.id == id || t.i >= 0 && m.editors[t.i].id() == id {
 				label, tx = t.label, t.x
 			}
 		}
 	}
 
+	if label == "" && (d.kind != dragStrip || d.strip != stripEditor) {
+		for _, t := range m.termTabs(m.termStripW()) {
+			if t.id == id {
+				label, tx = t.label, t.x
+			}
+		}
+	}
+
+	if s := m.session(id); label == "" && s != nil && d.kind != dragStrip { // no tab yet: the one it would get
+		label, _ = m.sessLabel(*s, true, m.mainW())
+	}
+
 	if label == "" {
 		return nil, 0, 0, false
+	}
+
+	off := 1 // from a list: the label after the ▎ under the pointer
+	if d.kind == dragStrip {
+		off = d.x0 - d.org - tx
 	}
 
 	st := lipgloss.NewStyle().Background(pal.selBg).Bold(true)
@@ -359,7 +381,7 @@ func (m *Model) dragGhost() (box []string, x, y int, ok bool) {
 	chip := renderText(fg(pal.accent).Background(pal.selBg), "▎") + renderText(st, label)
 	w := ansi.StringWidth(chip)
 
-	x, y = max(min(m.mouseX-(d.x0-d.org-tx), m.w-w), 0), m.mouseY+1
+	x, y = max(min(m.mouseX-off, m.w-w), 0), m.mouseY+1
 	if y >= m.panelH() {
 		y = m.mouseY - 1
 	}

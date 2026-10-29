@@ -679,7 +679,7 @@ func (m *Model) gridDrop(x, y int, id string) (dst *pane, side int, t dropTarget
 // that the press opened, over the editor area as its tab held off the strip:
 // let go, it goes to the group under it, or a new one at the edge it is near.
 func (m *Model) dragOpenTo(d *drag, x, y int, release bool) tea.Cmd {
-	d.drop = nil
+	d.moved, d.drop = true, nil
 
 	var t dropTarget
 	if d.dst, d.side, t = m.gridDrop(x, y, d.tab); d.dst != nil {
