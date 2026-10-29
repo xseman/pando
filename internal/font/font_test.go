@@ -69,7 +69,7 @@ func TestOfferSkipsSSHAndTerminalsWithTheIcons(t *testing.T) {
 	}
 
 	t.Setenv("KITTY_WINDOW_ID", "")
-	mustWrite(t, filepath.Join(home, "data", "fonts", "SymbolsNerdFontMono-Regular.ttf"), "")
+	mustWrite(t, filepath.Join(dirs()[0], "SymbolsNerdFontMono-Regular.ttf"), "") // the user's own font directory, per platform
 
 	if Offer() {
 		t.Error("an offer with a Nerd Font installed")
