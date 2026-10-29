@@ -221,6 +221,7 @@ type Model struct {
 	mouseAt   time.Time
 	tip       string              // the name and key of the button under the mouse in the frame being drawn
 	sessTabs  map[string][]string // each workspace's sessions opened over the editor area, their tabs in its strip: roots, in the order opened
+	sessAfter map[string][]string // a session tab moved among the files: the files' ids before it then (sessPos)
 	tipDue    time.Time           // when the tipWakeMsg on its way comes, zero for none
 	tipSeen   time.Time           // when a tip was last drawn: moving on, the next one shows at once
 	tipOff    time.Time           // a key or a click puts the tip away until the pointer moves

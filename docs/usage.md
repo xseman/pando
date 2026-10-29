@@ -114,9 +114,10 @@ checkout.
 
 - A session opens as a tab in the focused editor group, beside your files'
   tabs, or shows the group that has it already. Drag its tab to a group's
-  edge to put it beside a file. Its ✕ hides it; it keeps running. A session
-  on screen keeps its tab when you switch to another, also one a worktree
-  switch or a restart brought back.
+  edge to put it beside a file, or along the strip to put it between files'
+  tabs (`ctrl+shift+pgup`/`pgdn` too). Its ✕ hides it; it keeps running. A
+  session on screen keeps its tab when you switch to another or open a file,
+  also one a worktree switch or a restart brought back.
 - A session re-roots Explorer and Source Control to its worktree; Explorer
   selects the file its editor shows and comes to the front of its column
   (`auto_reveal`), as for any file or change opened, or tab picked. A file

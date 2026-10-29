@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"cmp"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -167,6 +168,114 @@ func TestDragEditorTab(t *testing.T) {
 
 	if m.drag != nil || m.edIdx != 0 || names() != "README.md a-much-longer-name.txt .env" {
 		t.Fatalf("a click that never moved only activates: drag %+v, %s", m.drag, names())
+	}
+}
+
+// TestOpenFileKeepsSessionTab opens a file over a session shown without a
+// tab, as a worktree switch or a restart brings one back: it gets a tab
+// beside the file's rather than going behind it with none.
+func TestOpenFileKeepsSessionTab(t *testing.T) {
+	m := testModelSized(t, 140, 30)
+	m.sess = "s1" // in front, in no strip
+
+	fire(m, m.openFile(filepath.Join(m.ws, "README.md"), true))
+
+	if !m.showsPreview() || !slices.Equal(m.stripOrder(stripEditor), []string{m.editors[0].id(), "s1"}) {
+		t.Fatalf("the file in front, the session's tab after it: %v", m.stripOrder(stripEditor))
+	}
+
+	// In front again, still in no strip: a click on the file's tab.
+	m.preview = false
+	click(m, m.mainX()+m.editorTabs(m.mainW())[0].x+1, 0, tea.MouseLeft)
+
+	if !m.showsPreview() || !slices.Equal(m.stripSessions(), []string{"s1"}) {
+		t.Fatalf("the file's tab clicked: %v", m.stripSessions())
+	}
+
+	fire(m, m.saveEditors())
+
+	if !slices.Equal(m.st.Editors[m.ws].Sessions, []string{"s1"}) {
+		t.Fatalf("its tab is saved: %+v", m.st.Editors[m.ws])
+	}
+}
+
+// TestDragSessionTab moves a session's tab among the files' by a drag and by
+// ⌃⇧pgup: it stays there as the preview tab shows another file, a file
+// opens or one before it closes, and comes back there from state.json.
+func TestDragSessionTab(t *testing.T) {
+	m := testModelSized(t, 140, 30)
+	drainInputs(m)
+
+	m.focus = onMain
+	for _, f := range []string{"README.md", ".env"} {
+		fire(m, m.openFile(filepath.Join(m.ws, f), false))
+	}
+
+	m.switchSession("s1")
+
+	order := func() string {
+		var out []string
+
+		for _, t := range m.editorTabs(m.mainW()) {
+			out = append(out, cmp.Or(t.id, filepath.Base(m.editors[max(t.i, 0)].path)))
+		}
+
+		return strings.Join(out, " ")
+	}
+
+	if got := order(); got != "README.md .env s1" {
+		t.Fatalf("a session's tab follows the files': %s", got)
+	}
+
+	// Picked up and let go on the left half of .env: before it.
+	tabs, x0 := m.editorTabs(m.mainW()), m.mainX()
+	m.Update(tea.MouseClickMsg{X: x0 + tabs[2].x + 1, Y: 0, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: x0 + tabs[1].x + 1, Y: 0, Button: tea.MouseLeft})
+	m.Update(tea.MouseReleaseMsg{X: x0 + tabs[1].x + 1, Y: 0, Button: tea.MouseLeft})
+
+	if got := order(); got != "README.md s1 .env" || !m.showsSession() {
+		t.Fatalf("dropped between the files, still shown: %s", got)
+	}
+
+	press(m, "ctrl+shift+pgup")
+
+	if got := order(); got != "s1 README.md .env" || !m.showsSession() {
+		t.Fatalf("⌃⇧pgup moves the shown session's tab: %s", got)
+	}
+
+	press(m, "ctrl+shift+pgdown")
+
+	if got := order(); got != "README.md s1 .env" {
+		t.Fatalf("⌃⇧pgdn moves it back: %s", got)
+	}
+
+	if e := m.st.Editors[m.ws]; e.SessionAt["s1"] != 1 {
+		t.Fatalf("saved after one file: %+v", e)
+	}
+
+	// README.md made the preview tab: another file takes it, the session stays after it.
+	m.editors[0].transient = true
+	mustWrite(t, filepath.Join(m.ws, "b.txt"), "b\n")
+	fire(m, m.openFile(filepath.Join(m.ws, "b.txt"), true))
+	fire(m, m.openFile(filepath.Join(m.ws, "src", "deep", "x.go"), false))
+
+	if got := order(); got != "b.txt s1 .env x.go" {
+		t.Fatalf("the preview tab's next file and a new one: %s", got)
+	}
+
+	// Back from state.json, as a restart brings it.
+	fire(m, m.saveEditors())
+	m.sessAfter = nil
+	fire(m, m.restoreGroup(m.st.Editors[m.ws]))
+
+	if got := order(); got != "b.txt s1 .env x.go" {
+		t.Fatalf("restored: %s", got)
+	}
+
+	fire(m, m.closeEditor(0))
+
+	if got := order(); got != "s1 .env x.go" {
+		t.Fatalf("the file before it closed: %s", got)
 	}
 }
 

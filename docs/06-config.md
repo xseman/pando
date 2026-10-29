@@ -244,7 +244,8 @@ tick, on leaving the workspace and on quitting.
 ```
 
 `editors` is one group (`open`, `active`, `sessions` its session tabs,
-`session` the one in front of the files) or a split: `a` and `b` side by side
+`session` the one in front of the files, `session_at` how many of `open`
+come before a session tab moved among them) or a split: `a` and `b` side by side
 (`row`) or stacked, `a` taking `ratio` of the room. `focus` marks the group
 with the keyboard, `max` on the top entry the focused group alone. It keeps
 files, not diffs: 0-based cursor, top row, `md` (0 source, 1 rendered, 2

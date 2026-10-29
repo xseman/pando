@@ -201,6 +201,9 @@ type Editors struct {
 	A        *Editors `json:"a,omitempty"`
 	B        *Editors `json:"b,omitempty"`
 	Max      bool     `json:"max,omitempty"` // the grid's: the focused group fills the editor area
+	// SessionAt is a session tab moved among the files: how many of Open
+	// come before it. The others follow the files.
+	SessionAt map[string]int `json:"session_at,omitempty"`
 }
 
 // Empty reports nothing to keep: no tab, and no split.

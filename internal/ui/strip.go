@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"cmp"
 	"slices"
 	"strings"
 
@@ -14,9 +15,8 @@ import (
 // The tab strips a tab moves along, by a drag or by Move Tab Left/Right, as
 // herdr's tabs do.
 const (
-	stripEditor  = iota + 1 // the editors over the main area
-	stripSession            // a session over the editor area: its tab stays
-	stripTerm               // the Terminal's shells
+	stripEditor = iota + 1 // the files and sessions over the main area
+	stripTerm              // the Terminal's shells
 )
 
 // stripTab is a tab that can move, where its strip draws it.
@@ -30,11 +30,9 @@ type stripTab struct {
 func (m *Model) stripTabs(s int) []stripTab {
 	var out []stripTab
 
-	if s == stripEditor { // the files' tabs
+	if s == stripEditor {
 		for _, t := range m.editorTabs(m.mainW()) {
-			if t.i >= 0 {
-				out = append(out, stripTab{id: m.editors[t.i].id(), x: t.x, w: t.w})
-			}
+			out = append(out, stripTab{id: m.tabID(t), x: t.x, w: t.w})
 		}
 
 		return out
@@ -135,21 +133,27 @@ func (m *Model) setOver(s, x int) {
 func (m *Model) stripOrder(s int) []string {
 	var ss []proto.Session
 
-	switch s {
-	case stripEditor:
-		out := make([]string, len(m.editors))
+	if s == stripEditor { // the files, a session before the file at its sessPos
+		var out []string
+
+		key := map[string]int{}
+
 		for i, e := range m.editors {
-			out[i] = e.id()
+			out = append(out, e.id())
+			key[e.id()] = 2*i + 1
 		}
 
+		for _, id := range m.stripSessions() {
+			out = append(out, id)
+			key[id] = 2 * m.sessPos(id)
+		}
+
+		slices.SortStableFunc(out, func(a, b string) int { return cmp.Compare(key[a], key[b]) })
+
 		return out
-
-	case stripSession:
-		return nil
-
-	default:
-		ss = m.termSessions()
 	}
+
+	ss = m.termSessions()
 
 	out := make([]string, len(ss))
 	for i, x := range ss {
@@ -161,33 +165,71 @@ func (m *Model) stripOrder(s int) []string {
 
 // stripActive is the tab strip s shows, "" for none or the session's own.
 func (m *Model) stripActive(s int) string {
-	switch s {
-	case stripEditor:
-		if m.edIdx >= 0 && m.edIdx < len(m.editors) {
-			return m.editors[m.edIdx].id()
-		}
-
-		return ""
-
-	case stripSession:
-		return ""
+	switch {
+	case s != stripEditor:
+		return m.tv.id
+	case m.showsSession():
+		return m.sess
+	case m.edIdx >= 0 && m.edIdx < len(m.editors):
+		return m.editors[m.edIdx].id()
 	}
 
-	return m.tv.id
+	return ""
 }
 
 // focusedStrip is the strip Move Tab Left/Right acts on: the Terminal's with
-// the keyboard in it, the session's when it fills the main area, else the
-// editors'.
+// the keyboard in it, else the editor area's.
 func (m *Model) focusedStrip() int {
-	switch {
-	case m.termFocused():
+	if m.termFocused() {
 		return stripTerm
-	case m.showsSession():
-		return stripSession
 	}
 
 	return stripEditor
+}
+
+// sessPos is where session id's tab sits among the editor strip's files: the
+// index of the file it goes before, right after the last still open of the
+// files it was moved behind, first with none of them. A tab never moved
+// follows the files, the ones opened later too.
+func (m *Model) sessPos(id string) int {
+	after, ok := m.sessAfter[id]
+	if !ok {
+		return len(m.editors)
+	}
+
+	pos := 0
+
+	for i, e := range m.editors {
+		if slices.Contains(after, e.id()) {
+			pos = i + 1
+		}
+	}
+
+	return pos
+}
+
+// moveSessTab puts session id's tab after files, the editors before it now.
+func (m *Model) moveSessTab(id string, files []preview) {
+	if m.sessAfter == nil {
+		m.sessAfter = map[string][]string{}
+	}
+
+	after := make([]string, len(files))
+	for i, e := range files {
+		after[i] = e.id()
+	}
+
+	m.sessAfter[id] = after
+}
+
+// renameTab keeps the session tabs next to an editor whose tab now shows
+// another file, as the preview tab does.
+func (m *Model) renameTab(from, to string) {
+	for _, after := range m.sessAfter {
+		if i := slices.Index(after, from); i >= 0 {
+			after[i] = to
+		}
+	}
 }
 
 // stripMove puts tab id where tab to sits now in the model's own order, so a
@@ -205,9 +247,40 @@ func (m *Model) stripMove(s int, id, to string) {
 		return
 	}
 
-	active := m.stripActive(s)
-	e := m.editors[i]
-	m.editors = slices.Insert(slices.Delete(m.editors, i, i+1), j, e)
+	ids = slices.Insert(slices.Delete(ids, i, i+1), j, id)
+
+	active := ""
+	if m.edIdx >= 0 && m.edIdx < len(m.editors) { // the file in front, or behind the session
+		active = m.editors[m.edIdx].id()
+	}
+
+	// The files in their new order, each session after the ones before it.
+	var (
+		eds  []preview
+		tabs []string
+	)
+
+	for _, x := range ids {
+		if k := slices.IndexFunc(m.editors, func(e preview) bool { return e.id() == x }); k >= 0 {
+			eds = append(eds, m.editors[k])
+			continue
+		}
+
+		tabs = append(tabs, x)
+		m.moveSessTab(x, eds)
+	}
+
+	for _, x := range tabs { // the ones after every file follow the files opened next
+		if len(m.sessAfter[x]) == len(eds) {
+			delete(m.sessAfter, x)
+		}
+	}
+
+	if m.sessTabs == nil {
+		m.sessTabs = map[string][]string{}
+	}
+
+	m.editors, m.sessTabs[m.ws] = eds, tabs
 	m.edIdx = slices.IndexFunc(m.editors, func(p preview) bool { return p.id() == active })
 }
 

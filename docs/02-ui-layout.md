@@ -355,7 +355,14 @@ group has one strip, the files' tabs then the sessions'.
   (`stripSlot`), release moves it. While held, the tab rides a row under the
   pointer, as VS Code's drag image (`dragGhost`, `sel_bg`, an accent `▎`); off its own strip it goes to a group
   ([Editor groups](#editor-groups)). `ctrl+shift+pgup`/`pgdn` move it
-  (`moveTab`). A session's own tab stays first.
+  (`moveTab`). A session's own tab stays first in the Terminal's strip.
+- The editor strip's session tabs follow the files' until one is moved
+  among them (`stripMove`): it keeps the files that were before it
+  (`sessAfter`) and sits after the last of them still open (`sessPos`), so
+  the preview tab showing another file (`renameTab`), a file opened or one
+  closed leaves it in place. `session_at` keeps it over a restart. The
+  group's own session, one a worktree switch or a restart showed without a
+  tab, keeps a tab behind the files too (`stripSessions`).
 
 ## Modals
 

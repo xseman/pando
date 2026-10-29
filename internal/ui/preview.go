@@ -418,9 +418,13 @@ func (m *Model) setPreview(p preview) tea.Cmd {
 		m.editors[i], m.edIdx = p.snapshot(), i
 
 	case m.edIdx >= 0 && m.edIdx < len(m.editors) && sameFile(m.editors[m.edIdx], p):
+		m.renameTab(m.editors[m.edIdx].id(), p.id())
 		m.editors[m.edIdx] = p.snapshot() // a revision of the open file stays in its tab
+
 	case p.transient && t >= 0:
+		m.renameTab(m.editors[t].id(), p.id())
 		m.editors[t], m.edIdx = p.snapshot(), t
+
 	default:
 		m.editors = append(m.editors, p.snapshot())
 		m.edIdx = len(m.editors) - 1
@@ -540,12 +544,15 @@ func (m *Model) saveSpot() {
 func (m *Model) groupSpec() proto.Editors {
 	m.saveSpot()
 
-	e := proto.Editors{Sessions: slices.Clone(m.sessTabs[m.ws])}
+	e := proto.Editors{Sessions: m.stripSessions()}
 	if m.showsSession() {
 		e.Session = m.sess
 	}
 
+	before := make([]int, len(m.editors)+1) // how many of Open come before editor i
 	for i, p := range m.editors {
+		before[i] = len(e.Open)
+
 		if p.kind != pvFile && p.kind != pvRev || p.cell != nil { // a table cell's value goes with its table
 			continue
 		}
@@ -558,6 +565,18 @@ func (m *Model) groupSpec() proto.Editors {
 			Path: p.path, Name: p.name,
 			Line: p.cur.line, Col: p.cur.col, Top: p.top, MD: p.md,
 		})
+	}
+
+	before[len(m.editors)] = len(e.Open)
+
+	for _, id := range e.Sessions {
+		if _, ok := m.sessAfter[id]; ok {
+			if e.SessionAt == nil {
+				e.SessionAt = map[string]int{}
+			}
+
+			e.SessionAt[id] = before[m.sessPos(id)]
+		}
 	}
 
 	return e
@@ -641,6 +660,12 @@ func (m *Model) restoreGroup(e proto.Editors) tea.Cmd {
 			kind: pvFile, path: o.Path, name: o.Name,
 			cur: pos{o.Line, o.Col}, top: o.Top, md: o.MD,
 		})
+	}
+
+	for id, n := range e.SessionAt { // back among the files it was moved to
+		if slices.Contains(m.sessTabs[m.ws], id) {
+			m.moveSessTab(id, m.editors[:min(n, len(m.editors))])
+		}
 	}
 
 	if len(m.editors) == 0 {
@@ -1013,7 +1038,7 @@ type edTab struct {
 }
 
 // editorTabs lays the strip out: the open files, then the sessions opened
-// over the editor area;
+// over the editor area, a session moved among the files where it went;
 // tabs on the left give way until the active one fits.
 func (m *Model) editorTabs(w int) []edTab {
 	sessOn := m.showsSession()
@@ -1040,7 +1065,10 @@ func (m *Model) editorTabs(w int) []edTab {
 		items = append(items, edTab{i: i, w: ansi.StringWidth(label), label: label, icon: icon, active: active})
 	}
 
+	pos := map[string]int{} // a session before the file at its sessPos
+
 	for _, id := range m.stripSessions() {
+		pos[id] = m.sessPos(id)
 		s := *m.session(id)
 		active := sessOn && id == m.sess
 		label, tip := m.sessLabel(s, active || id == m.overTab, w-3)
@@ -1050,6 +1078,16 @@ func (m *Model) editorTabs(w int) []edTab {
 			icon: ifElse(g == "", seg{}, sg(g, fg(c))), bg: cmp.Or(m.highlight(s), ifElse(g == "", nil, m.tabTint(c))),
 		})
 	}
+
+	key := func(t edTab) int {
+		if t.i >= 0 {
+			return 2*t.i + 1
+		}
+
+		return 2 * pos[t.id]
+	}
+
+	slices.SortStableFunc(items, func(a, b edTab) int { return cmp.Compare(key(a), key(b)) })
 
 	at, total := -1, 0
 
@@ -1084,7 +1122,9 @@ func (m *Model) editorTabs(w int) []edTab {
 }
 
 // stripSessions are the sessions of the workspace in view opened over the
-// editor area, in the order they were opened, the one shown among them.
+// editor area, in the order they were opened, the group's own among them:
+// one a worktree switch or a restart showed without a tab keeps one behind
+// the files too.
 func (m *Model) stripSessions() []string {
 	var out []string
 
@@ -1094,7 +1134,7 @@ func (m *Model) stripSessions() []string {
 		}
 	}
 
-	if m.showsSession() && !slices.Contains(out, m.sess) {
+	if m.sess != "" && !slices.Contains(out, m.sess) {
 		out = append(out, m.sess)
 	}
 
@@ -1112,8 +1152,9 @@ func (m *Model) openSessTab(id string) {
 		m.sessTabs = map[string][]string{}
 	}
 
-	if !slices.Contains(m.sessTabs[s.Workspace], id) {
+	if !slices.Contains(m.sessTabs[s.Workspace], id) { // a new tab follows the files
 		m.sessTabs[s.Workspace] = append(m.sessTabs[s.Workspace], id)
+		delete(m.sessAfter, id)
 	}
 }
 
