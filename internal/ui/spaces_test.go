@@ -119,6 +119,22 @@ func TestSpacesFoldedCount(t *testing.T) {
 		t.Fatalf("the folded heading counts its sessions:\n%s", out)
 	}
 
+	y := m.bodyTop(viewAgents) + slices.IndexFunc(m.ag.rows(m), func(r agRow) bool { return r.project == other })
+	x := m.colRect(m.colOf(viewAgents)).x + m.barW(m.colOf(viewAgents))
+	row := func() string { return strings.Split(m.View().Content, "\n")[y] }
+
+	m.Update(tea.MouseMotionMsg{X: x + 5, Y: y})
+
+	if strings.Contains(row(), keycapHot().Background(pal.twistieHoverBg).Render(" "+chevron(false))) {
+		t.Fatalf("the chevron is raised with the pointer on the name: %q", row())
+	}
+
+	m.Update(tea.MouseMotionMsg{X: x + 1, Y: y})
+
+	if !strings.Contains(row(), keycapHot().Background(pal.twistieHoverBg).Render(" "+chevron(false))) {
+		t.Fatalf("the chevron under the pointer is not a button: %q", row())
+	}
+
 	m.ag.collapsed[other] = false
 	if out := checkWidths(t, m); strings.Contains(out, " 2 ") {
 		t.Fatalf("an open heading counts nothing:\n%s", out)

@@ -29,6 +29,7 @@ type palette struct {
 	buttonBg, buttonFg, buttonHoverBg, buttonSep, mutedButtonBg, mutedButtonFg   color.Color
 	inputBorder, inputBg, sectionBg, badgeBg, badgeFg                            color.Color
 	keycapBg, keycapFg                                                           color.Color
+	twistieHoverBg                                                               color.Color // a tree chevron under the pointer, a shade past keycapBg
 	textSelBg, matchBg, wordHiBg                                                 color.Color
 	matchFg                                                                      color.Color // a search match's text over matchBg; nil keeps the text's own
 	rangeHiBg, findMatchBg, findHitBg                                            color.Color // Go to Line's line; find's other and current matches
@@ -68,7 +69,7 @@ var (
 		buttonBg: hex("#297aa0"), buttonFg: hex("#ffffff"), buttonHoverBg: hex("#3a8db5"), buttonSep: hex("#5aa9c9"),
 		mutedButtonBg: hex("#2c2d2e"), mutedButtonFg: hex("#8c8c8c"), // grey: nothing to do, or not the active repository
 		inputBorder: hex("#333536"), inputBg: hex("#242526"), sectionBg: hex("#202122"), badgeBg: hex("#307e9f"), badgeFg: hex("#ffffff"),
-		keycapBg: hex("#313233"), keycapFg: hex("#bfbfbf"),
+		keycapBg: hex("#313233"), keycapFg: hex("#bfbfbf"), twistieHoverBg: hex("#252627"),
 		textSelBg: hex("#245c73"), matchBg: hex("#1e4352"), wordHiBg: hex("#192d37"),
 		rangeHiBg: hex("#242526"), findMatchBg: hex("#1d3d4b"), findHitBg: hex("#255f77"), lineHiBg: hex("#1f2021"),
 		diffDelBg: hex("#401d1d"), diffDelWordBg: hex("#562f2d"), diffAddBg: hex("#1b2d1d"), diffAddWordBg: hex("#274129"),
@@ -100,7 +101,7 @@ var (
 		buttonBg: hex("#005fb8"), buttonFg: hex("#ffffff"), buttonHoverBg: hex("#0258a8"), buttonSep: hex("#669fd4"),
 		mutedButtonBg: hex("#e5e5e5"), mutedButtonFg: hex("#3b3b3b"),
 		inputBorder: hex("#c4c4c4"), inputBg: hex("#ffffff"), sectionBg: hex("#f8f8f8"), badgeBg: hex("#cccccc"), badgeFg: hex("#3b3b3b"),
-		keycapBg: hex("#eaeaea"), keycapFg: hex("#3b3b3b"),
+		keycapBg: hex("#eaeaea"), keycapFg: hex("#3b3b3b"), twistieHoverBg: hex("#dcdcdc"),
 		// Matches in yellow, the one selected deeper. The word under the cursor
 		// keeps pando's blue: Simple Light's #d6ebff turns cyan in 256 colors.
 		textSelBg: hex("#bed6ed"), matchBg: hex("#ffdd00"), wordHiBg: hex("#d9e9f7"),
@@ -130,7 +131,7 @@ var (
 		buttonBg: ansi16(4), buttonFg: ansi16(15), buttonHoverBg: ansi16(12), buttonSep: ansi16(12),
 		mutedButtonBg: ansi16(0), mutedButtonFg: ansi16(7),
 		inputBorder: ansi16(8), inputBg: ansi16(0), sectionBg: ansi16(0), badgeBg: ansi16(8), badgeFg: ansi16(15),
-		keycapBg: ansi16(8), keycapFg: ansi16(15),
+		keycapBg: ansi16(8), keycapFg: ansi16(15), twistieHoverBg: ansi16(8),
 		textSelBg: ansi16(8), matchBg: ansi16(3), matchFg: ansi16(0), wordHiBg: ansi16(8),
 		rangeHiBg: ansi16(0), findMatchBg: ansi16(8), findHitBg: ansi16(3),
 		diffDelBg: vscodeDark.diffDelBg, diffDelWordBg: vscodeDark.diffDelWordBg,
@@ -193,7 +194,7 @@ func (p *palette) colorKeys() map[string]*color.Color {
 		"button_bg": &p.buttonBg, "button_fg": &p.buttonFg, "button_hover_bg": &p.buttonHoverBg, "button_sep": &p.buttonSep,
 		"muted_button_bg": &p.mutedButtonBg, "muted_button_fg": &p.mutedButtonFg,
 		"input_border": &p.inputBorder, "input_bg": &p.inputBg, "section_bg": &p.sectionBg, "badge_bg": &p.badgeBg, "badge_fg": &p.badgeFg,
-		"keycap_bg": &p.keycapBg, "keycap_fg": &p.keycapFg, "text_sel_bg": &p.textSelBg, "match_bg": &p.matchBg, "match_fg": &p.matchFg, "word_hi_bg": &p.wordHiBg,
+		"keycap_bg": &p.keycapBg, "keycap_fg": &p.keycapFg, "twistie_hover_bg": &p.twistieHoverBg, "text_sel_bg": &p.textSelBg, "match_bg": &p.matchBg, "match_fg": &p.matchFg, "word_hi_bg": &p.wordHiBg,
 		"range_hi_bg": &p.rangeHiBg, "find_match_bg": &p.findMatchBg, "find_hit_bg": &p.findHitBg, "line_highlight_bg": &p.lineHiBg,
 		"diff_del_bg": &p.diffDelBg, "diff_del_word_bg": &p.diffDelWordBg, "diff_add_bg": &p.diffAddBg,
 		"diff_add_word_bg": &p.diffAddWordBg, "diff_del_mark": &p.diffDelMark, "diff_add_mark": &p.diffAddMark, "diff_mod_mark": &p.diffModMark,

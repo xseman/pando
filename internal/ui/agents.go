@@ -1155,7 +1155,12 @@ func (a *agents) lines(m *Model, w, h int) []string {
 				return row(rw, bg, append([]seg{sg("   ", plain), sg(glyph, fg(c)), sg(agLabel(r), dim)}, plus...))
 			}
 
-			left := []seg{sg(" "+chevron(open), dim), sg(m.spin(glyph, ss...), fg(c)), sg(agLabel(r), base.Bold(true))}
+			chev := sg(" "+chevron(open), dim)
+			if y == hover && mx >= 0 && mx < ansi.StringWidth(chev.s) { // the fold's button, raised as the pin's: the rest of the row opens its checkout
+				chev = sgOwn(chev.s, keycapHot().Background(pal.twistieHoverBg))
+			}
+
+			left := []seg{chev, sg(m.spin(glyph, ss...), fg(c)), sg(agLabel(r), base.Bold(true))}
 			if r.merged() {
 				left = append(append(left, sg("  ", plain)), m.wsSegs(r.ws, base)...)
 			}
