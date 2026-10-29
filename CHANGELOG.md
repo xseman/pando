@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.8.0](https://github.com/xseman/pando/compare/v0.7.0...v0.8.0) (2026-10-29)
+
+
+### Features
+
+* **daemon:** a first config picks nerd icons when a Nerd Font is installed ([1f9c17e](https://github.com/xseman/pando/commit/1f9c17e8070e41ee3096bd52ed2243c7b87c13ca))
+* **font:** install Symbols Nerd Font Mono from the nerd-fonts release ([6618195](https://github.com/xseman/pando/commit/66181959b321f0d3ee5dcaa47cd8f9bc7a542b8f))
+* **ui:** a file or a session dragged out carries its tab under the pointer ([505093e](https://github.com/xseman/pando/commit/505093ec4ff474ce1c2a3ac7bbb8a7e027614b70))
+* **ui:** a folded Spaces project counts its sessions ([efa1b62](https://github.com/xseman/pando/commit/efa1b623e97ead676f32e062bde3581c719f50e0))
+* **ui:** a Spaces project folds on its chevron only, its name switches to it ([6e911e5](https://github.com/xseman/pando/commit/6e911e5613e968b33d72b1c6f281db6e6b8d4b32))
+* **ui:** a title starting with the session name's issue key replaces the name ([f0f3b28](https://github.com/xseman/pando/commit/f0f3b288ca57b157253e9c228ce19dd28993e1de))
+* **ui:** drag an Explorer file or a Spaces session into editor groups ([e7ef84b](https://github.com/xseman/pando/commit/e7ef84b900ec777f0a495e7b5b40e94b48510ded))
+* **ui:** session tabs move among the files' tabs ([2e88b39](https://github.com/xseman/pando/commit/2e88b39f12c4e498e7c47a4c4fa822edbe99c581))
+* **ui:** the harness picker lists the newest sessions' harnesses first ([819b398](https://github.com/xseman/pando/commit/819b398a63453bd0443a38625a244547591620b6))
+* **ui:** the status bar offers a Nerd Font when none is installed ([c5f04f2](https://github.com/xseman/pando/commit/c5f04f24bc4b0f7f2f50166980f7c3628add8973))
+
+
+### Bug Fixes
+
+* **daemon:** an agent's screen says blocked where /proc is missing ([a5e5227](https://github.com/xseman/pando/commit/a5e52279614de544203f5f4f01fca923f8b52978))
+* **ui:** a lit group divider no longer panics on an empty frame list ([eb93b32](https://github.com/xseman/pando/commit/eb93b326c56a8c2e619a4f973d642deef60084ce))
+
+
+### Performance Improvements
+
+* **ui:** a drag draws only its overlays over a frame drawn once ([4be9186](https://github.com/xseman/pando/commit/4be9186ace96a36b4ccc8b9b14e00f3c734cc4bc))
+* **ui:** mouse motion draws a frame per 1/60 s, not per motion ([ffa44e9](https://github.com/xseman/pando/commit/ffa44e955b4b110510e89b7650295c55eeb2a4be))
+* **ui:** wcSafe line by line, a line the last frame had reused ([fbdd830](https://github.com/xseman/pando/commit/fbdd8309e3099efa82d29b6dfc465d2234f0b8e8))
+
+
+### Testing
+
+* **font:** the offer test installs into the platform's own font directory ([052e646](https://github.com/xseman/pando/commit/052e6466ecda0645247e9c7e3a880e7591f7e355))
+
 ## [0.7.0](https://github.com/xseman/pando/compare/v0.6.0...v0.7.0) (2026-10-28)
 
 
