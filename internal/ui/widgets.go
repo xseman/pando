@@ -1232,6 +1232,10 @@ type modal struct {
 	// to the editor area. Zero is the screen.
 	area [2]int
 	w    int // the widest the box has been: it does not narrow while open
+	// itemsW is the widest of wOf's rows: items, measured once per slice
+	// (a rebuild makes a new one), not on every frame.
+	wOf    []item
+	itemsW int
 }
 
 // choices draws options in a row, a segmented control: the chosen one bold
@@ -1754,10 +1758,14 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 		return max(min(md.x, x1-w), x0), max(y, 0), w, h, 0
 	}
 
-	w = ansi.StringWidth(md.title) + 6
-	for _, it := range md.items {
-		w = max(w, ansi.StringWidth(it.label)+ansi.StringWidth(it.inline)+ansi.StringWidth(it.hint)+6+b2i(it.hint != "")) // two blanks before a hint
+	if len(md.items) == 0 || len(md.wOf) != len(md.items) || &md.wOf[0] != &md.items[0] {
+		md.wOf, md.itemsW = md.items, 0
+		for _, it := range md.items {
+			md.itemsW = max(md.itemsW, ansi.StringWidth(it.label)+ansi.StringWidth(it.inline)+ansi.StringWidth(it.hint)+6+b2i(it.hint != "")) // two blanks before a hint
+		}
 	}
+
+	w = max(ansi.StringWidth(md.title)+6, md.itemsW)
 
 	if md.hasInput() {
 		w = max(w, 60)
