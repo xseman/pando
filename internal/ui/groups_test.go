@@ -296,6 +296,40 @@ func TestDragBase(t *testing.T) {
 	}
 }
 
+// TestModalBase: keys typed into the palette draw it over the frame under
+// it as drawn once, the same frame a fresh one would be; any other message
+// draws that frame anew.
+func TestModalBase(t *testing.T) {
+	m := groupsModel(t)
+
+	press(m, "ctrl+shift+p")
+	checkWidths(t, m)
+
+	b := m.base
+	press(m, "g")
+
+	checkWidths(t, m)
+
+	if m.base != b {
+		t.Fatal("a key the palette takes keeps the frame under it")
+	}
+
+	out := m.View().Content
+
+	m.base = nil
+	if fresh := m.View().Content; fresh != out {
+		t.Fatalf("the kept frame differs from a fresh one:\n%s\n%s", out, fresh)
+	}
+
+	b = m.base
+	m.Update(spinMsg{})
+	checkWidths(t, m)
+
+	if m.base == b {
+		t.Fatal("any other message draws the frame under the palette anew")
+	}
+}
+
 // TestDragOnlyTab: a group's only tab held over that group offers no split,
 // which would leave nothing behind.
 func TestDragOnlyTab(t *testing.T) {

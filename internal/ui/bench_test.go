@@ -259,8 +259,10 @@ func TestAllocBudgets(t *testing.T) {
 		t.Skip("-race drops sync.Pool items: the counts vary")
 	}
 
-	session, file, large, md, held := benchModel(t), benchModel(t), largeFile(t), largeMarkdown(t), tabHeld(t)
+	session, file, large, md, held, pal := benchModel(t), benchModel(t), largeFile(t), largeMarkdown(t), tabHeld(t), benchModel(t)
 	openApp(t, file)
+	openApp(t, pal)
+	press(pal, "ctrl+shift+p")
 
 	a, x := held.area(), 0
 
@@ -289,6 +291,12 @@ func TestAllocBudgets(t *testing.T) {
 			_ = session.View()
 			session.Update(screenMsg{"s1", session.term.scr, nil})
 			_ = session.View()
+		}},
+		{"typing in the palette", 2840, func() {
+			pal.Update(keyMsg("g"))
+			_ = pal.View()
+			pal.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+			_ = pal.View()
 		}},
 		{"a tab dragged", 118, func() {
 			x = (x + 7) % (a.w - 10)

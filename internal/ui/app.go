@@ -2275,8 +2275,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.still = stillEvent(msg)
 
 	_, motion := msg.(tea.MouseMotionMsg)
-	if _, redraw := msg.(redrawMsg); !motion && !redraw {
-		m.base = nil // what lies under a drag changes with anything but its motion
+	_, redraw := msg.(redrawMsg)
+
+	keep := motion || redraw // what lies under a drag changes with anything but its motion
+	if m.base != nil && m.base.key.md != nil {
+		_, keep = msg.(tea.KeyPressMsg) // under a modal, with anything but a key it takes
+	}
+
+	if !keep {
+		m.base = nil
 	}
 
 	return m, tea.Batch(cmd, m.noteEdits(), m.noteGutter(), m.noteBlame(), m.animate(), m.spinLater(), m.motionFrame(msg))
@@ -3751,7 +3758,7 @@ func (m *Model) View() tea.View {
 
 	b := m.bord()
 
-	if k := m.baseKey(); k.d == nil || m.base == nil || m.base.key != k {
+	if k := m.baseKey(); k == (baseKey{}) || m.base == nil || m.base.key != k {
 		ls, top, bot := m.baseFrame(cs, c, b)
 		m.base = &base{key: k, lines: ls, top: top, bot: bot}
 	}
@@ -4442,7 +4449,8 @@ func (m *Model) wcSafeLines(lines []string) []string {
 	return out
 }
 
-// base is the frame under the overlays, drawn once for a drag (baseKey).
+// base is the frame under the overlays, drawn once for a drag or a modal
+// (baseKey).
 type base struct {
 	key      baseKey
 	lines    []string // the panel rows, the rule, the status bar
@@ -4453,21 +4461,29 @@ type base struct {
 
 // baseKey is what the frame under a drag's overlays hangs on while only its
 // motions arrive: the drag, the slot it marks on its strip, the Spaces row
-// it would take. Zero for anything else, whose every frame draws it anew.
-// Update drops the base on any other message.
+// it would take. Under a modal it is the modal while it takes keys, unless
+// a key may change what is under it: a move or change hook (a theme's
+// preview), an item run with the modal kept open. Zero for anything else,
+// whose every frame draws it anew. Update drops the base on any other
+// message.
 type baseKey struct {
 	d    *drag
 	slot int
 	to   string
+	md   *modal
 }
 
 func (m *Model) baseKey() baseKey {
+	if md := m.modal; m.drag == nil && md != nil && md.move == nil && md.change == nil && !md.keep {
+		return baseKey{md: md}
+	}
+
 	d := m.drag
 	if d == nil || d.kind != dragStrip && d.kind != dragOpen && d.kind != dragRow {
 		return baseKey{}
 	}
 
-	return baseKey{d, d.slot, d.to}
+	return baseKey{d: d, slot: d.slot, to: d.to}
 }
 
 // baseFrame draws the columns side by side into the panel rows, then the
