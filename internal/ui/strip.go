@@ -340,6 +340,24 @@ func (m *Model) dragGhost() (box []string, x, y int, ok bool) {
 		return nil, 0, 0, false
 	}
 
+	if d.chip == "" {
+		if d.chip, d.chipOff = m.ghostChip(d, id); d.chip == "" {
+			return nil, 0, 0, false
+		}
+	}
+
+	x, y = max(min(m.mouseX-d.chipOff, m.w-strWidth(d.chip)), 0), m.mouseY+1
+	if y >= m.panelH() {
+		y = m.mouseY - 1
+	}
+
+	return []string{d.chip}, x, y, true
+}
+
+// ghostChip is what dragGhost carries for tab id, built once a drag: the
+// tab's label after an accent ▎, and its column under the pointer. "" while
+// the tab is nowhere to be had.
+func (m *Model) ghostChip(d *drag, id string) (chip string, off int) {
 	var label string
 
 	tx := 0
@@ -365,10 +383,10 @@ func (m *Model) dragGhost() (box []string, x, y int, ok bool) {
 	}
 
 	if label == "" {
-		return nil, 0, 0, false
+		return "", 0
 	}
 
-	off := 1 // from a list: the label after the ▎ under the pointer
+	off = 1 // from a list: the label after the ▎ under the pointer
 	if d.kind == dragStrip {
 		off = d.x0 - d.org - tx
 	}
@@ -378,15 +396,7 @@ func (m *Model) dragGhost() (box []string, x, y int, ok bool) {
 		st = st.Foreground(pal.selFg)
 	}
 
-	chip := renderText(fg(pal.accent).Background(pal.selBg), "▎") + renderText(st, label)
-	w := ansi.StringWidth(chip)
-
-	x, y = max(min(m.mouseX-off, m.w-w), 0), m.mouseY+1
-	if y >= m.panelH() {
-		y = m.mouseY - 1
-	}
-
-	return []string{chip}, x, y, true
+	return renderText(fg(pal.accent).Background(pal.selBg), "▎") + renderText(st, label), off
 }
 
 // dragStripTo follows the held tab with a mark where it would land, herdr's

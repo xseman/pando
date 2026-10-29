@@ -264,6 +264,72 @@ func cutHead(s string, n int) string {
 	return s
 }
 
+// cutTail is ansi.TruncateLeft(s, n, "") byte for byte: s past its first n
+// cells, the escapes among them kept, a cluster the cut splits kept whole.
+// plainRun's characters are counted without segmenting them, which
+// TruncateLeft does to each, its loop otherwise.
+func cutTail(s string, n int) string {
+	if n <= 0 {
+		return s
+	}
+
+	var b strings.Builder
+
+	w, pstate := 0, parser.GroundState
+
+	for i := 0; i < len(s); {
+		if pstate == parser.GroundState { // inside an escape there is no text to run
+			k, cells := plainRun(s[i:])
+			if k > 0 && w+cells <= n {
+				w, i = w+cells, i+k
+				continue
+			}
+
+			for j := range s[i : i+k] { // one cell a character: the rest from the (n-w)th
+				if w == n {
+					return b.String() + s[i+j:]
+				}
+
+				w++
+			}
+		}
+
+		state, action := parser.Table.Transition(pstate, s[i])
+		if state == parser.Utf8State {
+			cluster, cw := ansi.FirstGraphemeCluster(s[i:], ansi.GraphemeWidth)
+			if w += cw; w > n {
+				return b.String() + s[i:]
+			}
+
+			i += len(cluster)
+
+			continue
+		}
+
+		switch action {
+		case parser.PrintAction:
+			w++
+			if w > n {
+				return b.String() + s[i:]
+			}
+
+			i++
+
+			continue
+
+		case parser.ExecuteAction: // a control among the cells cut goes with them
+			i++
+			continue
+		}
+
+		b.WriteByte(s[i])
+		i++
+		pstate = state
+	}
+
+	return b.String()
+}
+
 // strWidth is ansi.StringWidth, which segments every character into its
 // grapheme cluster, with plainRun's characters counted without that.
 func strWidth(s string) int {

@@ -269,6 +269,33 @@ func TestMotionFrames(t *testing.T) {
 	}
 }
 
+// TestDragBase: a drag's motions, and the redraw motion asks for, draw over
+// the frame under the drag as drawn once; any other message draws it anew.
+func TestDragBase(t *testing.T) {
+	m := groupsModel(t)
+	a := m.area()
+	tab := m.editorTabs(m.mainW())[0]
+
+	m.Update(tea.MouseClickMsg{X: a.x + tab.x + 1, Y: a.y, Button: tea.MouseLeft})
+	checkWidths(t, m)
+
+	b := m.base
+	for _, msg := range []tea.Msg{tea.MouseMotionMsg{X: a.x + a.w - 2, Y: a.y + a.h/2, Button: tea.MouseLeft}, redrawMsg{}} {
+		m.Update(msg)
+
+		if out := checkWidths(t, m); m.base != b || !strings.Contains(out, "Split Right") {
+			t.Fatalf("%T keeps the base and draws the drop box over it:\n%s", msg, out)
+		}
+	}
+
+	m.Update(spinMsg{})
+	checkWidths(t, m)
+
+	if m.base == b {
+		t.Fatal("any other message draws the base anew")
+	}
+}
+
 // TestDragOnlyTab: a group's only tab held over that group offers no split,
 // which would leave nothing behind.
 func TestDragOnlyTab(t *testing.T) {

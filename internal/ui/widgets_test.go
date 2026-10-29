@@ -248,6 +248,22 @@ func FuzzRenderText(f *testing.F) {
 	})
 }
 
+// FuzzCutTail holds cutTail to ansi.TruncateLeft, byte for byte, on any
+// bytes: escapes cut through, controls, broken UTF-8.
+func FuzzCutTail(f *testing.F) {
+	for _, s := range []string{"plain text", "\x1b[38;2;1;2;3mred\x1b[m and \x1b[1mbold", "日本語 wide", "a⚠️b 👍🏽 x\u0301", "┌──┐ ▏box", "\x1b]8;;u\x07link\x1b]8;;\x07 tail", "a\tb\x1b[", ""} {
+		f.Add(s, 4)
+		f.Add(s, 0)
+	}
+
+	f.Fuzz(func(t *testing.T, s string, n int) {
+		n = max(min(n, 64), -1)
+		if got, want := cutTail(s, n), ansi.TruncateLeft(s, n, ""); got != want {
+			t.Fatalf("cutTail(%q, %d) = %q, TruncateLeft %q", s, n, got, want)
+		}
+	})
+}
+
 // FuzzHeadCells holds headCells to what a cut is: the text's head, at most n
 // cells as the rows are measured (strWidth, ansi.StringWidth), and not a
 // grapheme shorter than fits. The text is a row's: printable, with the

@@ -94,28 +94,30 @@ func railW() int { return actW() }
 
 // drag is a mouse gesture from a click until its release.
 type drag struct {
-	kind   int
-	col    int    // dragDivider: the column being resized
-	pane   string // dragPane: Git drawer title, or GitHub section title with v viewGitHub
-	v      view   // dragTab: the tab being dragged; dragPane: viewGit or viewGitHub
-	proj   string // dragRow: the project being moved in the Spaces list
-	sess   string // dragRow: the session being moved under its worktree instead
-	ws     string // dragRow: the worktree being moved under its project instead
-	to     string // dragRow: the one of its kind whose place it would take on release, "" none
-	strip  int    // dragStrip: the tab strip, stripEditor and on
-	tab    string // dragStrip: the tab being moved, an editor's or a session's id; dragOpen: the file's held from Explorer, or the session's from Spaces
-	org    int    // dragStrip: the screen column of the strip's first cell
-	slot   int    // dragStrip: where the tab would land, an index in stripOrder; -1 nowhere
-	x0     int    // dragTab, dragStrip: where it was picked up; dragRow: the row's column pressed; dragMsgSel: the message text's screen origin, with y0
-	drop   *dropTarget
-	split  *pane // dragGrid: the split whose divider moves
-	dst    *pane // dragStrip, dragOpen, dragRow's session: the group the tab would go to, or beside on side
-	side   int
-	y0, h0 int
-	moved  bool
-	fine   bool        // dragTab: one row of motion is a drag (vertical bar chips sit a row apart)
-	hide   bool        // dragTab: pressed on the open view's own chip, so let go where it was it hides its side
-	bar    *scrollDrag // dragScroll: the scrollbar and where its slider was picked up
+	kind    int
+	col     int    // dragDivider: the column being resized
+	pane    string // dragPane: Git drawer title, or GitHub section title with v viewGitHub
+	v       view   // dragTab: the tab being dragged; dragPane: viewGit or viewGitHub
+	proj    string // dragRow: the project being moved in the Spaces list
+	sess    string // dragRow: the session being moved under its worktree instead
+	ws      string // dragRow: the worktree being moved under its project instead
+	to      string // dragRow: the one of its kind whose place it would take on release, "" none
+	strip   int    // dragStrip: the tab strip, stripEditor and on
+	tab     string // dragStrip: the tab being moved, an editor's or a session's id; dragOpen: the file's held from Explorer, or the session's from Spaces
+	org     int    // dragStrip: the screen column of the strip's first cell
+	slot    int    // dragStrip: where the tab would land, an index in stripOrder; -1 nowhere
+	x0      int    // dragTab, dragStrip: where it was picked up; dragRow: the row's column pressed; dragMsgSel: the message text's screen origin, with y0
+	drop    *dropTarget
+	split   *pane // dragGrid: the split whose divider moves
+	dst     *pane // dragStrip, dragOpen, dragRow's session: the group the tab would go to, or beside on side
+	side    int
+	y0, h0  int
+	moved   bool
+	fine    bool        // dragTab: one row of motion is a drag (vertical bar chips sit a row apart)
+	hide    bool        // dragTab: pressed on the open view's own chip, so let go where it was it hides its side
+	bar     *scrollDrag // dragScroll: the scrollbar and where its slider was picked up
+	chip    string      // dragStrip, dragOpen, dragRow's session: the tab the pointer carries (dragGhost), "" until it moves
+	chipOff int         // the chip's column under the pointer
 }
 
 // dropTarget is where a dragged tab would land, drawn as a rectangle: over
@@ -230,6 +232,7 @@ type Model struct {
 	frame     *frame              // the columns while View draws, which asks for them row by row; nil otherwise
 	drawn     *tea.View           // the last frame View drew, which a still message gets again
 	drawnAt   time.Time           // when View drew it
+	base      *base               // the frame under a drag's overlays (baseKey)
 	still     bool                // the last message changed nothing on screen (stillEvent), or a motion waits for the next frame
 	redrawDue bool                // a redrawMsg is on its way for the motion View skipped
 	index     struct {            // workspace file list for quick open and the Files filter
@@ -2269,6 +2272,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	m.still = stillEvent(msg)
 
+	_, motion := msg.(tea.MouseMotionMsg)
+	if _, redraw := msg.(redrawMsg); !motion && !redraw {
+		m.base = nil // what lies under a drag changes with anything but its motion
+	}
+
 	return m, tea.Batch(cmd, m.noteEdits(), m.noteGutter(), m.noteBlame(), m.animate(), m.spinLater(), m.motionFrame(msg))
 }
 
@@ -3741,134 +3749,23 @@ func (m *Model) View() tea.View {
 
 	b := m.bord()
 
-	type panel struct {
-		rc    rect
-		lines []string
-		title string
-		focus int
+	if k := m.baseKey(); k.d == nil || m.base == nil || m.base.key != k {
+		ls, top, bot := m.baseFrame(cs, c, b)
+		m.base = &base{key: k, lines: ls, top: top, bot: bot}
 	}
 
-	var ps []panel
-
-	left := leftCount(m.cols())
-	for i := 0; i <= len(cs); i++ {
-		if i == left {
-			ps = append(ps, panel{c, m.mainLines(c.w), m.mainTitle(), onMain})
+	lines, top, bot := m.base.lines, m.base.top, m.base.bot
+	if d := m.drag; d != nil && d.drop != nil {
+		if m.base.drop == nil || *m.base.drop != *d.drop { // the pointer went on to another target
+			t := *d.drop
+			m.base.drop, m.base.boxed = &t, slices.Clone(lines)
+			m.dropBox(m.base.boxed[:m.panelH()], t)
 		}
 
-		if i < len(cs) && cs[i].w > 0 {
-			ps = append(ps, panel{cs[i], m.sidebar(i, cs[i].w), m.sideTitle(i), i})
-		}
+		lines = m.base.boxed
 	}
 
-	edge := func(p panel) lipgloss.Style {
-		if m.focus == p.focus {
-			return fg(pal.accent)
-		}
-
-		return fg(pal.panelBorder)
-	}
-	status, _ := m.statusLine(m.w)
-
-	// owner is the column the divider before panel j resizes: the sidebar
-	// column beside it.
-	owner := func(j int) int {
-		if ps[j-1].focus != onMain && ps[j-1].focus < left {
-			return ps[j-1].focus
-		}
-
-		return ps[j].focus
-	}
-
-	// The edges either side of each panel, the same on every row.
-	ls, rs := make([]string, len(ps)), make([]string, len(ps))
-	for j, p := range ps {
-		switch {
-		case b == 1: // the divider is the two frame edges either side of it
-			ls[j], rs[j] = renderText(edge(p), "│"), renderText(edge(p), "│")
-
-			if j > 0 {
-				if st, ok := m.sashStyle(colSash(owner(j))); ok {
-					ls[j] = renderText(st, "┃")
-				}
-			}
-
-			if j+1 < len(ps) {
-				if st, ok := m.sashStyle(colSash(owner(j + 1))); ok {
-					rs[j] = renderText(st, "┃")
-				}
-			}
-
-		case j > 0:
-			ls[j] = m.divider(owner(j))
-		}
-	}
-
-	// The edges of the editor area beside a group's frame, unless they light
-	// as a sash: main's frame edges, or the dividers before and after it.
-	mj := slices.IndexFunc(ps, func(p panel) bool { return p.focus == onMain })
-	lit := func(j int) bool { _, ok := m.sashStyle(colSash(owner(j))); return ok }
-	hasL := (b == 1 || mj > 0) && (mj == 0 || !lit(mj))
-	hasR := (b == 1 || mj+1 < len(ps)) && (mj+1 == len(ps) || !lit(mj+1))
-	fs := m.frames()
-
-	// frameEdge is main's edge at column x on row i in the frame of the group
-	// beside it, "" for none.
-	frameEdge := func(x, i int, has bool) string {
-		if !has || i >= m.areaH() {
-			return ""
-		}
-
-		if at := frameAt(fs, x, i); at >= 0 {
-			return renderText(fs[at].st, "│")
-		}
-
-		return ""
-	}
-
-	lines := make([]string, m.panelH()+m.ruled()+1) // the panel rows, the rule, then the status bar
-	for i := range m.panelH() {
-		var sb strings.Builder
-
-		n := 0
-		for j, p := range ps {
-			n += len(ls[j]) + len(p.lines[i]) + len(rs[j])
-		}
-
-		sb.Grow(n)
-
-		el, er := frameEdge(c.x-1, i, hasL), frameEdge(c.x+c.w, i, hasR)
-
-		for j, p := range ps {
-			l, r := ls[j], rs[j]
-
-			switch {
-			case j == mj && el != "":
-				l = el
-			case j == mj+1 && b == 0 && er != "":
-				l = er
-			}
-
-			if j == mj && b == 1 && er != "" {
-				r = er
-			}
-
-			sb.WriteString(l)
-			sb.WriteString(p.lines[i])
-			sb.WriteString(r)
-		}
-
-		lines[i] = sb.String()
-	}
-
-	if m.ruled() == 1 {
-		lines[len(lines)-2] = m.statusRule(cs)
-	}
-
-	lines[len(lines)-1] = status
-	if m.drag != nil && m.drag.drop != nil {
-		m.dropBox(lines[:m.panelH()], *m.drag.drop)
-	}
+	lines = slices.Clone(lines)
 
 	if box, x, y, ok := m.dragGhost(); ok {
 		m.overlayBox(lines, box, x, y)
@@ -3939,23 +3836,9 @@ func (m *Model) View() tea.View {
 		}
 	}
 
-	if b == 1 {
-		var top, bot strings.Builder
-
-		for _, p := range ps {
-			t := ""
-			if p.title != "" {
-				t = ansi.Truncate(" "+p.title+" ", max(p.rc.w-2, 0), "…")
-			}
-
-			// The title keeps the text's shade, the lines go soft.
-			top.WriteString(renderText(edge(p), "┌─") + renderText(ifElse(m.focus == p.focus, edge(p).Bold(true), dim), t) +
-				renderText(edge(p), strings.Repeat("─", max(p.rc.w-1-ansi.StringWidth(t), 0))+"┐"))
-			bot.WriteString(renderText(edge(p), "└"+strings.Repeat("─", p.rc.w)+"┘"))
-		}
-		// The status bar sits under the frame, as VS Code's sits under the workbench.
+	if b == 1 { // the status bar sits under the frame, as VS Code's sits under the workbench
 		status, panels := lines[len(lines)-1], lines[:len(lines)-1]
-		lines = append(append(append([]string{top.String()}, panels...), bot.String()), status)
+		lines = append(append(append([]string{top}, panels...), bot), status)
 	}
 
 	frame := strings.Join(lines, "\n")
@@ -4514,6 +4397,9 @@ func (m *Model) dropBox(lines []string, t dropTarget) {
 	badge := renderText(lipgloss.NewStyle().Background(pal.buttonBg).Foreground(pal.buttonFg), " "+label+" ")
 	pad := (w - 2 - ansi.StringWidth(badge)) / 2
 
+	bar := renderText(st, "│")
+	fill := bar + blank(w-2) + bar
+
 	for y := y0; y < y0+h; y++ {
 		var box string
 
@@ -4523,15 +4409,196 @@ func (m *Model) dropBox(lines []string, t dropTarget) {
 		case y == y0+h-1:
 			box = renderText(st, "└"+strings.Repeat("─", w-2)+"┘")
 		case y == y0+h/2 && (t.h == 0 || t.fill) && label != "":
-			box = renderText(st, "│") + blank(pad) + badge + blank(w-2-pad-ansi.StringWidth(badge)) + renderText(st, "│")
+			box = bar + blank(pad) + badge + blank(w-2-pad-ansi.StringWidth(badge)) + bar
 		case t.h == 0 || t.fill:
-			box = renderText(st, "│") + blank(w-2) + renderText(st, "│")
+			box = fill
 		default:
-			box = renderText(st, "│") + ansi.Cut(lines[y], t.rc.x+1, t.rc.x+w-1) + "\x1b[m" + renderText(st, "│")
+			box = bar + cutTail(cutHead(lines[y], t.rc.x+w-1), t.rc.x+1) + "\x1b[m" + ansi.ResetHyperlink() + bar
 		}
 
-		lines[y] = ansi.Cut(lines[y], 0, t.rc.x) + "\x1b[m" + box + "\x1b[m" + ansi.Cut(lines[y], t.rc.x+w, m.w)
+		// Each cut reads the row once, as far as it needs; a session's link the
+		// box cuts through stops at it and goes on past it.
+		lines[y] = cutHead(lines[y], t.rc.x) + "\x1b[m" + ansi.ResetHyperlink() + box + "\x1b[m" + cutTail(lines[y], t.rc.x+w)
 	}
+}
+
+// base is the frame under the overlays, drawn once for a drag (baseKey).
+type base struct {
+	key      baseKey
+	lines    []string // the panel rows, the rule, the status bar
+	top, bot string   // the frame's rules with borders on
+	drop     *dropTarget
+	boxed    []string // lines with drop's box over them, drawn once for it
+}
+
+// baseKey is what the frame under a drag's overlays hangs on while only its
+// motions arrive: the drag, the slot it marks on its strip, the Spaces row
+// it would take. Zero for anything else, whose every frame draws it anew.
+// Update drops the base on any other message.
+type baseKey struct {
+	d    *drag
+	slot int
+	to   string
+}
+
+func (m *Model) baseKey() baseKey {
+	d := m.drag
+	if d == nil || d.kind != dragStrip && d.kind != dragOpen && d.kind != dragRow {
+		return baseKey{}
+	}
+
+	return baseKey{d, d.slot, d.to}
+}
+
+// baseFrame draws the columns side by side into the panel rows, then the
+// rule and the status bar, and with borders on (b) the frame's top and
+// bottom rules.
+func (m *Model) baseFrame(cs []rect, c rect, b int) (lines []string, top, bot string) {
+	type panel struct {
+		rc    rect
+		lines []string
+		title string
+		focus int
+	}
+
+	var ps []panel
+
+	left := leftCount(m.cols())
+	for i := 0; i <= len(cs); i++ {
+		if i == left {
+			ps = append(ps, panel{c, m.mainLines(c.w), m.mainTitle(), onMain})
+		}
+
+		if i < len(cs) && cs[i].w > 0 {
+			ps = append(ps, panel{cs[i], m.sidebar(i, cs[i].w), m.sideTitle(i), i})
+		}
+	}
+
+	edge := func(p panel) lipgloss.Style {
+		if m.focus == p.focus {
+			return fg(pal.accent)
+		}
+
+		return fg(pal.panelBorder)
+	}
+	status, _ := m.statusLine(m.w)
+
+	// owner is the column the divider before panel j resizes: the sidebar
+	// column beside it.
+	owner := func(j int) int {
+		if ps[j-1].focus != onMain && ps[j-1].focus < left {
+			return ps[j-1].focus
+		}
+
+		return ps[j].focus
+	}
+
+	// The edges either side of each panel, the same on every row.
+	ls, rs := make([]string, len(ps)), make([]string, len(ps))
+	for j, p := range ps {
+		switch {
+		case b == 1: // the divider is the two frame edges either side of it
+			ls[j], rs[j] = renderText(edge(p), "│"), renderText(edge(p), "│")
+
+			if j > 0 {
+				if st, ok := m.sashStyle(colSash(owner(j))); ok {
+					ls[j] = renderText(st, "┃")
+				}
+			}
+
+			if j+1 < len(ps) {
+				if st, ok := m.sashStyle(colSash(owner(j + 1))); ok {
+					rs[j] = renderText(st, "┃")
+				}
+			}
+
+		case j > 0:
+			ls[j] = m.divider(owner(j))
+		}
+	}
+
+	// The edges of the editor area beside a group's frame, unless they light
+	// as a sash: main's frame edges, or the dividers before and after it.
+	mj := slices.IndexFunc(ps, func(p panel) bool { return p.focus == onMain })
+	lit := func(j int) bool { _, ok := m.sashStyle(colSash(owner(j))); return ok }
+	hasL := (b == 1 || mj > 0) && (mj == 0 || !lit(mj))
+	hasR := (b == 1 || mj+1 < len(ps)) && (mj+1 == len(ps) || !lit(mj+1))
+	fs := m.frames()
+
+	// frameEdge is main's edge at column x on row i in the frame of the group
+	// beside it, "" for none.
+	frameEdge := func(x, i int, has bool) string {
+		if !has || i >= m.areaH() {
+			return ""
+		}
+
+		if at := frameAt(fs, x, i); at >= 0 {
+			return renderText(fs[at].st, "│")
+		}
+
+		return ""
+	}
+
+	lines = make([]string, m.panelH()+m.ruled()+1) // the panel rows, the rule, then the status bar
+	for i := range m.panelH() {
+		var sb strings.Builder
+
+		n := 0
+		for j, p := range ps {
+			n += len(ls[j]) + len(p.lines[i]) + len(rs[j])
+		}
+
+		sb.Grow(n)
+
+		el, er := frameEdge(c.x-1, i, hasL), frameEdge(c.x+c.w, i, hasR)
+
+		for j, p := range ps {
+			l, r := ls[j], rs[j]
+
+			switch {
+			case j == mj && el != "":
+				l = el
+			case j == mj+1 && b == 0 && er != "":
+				l = er
+			}
+
+			if j == mj && b == 1 && er != "" {
+				r = er
+			}
+
+			sb.WriteString(l)
+			sb.WriteString(p.lines[i])
+			sb.WriteString(r)
+		}
+
+		lines[i] = sb.String()
+	}
+
+	if m.ruled() == 1 {
+		lines[len(lines)-2] = m.statusRule(cs)
+	}
+
+	lines[len(lines)-1] = status
+
+	if b == 0 {
+		return lines, "", ""
+	}
+
+	var tb, bb strings.Builder
+
+	for _, p := range ps {
+		t := ""
+		if p.title != "" {
+			t = ansi.Truncate(" "+p.title+" ", max(p.rc.w-2, 0), "…")
+		}
+
+		// The title keeps the text's shade, the lines go soft.
+		tb.WriteString(renderText(edge(p), "┌─") + renderText(ifElse(m.focus == p.focus, edge(p).Bold(true), dim), t) +
+			renderText(edge(p), strings.Repeat("─", max(p.rc.w-1-ansi.StringWidth(t), 0))+"┐"))
+		bb.WriteString(renderText(edge(p), "└"+strings.Repeat("─", p.rc.w)+"┘"))
+	}
+
+	return lines, tb.String(), bb.String()
 }
 
 // statusLine is the bottom row, VS Code's status bar: on its
@@ -5289,18 +5356,19 @@ func (m *Model) overlayBox(lines, box []string, x, y int) {
 
 		ln := lines[y+i]
 		bl = ansi.Truncate(bl, max(m.w-x, 0), "") // a box wider than the room left is cut at the edge
-		bw := ansi.StringWidth(bl)
-		// A wide rune the box's edge cuts in half: Cut drops it on the
-		// left and keeps it whole on the right, so its cell goes blank.
-		left := ansi.Cut(ln, 0, x)
-		left += strings.Repeat(" ", max(x-ansi.StringWidth(left), 0))
+		bw := strWidth(bl)
+		// A wide rune the box's edge cuts in half: the head drops it on the
+		// left and the tail keeps it whole on the right, so its cell goes
+		// blank. Each reads the row once, as far as it needs.
+		left := cutHead(ln, x)
+		left += strings.Repeat(" ", max(x-strWidth(left), 0))
 
-		right := ansi.Cut(ln, x+bw, m.w)
-		if ansi.StringWidth(right) > m.w-x-bw {
-			right = " " + ansi.Cut(ln, x+bw+1, m.w)
+		right := cutTail(ln, x+bw)
+		if strWidth(right) > m.w-x-bw {
+			right = " " + cutTail(ln, x+bw+1)
 		}
 
-		lines[y+i] = left + "\x1b[m" + bl + "\x1b[m" + right
+		lines[y+i] = left + "\x1b[m" + ansi.ResetHyperlink() + bl + "\x1b[m" + right // a link the box covers stops at it
 	}
 }
 

@@ -74,7 +74,7 @@ Targets: `parseStatus`, `pickLines`, `ConflictText`, `parseSuggestion`,
 `parseBlame`, the merge message (`internal/git`); `parseSignature`
 (`internal/lsp`); `ecGlob`, `detectIndent`, `splitLoc`, `binaryCard`,
 `refine`, `foldRanges`, `parseUserDirs`, terminal links, `renderText`,
-`strWidth`, `wcSafe`, `headCells`, the Markdown lexer and layout
+`strWidth`, `wcSafe`, `headCells`, `cutTail`, the Markdown lexer and layout
 (`internal/ui`); `Columns` JSON/TOML (`internal/proto`); transcript titles
 (`internal/daemon`); `checksum` (`internal/update`); `backgroundID` (`main`).
 
