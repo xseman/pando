@@ -828,7 +828,12 @@ func frameRun(fs []groupFrame, x0, y, n int, glyph string, st lipgloss.Style) st
 			e++
 		}
 
-		sb.WriteString(renderText(ifElse(at < 0, st, fs[max(at, 0)].st), strings.Repeat(glyph, e-x)))
+		s := st
+		if at >= 0 {
+			s = fs[at].st
+		}
+
+		sb.WriteString(renderText(s, strings.Repeat(glyph, e-x)))
 		x = e
 	}
 

@@ -264,6 +264,8 @@ func TestGroupDivider(t *testing.T) {
 	}
 
 	m.Update(tea.MouseClickMsg{X: x, Y: 10, Button: tea.MouseLeft})
+	checkWidths(t, m) // held, it draws lit in place of the frames
+
 	m.Update(tea.MouseMotionMsg{X: x - 30, Y: 10, Button: tea.MouseLeft})
 	m.Update(tea.MouseReleaseMsg{X: x - 30, Y: 10, Button: tea.MouseLeft})
 
