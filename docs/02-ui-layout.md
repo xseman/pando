@@ -308,6 +308,10 @@ Model.mouse
 - All-motion mouse mode: the row under the pointer paints `hoverBg`; header
   actions linger `actionsLinger` (3 s), since terminals never report "mouse
   left".
+- Motion draws a frame per `motionGap` (1/60 s, the renderer's rate): one
+  sooner gets the last frame again (`motionFrame`, `still`) and a
+  `redrawMsg` draws where the pointer stopped. Drawn per motion, a fast drag
+  queued its motions, hundreds a second, and trailed the pointer.
 - An icon button names itself and its key in a box under the pointer once
   it has rested `tipDelay`, until `actionsLinger` (`tipShown`, `hoverBox`):
   header actions, activity bar chips, strip buttons, the Terminal's `+` and `✕`, Source

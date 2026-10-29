@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -227,6 +228,45 @@ func TestDragTabToGroup(t *testing.T) {
 	}
 
 	checkWidths(t, m)
+}
+
+// TestMotionFrames drags a tab faster than motionGap: a motion that soon
+// after the last frame gets that frame again, the one redraw it asks for
+// draws the drag where the pointer stopped, and a release draws at once.
+func TestMotionFrames(t *testing.T) {
+	m := groupsModel(t)
+	a := m.area()
+	tab := m.editorTabs(m.mainW())[0]
+
+	defer func(g time.Duration) { motionGap = g }(motionGap)
+
+	motionGap = time.Hour
+
+	m.Update(tea.MouseClickMsg{X: a.x + tab.x + 1, Y: a.y, Button: tea.MouseLeft})
+	before := checkWidths(t, m)
+
+	_, cmd := m.Update(tea.MouseMotionMsg{X: a.x + a.w/2, Y: a.y + a.h/2, Button: tea.MouseLeft})
+	if out := checkWidths(t, m); out != before || cmd == nil || !m.redrawDue {
+		t.Fatalf("a motion inside the gap keeps the frame and asks for a redraw: same %v, cmd %v", out == before, cmd != nil)
+	}
+
+	m.Update(tea.MouseMotionMsg{X: a.x + a.w - 2, Y: a.y + a.h/2, Button: tea.MouseLeft})
+
+	if out := checkWidths(t, m); out != before {
+		t.Fatal("the next motion keeps it too")
+	}
+
+	m.Update(redrawMsg{})
+
+	if out := checkWidths(t, m); !strings.Contains(out, "Split Right") || m.redrawDue {
+		t.Fatalf("the redraw draws the drag where the pointer stopped:\n%s", out)
+	}
+
+	m.Update(tea.MouseReleaseMsg{X: a.x + a.w - 2, Y: a.y + a.h/2, Button: tea.MouseLeft})
+
+	if out := checkWidths(t, m); strings.Contains(out, "Split Right") || len(m.grid.leaves()) != 2 {
+		t.Fatalf("the release draws at once, split: %d groups\n%s", len(m.grid.leaves()), out)
+	}
 }
 
 // TestDragOnlyTab: a group's only tab held over that group offers no split,

@@ -229,7 +229,9 @@ type Model struct {
 	tipOff    time.Time           // a key or a click puts the tip away until the pointer moves
 	frame     *frame              // the columns while View draws, which asks for them row by row; nil otherwise
 	drawn     *tea.View           // the last frame View drew, which a still message gets again
-	still     bool                // the last message changed nothing on screen (stillEvent)
+	drawnAt   time.Time           // when View drew it
+	still     bool                // the last message changed nothing on screen (stillEvent), or a motion waits for the next frame
+	redrawDue bool                // a redrawMsg is on its way for the motion View skipped
 	index     struct {            // workspace file list for quick open and the Files filter
 		ws    string
 		files []string
@@ -2042,6 +2044,16 @@ func viewTip(v view) string { return strings.TrimSpace(viewTitles[v] + "  " + sh
 // the header actions; due is when it was sent for.
 type tipWakeMsg struct{ due time.Time }
 
+// motionGap is the least time between the frames mouse motion draws. Bubble
+// Tea draws after every message but puts at most 60 frames a second on the
+// terminal, and a pointer dragged fast sends a motion per cell crossed, so
+// drawing each one queues them up and the drag trails the pointer. Tests set
+// it to 0: every motion draws.
+var motionGap = time.Second / 60
+
+// redrawMsg draws the frame motion skipped, the pointer where it stopped.
+type redrawMsg struct{}
+
 // tipShown reports whether the pointer has rested long enough for a tip, or
 // just moved on from one, as VS Code's toolbars show the next at once; and
 // not so long that it should be gone, nor since a key or a click: a tip
@@ -2257,7 +2269,26 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	m.still = stillEvent(msg)
 
-	return m, tea.Batch(cmd, m.noteEdits(), m.noteGutter(), m.noteBlame(), m.animate(), m.spinLater())
+	return m, tea.Batch(cmd, m.noteEdits(), m.noteGutter(), m.noteBlame(), m.animate(), m.spinLater(), m.motionFrame(msg))
+}
+
+// motionFrame keeps mouse motion to a frame per motionGap: a motion sooner
+// than that after the last frame gets it again, and the frame after it
+// comes once the gap is over.
+func (m *Model) motionFrame(msg tea.Msg) tea.Cmd {
+	wait := motionGap - time.Since(m.drawnAt)
+	if _, ok := msg.(tea.MouseMotionMsg); !ok || m.drawn == nil || wait <= 0 {
+		return nil
+	}
+
+	m.still = true
+	if m.redrawDue {
+		return nil
+	}
+
+	m.redrawDue = true
+
+	return tea.Tick(wait, func(time.Time) tea.Msg { return redrawMsg{} })
 }
 
 // stillEvent reports a daemon event whose handling only asks for what
@@ -2318,6 +2349,10 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case spinMsg: // View turns the spinners; Update's spinLater sends the next
 		m.spinWake = false
+		return m, nil
+
+	case redrawMsg:
+		m.redrawDue = false
 		return m, nil
 
 	case tickMsg:
@@ -3929,7 +3964,7 @@ func (m *Model) View() tea.View {
 	}
 
 	v.SetContent(frame)
-	m.drawn = &v
+	m.drawn, m.drawnAt = &v, time.Now()
 
 	return v
 }

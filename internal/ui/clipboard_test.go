@@ -38,6 +38,7 @@ func TestMain(m *testing.M) {
 	}
 
 	hasGH = func() bool { return false }
+	motionGap = 0 // every motion draws, whatever the clock
 	hasDB = func() bool { return false }
 	hasKeyring = func() bool { return false } // never the desktop's keyring
 	keyringLoad = func(string) string { return "" }

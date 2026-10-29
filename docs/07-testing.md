@@ -109,8 +109,9 @@ Update the answers among a command's messages.
 ## Benchmarks
 
 Bubble Tea calls `View` after every `Update`, on the event loop: its cost
-times the message rate (mouse motion with `MouseModeAllMotion`, a busy
-session's screens at up to 60/s) is what is left for keys. The daemon's cost
+times the message rate (mouse motion with `MouseModeAllMotion`, held to
+`motionGap`; a busy session's screens at up to 60/s) is what is left for
+keys. Tests set `motionGap` to 0, so every motion draws. The daemon's cost
 is per session: its scrollback, and every byte of output through vt.
 
 | Benchmark                 | Measures                                                 |
@@ -122,6 +123,8 @@ is per session: its scrollback, and every byte of output through vt.
 | `BenchmarkTypeMarkdown`   | the same in a Markdown file beside its rendering         |
 | `BenchmarkViewLongLine`   | a minified bundle's long lines, scrolled into            |
 | `BenchmarkHoverSession`   | the link lookup each mouse motion over a session         |
+| `BenchmarkDragTab`        | a frame of a tab dragged over its group, the drop box    |
+| `BenchmarkDragFile`       | a frame of a file dragged from Explorer                  |
 | `BenchmarkScreenScrolled` | `session.screen` scrolled into a full scrollback         |
 | `BenchmarkOutput`         | 100 lines of output through vt into the scrollback       |
 

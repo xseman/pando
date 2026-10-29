@@ -182,6 +182,60 @@ func BenchmarkHoverSession(b *testing.B) {
 	}
 }
 
+// benchDrag moves the pointer, its button held, across the editor area's
+// middle row, and draws after each motion as Bubble Tea does: what a drag
+// costs once motionGap lets a frame through.
+func benchDrag(b *testing.B, m *Model) {
+	b.Helper()
+
+	a := m.area()
+	i := 0
+
+	b.ReportAllocs()
+
+	for b.Loop() {
+		i++
+		m.Update(tea.MouseMotionMsg{X: a.x + 5 + i%(a.w-10), Y: a.y + a.h/2, Button: tea.MouseLeft})
+		_ = m.View()
+	}
+
+	if m.drag == nil {
+		b.Fatal("no drag held")
+	}
+}
+
+// BenchmarkDragTab carries app.go's tab over its own group.
+func BenchmarkDragTab(b *testing.B) { benchDrag(b, tabHeld(b)) }
+
+// tabHeld is benchModel with app.go open and its tab pressed, to drag.
+func tabHeld(tb testing.TB) *Model {
+	tb.Helper()
+
+	m := benchModel(tb)
+	openApp(tb, m)
+
+	a := m.area()
+	tab := m.editorTabs(m.mainW())[0]
+	m.Update(tea.MouseClickMsg{X: a.x + tab.x + 1, Y: a.y + 1, Button: tea.MouseLeft}) // under the frame's top
+
+	return m
+}
+
+// BenchmarkDragFile carries README.md from Explorer over app.go's group.
+func BenchmarkDragFile(b *testing.B) {
+	m := benchModel(b)
+	openApp(b, m)
+
+	x, top := m.colRect(m.colOf(viewFiles)).x+4, m.bodyTop(viewFiles) // the root, src, README.md
+	m.Update(tea.MouseClickMsg{X: x, Y: top + 2, Button: tea.MouseLeft})
+
+	if m.drag == nil || m.drag.kind != dragOpen || filepath.Base(m.pv.path) != "README.md" {
+		b.Fatalf("README.md held: %+v, %q", m.drag, m.pv.path)
+	}
+
+	benchDrag(b, m)
+}
+
 // openApp opens this package's app.go in m, highlighted.
 func openApp(tb testing.TB, m *Model) {
 	tb.Helper()
