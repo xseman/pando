@@ -259,8 +259,10 @@ func TestAllocBudgets(t *testing.T) {
 		t.Skip("-race drops sync.Pool items: the counts vary")
 	}
 
-	session, file, large, md := benchModel(t), benchModel(t), largeFile(t), largeMarkdown(t)
+	session, file, large, md, held := benchModel(t), benchModel(t), largeFile(t), largeMarkdown(t), tabHeld(t)
 	openApp(t, file)
+
+	a, x := held.area(), 0
 
 	for _, c := range []struct {
 		name   string
@@ -287,6 +289,11 @@ func TestAllocBudgets(t *testing.T) {
 			_ = session.View()
 			session.Update(screenMsg{"s1", session.term.scr, nil})
 			_ = session.View()
+		}},
+		{"a tab dragged", 118, func() {
+			x = (x + 7) % (a.w - 10)
+			held.Update(tea.MouseMotionMsg{X: a.x + 5 + x, Y: a.y + a.h/2, Button: tea.MouseLeft})
+			_ = held.View()
 		}},
 	} {
 		if n := testing.AllocsPerRun(10, c.f); n > c.budget {

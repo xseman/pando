@@ -137,10 +137,11 @@ is per session: its scrollback, and every byte of output through vt.
 Time is compared, not gated: it moves with the machine. What does not move
 is gated in `go test`, so CI catches a regression:
 
-- `TestAllocBudgets`: allocations per `View`, hover, streaming turn and
-  keystroke in a large file, the same on every machine for a Go version; a
-  budget sits ~15% over the count. `-race` drops `sync.Pool` items at
-  random, so it skips there and `make test` runs it once more without.
+- `TestAllocBudgets`: allocations per `View`, hover, streaming turn, a
+  dragged tab's frame and keystroke in a large file, the same on every
+  machine for a Go version; a budget sits ~15% over the count. `-race`
+  drops `sync.Pool` items at random, so it skips there and `make test`
+  runs it once more without.
 - `TestScrollbackMemory`: the heap a full scrollback takes, on the main and
   the alternate screen.
 

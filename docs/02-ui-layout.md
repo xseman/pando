@@ -315,7 +315,9 @@ Model.mouse
 - A tab, a file or a Spaces row held draws the frame under its overlays
   once (`baseFrame`, `baseKey`: the drag, its strip slot, its Spaces row):
   its motions draw only the drop box, once per target, and the ghost over
-  it, hover held as it was. Any other message draws it anew.
+  it, hover held as it was. Any other message draws it anew. `wcSafe` goes
+  line by line, a line the last frame had taking its answer again
+  (`wcSafeLines`).
 - An icon button names itself and its key in a box under the pointer once
   it has rested `tipDelay`, until `actionsLinger` (`tipShown`, `hoverBox`):
   header actions, activity bar chips, strip buttons, the Terminal's `+` and `✕`, Source

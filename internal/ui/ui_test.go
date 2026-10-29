@@ -1806,6 +1806,11 @@ func FuzzWcSafe(f *testing.F) {
 			t.Fatalf("%d lines became %d", len(in), len(out))
 		}
 
+		m := &Model{} // line by line, as View does it, the same frame
+		if got := strings.Join(m.wcSafeLines(in), "\n"); got != strings.Join(out, "\n") {
+			t.Fatalf("line by line %q, the frame at once %q", got, strings.Join(out, "\n"))
+		}
+
 		for i := range in {
 			if w, g, wc := ansi.StringWidth(in[i]), ansi.StringWidth(out[i]), ansi.WcWidth.StringWidth(out[i]); g != w || wc != w {
 				t.Fatalf("%q → %q: width %d, now %d, wcwidth %d", in[i], out[i], w, g, wc)

@@ -233,6 +233,8 @@ type Model struct {
 	drawn     *tea.View           // the last frame View drew, which a still message gets again
 	drawnAt   time.Time           // when View drew it
 	base      *base               // the frame under a drag's overlays (baseKey)
+	safeIn    []string            // the last frame's lines (wcSafeLines)
+	safeOut   []string            // and each made wcSafe
 	still     bool                // the last message changed nothing on screen (stillEvent), or a motion waits for the next frame
 	redrawDue bool                // a redrawMsg is on its way for the motion View skipped
 	index     struct {            // workspace file list for quick open and the Files filter
@@ -3841,12 +3843,11 @@ func (m *Model) View() tea.View {
 		lines = append(append(append([]string{top}, panels...), bot), status)
 	}
 
-	frame := strings.Join(lines, "\n")
 	if !m.graphemes {
-		frame = wcSafe(frame)
+		lines = m.wcSafeLines(lines)
 	}
 
-	v.SetContent(frame)
+	v.SetContent(strings.Join(lines, "\n"))
 	m.drawn, m.drawnAt = &v, time.Now()
 
 	return v
@@ -4420,6 +4421,25 @@ func (m *Model) dropBox(lines []string, t dropTarget) {
 		// box cuts through stops at it and goes on past it.
 		lines[y] = cutHead(lines[y], t.rc.x) + "\x1b[m" + ansi.ResetHyperlink() + box + "\x1b[m" + cutTail(lines[y], t.rc.x+w)
 	}
+}
+
+// wcSafeLines is wcSafe line by line, a line the last frame had in its row
+// taking the answer it got there: most of a frame's lines are the last one's.
+func (m *Model) wcSafeLines(lines []string) []string {
+	out := make([]string, len(lines))
+
+	for i, l := range lines {
+		if i < len(m.safeIn) && m.safeIn[i] == l {
+			out[i] = m.safeOut[i]
+			continue
+		}
+
+		out[i] = wcSafe(l)
+	}
+
+	m.safeIn, m.safeOut = lines, out
+
+	return out
 }
 
 // base is the frame under the overlays, drawn once for a drag (baseKey).
