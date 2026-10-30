@@ -510,3 +510,64 @@ func TestTerminalStripCarriesTheButtons(t *testing.T) {
 		t.Fatal("the panel closed")
 	}
 }
+
+// TestTabPlus opens the + beside the tabs: quick open, the sessions of the
+// space in view only, and the new session picker.
+func TestTabPlus(t *testing.T) {
+	m := testModel(t)
+	drainInputs(m)
+	fire(m, m.openFile(filepath.Join(m.ws, "README.md"), false))
+
+	m.sessions = []proto.Session{
+		{SessionSpec: proto.SessionSpec{ID: "here", Agent: "claude", Name: "here", Workspace: m.ws}, Status: "idle"},
+		{SessionSpec: proto.SessionSpec{ID: "there", Agent: "claude", Name: "there", Workspace: m.ws + "-other"}, Status: "idle"},
+	}
+
+	clickPlus := func() {
+		m.modal = nil
+		click(m, m.mainX()+tabPlus(m.editorTabs(m.mainW()))[0].x+1, m.mainY(), tea.MouseLeft)
+	}
+	pick := func(label string) tea.Cmd {
+		clickPlus()
+
+		if m.modal == nil {
+			t.Fatal("the + opens no menu")
+		}
+
+		return m.modal.choose(m, slices.IndexFunc(m.modal.items, func(it item) bool { return it.label == label }))
+	}
+
+	checkWidths(t, m)
+
+	pick("New Session…")
+
+	if m.modal == nil || !strings.HasPrefix(m.modal.title, "New session in ") {
+		t.Fatalf("New Session asks %+v", m.modal)
+	}
+
+	pick("Open Session…")
+
+	if m.modal == nil || len(m.modal.items) != 1 || !strings.Contains(m.modal.items[0].label, "here") {
+		t.Fatalf("Open Session lists %+v", m.modal)
+	}
+
+	m.modal.choose(m, 0)
+
+	if m.sess != "here" || !m.showsSession() {
+		t.Fatalf("the session did not open: %q", m.sess)
+	}
+
+	fire(m, pick("Open File…"))
+
+	if m.modal == nil || m.modal.title != "Go to File" {
+		t.Fatalf("Open File asks %+v", m.modal)
+	}
+
+	m.sessions, m.sess = m.sessions[1:], "" // none left in this space
+
+	clickPlus()
+
+	if m.modal == nil || slices.ContainsFunc(m.modal.items, func(it item) bool { return it.label == "Open Session…" }) {
+		t.Fatalf("a space without sessions offers them: %+v", m.modal)
+	}
+}

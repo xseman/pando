@@ -1047,7 +1047,7 @@ type edTab struct {
 // tabs on the left give way until the active one fits.
 func (m *Model) editorTabs(w int) []edTab {
 	sessOn := m.showsSession()
-	w -= ifElse(sessOn, m.sessBtnW(), m.stripBtnW())
+	w -= ifElse(sessOn, m.sessBtnW(), m.stripBtnW()) + tabPlusW
 
 	var items []edTab
 
@@ -1218,11 +1218,14 @@ func (m *Model) editorStrip(w int) string {
 		segs = append(segs, chip...)
 	}
 
+	plus, _ := m.actSegs(tabPlus(tabs), m.mainX(), m.mainY())
+	segs = append(segs, plus...)
+
 	var right []seg
 
 	switch {
 	case m.showsSession():
-		if hint, st := m.sessionHint(); hint != "" && ansi.StringWidth(hint) <= w-m.sessBtnW()-edTabsEnd(tabs) {
+		if hint, st := m.sessionHint(); hint != "" && ansi.StringWidth(hint) <= w-m.sessBtnW()-edTabsEnd(tabs)-tabPlusW {
 			right = append(right, sg(hint, st))
 		}
 
@@ -1247,6 +1250,31 @@ func edTabsEnd(tabs []edTab) int {
 	t := tabs[len(tabs)-1]
 
 	return t.x + t.w + tabGap
+}
+
+// tabPlusW is the room the strip's + takes after its tabs.
+const tabPlusW = 3
+
+// tabPlus is the strip's +, right after its last tab.
+func tabPlus(tabs []edTab) []rowAction {
+	return []rowAction{{g: icAdd, tip: "Open in a New Tab…", x: edTabsEnd(tabs), w: tabPlusW, run: (*Model).newTabMenu}}
+}
+
+// newTabMenu is the + beside the tabs, under it: a file by quick open, a
+// session of the space in view, or a new session in it.
+func (m *Model) newTabMenu() tea.Cmd {
+	items := []item{{label: "Open File…", hint: "^p", run: func(m *Model) tea.Cmd { return m.loadIndex(true) }}}
+	if len(m.spaceSessions()) > 0 {
+		items = append(items, item{label: "Open Session…", run: func(m *Model) tea.Cmd {
+			m.modal = newPicker("Open Session", m.sessionItems(m.spaceSessions()))
+			return nil
+		}})
+	}
+
+	x := m.mainX() + tabPlus(m.editorTabs(m.mainW()))[0].x
+	m.modal = newMenu("", x, m.mainY()+1, append(items, item{label: "New Session…", run: func(m *Model) tea.Cmd { return m.harnessPicker(m.ws) }})...)
+
+	return nil
 }
 
 // noteSessTabs notes the tip of the session tab under the mouse: a ✕'s, or
@@ -1338,7 +1366,12 @@ func (m *Model) stripMouse(x int, mo tea.Mouse) tea.Cmd {
 		}
 	}
 
-	for _, t := range m.editorTabs(m.mainW()) {
+	tabs := m.editorTabs(m.mainW())
+	if a, ok := hit(tabPlus(tabs), x); ok && button == tea.MouseLeft {
+		return a.run(m)
+	}
+
+	for _, t := range tabs {
 		if x < t.x || x >= t.x+t.w {
 			continue
 		}

@@ -386,6 +386,10 @@ group has one strip, the files' tabs then the sessions'.
   closed leaves it in place. `session_at` keeps it over a restart. The
   group's own session, one a worktree switch or a restart showed without a
   tab, keeps a tab behind the files too (`stripSessions`).
+- The editor strip's `+`, right after its last tab (`tabPlus`, `tabPlusW` kept
+  free in `editorTabs`), opens `newTabMenu` under it: _Open File…_ (quick
+  open), _Open Session…_ (a picker of `spaceSessions`, when it has any) and
+  _New Session…_ (`harnessPicker`).
 
 ## Modals
 
