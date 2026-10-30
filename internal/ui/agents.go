@@ -2809,7 +2809,37 @@ func (a *agents) moveSession(m *Model, id, to string) {
 // exited ones. "@blocked", "@running", "@shell", "@done", "@idle", "@exited",
 // "@worktree" narrow by kind and "!claude" by agent.
 func (m *Model) agentNavigator() tea.Cmd {
-	ss := m.mainSessions()
+	items := m.sessionItems(m.mainSessions())
+
+	for _, w := range m.wss {
+		name, n := w.Branch, m.sessionCount(w.Path)
+		if name == "" {
+			name = filepath.Base(w.Path)
+		}
+
+		path := w.Path
+		items = append(items, item{
+			label: wtGlyph(w).s() + " " + name, hint: filepath.Base(w.Project) + " · " + plural(n, "session"),
+			search: name + " " + filepath.Base(w.Project) + " @worktree",
+			run: func(m *Model) tea.Cmd {
+				switched := m.switchWorkspace(path)
+				if m.sess != "" { // a session of that worktree is on screen now: talk to it
+					m.focus = onMain
+				}
+
+				return tea.Batch(switched, m.refreshGit(), m.fetchScreen())
+			},
+		})
+	}
+
+	m.modal = newPicker("Go to Agent or Worktree", items)
+
+	return nil
+}
+
+// sessionItems are a picker's rows for ss, the ones waiting on you first:
+// each opens its session.
+func (m *Model) sessionItems(ss []proto.Session) []item {
 	slices.SortStableFunc(ss, func(a, b proto.Session) int { return sessionRank(a) - sessionRank(b) })
 
 	var items []item
@@ -2839,30 +2869,7 @@ func (m *Model) agentNavigator() tea.Cmd {
 		})
 	}
 
-	for _, w := range m.wss {
-		name, n := w.Branch, m.sessionCount(w.Path)
-		if name == "" {
-			name = filepath.Base(w.Path)
-		}
-
-		path := w.Path
-		items = append(items, item{
-			label: wtGlyph(w).s() + " " + name, hint: filepath.Base(w.Project) + " · " + plural(n, "session"),
-			search: name + " " + filepath.Base(w.Project) + " @worktree",
-			run: func(m *Model) tea.Cmd {
-				switched := m.switchWorkspace(path)
-				if m.sess != "" { // a session of that worktree is on screen now: talk to it
-					m.focus = onMain
-				}
-
-				return tea.Batch(switched, m.refreshGit(), m.fetchScreen())
-			},
-		})
-	}
-
-	m.modal = newPicker("Go to Agent or Worktree", items)
-
-	return nil
+	return items
 }
 
 // addProjectPrompt asks for a folder in the folder picker and adds it as a
