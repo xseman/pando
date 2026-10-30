@@ -223,9 +223,15 @@ func parseColor(s string) (color.Color, bool) {
 	return nil, false
 }
 
+// lookGen counts the looks applied: what was drawn in an older one is
+// drawn again.
+var lookGen int
+
 // applyLook selects the palette, applies the config's [colors] overrides
 // (invalid ones are skipped; pando doctor lists the keys) and the icon set.
 func applyLook(theme string, dark bool, icons string, colors map[string]string) {
+	lookGen++
+
 	switch {
 	case theme == "terminal":
 		pal, lookDark = terminalPal, dark

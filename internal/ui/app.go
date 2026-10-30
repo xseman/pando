@@ -245,6 +245,13 @@ type Model struct {
 		at    time.Time
 	}
 
+	// fits and cuts are the rows fitted in this frame and the last, and cut
+	// around an overlay (overlayBox); bars each column's activity bar as last
+	// drawn.
+	fits memo[fitKey, string]
+	cuts memo[cutKey, [2]string]
+	bars map[int]barDrawn
+
 	ex  explorer
 	scm scmView
 	ag  agents
@@ -3785,6 +3792,8 @@ func (m *Model) View() tea.View {
 	}
 
 	m.tip = "" // the frame notes the button under the mouse again
+	m.fits.frame()
+	m.cuts.frame()
 
 	cs, c := m.layout()
 	m.frame = &frame{m.cols(), cs, c}
@@ -4170,8 +4179,56 @@ func (m *Model) activityBar(s, w int) []string {
 	hot := func(x, w int) bool {
 		return m.mouseY < actH && time.Since(m.mouseAt) < actionsLinger && m.mouseX >= rc.x+x && m.mouseX < rc.x+x+w
 	}
-	idle := func(x, w int) lipgloss.Style {
-		if hot(x, w) {
+
+	tabs, gw := m.tabs(s), ansi.StringWidth(gearLabel())
+	k := barKey{w: w, active: active, hot: -1, gear: hot(w-gw, gw), gen: lookGen}
+
+	for i, t := range tabs {
+		if hot(t.x, t.chipW) {
+			k.hot = i
+		}
+	}
+
+	if d, ok := m.bars[s]; !ok || d.key != k || !slices.Equal(d.tabs, tabs) {
+		if m.bars == nil {
+			m.bars = map[int]barDrawn{}
+		}
+
+		m.bars[s] = barDrawn{k, tabs, drawBar(k, tabs, gw)}
+	}
+
+	switch {
+	case k.gear:
+		m.tip = settingsTip
+	case k.hot >= 0:
+		m.tip = viewTip(tabs[k.hot].v)
+	}
+
+	return m.bars[s].lines
+}
+
+// barKey is what a column's activity bar is drawn from besides its chips:
+// a bar drawn from the same is the one drawn last (Model.bars).
+type barKey struct {
+	w      int
+	active view
+	hot    int  // the chip under the mouse, -1 for none
+	gear   bool // the gear under the mouse
+	gen    int  // lookGen: the palette and icons it is drawn in
+}
+
+// barDrawn is an activity bar as drawn from key and tabs.
+type barDrawn struct {
+	key   barKey
+	tabs  []tab
+	lines []string
+}
+
+// drawBar draws an activity bar, its chips and the gear gw cells wide on a
+// row, the active chip's and the hot one's marks on the row under it.
+func drawBar(k barKey, tabs []tab, gw int) []string {
+	idle := func(hot bool) lipgloss.Style {
+		if hot {
 			return fg(pal.sashHover)
 		}
 
@@ -4183,21 +4240,17 @@ func (m *Model) activityBar(s, w int) []string {
 	rule := func(n int) seg { return sg(strings.Repeat("─", max(n, 0)), fg(pal.rulerBorder)) }
 
 	x, cx := 0, 0
-	for _, t := range m.tabs(s) {
+	for i, t := range tabs {
 		segs = append(segs, sg(blank(t.x-x), plain))
 
-		st := idle(t.x, t.chipW)
-		if t.v == active { // the open view, in the accent color
+		st := idle(i == k.hot)
+		if t.v == k.active { // the open view, in the accent color
 			st = fg(pal.headerAccent).Bold(true)
 		}
 
-		if c := markColor(t.v == active, hot(t.x, t.chipW)); c != nil {
+		if c := markColor(t.v == k.active, i == k.hot); c != nil {
 			marks = append(marks, rule(t.x-cx), sg(strings.Repeat("─", t.chipW), fg(c)))
 			cx = t.x + t.chipW
-		}
-
-		if hot(t.x, t.chipW) {
-			m.tip = viewTip(t.v)
 		}
 
 		segs = append(segs, sgOwn(t.label, st))
@@ -4208,16 +4261,14 @@ func (m *Model) activityBar(s, w int) []string {
 		x = t.x + t.w
 	}
 
-	gw := ansi.StringWidth(gearLabel())
-
 	gearMark := rule(gw)
-	if hot(w-gw, gw) { // the gear is a chip too
-		gearMark, m.tip = sg(strings.Repeat("─", gw), fg(pal.sashHover)), settingsTip
+	if k.gear { // the gear is a chip too
+		gearMark = sg(strings.Repeat("─", gw), fg(pal.sashHover))
 	}
 
 	return []string{
-		row(w, nil, segs, sgOwn(gearLabel(), idle(w-gw, gw))),
-		row(w, nil, append(marks, rule(w-gw-cx), gearMark)),
+		row(k.w, nil, segs, sgOwn(gearLabel(), idle(k.gear))),
+		row(k.w, nil, append(marks, rule(k.w-gw-cx), gearMark)),
 	}
 }
 
@@ -5138,7 +5189,7 @@ func (m *Model) editorLines(w int) []string {
 
 	for i := range max(h, 0) {
 		if i < len(body) {
-			out = append(out, fit(body[i], w))
+			out = append(out, m.fit(body[i], w, ""))
 		} else {
 			out = append(out, blank(w))
 		}
@@ -5441,9 +5492,24 @@ func (m *Model) overlayBox(lines, box []string, x, y int) {
 			continue
 		}
 
-		ln := lines[y+i]
 		bl = ansi.Truncate(bl, max(m.w-x, 0), "") // a box wider than the room left is cut at the edge
-		bw := strWidth(bl)
+		cut := m.cutAround(lines[y+i], x, strWidth(bl))
+		lines[y+i] = cut[0] + "\x1b[m" + ansi.ResetHyperlink() + bl + "\x1b[m" + cut[1] // a link the box covers stops at it
+	}
+}
+
+// cutKey is what cutAround cuts: row ln around a box bw cells wide at x, on
+// a screen w cells wide.
+type cutKey struct {
+	ln       string
+	x, bw, w int
+}
+
+// cutAround is what of row ln shows either side of a box bw cells wide at
+// x, remembered for the frame and the next: an overlay is mostly drawn over
+// the rows it covered last.
+func (m *Model) cutAround(ln string, x, bw int) [2]string {
+	return m.cuts.get(cutKey{ln, x, bw, m.w}, func() [2]string {
 		// A wide rune the box's edge cuts in half: the head drops it on the
 		// left and the tail keeps it whole on the right, so its cell goes
 		// blank. Each reads the row once, as far as it needs.
@@ -5455,8 +5521,8 @@ func (m *Model) overlayBox(lines, box []string, x, y int) {
 			right = " " + cutTail(ln, x+bw+1)
 		}
 
-		lines[y+i] = left + "\x1b[m" + ansi.ResetHyperlink() + bl + "\x1b[m" + right // a link the box covers stops at it
-	}
+		return [2]string{left, right}
+	})
 }
 
 // commandID is a command's name in config.toml: "Git: Switch Branch…" is git.switchBranch.

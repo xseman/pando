@@ -289,6 +289,11 @@ Every row is segments padded to the exact width (`row` in `widgets.go`);
   rewrites the clusters the two disagree on before the frame goes out:
   `⚠️` → `⚠ `, `👍🏽` → `👍`. Left in, the renderer would place the rest of
   the row a cell off and its next partial redraw would land there.
+- Pure work on a line is kept for the frame and the next (`memo`): fitting
+  rows to a width (`Model.fit`), cutting a row around an overlay
+  (`cutAround`). The activity bar (`barKey`, its tips set again on a kept
+  bar) and Explorer's rows (`exRow`) are drawn from a key of what they read,
+  the row the last frame drew for the same key taken again.
 
 ```text
 row(w, bg, left…, right…)   " ▾ Changes            ↶ + [3] "

@@ -3,6 +3,7 @@ package ui
 import (
 	"cmp"
 	"errors"
+	"image/color"
 	"io"
 	"os"
 	"path/filepath"
@@ -32,6 +33,20 @@ type explorer struct {
 	// pando's own, not the system's, and kept across workspaces.
 	clip string
 	cut  bool
+	rows memo[exRow, string] // the rows drawn in this frame and the last
+}
+
+// exRow is what an Explorer row is drawn from: a row drawn from the same is
+// the one drawn last.
+type exRow struct {
+	n                 exNode
+	open, faded       bool // a folder unfolded; a file cut, faded until pasted
+	letter            byte // its Source Control letter
+	pc                color.Color
+	pn                string // its problems' color and count
+	sel, focus, hover bool
+	lit               int // the active guide's level on the row, -1 off its run
+	rw, gen           int // the row's width; lookGen, the palette and icons
 }
 
 // ponytail: filter matches stop here; a narrower query shows the rest.
@@ -211,51 +226,72 @@ func (e *explorer) lines(m *Model, w, h int) []string {
 	hover := m.hoverRow(viewFiles)
 	e.l.bar = m.barState("list:files")
 	ag := activeGuide(len(e.nodes), e.l.sel, func(i int) int { return e.nodes[i].depth })
+	focused := m.focused(viewFiles)
+
+	e.rows.frame()
 
 	return e.l.render(w, h, len(e.nodes), func(i, rw int) string {
 		n := e.nodes[i]
-		bg, name := m.rowColors(viewFiles, i == e.l.sel, i-e.l.top == hover)
-		open := filtering || e.expanded[n.path]
+		k := exRow{
+			n: n, open: filtering || e.expanded[n.path], faded: e.cut && n.path == e.clip, letter: e.deco[n.path],
+			sel: i == e.l.sel, focus: i == e.l.sel && focused, hover: i-e.l.top == hover, lit: -1, rw: rw, gen: lookGen,
+		}
+		k.pc, k.pn = m.probDecoFor(n.path)
 
-		chev := "  "
-		if n.dir {
-			chev = chevron(open)
+		if i > ag.act && i <= ag.end {
+			k.lit = ag.lit
 		}
 
-		letter := e.deco[n.path]
-
-		var right []seg
-
-		switch {
-		case letter == 'I':
-			name = name.Foreground(pal.ignored)
-		case letter == '*' || (n.dir && letter != 0):
-			name = name.Foreground(pal.modified)
-			right = []seg{sg("● ", fg(pal.modified))}
-
-		case letter != 0:
-			name = name.Foreground(statusColor(letter))
-			right = []seg{sg(string(letter)+" ", fg(statusColor(letter)))}
-		}
-
-		if pc, pn := m.probDecoFor(n.path); pc != nil { // VS Code's problems: the name in their color, a file's count
-			name = name.Foreground(pc)
-
-			if pn != "" {
-				right = append([]seg{sg(pn+" ", fg(pc))}, right...)
-			}
-		}
-
-		if e.cut && n.path == e.clip { // faded until it is pasted, as VS Code's
-			name = name.Foreground(pal.ignored)
-		}
-
-		// VS Code's indent guides, one under each open folder's chevron, the
-		// active one lit.
-		left := append(append([]seg{sg(" ", dim)}, ag.at(i, n.depth)...), sg(chev, dim), iconSeg(n.name, n.dir, open), sg(n.name, name))
-
-		return row(rw, bg, left, right...)
+		return e.rows.get(k, func() string { return m.drawExRow(k) })
 	})
+}
+
+// drawExRow draws an Explorer row from k.
+func (m *Model) drawExRow(k exRow) string {
+	n := k.n
+	bg, name := m.rowColors(viewFiles, k.sel, k.hover)
+
+	chev := "  "
+	if n.dir {
+		chev = chevron(k.open)
+	}
+
+	var right []seg
+
+	switch letter := k.letter; {
+	case letter == 'I':
+		name = name.Foreground(pal.ignored)
+	case letter == '*' || (n.dir && letter != 0):
+		name = name.Foreground(pal.modified)
+		right = []seg{sg("● ", fg(pal.modified))}
+
+	case letter != 0:
+		name = name.Foreground(statusColor(letter))
+		right = []seg{sg(string(letter)+" ", fg(statusColor(letter)))}
+	}
+
+	if k.pc != nil { // VS Code's problems: the name in their color, a file's count
+		name = name.Foreground(k.pc)
+
+		if k.pn != "" {
+			right = append([]seg{sg(k.pn+" ", fg(k.pc))}, right...)
+		}
+	}
+
+	if k.faded { // faded until it is pasted, as VS Code's
+		name = name.Foreground(pal.ignored)
+	}
+
+	// VS Code's indent guides, one under each open folder's chevron, the
+	// active one lit.
+	var g guides // the row off the active guide's run
+	if k.lit >= 0 {
+		g = guides{act: -1, lit: k.lit}
+	}
+
+	left := append(append([]seg{sg(" ", dim)}, g.at(0, n.depth)...), sg(chev, dim), iconSeg(n.name, n.dir, k.open), sg(n.name, name))
+
+	return row(k.rw, bg, left, right...)
 }
 
 // collapseAll folds every directory and scrolls to the top.

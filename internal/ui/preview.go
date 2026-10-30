@@ -161,6 +161,10 @@ type preview struct {
 	// cursor's active guide.
 	guideOf  [][]rune
 	guideTab int // the tab_size its unit fell back on
+	// rowsNow are the rows drawn in this frame, rowsWas in the last, top to
+	// bottom: a row drawn from what it was drawn from there takes that row
+	// (renderRow).
+	rowsNow, rowsWas []rowDrawn
 	// base is a file's staged text, which its gutter marks the lines against
 	// (chg, for the text chgKey names), VS Code's quick diff; nil for none.
 	// head is its committed text when that differs, its staged changes then
@@ -1980,7 +1984,8 @@ func (p *preview) gutterText(line int, first bool) string {
 	case !first:
 		return pre + blank(gw) + suf
 	case p.meta == nil:
-		return p.changeMark(line, true, st, sp) + pre + fmt.Sprintf("%*d ", p.numW, line+1) + suf + p.foldMark(line, pre, suf, sp) + sp
+		num := strconv.Itoa(line + 1) // %*d, without fmt on every row of every frame
+		return p.changeMark(line, true, st, sp) + pre + blank(p.numW-len(num)) + num + " " + suf + p.foldMark(line, pre, suf, sp) + sp
 	}
 
 	return diffGutter(p.meta[line], p.numW, bg)
@@ -2737,30 +2742,27 @@ func (p *preview) guideRoom(vr vrow, marks []string, lo int) []string {
 	return marks
 }
 
-// paintGuides draws row vr's indent guides over body, its cells start to
-// end: a │ at each level past the first, the active one in indent_guide's
-// color, a selected one on the selection; the top level's would be a rule
-// down the code's left edge. A wrapped line's later rows start with its text
-// and have none.
-func (p *preview) paintGuides(body string, vr vrow, start, end, s0, s1 int) string {
-	g := p.guide
-	if vr.line >= len(g.lv) || vr.from > 0 {
+// paintGuides draws a row's indent guides over body, its cells start to
+// end: lv levels unit cells apart, a │ at each past the first, level lit in
+// indent_guide's color, a selected one (s0 to s1) on the selection; the top
+// level's would be a rule down the code's left edge. bar is the guide, then
+// the lit one.
+func paintGuides(body string, lv, unit, lit int, bar [2]string, start, end, s0, s1 int) string {
+	if lv < 2 {
 		return body
 	}
 
 	bw := strWidth(body)
 
-	for k := 1; k < g.lv[vr.line]; k++ {
-		c := k * g.unit
+	for k := 1; k < lv; k++ {
+		c := k * unit
 		if c < start || c >= end {
 			continue
 		}
 
-		lit := k == g.act.lit && vr.line > g.act.act && vr.line <= g.act.end
-
-		bar := g.bar[b2i(lit)]
+		bar := bar[b2i(k == lit)]
 		if c >= s0 && c < s1 {
-			bar = renderText(fg(ifElse(lit, pal.indentGuide, pal.whitespace)).Background(pal.textSelBg), "│")
+			bar = renderText(fg(ifElse(k == lit, pal.indentGuide, pal.whitespace)).Background(pal.textSelBg), "│")
 		}
 
 		x := c - start
@@ -2857,101 +2859,195 @@ func (p *preview) renderRow(vr vrow, w int) string {
 		return p.gutterText(vr.line, true) + p.lines[vr.line]
 	}
 
-	tw := max(w-p.gutter(), 1)
+	in := p.rowIn(vr, w)
 
-	// The row is a window on its line, runes lo to hi, off cells into it, and
-	// what follows works in its cells: a row costs its width, not its line's,
-	// a minified one megabytes. Wrapped, the window is the row's runes;
-	// unwrapped, those from the left edge to the right.
-	full, styled := p.plain[vr.line], p.lines[vr.line]
-
-	lo, hi := vr.from, vr.to
-	if !p.wrap {
-		lo, hi = runesIn(full, p.left), runesIn(full, p.left+tw)
+	// The last frame drew its rows top to bottom, so they are in order.
+	k, ok := slices.BinarySearchFunc(p.rowsWas, vr, func(d rowDrawn, vr vrow) int {
+		return cmp.Or(d.in.line-vr.line, d.in.from-vr.from)
+	})
+	if !ok || !p.rowsWas[k].in.same(&in) {
+		p.rowsNow = append(p.rowsNow, rowDrawn{in, in.draw()})
+	} else {
+		p.rowsNow = append(p.rowsNow, p.rowsWas[k])
 	}
 
-	line, off := full[lo:hi], cellsOf(full[:lo])
-	if lo > 0 || hi < len(full) {
-		styled = cutRow(styled, full, lo, hi, off)
+	return p.rowsNow[len(p.rowsNow)-1].out
+}
+
+// rowIn is everything row vr of the text is drawn from: draw reads nothing
+// else, so a row whose rowIn the last frame had takes the row it drew.
+type rowIn struct {
+	rowKey
+	full  []rune   // the line, the same runes until an edit puts new ones in
+	marks []string // render_whitespace's, the guides' cells left clear
+	extra []rune   // a conflict marker's note and actions
+	spans []cellSpan
+	probs []probSpan
+}
+
+// rowKey is the comparable part of a rowIn.
+type rowKey struct {
+	line, from, to, tw, left int
+	wrap                     bool
+	styled                   string // the line's colors
+	gutter                   string // drawn whole by gutterText
+	extraStyled              string
+	marker, shut             bool // one color for a conflict marker; a fold's ⋯ after the text
+	outside, brk             bool // no selection on the row; its line break selected
+	aCol, zCol               int  // the selection's ends on the row's line, -1 off it
+	lv, unit, lit            int  // the row's guide levels, their step, the one lit
+	bar                      [2]string
+	under, bg                color.Color // the row's background, or a diff's tint to its end
+	gen                      int         // lookGen: the palette it is drawn in
+}
+
+// rowDrawn is a row as drawn from in.
+type rowDrawn struct {
+	in  rowIn
+	out string
+}
+
+// same reports whether in and o draw the same row; the line is compared by
+// its runes' address, which an edit changes.
+func (in *rowIn) same(o *rowIn) bool {
+	return in.rowKey == o.rowKey && len(in.full) == len(o.full) && (len(in.full) == 0 || &in.full[0] == &o.full[0]) &&
+		slices.Equal(in.marks, o.marks) && slices.Equal(in.extra, o.extra) && slices.Equal(in.spans, o.spans) && slices.Equal(in.probs, o.probs)
+}
+
+// window is the runes lo to hi of the row's line it shows, off cells into
+// the line. A row costs its width, not its line's, a minified one
+// megabytes: wrapped, the window is the row's runes; unwrapped, those from
+// the left edge to the right.
+func (in *rowIn) window() (lo, hi, off int) {
+	lo, hi = in.from, in.to
+	if !in.wrap {
+		lo, hi = runesIn(in.full, in.left), runesIn(in.full, in.left+in.tw)
 	}
 
+	return lo, hi, cellsOf(in.full[:lo])
+}
+
+// rowIn reads what row vr, w cells wide, is drawn from.
+func (p *preview) rowIn(vr vrow, w int) rowIn {
+	full := p.plain[vr.line]
+	in := rowIn{rowKey: rowKey{
+		line: vr.line, from: vr.from, to: vr.to, tw: max(w-p.gutter(), 1), left: p.left, wrap: p.wrap,
+		styled: p.lines[vr.line], gutter: p.gutterText(vr.line, vr.from == 0), marker: p.marker(vr.line),
+		under: p.underlay(vr.line), gen: lookGen,
+	}, full: full, probs: p.probs[vr.line]}
+
+	if in.under == nil {
+		in.bg = p.rowBg(vr.line)
+	}
+
+	lo, hi, off := in.window()
 	last := hi == len(full) // the row ends the line: a fold's ⋯ or a conflict's note may follow it
 
-	if p.marker(vr.line) { // one color, not the lexer's guess at << and ==
-		styled = string(line)
+	if g := p.guide; vr.line < len(g.lv) && vr.from == 0 { // a wrapped line's later rows start with its text and have none
+		in.lv, in.unit, in.bar = g.lv[vr.line], g.unit, g.bar
+		if vr.line > g.act.act && vr.line <= g.act.end {
+			in.lit = g.act.lit
+		}
 	}
 
-	marks := p.guideRoom(vr, p.blankMarks(vr.line, full, lo, hi), lo)
-	styled = markBlanks(styled, line, marks, fg(pal.whitespace))
-
-	start, end := 0, cellsOf(line)
-	if !p.wrap { // the edge may split a wide rune, which the window leaves out
-		start = max(p.left-off, 0)
-		end = start + tw
-	}
-
-	var b strings.Builder
+	in.marks = p.guideRoom(vr, p.blankMarks(vr.line, full, lo, hi), lo)
 
 	a, z, ok := p.selection()
-	c0, c1 := 0, 0 // the row's selected cells
 
 	hits := p.findSpans(vr.line, full, lo, hi)
 	if ok && p.hitSelected(a, z) {
 		ok = false // the current match shows in find's color, not as a selection
 	}
 
-	outside := !ok || vr.line < a.line || vr.line > z.line
-	if last && p.shutEnd(vr.line) > vr.line { // a folded block's header ends in ⋯, VS Code's placeholder
+	in.outside = !ok || vr.line < a.line || vr.line > z.line
+	in.shut = last && p.shutEnd(vr.line) > vr.line
+
+	if in.outside && last && len(p.conf) > 0 {
+		in.extra, in.extraStyled, _ = p.conflictSuffix(vr.line, in.tw)
+	}
+
+	if !in.outside {
+		in.aCol, in.zCol, in.brk = ifElse(vr.line == a.line, a.col, -1), ifElse(vr.line == z.line, z.col, -1), vr.line < z.line
+		return in
+	}
+
+	in.spans = hits
+	if in.spans == nil {
+		for _, sp := range p.wordSpans(full, lo, hi) {
+			in.spans = append(in.spans, cellSpan{sp[0], sp[1], pal.wordHiBg})
+		}
+	}
+
+	if p.hot != "" && vr.line < len(p.ghHits) {
+		for _, h := range p.ghHits[vr.line] {
+			if h.key == p.hot && h.lit1 > h.lit0 {
+				in.spans = append(in.spans, cellSpan{h.lit0 - off, h.lit1 - off, pal.hoverBg})
+			}
+		}
+	}
+
+	return in
+}
+
+// draw is the row in shows: its gutter, then its window on the line, in
+// the line's colors under the selection, find's hits or the word under the
+// cursor, the guides and the problems' squiggles.
+func (in *rowIn) draw() string {
+	lo, hi, off := in.window()
+	line, styled := in.full[lo:hi], in.styled
+
+	if lo > 0 || hi < len(in.full) {
+		styled = cutRow(styled, in.full, lo, hi, off)
+	}
+
+	last := hi == len(in.full)
+
+	if in.marker { // one color, not the lexer's guess at << and ==
+		styled = string(line)
+	}
+
+	styled = markBlanks(styled, line, in.marks, fg(pal.whitespace))
+
+	start, end := 0, cellsOf(line)
+	if !in.wrap { // the edge may split a wide rune, which the window leaves out
+		start = max(in.left-off, 0)
+		end = start + in.tw
+	}
+
+	if in.shut { // a folded block's header ends in ⋯, VS Code's placeholder
 		line = append(line[:len(line):len(line)], ' ', '⋯')
 		styled += renderText(fg(pal.whitespace), " ⋯")
 
-		if p.wrap {
-			end = min(start+cellsOf(line), start+tw)
+		if in.wrap {
+			end = min(start+cellsOf(line), start+in.tw)
 		}
 	}
 
-	if outside && last && len(p.conf) > 0 {
-		// A conflict marker's note and actions follow its text, VS Code's
-		// decoration after-text and CodeLens in one row.
-		if extra, extraStyled, _ := p.conflictSuffix(vr.line, tw); extra != nil {
-			line = append(line[:len(line):len(line)], extra...)
-			styled += extraStyled
+	if in.extra != nil { // a conflict marker's note and actions, VS Code's decoration after-text and CodeLens in one row
+		line = append(line[:len(line):len(line)], in.extra...)
+		styled += in.extraStyled
 
-			if p.wrap {
-				end = min(start+cellsOf(line), start+tw)
-			}
+		if in.wrap {
+			end = min(start+cellsOf(line), start+in.tw)
 		}
 	}
 
-	switch {
-	case outside:
-		spans := hits
-		if spans == nil {
-			for _, sp := range p.wordSpans(full, lo, hi) {
-				spans = append(spans, cellSpan{sp[0], sp[1], pal.wordHiBg})
-			}
-		}
+	var b strings.Builder
 
-		if p.hot != "" && vr.line < len(p.ghHits) {
-			for _, h := range p.ghHits[vr.line] {
-				if h.key == p.hot && h.lit1 > h.lit0 {
-					spans = append(spans, cellSpan{h.lit0 - off, h.lit1 - off, pal.hoverBg})
-				}
-			}
-		}
+	c0, c1 := 0, 0 // the row's selected cells
 
-		b.WriteString(paintSpans(styled, spans, start, end))
-
-	default:
+	if in.outside {
+		b.WriteString(paintSpans(styled, in.spans, start, end))
+	} else {
 		sel := lipgloss.NewStyle().Background(pal.textSelBg)
 
 		s0, s1 := 0, len(line) // in the window's runes
-		if vr.line == a.line {
-			s0 = min(max(a.col-lo, 0), len(line))
+		if in.aCol >= 0 {
+			s0 = min(max(in.aCol-lo, 0), len(line))
 		}
 
-		if vr.line == z.line {
-			s1 = min(max(z.col-lo, 0), len(line))
+		if in.zCol >= 0 {
+			s1 = min(max(in.zCol-lo, 0), len(line))
 		}
 
 		c0 = max(start, min(cellsOf(line[:s0]), end))
@@ -2959,24 +3055,24 @@ func (p *preview) renderRow(vr vrow, w int) string {
 		b.WriteString(ansi.Cut(styled, start, c0))
 		b.WriteString("\x1b[m")
 		// Selected text drops its colors, the whitespace markers keep theirs.
-		b.WriteString(ansi.Cut(markBlanks(renderText(sel, string(line)), line, marks, sel.Foreground(pal.whitespace)), c0, c1))
+		b.WriteString(ansi.Cut(markBlanks(renderText(sel, string(line)), line, in.marks, sel.Foreground(pal.whitespace)), c0, c1))
 		b.WriteString(ansi.Cut(styled, c1, end))
 		// A selected line break shows as one selected cell after the text.
-		if lineCells := cellsOf(line); vr.line < z.line && last && lineCells >= start && lineCells-start < tw {
+		if lineCells := cellsOf(line); in.brk && last && lineCells >= start && lineCells-start < in.tw {
 			b.WriteString(renderText(sel, " "))
 		}
 	}
 
-	body := paintProbs(p.paintGuides(b.String(), vr, off+start, off+end, off+c0, off+c1), p.probs[vr.line], off+start)
-	if bg := p.underlay(vr.line); bg != nil {
-		body = underBg(body+blank(max(tw-ansi.StringWidth(body), 0)), bg)
-	} else if bg := p.rowBg(vr.line); bg != nil { // tinted diff rows fill the width, like an editor
-		if used := ansi.StringWidth(body); used < tw {
-			body += renderText(lipgloss.NewStyle().Background(bg), blank(tw-used))
+	body := paintProbs(paintGuides(b.String(), in.lv, in.unit, in.lit, in.bar, off+start, off+end, off+c0, off+c1), in.probs, off+start)
+	if in.under != nil {
+		body = underBg(body+blank(max(in.tw-ansi.StringWidth(body), 0)), in.under)
+	} else if in.bg != nil { // tinted diff rows fill the width, like an editor
+		if used := ansi.StringWidth(body); used < in.tw {
+			body += renderText(lipgloss.NewStyle().Background(in.bg), blank(in.tw-used))
 		}
 	}
 
-	return p.gutterText(vr.line, vr.from == 0) + body
+	return in.gutter + body
 }
 
 // splitMinW is the narrowest main area that shows a diff side by side.
@@ -3634,6 +3730,7 @@ func (p *preview) pickRev(m *Model) tea.Cmd {
 }
 
 func (p *preview) view(m *Model, w, h int) (header string, body []string, footer string) {
+	p.rowsWas, p.rowsNow = p.rowsNow, p.rowsWas[:0]
 	p.syncMarkdown(m)
 	name, context := p.label(m.ws)
 
@@ -3739,11 +3836,11 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 		body = p.splitBody(m, tw, h)
 		kinds, _ := p.barChanges(m)
 
-		return header, withCells(body, w, vbar{p.scrollRows(m), h, p.top}.marked(vb, kinds, diffMarks())), footer
+		return header, m.withCells(body, w, vbar{p.scrollRows(m), h, p.top}.marked(vb, kinds, diffMarks())), footer
 
 	case p.side(m):
 		body = p.sideBody(m, tw, h)
-		return header, withBar(body, w, vbar{p.scrollRows(m), h, p.top}, vb), footer
+		return header, m.withBar(body, w, vbar{p.scrollRows(m), h, p.top}, vb), footer
 	}
 
 	if hot := p.ghHot(m, tw, h); hot != p.hot {
@@ -3797,7 +3894,7 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 		}
 	}
 
-	body = withCells(body, w, cells)
+	body = m.withCells(body, w, cells)
 	if hb.on() { // under the text, the gutter and the vertical bar's corner left blank
 		body = append(body, blank(p.gutter())+hb.hcells(m.barState("editor-h"))+" ")
 	}

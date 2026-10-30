@@ -3605,7 +3605,7 @@ func (t *term) view(m *Model, w, _ int) []string {
 		lines[i] = t.mark(i, t.paintFind(i, t.paintLink(m, i, lines[i])))
 	}
 
-	return withBar(lines, w, t.bar(len(lines)), m.barState("session"))
+	return m.withBar(lines, w, t.bar(len(lines)), m.barState("session"))
 }
 
 // bar is the terminal's scrollbar: its scrollback above the h rows it shows;
@@ -4145,7 +4145,7 @@ func (m *Model) termScreen(w, h int) []string {
 		}
 	}
 
-	return withBar(out, w, t.bar(h), m.barState("terminal"))
+	return m.withBar(out, w, t.bar(h), m.barState("terminal"))
 }
 
 func (m *Model) termTabs(w int) []sessTab {

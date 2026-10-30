@@ -940,12 +940,12 @@ func (b vbar) hcells(s barState) string {
 }
 
 // withBar fits lines to w-1 columns and puts b's column after them, h rows.
-func withBar(lines []string, w int, b vbar, s barState) []string {
-	return withCells(lines, w, b.cells(s))
+func (m *Model) withBar(lines []string, w int, b vbar, s barState) []string {
+	return m.withCells(lines, w, b.cells(s))
 }
 
 // withCells puts a bar's cells in the last of w columns, beside lines.
-func withCells(lines []string, w int, cells []string) []string {
+func (m *Model) withCells(lines []string, w int, cells []string) []string {
 	out := make([]string, len(cells))
 
 	for i := range out {
@@ -954,10 +954,53 @@ func withCells(lines []string, w int, cells []string) []string {
 			line = lines[i]
 		}
 
-		out[i] = fitWith(line, max(w-1, 0), cells[i])
+		out[i] = m.fit(line, max(w-1, 0), cells[i])
 	}
 
 	return out
+}
+
+// memo holds a pure function's answers for this frame and the last: most
+// of a frame's rows are the last one's, and measuring or cutting a row
+// costs about as much as drawing it.
+type memo[K comparable, V any] struct{ now, was map[K]V }
+
+// get is f's answer for k, the one the last frame got where it asked.
+func (c *memo[K, V]) get(k K, f func() V) V {
+	v, ok := c.now[k]
+	if ok {
+		return v
+	}
+
+	if v, ok = c.was[k]; !ok {
+		v = f()
+	}
+
+	if c.now == nil {
+		c.now = map[K]V{}
+	}
+
+	c.now[k] = v
+
+	return v
+}
+
+// frame starts a frame: the answers of the one before the last go, their
+// map kept for this frame's.
+func (c *memo[K, V]) frame() {
+	c.was, c.now = c.now, c.was
+	clear(c.now)
+}
+
+// fitKey is what fitWith fits: s to w cells, then tail.
+type fitKey struct {
+	s, tail string
+	w       int
+}
+
+// fit is fitWith(s, w, tail), remembered for the frame and the next.
+func (m *Model) fit(s string, w int, tail string) string {
+	return m.fits.get(fitKey{s, tail, w}, func() string { return fitWith(s, w, tail) })
 }
 
 // scrollDrag follows a drag on a scrollbar: geo reads the bar as it is, to

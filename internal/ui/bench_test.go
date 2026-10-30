@@ -271,10 +271,10 @@ func TestAllocBudgets(t *testing.T) {
 		budget float64
 		f      func()
 	}{
-		{"View, session", 370, func() { _ = session.View() }},
-		{"View, file", 715, func() { _ = file.View() }},
+		{"View, session", 240, func() { _ = session.View() }},
+		{"View, file", 400, func() { _ = file.View() }},
 		{"hover", 40, func() { _ = session.term.linkAt(session, "s1", 70, 25) }},
-		{"typing in a large file", 3350, func() {
+		{"typing in a large file", 3060, func() {
 			large.Update(keyMsg("x"))
 			_ = large.View()
 			large.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
@@ -286,13 +286,13 @@ func TestAllocBudgets(t *testing.T) {
 			md.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 			_ = md.View()
 		}},
-		{"streaming turn", 420, func() {
+		{"streaming turn", 265, func() {
 			session.Update(eventMsg{Kind: "screen", ID: "s1"})
 			_ = session.View()
 			session.Update(screenMsg{"s1", session.term.scr, nil})
 			_ = session.View()
 		}},
-		{"typing in the palette", 2840, func() {
+		{"typing in the palette", 2020, func() {
 			pal.Update(keyMsg("g"))
 			_ = pal.View()
 			pal.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})

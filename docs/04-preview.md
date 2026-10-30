@@ -51,7 +51,12 @@ second over one of a minified bundle's. A row draws a window on its line
 (`renderRow`): unwrapped, the runes from the left edge to the right
 (`runesIn`, `cutRow`, `headCells` stopping at the cut), so a frame costs
 the rows' width, not their lines'; the whitespace marks, word and find
-highlights work in the window's cells (`BenchmarkViewLongLine`).
+highlights work in the window's cells (`BenchmarkViewLongLine`). A row is
+drawn only from what `rowIn` reads for it (`rowIn.draw` touches nothing
+else): a row whose `rowIn` the last frame had takes the row drawn there,
+found by line in `rowsWas`; `lookGen` counts looks, so a theme draws anew.
+`TestFrameMemos` checks random edits, selections, folds, finds, problems
+and mouse against frames drawn with nothing kept.
 
 Code colors follow the terminal's background (`syntaxStyle`): github-dark
 on a dark one, Simple Light's (`simpleLightCode`) on a light one: variables
