@@ -1257,11 +1257,11 @@ const tabPlusW = 3
 
 // tabPlus is the strip's +, right after its last tab.
 func tabPlus(tabs []edTab) []rowAction {
-	return []rowAction{{g: icAdd, tip: "Open in a New Tab…", x: edTabsEnd(tabs), w: tabPlusW, run: (*Model).newTabMenu}}
+	return []rowAction{{g: icAdd, tip: "Open in a New Tab…  M-n", x: edTabsEnd(tabs), w: tabPlusW, run: (*Model).newTabMenu}}
 }
 
-// newTabMenu is the + beside the tabs, under it: a file by quick open, a
-// session of the space in view, or a new session in it.
+// newTabMenu is the + beside the tabs, under it for a click and for a key: a
+// file by quick open, a session of the space in view, or a new session in it.
 func (m *Model) newTabMenu() tea.Cmd {
 	items := []item{{label: "Open File…", hint: "^p", run: func(m *Model) tea.Cmd { return m.loadIndex(true) }}}
 	if len(m.spaceSessions()) > 0 {

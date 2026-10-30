@@ -563,6 +563,13 @@ func TestTabPlus(t *testing.T) {
 		t.Fatalf("Open File asks %+v", m.modal)
 	}
 
+	m.modal = nil
+	press(m, "alt+n")
+
+	if m.modal == nil || m.modal.x != m.mainX()+tabPlus(m.editorTabs(m.mainW()))[0].x {
+		t.Fatalf("alt+n opens no menu under the +: %+v", m.modal)
+	}
+
 	m.sessions, m.sess = m.sessions[1:], "" // none left in this space
 
 	clickPlus()

@@ -43,6 +43,7 @@ T: also in a terminal; the rest are the shell's there.
 | `ctrl+0` T, `ctrl+1`…`ctrl+9` T                        | focus sidebar, editor group N                           |
 | `ctrl+\`                                               | split: the active tab into a new group on the right     |
 | `alt+t` T                                              | go to a session or worktree (`@idle`, `!claude` narrow) |
+| `alt+n` T                                              | new tab: a file, a session of the space, a new session  |
 | `ctrl+pgup` `ctrl+pgdn` T, `ctrl+shift+tab` `ctrl+tab` | previous, next editor                                   |
 | `alt+1`…`alt+9` T                                      | editor N                                                |
 | `ctrl+shift+pgup` `ctrl+shift+pgdn` T                  | move the tab: editor, session tab, shell                |

@@ -120,7 +120,7 @@ checkout.
   tabs (`ctrl+shift+pgup`/`pgdn` too). Its ✕ hides it; it keeps running. A
   session on screen keeps its tab when you switch to another or open a file,
   also one a worktree switch or a restart brought back.
-- The `+` after a group's last tab opens a file (as `ctrl+p`), one of the
+- The `+` after a group's last tab, or `alt+n`, opens a file (as `ctrl+p`), one of the
   space's sessions, or a new session.
 - A session re-roots Explorer and Source Control to its worktree; Explorer
   selects the file its editor shows and comes to the front of its column
