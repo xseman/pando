@@ -82,6 +82,19 @@ func (p *pane) halves(b box) (box, box) {
 	return box{b.x, b.y, b.w, h}, box{b.x, b.y + h + 1, b.w, b.h - h - 1}
 }
 
+// lowest counts the groups along p's bottom edge.
+func (p *pane) lowest() int {
+	if p.g != nil {
+		return 1
+	}
+
+	if !p.row {
+		return p.b.lowest()
+	}
+
+	return p.a.lowest() + p.b.lowest()
+}
+
 // even shares the room under p evenly, VS Code's distribute: the groups in a
 // row as wide as each other, those in a column as tall.
 func (p *pane) even() {
@@ -635,11 +648,13 @@ func (m *Model) dragSplit(d *drag, x, y int, release bool) tea.Cmd {
 // at the edge it is near, a quarter of the group's width or height; dst is
 // nil where it would not move: into the active group holding it, and beside
 // it when it is the only tab there, which no split would leave anything
-// behind. A session held from Spaces may be in no group yet.
+// behind. A session held from Spaces may be in no group yet. With two groups
+// or more along the area's bottom edge, the last rows of its middle third,
+// dividers too, are a new group under them all, dst the whole grid.
 func (m *Model) gridDrop(x, y int, id string) (dst *pane, side int, t dropTarget) {
 	dst = m.cur
 	if m.tiled() {
-		dst = m.paneAt(x, y)
+		dst = cmp.Or(m.paneAt(x, y), m.paneAt(x-1, y)) // on a divider, the group left of it
 	}
 
 	if dst == nil {
@@ -647,11 +662,18 @@ func (m *Model) gridDrop(x, y int, id string) (dst *pane, side int, t dropTarget
 	}
 
 	b := m.boxOf(dst)
+	qw, qh := max(b.w/4, 1), max(b.h/4, 1)
+
+	a := m.area()
+	if m.tiled() && m.grid.lowest() > 1 && x >= a.x+a.w/3 && x < a.x+a.w-a.w/3 && b.y+b.h == a.y+a.h && y >= a.y+a.h-max(qh/2, 1) {
+		h := a.h / (len(m.grid.units(false)) + 1)
+
+		return m.grid, sideDown, dropTarget{rc: rect{a.x, a.w}, y: a.y + a.h - h, h: h, fill: true, col: -1, label: "New Row"}
+	}
+
 	if x < b.x || x >= b.x+b.w || y < b.y || y >= b.y+b.h {
 		return nil, 0, t
 	}
-
-	qw, qh := max(b.w/4, 1), max(b.h/4, 1)
 
 	switch {
 	case y == b.y: // its strip

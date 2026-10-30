@@ -271,6 +271,65 @@ func TestDragTabToGroup(t *testing.T) {
 	checkWidths(t, m)
 }
 
+// TestDragTabUnderAllGroups: with two groups side by side or more, a tab held
+// at the very bottom of the area's middle, on the divider too, goes into a row
+// under them all; a little higher it splits the group under it, and one group
+// offers no row.
+func TestDragTabUnderAllGroups(t *testing.T) {
+	m := groupsModel(t)
+	fire(m, m.openFile(filepath.Join(m.ws, "src", "deep", "x.go"), false))
+
+	a := m.area()
+	x, y := a.x+a.w/2, a.y+a.h-1
+
+	if _, _, drop := m.gridDrop(x, y, "held"); drop.label == "New Row" {
+		t.Fatalf("one group offers no row: %+v", drop)
+	}
+
+	press(m, `ctrl+\`) // x.go on the right
+
+	for dx := -1; dx <= 1; dx++ {
+		if dst, _, drop := m.gridDrop(x+dx, y, "held"); dst != m.grid || drop.label != "New Row" {
+			t.Fatalf("two groups offer a row at %d from the middle: %+v", dx, drop)
+		}
+	}
+
+	fire(m, m.focusGroupN(0))
+	press(m, `ctrl+\`) // .env between README.md and x.go
+
+	mid := m.grid.leaves()[1].boxIn(a)
+	if _, side, drop := m.gridDrop(x, mid.y+mid.h-mid.h/4, "held"); side != sideDown || drop.label != "Split Down" {
+		t.Fatalf("above the last rows it splits the group under it: %d, %+v", side, drop)
+	}
+
+	if _, _, drop := m.gridDrop(a.x+1, y, "held"); drop.label == "New Row" {
+		t.Fatalf("off the middle it stays with the group under it: %+v", drop)
+	}
+
+	// README.md, its group's only tab: the group goes, the row stays.
+	fire(m, m.focusGroupN(0))
+
+	tab := m.editorTabs(m.mainW())[0]
+	m.Update(tea.MouseClickMsg{X: m.mainX() + tab.x + 1, Y: m.mainY(), Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: x, Y: y, Button: tea.MouseLeft})
+
+	if out := checkWidths(t, m); !strings.Contains(out, "New Row") || m.drag.drop.rc != (rect{a.x, a.w}) {
+		t.Fatalf("the bottom's middle offers a row under them all:\n%s", out)
+	}
+
+	m.Update(tea.MouseReleaseMsg{X: x, Y: y, Button: tea.MouseLeft})
+
+	if ps := m.grid.leaves(); len(ps) != 3 || m.grid.row || !m.grid.a.row || m.cur != m.grid.b || filepath.Base(m.pv.path) != "README.md" {
+		t.Fatalf("a row under the others, with the keyboard: %d groups, row %v, %q", len(ps), m.grid.row, m.pv.path)
+	}
+
+	if b := m.boxOf(m.cur); b.x != a.x || b.w != a.w || b.y+b.h != a.y+a.h {
+		t.Fatalf("it takes the whole width: %+v of %+v", b, a)
+	}
+
+	checkWidths(t, m)
+}
+
 // TestMotionFrames drags a tab faster than motionGap: a motion that soon
 // after the last frame gets that frame again, the one redraw it asks for
 // draws the drag where the pointer stopped, and a release draws at once.
