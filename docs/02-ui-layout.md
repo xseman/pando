@@ -156,9 +156,11 @@ take a message (`previewMsg`, `onScreen`, drafts).
 - `ctrl+1`…`ctrl+9` focus group N, `ctrl+]` walks the groups, a click focuses
   the one under it; the wheel scrolls a group without moving the focus. A
   group without the keyboard draws its active tab and cursor unlit
-  (`offMain`). In a split the focused group is framed heavy in `sash_hover`: the
-  rule under its strip, the dividers beside it and the edge of a column
-  beside it (`frames`, `paneLines`, `editorRule`, `View`). A group showing a
+  (`offMain`). In a split the focused group's content is framed heavy in
+  `sash_hover`, its strip above the frame: the rule under the strip on top, the
+  divider, the panel's border or the status rule below, the dividers and
+  column edges beside it, with corners (`frames`, `paneLines`, `editorRule`,
+  `termPanelLines`, `statusRule`, `baseFrame`). A group showing a
   session that waits or failed is framed in `error` instead, one that
   finished unseen in `attention` (`alert`), pulsing until the group is
   focused; `session_highlight` `steady` keeps it still, `off` drops it. The

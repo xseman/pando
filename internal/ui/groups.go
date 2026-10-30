@@ -762,12 +762,34 @@ func (m *Model) asDrawn(p *pane, f func()) {
 	m.focus = focus
 }
 
-// groupFrame is a group's frame while the grid is tiled: where the group is
-// and its style.
+// groupFrame is a group's frame while the grid is tiled: where the group is,
+// its style and the row of its top edge, the rule under the group's strip.
 type groupFrame struct {
 	b     box
 	st    lipgloss.Style
 	alert bool
+	top   int
+}
+
+// glyph is the frame's cell at (x, y): a corner, a side, else an edge.
+func (f groupFrame) glyph(x, y int) string {
+	l, r := x == f.b.x-1, x == f.b.x+f.b.w
+	t, b := y == f.top, y == f.b.y+f.b.h
+
+	switch {
+	case l && t:
+		return "┏"
+	case r && t:
+		return "┓"
+	case l && b:
+		return "┗"
+	case r && b:
+		return "┛"
+	case l || r:
+		return "┃"
+	}
+
+	return "━"
 }
 
 // alert is the color of the frame the session shown in the group in Model
@@ -817,7 +839,8 @@ func (m *Model) frames() (fs []groupFrame) {
 	for _, p := range m.grid.leaves() {
 		m.asDrawn(p, func() {
 			if st, alert, ok := m.ownFrame(); ok {
-				fs = append(fs, groupFrame{p.boxIn(a), st, alert})
+				b := p.boxIn(a)
+				fs = append(fs, groupFrame{b, st, alert, b.y + m.stripH() - 1})
 			}
 		})
 	}
@@ -825,15 +848,15 @@ func (m *Model) frames() (fs []groupFrame) {
 	return fs
 }
 
-// frameAt is the frame drawn at cell (x, y) of the editor area, beside a
-// group: an alert's over the focused group's; -1 for none.
+// frameAt is the frame drawn at cell (x, y) of the editor area, around a
+// group's content: an alert's over the focused group's; -1 for none.
 func frameAt(fs []groupFrame, x, y int) int {
 	at := -1
 
 	for i, f := range fs {
 		b := f.b
-		side := (x == b.x-1 || x == b.x+b.w) && y >= b.y && y < b.y+b.h
-		edge := (y == b.y-1 || y == b.y+b.h) && x >= b.x && x < b.x+b.w
+		side := (x == b.x-1 || x == b.x+b.w) && y >= f.top && y <= b.y+b.h
+		edge := (y == f.top || y == b.y+b.h) && x >= b.x && x < b.x+b.w
 
 		if (side || edge) && (at < 0 || f.alert) {
 			at = i
@@ -843,20 +866,34 @@ func frameAt(fs []groupFrame, x, y int) int {
 	return at
 }
 
-// frameRun is n cells of glyph from cell (x0, y) in st, or heavy in the frame
-// of the group beside each.
+// frameRun is n cells of glyph from cell (x0, y) in st, or the frame's own in
+// its style where a group's frame passes.
 func frameRun(fs []groupFrame, x0, y, n int, glyph string, st lipgloss.Style) string {
+	cell := func(x int) (int, string) {
+		if at := frameAt(fs, x, y); at >= 0 {
+			return at, fs[at].glyph(x, y)
+		}
+
+		return -1, glyph
+	}
+
 	var sb strings.Builder
 
 	for x := x0; x < x0+n; {
-		at, e := frameAt(fs, x, y), x+1
-		for e < x0+n && frameAt(fs, e, y) == at {
+		at, g := cell(x)
+
+		e := x + 1
+		for e < x0+n {
+			if a, c := cell(e); a != at || c != g {
+				break
+			}
+
 			e++
 		}
 
-		g, s := glyph, st
+		s := st
 		if at >= 0 {
-			g, s = ifElse(glyph == "│", "┃", "━"), fs[at].st
+			s = fs[at].st
 		}
 
 		sb.WriteString(renderText(s, strings.Repeat(g, e-x)))

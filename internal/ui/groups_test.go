@@ -149,9 +149,10 @@ func TestEvenPair(t *testing.T) {
 	checkWidths(t, m)
 }
 
-// TestGroupFrame: the active group's rule under its strip and the dividers
-// beside it, a column's edge too, are drawn in a shade of the accent; a click
-// moves the frame, and a group drawn alone has none.
+// TestGroupFrame: the active group's content is framed in a shade of the
+// accent, from the rule under its strip to the row under the group, by the
+// dividers and a column's edge beside it; a click moves the frame, and a group
+// drawn alone has none.
 func TestGroupFrame(t *testing.T) {
 	m := groupsModel(t)
 	press(m, `ctrl+\`) // .env on the right, with the keyboard
@@ -177,6 +178,41 @@ func TestGroupFrame(t *testing.T) {
 	if rule, div := ansi.Cut(frame[r.y+1], r.x+1, r.x+2), ansi.Cut(frame[r.y+5], r.x-1, r.x); rule != "━" || div != "┃" {
 		t.Fatalf("the frame is heavy: rule %q, divider %q", rule, div)
 	}
+
+	bottom := r.y + r.h
+
+	corners := []string{ansi.Cut(frame[r.y+1], r.x-1, r.x), ansi.Cut(frame[bottom], r.x-1, r.x), ansi.Cut(frame[bottom], r.x+1, r.x+2)}
+	if strip := ansi.Cut(frame[r.y], r.x-1, r.x); strings.Join(corners, "") != "┏┗━" || strip != "│" {
+		t.Fatalf("the frame closes around the content, under the strip: %q, beside the strip %q", corners, strip)
+	}
+
+	checkWidths(t, m)
+
+	press(m, "ctrl+`") // the same bottom on the panel's border
+	checkWidths(t, m)
+
+	if m.termRows() == 0 {
+		t.Fatal("no panel opened")
+	}
+
+	frame = strings.Split(ansi.Strip(m.View().Content), "\n")
+	if bottom = m.areaH(); ansi.Cut(frame[bottom], r.x-1, r.x) != "┗" || ansi.Cut(frame[bottom], r.x+1, r.x+2) != "━" {
+		t.Fatalf("the panel's border closes the frame: %q", frame[bottom])
+	}
+
+	press(m, "ctrl+`")
+
+	m.st.Settings.Borders = true
+	m.resize()
+
+	if v := ansi.Strip(m.View().Content); !strings.Contains(v, "┗━") {
+		t.Fatalf("the screen's frame closes the group's:\n%s", v)
+	}
+
+	checkWidths(t, m)
+
+	m.st.Settings.Borders = false
+	m.resize()
 
 	click(m, l.x+5, l.y+5, tea.MouseLeft)
 

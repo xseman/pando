@@ -4054,7 +4054,7 @@ func (m *Model) termShowing() bool {
 // the panel's sash: in the bottom panel the rule lights heavy while the
 // mouse rests on the panel's edge or drags it.
 func (m *Model) termPanelLines(w, h int) []string {
-	top := ruleRow(w, nil)
+	top := frameRun(m.frames(), m.area().x, m.areaH(), w, "─", fg(pal.rulerBorder)) // the bottom of a group's frame
 	if st, ok := m.sashStyle(termSash); ok {
 		top = ruleRow(w, nil, st)
 	}

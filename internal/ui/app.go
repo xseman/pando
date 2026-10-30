@@ -4599,12 +4599,12 @@ func (m *Model) baseFrame(cs []rect, c rect, b int) (lines []string, top, bot st
 	// frameEdge is main's edge at column x on row i in the frame of the group
 	// beside it, "" for none.
 	frameEdge := func(x, i int, has bool) string {
-		if !has || i >= m.areaH() {
+		if !has {
 			return ""
 		}
 
 		if at := frameAt(fs, x, i); at >= 0 {
-			return renderText(fs[at].st, "┃")
+			return renderText(fs[at].st, fs[at].glyph(x, i))
 		}
 
 		return ""
@@ -4646,7 +4646,7 @@ func (m *Model) baseFrame(cs []rect, c rect, b int) (lines []string, top, bot st
 	}
 
 	if m.ruled() == 1 {
-		lines[len(lines)-2] = m.statusRule(cs)
+		lines[len(lines)-2] = m.statusRule(cs, fs)
 	}
 
 	lines[len(lines)-1] = status
@@ -4666,7 +4666,9 @@ func (m *Model) baseFrame(cs []rect, c rect, b int) (lines []string, top, bot st
 		// The title keeps the text's shade, the lines go soft.
 		tb.WriteString(renderText(edge(p), "┌─") + renderText(ifElse(m.focus == p.focus, edge(p).Bold(true), dim), t) +
 			renderText(edge(p), strings.Repeat("─", max(p.rc.w-1-ansi.StringWidth(t), 0))+"┐"))
-		bb.WriteString(renderText(edge(p), "└"+strings.Repeat("─", p.rc.w)+"┘"))
+		bb.WriteString(frameRun(fs, p.rc.x-1, m.panelH(), 1, "└", edge(p)) +
+			frameRun(fs, p.rc.x, m.panelH(), p.rc.w, "─", edge(p)) +
+			frameRun(fs, p.rc.x+p.rc.w, m.panelH(), 1, "┘", edge(p)))
 	}
 
 	return lines, tb.String(), bb.String()
@@ -4868,7 +4870,7 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 // thin underline in panel_border, right on top of the bar, on the activity
 // bar's tint under a side strip, its inner border too, so the strip runs
 // down to it.
-func (m *Model) statusRule(cs []rect) string {
+func (m *Model) statusRule(cs []rect, fs []groupFrame) string {
 	tint := make([]bool, m.w)
 	edge := map[int]string{}
 
@@ -4890,9 +4892,22 @@ func (m *Model) statusRule(cs []rect) string {
 
 	var b strings.Builder
 
+	y := m.panelH()
 	for x := 0; x < m.w; {
+		if frameAt(fs, x, y) >= 0 { // the bottom of a group's frame
+			j := x + 1
+			for j < m.w && frameAt(fs, j, y) >= 0 {
+				j++
+			}
+
+			b.WriteString(frameRun(fs, x, y, j-x, "━", fg(pal.panelBorder)))
+			x = j
+
+			continue
+		}
+
 		j, text := x+1, edge[x]
-		for text == "" && j < m.w && tint[j] == tint[x] && edge[j] == "" {
+		for text == "" && j < m.w && tint[j] == tint[x] && edge[j] == "" && frameAt(fs, j, y) < 0 {
 			j++
 		}
 
