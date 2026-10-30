@@ -2803,7 +2803,7 @@ func markBlanks(styled string, line []rune, marks []string, st lipgloss.Style) s
 	}
 
 	for j, r := range line {
-		if marks[j] == "" {
+		if j >= len(marks) || marks[j] == "" { // past the marks: a folded header's ⋯ after the text
 			flush()
 		} else {
 			if runFrom < 0 {

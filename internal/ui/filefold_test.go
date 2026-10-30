@@ -193,3 +193,19 @@ func TestVimFolds(t *testing.T) {
 		t.Fatalf("zR: %v", m.pv.fold.shut)
 	}
 }
+
+// TestFoldSelectedBlanks: a folded header's ⋯ follows its whitespace marks,
+// selected too, rather than read past them.
+func TestFoldSelectedBlanks(t *testing.T) {
+	m, _ := editorModel(t, "a.go", "package a\n\nfunc A() {\n\tif x {\n\t\ty()\n\t}\n}\n\nvar b = 1\n")
+	m.st.Settings.Blanks = "all"
+	m.pv.cur = pos{2, 0}
+	press(m, "ctrl+shift+[")
+
+	m.pv.cur = pos{0, 0}
+	press(m, "shift+down", "shift+down", "shift+down")
+
+	if out := checkWidths(t, m); !strings.Contains(out, "func·A()·{ ⋯") {
+		t.Fatalf("the selected header, its marks and its ⋯:\n%s", out)
+	}
+}
