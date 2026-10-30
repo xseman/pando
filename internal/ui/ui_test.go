@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/xseman/pando/internal/git"
 	"github.com/xseman/pando/internal/proto"
@@ -210,6 +211,37 @@ func keyMsg(s string) tea.KeyPressMsg {
 func press(m *Model, keys ...string) {
 	for _, k := range keys {
 		m.Update(keyMsg(k))
+	}
+}
+
+// TestMouseReportSpilledByTmux feeds what tmux 3.7 with extended keys sends
+// for an esc a mouse motion lands right behind: it closes, the report types nothing.
+func TestMouseReportSpilledByTmux(t *testing.T) {
+	m := testModel(t)
+	col := m.colOf(viewFiles)
+	w := m.colRect(col).w
+
+	var d uv.EventDecoder
+
+	for b := []byte("\x1b[27;3u[<35;12;47M"); len(b) > 0; {
+		n, e := d.Decode(b)
+
+		k, ok := e.(uv.KeyPressEvent)
+		if !ok {
+			t.Fatalf("decoded %T, want a key", e)
+		}
+
+		m.Update(tea.KeyPressMsg(k))
+
+		b = b[n:]
+	}
+
+	if m.modal == nil || !strings.HasPrefix(m.modal.title, "Close pando?") {
+		t.Fatalf("esc must ask to close, modal %+v", m.modal)
+	}
+
+	if v, _ := m.viewOn(col); v != viewFiles || m.sr.query.Value() != "" || m.colRect(col).w != w || m.spill != "" {
+		t.Fatalf("report acted as keys: view=%d query=%q width %d, was %d, spill=%q", v, m.sr.query.Value(), m.colRect(col).w, w, m.spill)
 	}
 }
 

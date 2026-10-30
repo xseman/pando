@@ -22,7 +22,9 @@ Without the kitty keyboard protocol ``ctrl+` `` and `ctrl+space` are one byte:
 an editable file takes it as suggestions (the panel is on `ctrl+j` there), a
 terminal as the panel (its `ctrl+j` is the app's line feed). Inside tmux the
 protocol needs `set -s extended-keys on` and
-`set -as terminal-features ",*:extkeys"`.
+`set -as terminal-features ",*:extkeys"`. With those, an esc that a mouse report
+lands behind within `escape-time` reaches pando as `alt+esc` and the report as
+typed text: `unspill` makes it an esc again and drops the text.
 
 ## Everywhere
 

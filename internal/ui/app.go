@@ -199,6 +199,8 @@ type Model struct {
 	// arrive as NUL, so an editor's suggestions swallow the one that would
 	// have opened the terminal panel. saidCtrlJ keeps the hint to once.
 	ambiguous bool
+	// spill is what a mouse report tmux typed out may go on with, see unspill.
+	spill     string
 	saidCtrlJ bool
 	graphemes bool      // the terminal answered mode 2027: Bubble Tea measures the frame as it is laid out (wcSafe)
 	tv        termPanel // the Terminal panel's shell
@@ -2722,7 +2724,13 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		m.tipOff = time.Now()
-		return m, m.key(msg)
+
+		k, ok := m.unspill(msg)
+		if !ok {
+			return m, nil
+		}
+
+		return m, m.key(k)
 
 	case tea.PasteMsg:
 		return m, m.paste(msg)
@@ -2929,6 +2937,33 @@ func (m *Model) onEvent(ev proto.Event) tea.Cmd {
 }
 
 type focusSessionMsg string
+
+// unspill undoes what tmux with extended keys makes of an esc a mouse report
+// lands behind within escape-time: ⌥esc, then the report as typed text, each
+// character running its key. It gives back the esc and says false for the text.
+func (m *Model) unspill(k tea.KeyPressMsg) (tea.KeyPressMsg, bool) {
+	s := k.String()
+	if s == "alt+esc" {
+		m.spill = "["
+		return tea.KeyPressMsg{Code: tea.KeyEscape}, true
+	}
+
+	if len(s) != 1 || !strings.Contains(m.spill, s) {
+		m.spill = ""
+		return k, true
+	}
+
+	switch s {
+	case "[":
+		m.spill = "<"
+	case "<":
+		m.spill = "0123456789;Mm"
+	case "M", "m":
+		m.spill = ""
+	}
+
+	return k, false
+}
 
 func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 	if m.modal != nil {
