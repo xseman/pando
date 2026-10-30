@@ -1332,7 +1332,7 @@ func (m *Model) editorRule(w int) string {
 	}
 
 	if st, _, ok := m.ownFrame(); ok { // the top of the group's frame
-		return markedRule(w, marks, "─", st)
+		return markedRule(w, marks, "━", st)
 	}
 
 	return ruleRow(w, marks)

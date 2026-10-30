@@ -843,8 +843,8 @@ func frameAt(fs []groupFrame, x, y int) int {
 	return at
 }
 
-// frameRun is n cells of glyph from cell (x0, y), in st or in the frame of
-// the group beside each.
+// frameRun is n cells of glyph from cell (x0, y) in st, or heavy in the frame
+// of the group beside each.
 func frameRun(fs []groupFrame, x0, y, n int, glyph string, st lipgloss.Style) string {
 	var sb strings.Builder
 
@@ -854,12 +854,12 @@ func frameRun(fs []groupFrame, x0, y, n int, glyph string, st lipgloss.Style) st
 			e++
 		}
 
-		s := st
+		g, s := glyph, st
 		if at >= 0 {
-			s = fs[at].st
+			g, s = ifElse(glyph == "│", "┃", "━"), fs[at].st
 		}
 
-		sb.WriteString(renderText(s, strings.Repeat(glyph, e-x)))
+		sb.WriteString(renderText(s, strings.Repeat(g, e-x)))
 		x = e
 	}
 

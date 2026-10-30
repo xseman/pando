@@ -66,7 +66,7 @@ func ruleRow(w int, marks []ruleMark, lit ...lipgloss.Style) string {
 	return markedRule(w, marks, "─", fg(pal.rulerBorder))
 }
 
-// markedRule is ruleRow's line: glyph in st between the marks.
+// markedRule is ruleRow's line: glyph, in st between the marks.
 func markedRule(w int, marks []ruleMark, glyph string, st lipgloss.Style) string {
 	rule := func(n int) seg { return sg(strings.Repeat(glyph, max(n, 0)), st) }
 
@@ -80,7 +80,7 @@ func markedRule(w int, marks []ruleMark, glyph string, st lipgloss.Style) string
 			continue
 		}
 
-		segs = append(segs, rule(k.x-cx), sg(strings.Repeat("─", k.w), fg(c)))
+		segs = append(segs, rule(k.x-cx), sg(strings.Repeat(glyph, k.w), fg(c)))
 		cx = k.x + k.w
 	}
 

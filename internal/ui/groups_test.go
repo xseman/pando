@@ -173,6 +173,11 @@ func TestGroupFrame(t *testing.T) {
 		t.Fatalf("the right group framed from the divider: rule from %d, divider at %d, want %d", x, d, r.x-1)
 	}
 
+	frame := strings.Split(ansi.Strip(m.View().Content), "\n")
+	if rule, div := ansi.Cut(frame[r.y+1], r.x+1, r.x+2), ansi.Cut(frame[r.y+5], r.x-1, r.x); rule != "━" || div != "┃" {
+		t.Fatalf("the frame is heavy: rule %q, divider %q", rule, div)
+	}
+
 	click(m, l.x+5, l.y+5, tea.MouseLeft)
 
 	if x := framedFrom(l.y + 1); x != l.x-1 {

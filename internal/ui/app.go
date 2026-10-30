@@ -4569,7 +4569,7 @@ func (m *Model) baseFrame(cs []rect, c rect, b int) (lines []string, top, bot st
 		}
 
 		if at := frameAt(fs, x, i); at >= 0 {
-			return renderText(fs[at].st, "│")
+			return renderText(fs[at].st, "┃")
 		}
 
 		return ""
