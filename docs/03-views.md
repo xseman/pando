@@ -76,7 +76,9 @@ Show Hidden Files and Sort by Type / Name (`explorer_sort`) added.
      api.go src                  src ↶ − A   hover actions
  ▾ Changes                             [2]
  ▾ Untracked Changes                   [1]
- ────────────────────────────────── ⊟  ∨     on hover: close all drawers, fold them into Tools
+ ───────────────────────────────────────
+ ▾ TOOLS                              5      strip; on hover ⊟, close all drawers, for the count
+ ───────────────────────────────────────
  ▸ Graph ▸ Commits ▸ File History …          drawers, drag a header to resize
 ```
 
@@ -117,20 +119,20 @@ A Commit with nothing staged is muted too, and a click on it does nothing.
   `git_panes`.
 - Drawers stack like Spaces' projects (`flipDrawer`): open ones above closed
   ones, an opened drawer on top, a closed one on top of the closed, in
-  `git_drawers` order. _Collapse All Drawers_ (the rule's ⊟ or a header's
+  `git_drawers` order. _Collapse All Drawers_ (the strip's ⊟ or a header's
   menu; `collapseDrawers`) closes the open ones where they show; the view's
   Collapse All (`collapseAll`) closes them with the tree.
-- The rule over the drawers (`drawersRule`) ends in `ruleActions` while the
-  mouse is over the drawers, lingering as the header's do; folded, the
-  drawers are one `▸ Tools  N` row (`toolsRow`, `git_drawers_folded`), not
-  built nor loaded, each keeping whether it is open:
+- The drawers sit under a `▾ TOOLS  N` strip (`toolsRow`), as Spaces' NO
+  SESSIONS: `toolsActions` take the place of N while the mouse is over the
+  drawers, lingering as the header's do. Folded (`git_drawers_folded`), the
+  strip is all that shows, the drawers not built nor loaded, each keeping
+  whether it is open; a comparison opened unfolds them:
 
-| On the rule (`clickRule`, lit in `hover_bg`) | Does                                        |
-| -------------------------------------------- | ------------------------------------------- |
-| ⊟, while one is open                         | _Collapse All Drawers_ (`collapseDrawers`)  |
-| ∨ (_Fold into Tools_), a click off a button  | folds them, as the view menu's _Fold Tools_ |
-| folded, a click on the rule or Tools row     | unfolds them, as a comparison opened does   |
-| right click on the rule or the Tools row     | the drawers' menu (`drawerMenu`)            |
+| On the strip or the rule over it (`hover_bg`) | Does                                                   |
+| --------------------------------------------- | ------------------------------------------------------ |
+| ⊟ on the strip, while one is open             | _Collapse All Drawers_ (`collapseDrawers`)             |
+| a click off it                                | folds or unfolds them, as the view menu's _Fold Tools_ |
+| right click                                   | the drawers' menu (`drawerMenu`)                       |
 
 - A commit line (Graph, Commits, File History) shows its whole message in a
   box by the mouse after `tipDelay` (`tipBox`); its right-click menu has
