@@ -1408,7 +1408,7 @@ func (d *Daemon) moveSession(id, to string) error {
 
 	sid, tid := s.spec.ID, t.spec.ID
 	switch {
-	case s.spec.Parent != t.spec.Parent:
+	case s.spec.Parent != t.spec.Parent && (s.spec.Agent != "terminal" || t.spec.Agent != "terminal"): // a worktree's shells share one panel
 		d.mu.Unlock()
 		return errors.New("a tab moves among its session's tabs, a session among its worktree's")
 

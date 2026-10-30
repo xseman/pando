@@ -1319,6 +1319,18 @@ func TestMoveSession(t *testing.T) {
 		t.Fatalf("a tab moved before its sibling = %q", got)
 	}
 
+	// A worktree's shells share one panel, whatever session each is killed with.
+	call(t, "session.new", map[string]any{"workspace": ws, "agent": "terminal", "parent": "a", "name": "a-sh", "cmd": stay}, nil)
+	call(t, "session.new", map[string]any{"workspace": ws, "agent": "terminal", "parent": "b", "name": "b-sh", "cmd": stay}, nil)
+	call(t, "session.move", proto.SessionMoveParams{ID: "b-sh", To: "a-sh"}, nil)
+
+	if got := order(); got != "c a a-tab2 a-tab b far b-sh a-sh" {
+		t.Fatalf("shells of two sessions swapped = %q", got)
+	}
+
+	call(t, "session.kill", map[string]string{"id": "a-sh"}, nil)
+	call(t, "session.kill", map[string]string{"id": "b-sh"}, nil)
+
 	if err := proto.Call("session.move", proto.SessionMoveParams{ID: "far", To: "a"}, nil); err == nil {
 		t.Fatal("a session of another worktree is refused")
 	}
