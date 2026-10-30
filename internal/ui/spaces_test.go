@@ -99,11 +99,27 @@ func TestSpacesMergedCheckout(t *testing.T) {
 		t.Fatalf("a linked worktree gives the checkout its row back: %+v", rows[:2])
 	}
 
-	ws := m.ws
-	click(m, m.colRect(i).x+m.barW(i)+5, m.bodyTop(viewAgents), tea.MouseLeft)
+	head := m.colRect(i).x + m.barW(i) + 5
+	click(m, head, m.bodyTop(viewAgents), tea.MouseLeft)
 
-	if m.ag.collapsed[m.wss[0].Project] || m.ws != ws || m.ag.l.sel != 0 {
-		t.Fatalf("a click on its name selects it, folding and switching nothing: ws %q, sel %d", m.ws, m.ag.l.sel)
+	if m.ag.collapsed[m.wss[0].Project] || m.ws != m.wss[0].Path {
+		t.Fatalf("a click on its name switches to its first worktree, folding nothing: ws %q", m.ws)
+	}
+
+	feat := m.wss[len(m.wss)-1].Path
+	m.switchWorkspace(feat)
+	click(m, head, m.bodyTop(viewAgents), tea.MouseLeft)
+
+	if m.ws != feat || m.ag.l.sel != 0 {
+		t.Fatalf("a click on the project in view selects it, staying on its worktree: ws %q, sel %d", m.ws, m.ag.l.sel)
+	}
+
+	m.ag.fold(other, true)
+	o = slices.IndexFunc(m.ag.rows(m), func(r agRow) bool { return r.kind == agProject && r.project == other })
+	click(m, head, m.bodyTop(viewAgents)+o, tea.MouseLeft)
+
+	if m.ws != other || m.ag.collapsed[other] {
+		t.Fatalf("a click on a folded project's name switches to it, opening it: ws %q", m.ws)
 	}
 }
 

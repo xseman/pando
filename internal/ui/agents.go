@@ -1526,15 +1526,15 @@ func (a *agents) activate(m *Model, r *agRow) tea.Cmd {
 }
 
 // click is a click on row r at column x: a project heading folds on its
-// chevron only; elsewhere one holding its checkout switches to it, as ⏎
-// does, and another stays selected.
+// chevron only; elsewhere it switches to its first worktree, and the project
+// in view stays on the worktree it shows.
 func (a *agents) click(m *Model, r *agRow, x int) tea.Cmd {
 	if r == nil || r.kind != agProject || r.bare || x < ansi.StringWidth(" "+chevron(true)) {
 		return a.activate(m, r)
 	}
 
-	if r.merged() {
-		return a.activate(m, &agRow{kind: agWorkspace, project: r.project, ws: r.ws})
+	if wts := m.worktreesOf(r.project); len(wts) > 0 && m.projectOf(m.ws) != r.project {
+		return a.activate(m, &agRow{kind: agWorkspace, project: r.project, ws: *m.workspace(wts[0])})
 	}
 
 	return nil

@@ -185,10 +185,10 @@ re-roots Explorer and Source Control to its worktree.
   (`merged`): its row goes, `n` and `+` start in it, a click on its name or
   `⌂ main` or `⏎` switches to it. A linked worktree splits them again.
 - A project heading folds on a click on its chevron or `space` (`click`); a
-  click elsewhere on one with worktrees of its own only selects it. The
-  chevron under the pointer is raised as a button, as the pin is. Chevrons
-  are the codicon twisties (`icTwistyR`, `icTwistyD`) with Nerd Font icons,
-  `▸` `▾` without.
+  click elsewhere switches to its first worktree, opening it if folded. The
+  project in view only selects, staying on its worktree. The chevron under
+  the pointer is raised as a button, as the pin is. Chevrons are the codicon
+  twisties (`icTwistyR`, `icTwistyD`) with Nerd Font icons, `▸` `▾` without.
 - Projects with no session, listed or filtered, go under _No Sessions_
   (`bareHead`, `busyProjects`), last, in the project Sort's order: a row
   each, their fold kept for later but not shown (`shut`). A click or `⏎`
