@@ -2613,7 +2613,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case consoleMsg:
-		return m, tea.Batch(m.showTerminal(), m.spawn(m.ws, termAgent, m.sess, msg.argv, "", nil))
+		return m, tea.Batch(m.showTerminal(), m.spawn(m.ws, termAgent, msg.argv, "", nil))
 
 	case ghDoneMsg:
 		return m, m.gh.onDone(m, msg)

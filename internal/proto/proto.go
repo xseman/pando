@@ -266,7 +266,7 @@ type SessionSpec struct {
 	// agent says which: a restart continues it once, not the latest one.
 	Conversation *Conversation `json:"conversation,omitempty"`
 	Name         string        `json:"name,omitempty"`   // the tab's own name, from a rename
-	Parent       string        `json:"parent,omitempty"` // the agent session whose Terminal panel this shell belongs to; killed with it
+	Parent       string        `json:"parent,omitempty"` // the session this shell is killed with
 	FG           string        `json:"fg,omitempty"`     // host terminal colors, #rrggbb
 	BG           string        `json:"bg,omitempty"`
 	Created      time.Time     `json:"created,omitzero"` // when session.new made it; zero for sessions older than the field

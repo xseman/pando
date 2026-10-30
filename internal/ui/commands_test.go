@@ -3686,12 +3686,15 @@ func TestTerminalPanelAttachesAtStart(t *testing.T) {
 	}
 }
 
-func TestTerminalTabsBelongToTheSession(t *testing.T) {
+func TestTerminalTabsBelongToTheWorktree(t *testing.T) {
 	m := testModel(t)
 	drainInputs(m)
 
+	root, wt := m.ws, t.TempDir()
+	m.wss = append(m.wss, proto.Workspace{Path: wt, Project: root, Branch: "feat"})
+
 	owned := func(id, parent string) proto.Session {
-		s := termSession(m.ws, id)
+		s := termSession(root, id)
 		s.Parent = parent
 
 		return s
@@ -3699,7 +3702,8 @@ func TestTerminalTabsBelongToTheSession(t *testing.T) {
 
 	m.sessions = append(m.sessions,
 		proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: m.ws, Agent: "shell"}, Status: "idle"},
-		owned("t0", ""), owned("t1", "s1"), owned("t2", "s2"))
+		proto.Session{SessionSpec: proto.SessionSpec{ID: "w1", Workspace: wt, Agent: "shell"}, Status: "idle"},
+		owned("t0", ""), owned("t1", "s1"), owned("t2", "s2"), termSession(wt, "w2"))
 	m.st.Settings.TermOpen = true
 
 	ids := func() []string {
@@ -3713,32 +3717,35 @@ func TestTerminalTabsBelongToTheSession(t *testing.T) {
 
 	m.Update(focusSessionMsg("s1"))
 
-	if got := ids(); !slices.Equal(got, []string{"t1"}) || m.tv.id != "t1" {
+	all := []string{"t0", "t1", "t2"}
+	if got := ids(); !slices.Equal(got, all) || m.tv.id != "t0" {
 		t.Fatalf("s1 in view: tabs %v, panel on %q", got, m.tv.id)
 	}
 
+	m.tv.id = "t2"
 	m.Update(focusSessionMsg("s2"))
 
-	if got := ids(); !slices.Equal(got, []string{"t2"}) || m.tv.id != "t2" {
-		t.Fatalf("s2 in view: tabs %v, panel on %q", got, m.tv.id)
-	}
-	// Another session's shell, opened by a script, does not take the panel.
-	m.Update(newSessionMsg(owned("t3", "s1")))
-
-	if m.tv.id != "t2" {
-		t.Fatalf("a shell of s1 took the panel while s2 is in view: %q", m.tv.id)
+	if got := ids(); !slices.Equal(got, all) || m.tv.id != "t2" {
+		t.Fatalf("s2 in view: tabs %v, the panel left its shell for %q", got, m.tv.id)
 	}
 
 	m.sess = ""
 	m.attachTerm()
 
-	if !slices.Equal(ids(), []string{"t0"}) || m.tv.id != "t0" {
-		t.Fatalf("no session in view: tabs %v, panel on %q", ids(), m.tv.id)
+	if got := ids(); !slices.Equal(got, all) || m.tv.id != "t2" {
+		t.Fatalf("no session in view: tabs %v, panel on %q", got, m.tv.id)
 	}
-	// A shell opened now belongs to the session in view.
-	m.sess = "s2"
-	if cmd := m.newTerm(); cmd == nil {
-		t.Fatal("newTerm returns the spawn")
+
+	m.Update(focusSessionMsg("w1"))
+
+	if got := ids(); !slices.Equal(got, []string{"w2"}) || m.tv.id != "w2" {
+		t.Fatalf("another worktree: tabs %v, panel on %q", got, m.tv.id)
+	}
+	// Another worktree's shell, opened by a script, does not take the panel.
+	m.Update(newSessionMsg(owned("t3", "s1")))
+
+	if m.tv.id != "w2" {
+		t.Fatalf("a shell of the checkout took the worktree's panel: %q", m.tv.id)
 	}
 }
 

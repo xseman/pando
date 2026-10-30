@@ -104,8 +104,8 @@ func (d *Daemon) canSleep(s *session) error {
 }
 
 // sleepy reports whether session s goes to sleep on its own at now: it, and
-// each shell of its Terminal panel, which goes with it, is unused. Those
-// shells never sleep on their own. d.mu is held.
+// each shell it is the parent of, which goes with it, is unused. Those shells
+// never sleep on their own. d.mu is held.
 func (d *Daemon) sleepy(s *session, now time.Time) bool {
 	after := time.Duration(d.state.Settings.Sleep) * sleepUnit
 	if after <= 0 || s.isAsleep() || d.moving[s.spec.ID] || s.info().Parent != "" || !d.unused(s, now, after) {
@@ -159,7 +159,7 @@ func (s *session) used() time.Time {
 
 // sleepSession puts session id to sleep: its process and any background job
 // it is attached to are stopped, its screen stays listed, and its spec says
-// how to bring it back. Its Terminal panel's shells go to sleep with it.
+// how to bring it back. The shells it is the parent of go to sleep with it.
 // auto is the ticker's: only a session sleepy still goes.
 func (d *Daemon) sleepSession(id string, auto bool) error {
 	s, err := d.session(id)
@@ -226,8 +226,8 @@ func (d *Daemon) sleepSession(id string, auto bool) error {
 
 // wakeSession brings asleep session id back, as a restart would: its shell
 // and its agent continuing the conversation it had open. It returns once the
-// agent is in front and at its prompt, or after wakeWait. Its Terminal
-// panel's shells wake with it. A session awake already is returned as it is.
+// agent is in front and at its prompt, or after wakeWait. The shells it is
+// the parent of wake with it. A session awake already is returned as it is.
 func (d *Daemon) wakeSession(id string) (proto.Session, error) {
 	s, err := d.session(id)
 	if err != nil {

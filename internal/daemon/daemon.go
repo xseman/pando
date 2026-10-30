@@ -733,7 +733,7 @@ func (d *Daemon) dispatch(method string, raw json.RawMessage) (any, error) {
 			return nil, err
 		}
 
-		// Its Terminal panel's shells go with it, and so do the jobs they
+		// The shells it is the parent of go with it, and so do the jobs they
 		// attached to, such as a `pando claude` typed in one.
 		specs := []proto.SessionSpec{s.info().SessionSpec}
 
@@ -1771,8 +1771,7 @@ func (d *Daemon) killSession(id string) error {
 	if present {
 		err = d.save()
 	}
-	// Its Terminal panel's shells go with it: a shell with no session to show
-	// it in has no way to be reached, and a restart would respawn it anyway.
+	// The shells it is the parent of go with it.
 	var children []string
 
 	for _, cid := range d.order {

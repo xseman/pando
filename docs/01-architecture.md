@@ -108,7 +108,7 @@ driving the API.
 - A shell session tries `shellCandidates` in order; one failing within 2 s
   yields to the next.
 - Sessions resolve by id, by name (unique among live sessions), or an
-  unambiguous prefix. A `parent` session's Terminal shells die with it.
+  unambiguous prefix. Shells given a `parent` die with that session.
 - `xtermKey` encodes modified special keys vt drops (`ctrl+←`).
 - A DECSCUSR the app sends is kept as sent, 0 included (vt reads it as 1),
   one for both screens as in xterm: `Screen.CursorStyle`.
@@ -252,7 +252,7 @@ session, put off until `session.wake` (`sleep.go`).
 ```text
  sleep: under d.mu  canSleep (remember first, as a tick) ─▶ asleep = true
         kill (SIGHUP, as Close) ─▶ stopJob ─▶ spec.Asleep, screen kept ─▶ save
-        then its Terminal panel's shells
+        then the shells it is the parent of
  wake:  respawn (the restart's path: resume, ResumeExec, shells)
         add replaces it under its id, in its place ─▶ save, then its shells
         waits up to 20 s for the agent in front, idle or blocked (no /proc: none)

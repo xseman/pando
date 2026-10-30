@@ -1707,7 +1707,7 @@ func (m *Model) resumeCmd(agent string) []string {
 // preset. It reports whether there was a choice.
 func (m *Model) profilePicker(ws, agent string, cmd []string) bool {
 	run := func(env []string) func(*Model) tea.Cmd {
-		return func(m *Model) tea.Cmd { return m.spawn(ws, agent, "", cmd, "", env) }
+		return func(m *Model) tea.Cmd { return m.spawn(ws, agent, cmd, "", env) }
 	}
 
 	items := []item{{label: "default", hint: cmp.Or(strings.Join(cmd, " "), strings.Join(m.st.Agents[agent], " ")), run: run(nil)}}
@@ -3203,24 +3203,19 @@ func (m *Model) mainSessions() []proto.Session {
 	return slices.DeleteFunc(slices.Clone(m.sessions), func(s proto.Session) bool { return s.Agent == termAgent })
 }
 
-// termSessions are the shells of the Terminal panel: the shown session's own,
-// or the workspace's when no session is shown.
+// termSessions are the shells of the Terminal panel: the workspace's, whichever
+// session is shown.
 func (m *Model) termSessions() []proto.Session {
 	return slices.DeleteFunc(slices.Clone(m.sessions), func(s proto.Session) bool { return !m.termOwned(s) })
 }
 
-// termOwned reports a shell belonging to the Terminal panel as it stands:
-// every session has shells of its own, and a shell opened with no session in
-// view stays with its workspace.
+// termOwned reports a shell belonging to the Terminal panel as it stands: the
+// sessions of a worktree share its shells.
 func (m *Model) termOwned(s proto.Session) bool {
-	if s.Agent != termAgent || s.Parent != m.sess {
-		return false
-	}
-
-	return m.sess != "" || s.Workspace == m.ws
+	return s.Agent == termAgent && s.Workspace == m.ws
 }
 
-// attachTerm points the panel at a shell of the session in view — the one it
+// attachTerm points the panel at a shell of the workspace in view — the one it
 // had when that still fits, else the first — and reports whether it found one.
 func (m *Model) attachTerm() bool {
 	if s := m.session(m.tv.id); s != nil && m.termOwned(*s) {
@@ -3805,7 +3800,7 @@ func (m *Model) onNewSession(s proto.Session) tea.Cmd {
 	}
 
 	if s.Agent == termAgent { // it belongs to a Terminal panel
-		if !m.termOwned(s) { // another session's, opened from a script
+		if !m.termOwned(s) { // another workspace's, opened from a script
 			return loadSessions()
 		}
 
@@ -4201,7 +4196,7 @@ func (m *Model) cycleTerm(d int) tea.Cmd {
 }
 
 func (m *Model) newTerm() tea.Cmd {
-	return m.spawn(m.ws, termAgent, m.sess, nil, "", nil) // the daemon picks the shell
+	return m.spawn(m.ws, termAgent, nil, "", nil) // the daemon picks the shell
 }
 
 // toggleTerminal is ⌃`: it opens the terminal where it is docked and focuses

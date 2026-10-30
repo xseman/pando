@@ -127,8 +127,8 @@ checkout.
   (`auto_reveal`), as for any file or change opened, or tab picked. A file
   opened from Search or Source Control sharing Explorer's column leaves that
   view in front.
-- Each session is one tab, with its own Terminal panel for shells; `alt+t`
-  picks a session. An agent started in a shell, claude typed at its prompt,
+- Each session is one tab; the sessions of a worktree share its Terminal
+  panel's shells, which outlive them. `alt+t` picks a session. An agent started in a shell, claude typed at its prompt,
   shows its state on the tab.
 - Drag over a terminal to select and copy; `ctrl+f` finds in its scrollback.
 - Ctrl+click a link in a terminal, as in VS Code's: a URL or an OSC 8
@@ -198,8 +198,8 @@ its background job and its `claude attach` together.
   at yet (`✓`), or running something pando would not bring back, it stays
   awake.
 - Asleep (`◌`), its screen stays, its process and a claude's background job
-  are stopped; its Terminal panel's shells sleep with it. A daemon restart
-  leaves it asleep.
+  are stopped. A daemon restart leaves it asleep. A Terminal panel's shell
+  sleeps on its own, idle at its prompt.
 - Opening it, or a key typed into it, wakes it: the conversation is resumed
   as after a restart. A shell wakes to a new shell; a server or an editor
   that ran in it does not come back.

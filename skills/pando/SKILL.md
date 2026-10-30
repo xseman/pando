@@ -252,8 +252,8 @@ the session in a workspace that already exists.
 
 - Do not kill, rename, move, put to sleep or send input to a session you did
   not create, and never to `$PANDO_SESSION`. Killing a session also kills the
-  shells of its Terminal panel (`--agent terminal --parent ID`), so a kill
-  takes more than one terminal, and stops a claude's background job: the
+  shells started with it as parent (`--agent terminal --parent ID`), so a kill
+  can take more than one terminal, and stops a claude's background job: the
   conversation is kept, the turn it was on is not.
 - The one input you send to a session you did not create is a message the
   user asked you to pass, after the checks in _Pass a message to another

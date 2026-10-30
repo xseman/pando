@@ -308,17 +308,19 @@ profile, whose config holds the conversations. The header's `↺`, after `+`,
 resumes in the selected row's worktree, a project asking which
 (`agents.resume`).
 
-A session is one tab: its strip has no `+`, its shells live in its Terminal
-panel.
+A session is one tab: its strip has no `+`, shells live in the worktree's
+Terminal panel.
 
 ## Terminal
 
 - ``ctrl+` `` or `5` toggles the panel ([keys](09-keys.md#terminals));
   `terminal_position` docks it in a sidebar.
-- It holds `terminal` agent sessions, hidden from Spaces. A shell's `parent`
-  is the session it was opened under (`termOwned`) and dies with it.
-- Switching sessions re-attaches the panel (`attachTerm`); an open panel with
-  no shell starts one (`ensureTerm`).
+- It holds the worktree's `terminal` agent sessions (`termOwned`), hidden from
+  Spaces, whichever session is shown. One a script gave a `parent` shows there
+  too and dies with that session; the panel's own have none.
+- Switching sessions keeps the shell in view, switching worktrees re-attaches
+  the panel (`attachTerm`); an open panel with no shell starts one
+  (`ensureTerm`).
 - `ctrl+f` is VS Code's terminal find (`termfind.go`): it searches
   `session.read` scrollback, scrolls a match to the middle, and searches
   again on every screen update.

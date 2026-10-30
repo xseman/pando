@@ -476,7 +476,7 @@ func session(rest []string) error {
 	agent := fs.String("agent", "", "agent preset (claude, codex, gemini, opencode, shell)")
 	ws := fs.String("ws", ".", "workspace directory")
 	name := fs.String("name", "", "name the session answers to")
-	parent := fs.String("parent", "", "the session whose Terminal panel a --agent terminal shell joins")
+	parent := fs.String("parent", "", "the session a --agent terminal shell is killed with")
 	enter := fs.Bool("enter", false, "press enter after the text")
 	wait := fs.Bool("wait", false, "block until the session settles; send implies --enter")
 	until := fs.String("until", "", "statuses to wait for, comma separated (default idle,blocked,asleep,exited)")
