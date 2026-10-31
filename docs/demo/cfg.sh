@@ -79,7 +79,7 @@ cfg() {
 	# Every panel on the left. A terminal's bash skips the recorder's
 	# .bashrc: its prompt is vhs's.
 	{
-		printf 'icons = "nerd"\npanel_borders = false\ncolor_theme = "vscode-%s"\nwidth = %s\nshell = "bash --norc"\n%s' "$mode" "$width" "$top"
+		printf 'icons = "nerd"\npanel_borders = true\ncolor_theme = "vscode-%s"\nwidth = %s\nshell = "bash --norc"\n%s' "$mode" "$width" "$top"
 		[ -n "$agents" ] && printf '[agents]\n%s' "$agents"
 		[ -n "$keys" ] && printf '[keys]\n%s' "$keys"
 	} > "$PANDO_CONFIG_DIR/config.toml"
