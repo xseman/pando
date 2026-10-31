@@ -277,6 +277,11 @@ type SessionSpec struct {
 	// held, the spec kept so session.wake brings its agent back, as a restart
 	// would. A restarted daemon leaves it asleep.
 	Asleep bool `json:"asleep,omitempty"`
+	// Title and Program are Session's, as they were when it went to sleep:
+	// nothing runs to say them again after a restart, and they name it.
+	// Session's own fields hide these on the wire.
+	Title   string `json:"title,omitempty"`
+	Program string `json:"program,omitempty"`
 }
 
 // Conversation is an agent's conversation by the agent's own id.

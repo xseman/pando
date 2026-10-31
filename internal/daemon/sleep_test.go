@@ -271,6 +271,87 @@ func TestSleepSurvivesRestart(t *testing.T) {
 	}
 }
 
+// TestSleepKeepsName: an asleep session keeps the title and program that name
+// it, from the moment it says asleep, though the program clears its title on
+// its way out, and over a restart.
+func TestSleepKeepsName(t *testing.T) {
+	needProc(t)
+
+	boot := start(t)
+	d := boot()
+
+	script := `trap 'printf "\033]0;\007"; sleep 0.5; exit' HUP; printf '\033]0;the task\007'; while :; do sleep 0.1; done`
+
+	var s proto.Session
+	call(t, "session.new", map[string]any{"workspace": t.TempDir(), "cmd": []string{"sh", "-c", script}}, &s)
+	waitFor(t, "the title", func() bool {
+		call(t, "session.get", map[string]any{"id": s.ID}, &s)
+		return s.Title == "the task"
+	})
+
+	slept := make(chan error, 1)
+
+	go func() { slept <- proto.Call("session.sleep", map[string]any{"id": s.ID}, nil) }()
+
+	for going := true; going; {
+		select {
+		case err := <-slept:
+			if err != nil {
+				t.Fatalf("session.sleep: %v", err)
+			}
+
+			going = false
+
+		default:
+		}
+
+		call(t, "session.get", map[string]any{"id": s.ID}, &s)
+
+		if s.Status == "asleep" && (s.Title != "the task" || s.Program != "sh") {
+			t.Fatalf("going to sleep: %+v", s)
+		}
+	}
+
+	if s.Status != "asleep" {
+		t.Fatalf("asleep: %+v", s)
+	}
+
+	d.Close()
+
+	d = boot()
+	defer d.Close()
+
+	call(t, "session.get", map[string]any{"id": s.ID}, &s)
+
+	if s.Status != "asleep" || s.Title != "the task" || s.Program != "sh" {
+		t.Fatalf("after a restart: %+v", s)
+	}
+}
+
+// TestDormantConversationTitle: a session that went to sleep before the spec
+// kept its title takes it from its conversation; one that kept none stays so.
+func TestDormantConversationTitle(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	mustWrite(t, filepath.Join(claudeDir(), "projects", "-ws", "conv-dormant.jsonl"),
+		`{"type":"ai-title","aiTitle":"the task","sessionId":"conv-dormant"}`+"\n")
+
+	s := dormant(proto.SessionSpec{
+		ID: "a", Agent: "shell", Cmd: []string{"sh"}, Asleep: true,
+		Conversation: &proto.Conversation{Agent: "claude", ID: "conv-dormant"},
+	}, 0, 0)
+
+	if i := s.info(); i.Title != "the task" || i.Program != "claude" {
+		t.Fatalf("dormant: %+v", i)
+	}
+
+	spec := s.info().SessionSpec
+	spec.Title = ""
+
+	if i := dormant(spec, 0, 0).info(); i.Title != "" || i.Program != "claude" {
+		t.Fatalf("dormant, no title kept: %+v", i)
+	}
+}
+
 // TestSleepGenericAgents: what comes back depends on what ran, the same way
 // for any agent. One with a [resume] is continued by it; a shell wakes to a
 // shell; whatever else ran in front, a server, is not brought back but the

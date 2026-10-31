@@ -526,10 +526,15 @@ func (s *session) setSubagents(pid int, prog string, now time.Time) bool {
 	return true
 }
 
-// shownTitle is the title clients show: a background job's name while the
-// foreground only attaches to it, the terminal's title otherwise. s.mu is held.
+// shownTitle is the title clients show: the one kept when it went to sleep,
+// whatever its program clears on its way out; a background job's name while
+// the foreground only attaches to it; the terminal's title otherwise. s.mu is
+// held.
 func (s *session) shownTitle() string {
-	if s.attached {
+	switch {
+	case s.asleep:
+		return s.spec.Title
+	case s.attached:
 		return s.jobName
 	}
 

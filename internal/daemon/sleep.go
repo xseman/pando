@@ -31,9 +31,14 @@ func dormant(spec proto.SessionSpec, cols, rows int) *session {
 		cols, rows = 120, 40
 	}
 
+	if c := spec.Conversation; c != nil && spec.Program == "" && conversations[c.Agent] != nil { // asleep since before the spec kept them
+		spec.Title, spec.Program = conversations[c.Agent].title(*c), c.Agent
+	}
+
 	s := &session{
 		spec: spec, done: make(chan struct{}), emu: vt.NewEmulator(cols, rows),
 		cursorVisible: true, mouse: map[int]bool{}, status: "asleep", exited: true, asleep: true, touched: spec.Active, active: spec.Active,
+		program: spec.Program,
 	}
 	s.keepBack()
 	close(s.done)
@@ -183,6 +188,7 @@ func (d *Daemon) sleepSession(id string, auto bool) error {
 	d.moving[id] = true
 
 	s.mu.Lock()
+	s.spec.Title, s.spec.Program = s.shownTitle(), s.program
 	s.asleep = true
 	s.mu.Unlock()
 	d.mu.Unlock()

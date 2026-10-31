@@ -250,13 +250,15 @@ A session put to sleep (`session.sleep`, `sleep_after`) is a restart of one
 session, put off until `session.wake` (`sleep.go`).
 
 ```text
- sleep: under d.mu  canSleep (remember first, as a tick) ─▶ asleep = true
+ sleep: under d.mu  canSleep (remember first, as a tick) ─▶ asleep = true,
+        spec keeps the title and program that name it
         kill (SIGHUP, as Close) ─▶ stopJob ─▶ spec.Asleep, screen kept ─▶ save
         then the shells it is the parent of
  wake:  respawn (the restart's path: resume, ResumeExec, shells)
         add replaces it under its id, in its place ─▶ save, then its shells
         waits up to 20 s for the agent in front, idle or blocked (no /proc: none)
- restart: spec.Asleep ─▶ dormant: a screen, no process, until woken
+ restart: spec.Asleep ─▶ dormant: a screen, no process, until woken; the
+        spec's title and program, else its conversation's title
 ```
 
 | A session in front runs…                             | By hand | On its own | Wakes to           |
