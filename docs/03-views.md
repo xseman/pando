@@ -77,7 +77,7 @@ Show Hidden Files and Sort by Type / Name (`explorer_sort`) added.
  ▾ Changes                             [2]
  ▾ Untracked Changes                   [1]
  ───────────────────────────────────────
- ▾ TOOLS                              5      strip; on hover ⊟, close all drawers, for the count
+ ▾ Tools                              5      strip; on hover ⊟, close all drawers, for the count
  ───────────────────────────────────────
  ▸ Graph ▸ Commits ▸ File History …          drawers, drag a header to resize
 ```
@@ -122,8 +122,8 @@ A Commit with nothing staged is muted too, and a click on it does nothing.
   `git_drawers` order. _Collapse All Drawers_ (the strip's ⊟ or a header's
   menu; `collapseDrawers`) closes the open ones where they show; the view's
   Collapse All (`collapseAll`) closes them with the tree.
-- The drawers sit under a `▾ TOOLS  N` strip (`toolsRow`), as Spaces' NO
-  SESSIONS: `toolsActions` take the place of N while the mouse is over the
+- The drawers sit under a `▾ Tools  N` strip (`toolsRow`), as Spaces' No
+  Sessions: `toolsActions` take the place of N while the mouse is over the
   drawers, lingering as the header's do. Folded (`git_drawers_folded`), the
   strip is all that shows, the drawers not built nor loaded, each keeping
   whether it is open; a comparison opened unfolds them:
@@ -160,7 +160,7 @@ Sessions belong to worktrees, worktrees to projects. Switching a session
 re-roots Explorer and Source Control to its worktree.
 
 ```text
-▾ ◐ PINNED            1   a pane over the tree (pinPane): its strip, folds, stays on top
+▾ ◐ Pinned            1   a pane over the tree (pinPane): its strip, folds, stays on top
    ⌂ main          repo   a pinned session's worktree, its project where the branch leaves room
  ⊙ └─ ◐ claude · fix   running   pinned sessions in the order pinned, copies: each stays in the tree too
 ━━━━━━━━━━━━━━━━━━━━━━━━━━  its border, heavy in tab_border
@@ -177,7 +177,7 @@ re-roots Explorer and Source Control to its worktree.
 
 ▸ ○ folded            2   folded projects sink to the bottom (pinFolded): no rule, no button, a session count
 ▸ ○ folded            1
-▾ · NO SESSIONS      21   a strip over the projects with no session (bareHead), folds as a heading, a rule over it folded too
+▾ No Sessions        21   a strip over the projects with no session (bareHead), folds as a heading, a rule over it folded too
 ──────────────────────────  its rule, under it
    · dotfiles  + ⎇       a row each (bare), dimmed, no fold: buttons as a heading holding its checkout
    · kolibrik

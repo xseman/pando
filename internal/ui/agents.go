@@ -1114,20 +1114,25 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			glyph, c := groupGlyph(ss)
 			count := func(n int) []seg { return []seg{sg(strconv.Itoa(n)+" ", dim)} }
 
-			label, right := r.when, []seg(nil)
+			var right []seg
 
 			switch {
 			case r.when == pinnedHead: // the pane's strip
-				label, right = strings.ToUpper(r.when), count(len(ss))
+				right = count(len(ss))
 			case r.when == bareHead: // a strip as Pinned's, not one more project
 				busy := m.busyProjects()
-				label, right = strings.ToUpper(r.when), count(len(slices.DeleteFunc(m.projects(), func(p string) bool { return busy[p] })))
+				right = count(len(slices.DeleteFunc(m.projects(), func(p string) bool { return busy[p] })))
 
 			case m.st.Settings.SpGroup == "state":
 				right = count(len(ss))
 			}
 
-			return row(rw, bg, []seg{sg(" "+chevron(open), dim), sg(m.spin(glyph, ss...), fg(c)), sg(label, base.Bold(true))}, right...)
+			left := []seg{sg(" "+chevron(open), dim)}
+			if r.when != bareHead {
+				left = append(left, sg(m.spin(glyph, ss...), fg(c)))
+			}
+
+			return row(rw, bg, append(left, sg(r.when, base.Bold(true))), right...)
 
 		case agProject:
 			open := !a.collapsed[r.project]

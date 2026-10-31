@@ -229,7 +229,7 @@ func TestSpacesNoSessions(t *testing.T) {
 	head := slices.IndexFunc(rows, func(r agRow) bool { return r.when == bareHead })
 	lines := m.ag.lines(m, 40, m.bodyH(viewAgents))
 
-	if l := strings.TrimRight(ansi.Strip(lines[head]), " "); !strings.HasPrefix(l, " ▾ · NO SESSIONS") || !strings.HasSuffix(l, " 2") {
+	if l := strings.TrimRight(ansi.Strip(lines[head]), " "); !strings.HasPrefix(l, " ▾ No Sessions") || !strings.HasSuffix(l, " 2") {
 		t.Fatalf("the strip counts its projects: %q", l)
 	}
 

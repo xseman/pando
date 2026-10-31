@@ -545,7 +545,7 @@ func (s *scmView) cmpCloseX(m *Model) int {
 }
 
 // toolsTitle names the strip over the drawers.
-const toolsTitle = "TOOLS"
+const toolsTitle = "Tools"
 
 // shownDrawers is m.drawers, none while they are folded into one row.
 func (s *scmView) shownDrawers(m *Model) []git.Drawer {
@@ -556,7 +556,7 @@ func (s *scmView) shownDrawers(m *Model) []git.Drawer {
 	return m.drawers()
 }
 
-// toolsRow is the strip over the drawers, as NO SESSIONS over Spaces'
+// toolsRow is the strip over the drawers, as No Sessions over Spaces'
 // projects: a click folds them into it or unfolds them. With the mouse over
 // them, as the header's actions linger, toolsActions take the place of its
 // count, the one under the mouse raised.

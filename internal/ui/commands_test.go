@@ -1661,7 +1661,7 @@ func TestCollapseDrawers(t *testing.T) {
 	checkWidths(t, m)
 }
 
-// TestFoldDrawers works the TOOLS strip over the drawers: with the mouse over
+// TestFoldDrawers works the Tools strip over the drawers: with the mouse over
 // them ⊟ takes the place of its count and closes them all; a click on it or
 // the rule over it folds them into it, each keeping whether it is open; a
 // click on either, or a comparison opened, unfolds them.
@@ -1681,7 +1681,7 @@ func TestFoldDrawers(t *testing.T) {
 	}
 	count := strconv.Itoa(len(m.drawers()))
 
-	if l := line(strip()); !strings.Contains(l, "▾ TOOLS") || !strings.Contains(l, count) || strings.Contains(l, icCollapse.s()) || !strings.Contains(line(strip()-1), "───") || !strings.Contains(line(strip()+1), "───") || !strings.Contains(line(strip()+2), "▾ Graph") {
+	if l := line(strip()); !strings.Contains(l, "▾ Tools") || !strings.Contains(l, count) || strings.Contains(l, icCollapse.s()) || !strings.Contains(line(strip()-1), "───") || !strings.Contains(line(strip()+1), "───") || !strings.Contains(line(strip()+2), "▾ Graph") {
 		t.Fatalf("away from the mouse the strip counts, between rules, over the drawers: %q", l)
 	}
 
@@ -1738,7 +1738,7 @@ func TestFoldDrawers(t *testing.T) {
 		t.Fatalf("folded=%v heads=%v panes=%+v", m.st.Settings.GitFold, m.scm.heads, m.st.Settings.GitPanes)
 	}
 
-	if l := line(strip()); !strings.Contains(l, "▸ TOOLS") || !strings.Contains(l, count) {
+	if l := line(strip()); !strings.Contains(l, "▸ Tools") || !strings.Contains(l, count) {
 		t.Fatalf("the folded strip: %q", l)
 	}
 
@@ -4447,7 +4447,7 @@ func TestSpacesPinnedPane(t *testing.T) {
 	border := func(l string) bool { return l != "" && strings.Trim(l, "━") == "" }
 
 	p := m.ag.pane(m.ag.rows(m), h) // the strip, the worktree and its three sessions, the border
-	if l := lines(); p.h != 4 || !strings.HasPrefix(l[0], " ▾ ○ PINNED ") || !strings.HasSuffix(l[0], " 3") || !strings.HasPrefix(l[1], "   ⌂ main") || !border(l[5]) || !strings.HasPrefix(l[6], " ▾ ○ "+filepath.Base(m.ws)) {
+	if l := lines(); p.h != 4 || !strings.HasPrefix(l[0], " ▾ ○ Pinned ") || !strings.HasSuffix(l[0], " 3") || !strings.HasPrefix(l[1], "   ⌂ main") || !border(l[5]) || !strings.HasPrefix(l[6], " ▾ ○ "+filepath.Base(m.ws)) {
 		t.Fatalf("the pane, %+v in %d lines: %q", p, h, l)
 	}
 	// Seven pinned outgrow a third of the view: the pane scrolls to the

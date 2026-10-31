@@ -225,7 +225,7 @@ a message box, and drawers for the graph, commits, file history, branches,
 worktrees, remotes, stashes and tags. A commit in a drawer shows its whole
 message when the mouse rests on it; right click copies it. The header's
 Collapse All button closes the drawers with the tree. The drawers sit under
-a TOOLS strip, as NO SESSIONS in Spaces: a click on it folds them into it, and
+a Tools strip, as No Sessions in Spaces: a click on it folds them into it, and
 another brings them back as they were. With the mouse over the drawers, ⊟ on
 the strip closes only the drawers.
 
