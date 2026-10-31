@@ -4877,9 +4877,9 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 	// count in the attention color while any is.
 	navigate := func(m *Model) tea.Cmd { return m.agentNavigator() }
 	if n := m.attentionCount(); n > 0 {
-		add(" "+icBellDot.s()+" "+m.fx.text("attention", strconv.Itoa(n))+" ", fg(pal.attention), "Go to Agent or Worktree…  M-t", navigate)
+		add(" "+icBellDot.s()+" "+m.fx.text("attention", strconv.Itoa(n))+" ", fg(pal.attention), "Go to Agent or Worktree…  alt+t", navigate)
 	} else {
-		add(" "+icBell.s()+" ", ink, "Go to Agent or Worktree…  M-t", navigate)
+		add(" "+icBell.s()+" ", ink, "Go to Agent or Worktree…  alt+t", navigate)
 	}
 
 	if used := segsWidth(left) + segsWidth(slices.Concat(items...)); blameAt >= 0 && used > w {
@@ -5243,13 +5243,13 @@ func welcome(w, h int, sess bool) []string {
 var hotkeys = map[view][][2]string{
 	viewFiles:  {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"n N", "new"}, {"R", "rename"}, {"D", "delete"}, {"s", "stage"}, {"e", "edit"}, {"^x ^c ^v", "cut/copy/paste"}, {".", "dotfiles"}, {"^f", "filter"}},
 	viewGit:    {{"↑↓", "move"}, {"⏎", "stage"}, {"o", "diff"}, {"t", "tree"}, {"c", "message"}, {"C", "commit"}, {"A", "suggest"}, {"S", "sync/publish"}, {"a u", "stage/unstage all"}, {"U", "stage untracked"}, {"O", "open file"}, {"B", "branch"}, {"d", "discard"}, {"^f", "filter"}},
-	viewSearch: {{"^f /", "query"}, {"^h", "replace"}, {"r R", "replace file/all"}, {"⏎", "open"}, {"↑↓", "move"}, {"←→", "fold"}, {"M-c", "case"}, {"M-w", "word"}, {"M-r", "regex"}, {"^r", "rerun"}, {"x", "clear"}, {"C", "collapse"}},
-	viewAgents: {{"↑↓", "move"}, {"M-↑↓", "reorder"}, {"⏎", "switch"}, {"n", "session"}, {"w", "worktree"}, {"a", "project"}, {"x", "kill"}, {"z", "sleep"}, {"o", "view options"}, {"^f", "filter"}},
+	viewSearch: {{"^f /", "query"}, {"^h", "replace"}, {"r R", "replace file/all"}, {"⏎", "open"}, {"↑↓", "move"}, {"←→", "fold"}, {"alt+c", "case"}, {"alt+w", "word"}, {"alt+r", "regex"}, {"^r", "rerun"}, {"x", "clear"}, {"C", "collapse"}},
+	viewAgents: {{"↑↓", "move"}, {"alt+↑↓", "reorder"}, {"⏎", "switch"}, {"n", "session"}, {"w", "worktree"}, {"a", "project"}, {"x", "kill"}, {"z", "sleep"}, {"o", "view options"}, {"^f", "filter"}},
 	viewGitHub: {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"d", "changes"}, {"o", "on github.com"}, {"y", "copy link"}, {"w", "worktree"}, {"x", "done"}, {"^r", "refresh"}, {"C", "collapse"}, {"^f", "filter"}},
 	viewDB:     {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"n", "new connection"}, {"e D", "edit/remove"}, {"c y", "copy name/path"}, {"r", "refresh"}, {"C", "collapse"}, {"^f", "filter"}},
 }
 
-var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4 6 7", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"M-t", "agents"}, {"M-a", "next alarm"}, {"M-n", "new tab"}, {"^tab", "editors"}, {"^⇧pgup ^⇧pgdn", "move tab"}, {"^f", "find"}, {"^⇧m", "problems"}, {"^⇧u", "output"}, {"M-, M-.", "back/forward"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"F10", "manage"}, {"esc q", "quit"}}
+var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4 6 7", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"alt+t", "agents"}, {"alt+a", "next alarm"}, {"alt+n", "new tab"}, {"^tab", "editors"}, {"^⇧pgup ^⇧pgdn", "move tab"}, {"^f", "find"}, {"^⇧m", "problems"}, {"^⇧u", "output"}, {"alt+, alt+.", "back/forward"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"F10", "manage"}, {"esc q", "quit"}}
 
 var previewKeys = [][2]string{{"↑↓", "move"}, {"⇧↑↓", "select"}, {"^a", "all"}, {"y", "copy"}, {"s", "split diff"}, {"m", "stage/revert lines"}, {"] [", "next, prev change"}, {"} {", "next, prev file"}, {"F8 ⇧F8", "next, prev problem"}, {"^⇧[ ^⇧]", "fold, unfold"}, {"w", "wrap"}, {"^f", "find"}, {"^h", "replace"}, {"^g", "go to line"}, {"f12", "definition"}, {"⇧f12", "references"}, {"^k", "hover"}, {"^.", "code action"}, {"e", "edit"}, {"q", "close"}}
 
@@ -5298,7 +5298,7 @@ func (m *Model) viewItems() []item {
 	items := []item{
 		{label: "New Untitled File", hint: "^n", run: func(m *Model) tea.Cmd { return m.newUntitled() }},
 		{label: "Quick Open…", hint: "^p", run: func(m *Model) tea.Cmd { return m.loadIndex(true) }},
-		{label: "Open in a New Tab…", hint: "M-n", run: (*Model).newTabMenu},
+		{label: "Open in a New Tab…", hint: "alt+n", run: (*Model).newTabMenu},
 		{label: "Show Problems", hint: "^⇧m", run: (*Model).showProblems},
 		{label: "Show Output", hint: "^⇧u", run: func(m *Model) tea.Cmd { return m.showPanel(ptOutput) }},
 		{label: "Show Explorer", hint: showKeys[viewFiles], run: show(viewFiles)},
@@ -5351,8 +5351,8 @@ func (m *Model) viewItems() []item {
 
 	if m.pv.kind != "" {
 		items = append(items,
-			item{label: "Go Back", hint: "M-,", run: func(m *Model) tea.Cmd { return m.navGo(-1) }},
-			item{label: "Go Forward", hint: "M-.", run: func(m *Model) tea.Cmd { return m.navGo(1) }},
+			item{label: "Go Back", hint: "alt+,", run: func(m *Model) tea.Cmd { return m.navGo(-1) }},
+			item{label: "Go Forward", hint: "alt+.", run: func(m *Model) tea.Cmd { return m.navGo(1) }},
 			item{label: "Next Editor", hint: "^tab", run: func(m *Model) tea.Cmd { return m.cycleEditor(1) }},
 			item{label: "Previous Editor", hint: "^⇧tab", run: func(m *Model) tea.Cmd { return m.cycleEditor(-1) }},
 			item{label: "Close Editor", hint: "^w", run: func(m *Model) tea.Cmd { return m.closeEditor(m.edIdx) }},

@@ -1261,7 +1261,7 @@ const tabPlusW = 3
 
 // tabPlus is the strip's +, right after its last tab.
 func tabPlus(tabs []edTab) []rowAction {
-	return []rowAction{{g: icAdd, tip: "Open in a New Tab…  M-n", x: edTabsEnd(tabs), w: tabPlusW, run: (*Model).newTabMenu}}
+	return []rowAction{{g: icAdd, tip: "Open in a New Tab…  alt+n", x: edTabsEnd(tabs), w: tabPlusW, run: (*Model).newTabMenu}}
 }
 
 // newTabMenu is the + beside the tabs, under it for a click and for a key: a
@@ -3548,7 +3548,7 @@ func (p *preview) buttons(m *Model, w int) []rowAction {
 	if p.kind == pvFile && isMarkdown(p.path) { // direct: in a file a letter is text
 		acts = append(acts,
 			rowAction{g: ifElse(p.md == 1, icSource, icPreview), tip: ifElse(p.md == 1, "Show Source", "Open Preview") + "  ^⇧v", run: func(m *Model) tea.Cmd { return m.toggleRendered() }},
-			rowAction{g: ifElse(p.md == 2, icInline, icSplit), tip: ifElse(p.md == 2, "Close Preview", "Open Preview to the Side") + "  M-v", run: func(m *Model) tea.Cmd { return m.pv.toggleMarkdown(m, 2) }})
+			rowAction{g: ifElse(p.md == 2, icInline, icSplit), tip: ifElse(p.md == 2, "Close Preview", "Open Preview to the Side") + "  alt+v", run: func(m *Model) tea.Cmd { return m.pv.toggleMarkdown(m, 2) }})
 	}
 
 	if p.meta != nil { // VS Code's diff editor starts its actions with these
@@ -3578,7 +3578,7 @@ func (p *preview) buttons(m *Model, w int) []rowAction {
 	}
 
 	if !p.scrollOnly(m) && p.kind != pvSettings { // last, so it keeps its place whatever else the kind shows
-		acts = append(acts, rowAction{g: icWrap, tip: "Toggle Word Wrap  M-z", on: p.wrap, run: func(m *Model) tea.Cmd { return m.toggleWrap() }})
+		acts = append(acts, rowAction{g: icWrap, tip: "Toggle Word Wrap  alt+z", on: p.wrap, run: func(m *Model) tea.Cmd { return m.toggleWrap() }})
 	}
 
 	layoutRight(acts, w, 2)
@@ -3640,7 +3640,7 @@ func (p *preview) hints(m *Model) string {
 		}
 
 		if isMarkdown(p.path) {
-			keys += "  ^⇧v rendered  M-v side by side"
+			keys += "  ^⇧v rendered  alt+v side by side"
 		}
 
 		return " ^f find  ^h replace" + save + keys + "  ^w close" // save before what a narrow row drops first
@@ -3654,10 +3654,10 @@ func (p *preview) hints(m *Model) string {
 	case p.meta != nil:
 		return " ↑↓ move  ] [ change  } { file  ⇧ select  s split  y copy  q close"
 	case isMarkdown(p.path):
-		return " ↑↓ move  ⇧ select  p rendered  s side by side  M-← history  q close"
+		return " ↑↓ move  ⇧ select  p rendered  s side by side  alt+← history  q close"
 	}
 
-	return " ↑↓ move  ⇧ select  y copy  w wrap  M-← history  q close"
+	return " ↑↓ move  ⇧ select  y copy  w wrap  alt+← history  q close"
 }
 
 // empty reports a diff with nothing in it: no row to move to or act on.
@@ -4437,9 +4437,9 @@ func (p *preview) findH() int { return 3 + b2i(p.replOn) }
 // field is the query's width; the replace box below it is as wide.
 func (p *preview) findActs(bw int) (field int, acts []rowAction) {
 	acts = []rowAction{
-		{g: icCase, tip: "Match Case  M-c", run: func(m *Model) tea.Cmd { m.pv.toggleFind(m, "alt+c"); return nil }},
-		{g: icWord, tip: "Match Whole Word  M-w", run: func(m *Model) tea.Cmd { m.pv.toggleFind(m, "alt+w"); return nil }},
-		{g: icRegex, tip: "Use Regular Expression  M-r", run: func(m *Model) tea.Cmd { m.pv.toggleFind(m, "alt+r"); return nil }},
+		{g: icCase, tip: "Match Case  alt+c", run: func(m *Model) tea.Cmd { m.pv.toggleFind(m, "alt+c"); return nil }},
+		{g: icWord, tip: "Match Whole Word  alt+w", run: func(m *Model) tea.Cmd { m.pv.toggleFind(m, "alt+w"); return nil }},
+		{g: icRegex, tip: "Use Regular Expression  alt+r", run: func(m *Model) tea.Cmd { m.pv.toggleFind(m, "alt+r"); return nil }},
 		{g: icUp, tip: "Previous Match  ⇧⏎", run: func(m *Model) tea.Cmd { return m.pv.findGo(m, -1) }},
 		{g: icDown, tip: "Next Match  ⏎", run: func(m *Model) tea.Cmd { return m.pv.findGo(m, 1) }},
 		{g: icClose, tip: "Close  esc", run: func(m *Model) tea.Cmd { m.pv.closeFind(); return nil }},
@@ -4485,9 +4485,9 @@ func findLayout(acts []rowAction, bw int) (field int) {
 // preserve case, then replace and replace all.
 func (p *preview) replActs(field int) []rowAction {
 	acts := []rowAction{
-		{g: icPreserve, tip: "Preserve Case  M-p", run: func(m *Model) tea.Cmd { m.pv.toggleFind(m, "alt+p"); return nil }},
+		{g: icPreserve, tip: "Preserve Case  alt+p", run: func(m *Model) tea.Cmd { m.pv.toggleFind(m, "alt+p"); return nil }},
 		{g: icReplace, tip: "Replace  ⏎", run: func(m *Model) tea.Cmd { return m.pv.replaceOne(m) }},
-		{g: icReplaceAll, tip: "Replace All  ^M-⏎", run: func(m *Model) tea.Cmd { return m.pv.replaceAll(m) }},
+		{g: icReplaceAll, tip: "Replace All  ^alt+⏎", run: func(m *Model) tea.Cmd { return m.pv.replaceAll(m) }},
 	}
 	x := 4 + field
 
@@ -4807,7 +4807,7 @@ func (p *preview) items(m *Model) []item {
 	if p.kind == pvFile && isMarkdown(p.path) {
 		more = append(more,
 			item{label: "Toggle Rendered Markdown", hint: "^⇧v", run: func(m *Model) tea.Cmd { return m.toggleRendered() }},
-			item{label: "Markdown Side by Side", hint: "M-v", run: editorChord('v', tea.ModAlt)})
+			item{label: "Markdown Side by Side", hint: "alt+v", run: editorChord('v', tea.ModAlt)})
 	}
 
 	if p.kind != pvShow && !p.fromGH() && !p.untitled() {
@@ -4838,17 +4838,17 @@ func (p *preview) keyItems(_ *Model) []item {
 	chord := editorChord
 
 	items := []item{
-		{label: "Toggle Word Wrap", hint: "M-z", run: chord('z', tea.ModAlt)},
+		{label: "Toggle Word Wrap", hint: "alt+z", run: chord('z', tea.ModAlt)},
 		{label: "Change Indentation…", run: func(m *Model) tea.Cmd { return m.indentPicker() }}, // the status bar's Tab Size
-		{label: "Expand Selection", hint: "M-⇧→", run: chord(tea.KeyRight, tea.ModAlt|tea.ModShift)},
-		{label: "Shrink Selection", hint: "M-⇧←", run: chord(tea.KeyLeft, tea.ModAlt|tea.ModShift)},
+		{label: "Expand Selection", hint: "alt+⇧→", run: chord(tea.KeyRight, tea.ModAlt|tea.ModShift)},
+		{label: "Shrink Selection", hint: "alt+⇧←", run: chord(tea.KeyLeft, tea.ModAlt|tea.ModShift)},
 	}
 	if len(p.changes) > 0 && p.meta == nil {
 		items = append(items,
-			item{label: "Go to Next Change", hint: "M-F5", run: func(m *Model) tea.Cmd { return m.gotoFileChange(1) }},
-			item{label: "Go to Previous Change", hint: "⇧M-F5", run: func(m *Model) tea.Cmd { return m.gotoFileChange(-1) }},
-			item{label: "Show Next Change", hint: "M-F3", run: func(m *Model) tea.Cmd { return m.showChange(m.pv.stepChange(m.pv.at().line, 1)) }},
-			item{label: "Show Previous Change", hint: "⇧M-F3", run: func(m *Model) tea.Cmd { return m.showChange(m.pv.stepChange(m.pv.at().line, -1)) }})
+			item{label: "Go to Next Change", hint: "alt+F5", run: func(m *Model) tea.Cmd { return m.gotoFileChange(1) }},
+			item{label: "Go to Previous Change", hint: "⇧alt+F5", run: func(m *Model) tea.Cmd { return m.gotoFileChange(-1) }},
+			item{label: "Show Next Change", hint: "alt+F3", run: func(m *Model) tea.Cmd { return m.showChange(m.pv.stepChange(m.pv.at().line, 1)) }},
+			item{label: "Show Previous Change", hint: "⇧alt+F3", run: func(m *Model) tea.Cmd { return m.showChange(m.pv.stepChange(m.pv.at().line, -1)) }})
 	}
 
 	if p.foldable() {
@@ -4881,11 +4881,11 @@ func (p *preview) keyItems(_ *Model) []item {
 	if p.editable() {
 		items = append(items,
 			item{label: "Duplicate Line", hint: "^d", run: chord('d', tea.ModCtrl)},
-			item{label: "Copy Line Up", hint: "M-⇧↑", run: chord(tea.KeyUp, tea.ModAlt|tea.ModShift)},
-			item{label: "Copy Line Down", hint: "M-⇧↓", run: chord(tea.KeyDown, tea.ModAlt|tea.ModShift)},
+			item{label: "Copy Line Up", hint: "alt+⇧↑", run: chord(tea.KeyUp, tea.ModAlt|tea.ModShift)},
+			item{label: "Copy Line Down", hint: "alt+⇧↓", run: chord(tea.KeyDown, tea.ModAlt|tea.ModShift)},
 			item{label: "Delete Line", hint: "^⇧k", run: chord('k', tea.ModCtrl|tea.ModShift)},
-			item{label: "Move Line Up", hint: "M-↑", run: chord(tea.KeyUp, tea.ModAlt)},
-			item{label: "Move Line Down", hint: "M-↓", run: chord(tea.KeyDown, tea.ModAlt)},
+			item{label: "Move Line Up", hint: "alt+↑", run: chord(tea.KeyUp, tea.ModAlt)},
+			item{label: "Move Line Down", hint: "alt+↓", run: chord(tea.KeyDown, tea.ModAlt)},
 			item{label: "Sort Lines Ascending", run: func(m *Model) tea.Cmd {
 				m.focus = onMain
 				return m.pv.sortLines(m)

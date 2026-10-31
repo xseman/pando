@@ -290,13 +290,13 @@ func (s *searchView) toggle(m *Model, key string) tea.Cmd {
 // the replacement.
 func (s *searchView) toggles(w int, box *textinput.Model) []rowAction {
 	acts := []rowAction{
-		{g: icCase, tip: "Match Case  M-c", run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+c") }},
-		{g: icWord, tip: "Match Whole Word  M-w", run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+w") }},
-		{g: icRegex, tip: "Use Regular Expression  M-r", run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+r") }},
+		{g: icCase, tip: "Match Case  alt+c", run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+c") }},
+		{g: icWord, tip: "Match Whole Word  alt+w", run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+w") }},
+		{g: icRegex, tip: "Use Regular Expression  alt+r", run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+r") }},
 	}
 	if box == &s.replace {
 		acts = []rowAction{
-			{g: icPreserve, tip: "Preserve Case  M-p", run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+p") }},
+			{g: icPreserve, tip: "Preserve Case  alt+p", run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+p") }},
 			{g: icReplaceAll, tip: "Replace All…", run: func(m *Model) tea.Cmd { return s.confirmReplaceAll(m) }},
 		}
 	}
@@ -1049,9 +1049,9 @@ func matchSegs(ln searchLine, w int, base lipgloss.Style, repl func(a, b int) st
 func (s *searchView) items(_ *Model) []item {
 	return []item{
 		{label: "Focus Query", hint: "4", run: func(m *Model) tea.Cmd { return tea.Batch(m.showView(viewSearch), s.focus()) }},
-		{label: "Toggle Match Case", hint: "M-c", run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+c") }},
-		{label: "Toggle Whole Word", hint: "M-w", run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+w") }},
-		{label: "Toggle Regular Expression", hint: "M-r", run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+r") }},
+		{label: "Toggle Match Case", hint: "alt+c", run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+c") }},
+		{label: "Toggle Whole Word", hint: "alt+w", run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+w") }},
+		{label: "Toggle Regular Expression", hint: "alt+r", run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+r") }},
 		{label: "Rerun Search", hint: "^r", run: func(m *Model) tea.Cmd { return s.restart(m) }},
 		{label: "Toggle Replace", hint: "^h", run: func(*Model) tea.Cmd { return s.toggleReplace() }},
 		{label: "Replace in File", hint: "r", run: func(m *Model) tea.Cmd {
@@ -1065,7 +1065,7 @@ func (s *searchView) items(_ *Model) []item {
 		{label: "Clear Results", hint: "x", run: func(*Model) tea.Cmd { s.query.Reset(); s.clear(); return nil }},
 		{label: "Collapse All", hint: "C", run: func(*Model) tea.Cmd { s.collapseAll(); return nil }},
 		{label: "Toggle Results as Tree", hint: "t", run: func(*Model) tea.Cmd { s.tree = !s.tree; s.l = list{sel: -1}; return nil }},
-		{label: "Toggle Preserve Case", hint: "M-p", run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+p") }},
+		{label: "Toggle Preserve Case", hint: "alt+p", run: func(m *Model) tea.Cmd { return s.toggle(m, "alt+p") }},
 		{label: "Toggle Files to Include", hint: "^i", run: func(*Model) tea.Cmd { s.showDetails = !s.showDetails; return nil }},
 	}
 }

@@ -2160,7 +2160,7 @@ func TestTips(t *testing.T) {
 	bs := m.pv.buttons(m, m.mainW())
 	rest(m.mainX()+bs[len(bs)-1].x+1, 0)
 
-	if out := checkWidths(t, m); !tip("Toggle Word Wrap  M-z") {
+	if out := checkWidths(t, m); !tip("Toggle Word Wrap  alt+z") {
 		t.Fatalf("no tip on the editor's wrap button:\n%s", out)
 	}
 
@@ -2171,7 +2171,7 @@ func TestTips(t *testing.T) {
 	_, fa := m.pv.findActs(bw)
 	rest(m.mainX()+x0+fa[0].x, m.headH()+m.stripH()+1)
 
-	if out := checkWidths(t, m); !ok || !tip("Match Case  M-c") {
+	if out := checkWidths(t, m); !ok || !tip("Match Case  alt+c") {
 		t.Fatalf("no tip on the find widget's match case:\n%s", out)
 	}
 }

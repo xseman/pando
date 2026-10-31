@@ -289,9 +289,9 @@ func (t *term) findActs(id string, bw int) (field int, acts []rowAction) {
 	}
 
 	acts = []rowAction{
-		{g: icCase, tip: "Match Case  M-c", run: toggle("alt+c")},
-		{g: icWord, tip: "Match Whole Word  M-w", run: toggle("alt+w")},
-		{g: icRegex, tip: "Use Regular Expression  M-r", run: toggle("alt+r")},
+		{g: icCase, tip: "Match Case  alt+c", run: toggle("alt+c")},
+		{g: icWord, tip: "Match Whole Word  alt+w", run: toggle("alt+w")},
+		{g: icRegex, tip: "Use Regular Expression  alt+r", run: toggle("alt+r")},
 		{g: icUp, tip: "Previous Match  ⏎", run: func(m *Model) tea.Cmd { return t.findGo(m, id, -1) }},
 		{g: icDown, tip: "Next Match  ⇧⏎", run: func(m *Model) tea.Cmd { return t.findGo(m, id, 1) }},
 		{g: icClose, tip: "Close  esc", run: func(*Model) tea.Cmd { t.closeFind(); return nil }},

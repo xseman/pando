@@ -2131,8 +2131,8 @@ func (a *agents) items(m *Model) []item {
 		{label: "Open Project…", run: func(m *Model) tea.Cmd { return m.projectPicker() }},
 	}
 	goTo := []item{
-		{label: "Go to Agent or Worktree…", hint: "M-t", run: func(m *Model) tea.Cmd { return m.agentNavigator() }},
-		{label: "Go to Next Alarm", hint: "M-a", run: func(m *Model) tea.Cmd { return m.nextAlarm() }},
+		{label: "Go to Agent or Worktree…", hint: "alt+t", run: func(m *Model) tea.Cmd { return m.agentNavigator() }},
+		{label: "Go to Next Alarm", hint: "alt+a", run: func(m *Model) tea.Cmd { return m.nextAlarm() }},
 		{label: "View Options…", hint: "o", run: func(m *Model) tea.Cmd { return a.viewMenu(m, m.mouseX, m.mouseY) }},
 	}
 
@@ -2147,16 +2147,16 @@ func (a *agents) items(m *Model) []item {
 		path := r.ws.Path
 
 		row = append(row,
-			item{label: "Move Worktree Up", hint: "M-↑", run: func(m *Model) tea.Cmd { return a.shiftWorkspace(m, path, -1) }},
-			item{label: "Move Worktree Down", hint: "M-↓", run: func(m *Model) tea.Cmd { return a.shiftWorkspace(m, path, 1) }})
+			item{label: "Move Worktree Up", hint: "alt+↑", run: func(m *Model) tea.Cmd { return a.shiftWorkspace(m, path, -1) }},
+			item{label: "Move Worktree Down", hint: "alt+↓", run: func(m *Model) tea.Cmd { return a.shiftWorkspace(m, path, 1) }})
 	}
 
 	if r != nil && r.project != "" && r.kind == agProject && len(m.st.Projects) > 1 && a.projectMovable(m, r.project) {
 		// What a drag does, for the keyboard: the project keeps its place in
 		// config, so the order survives a restart either way.
 		row = append(row,
-			item{label: "Move Project Up", hint: "M-↑", run: func(m *Model) tea.Cmd { return a.shiftProject(m, r.project, -1) }},
-			item{label: "Move Project Down", hint: "M-↓", run: func(m *Model) tea.Cmd { return a.shiftProject(m, r.project, 1) }})
+			item{label: "Move Project Up", hint: "alt+↑", run: func(m *Model) tea.Cmd { return a.shiftProject(m, r.project, -1) }},
+			item{label: "Move Project Down", hint: "alt+↓", run: func(m *Model) tea.Cmd { return a.shiftProject(m, r.project, 1) }})
 	}
 
 	if r != nil && r.kind == agSession {
@@ -2171,8 +2171,8 @@ func (a *agents) items(m *Model) []item {
 
 		if !r.pinned && m.sessionsMovable() && len(m.siblings(id)) > 1 {
 			row = append(row,
-				item{label: "Move Session Up", hint: "M-↑", run: func(m *Model) tea.Cmd { return a.shiftSession(m, id, -1) }},
-				item{label: "Move Session Down", hint: "M-↓", run: func(m *Model) tea.Cmd { return a.shiftSession(m, id, 1) }})
+				item{label: "Move Session Up", hint: "alt+↑", run: func(m *Model) tea.Cmd { return a.shiftSession(m, id, -1) }},
+				item{label: "Move Session Down", hint: "alt+↓", run: func(m *Model) tea.Cmd { return a.shiftSession(m, id, 1) }})
 		}
 	}
 
@@ -3986,7 +3986,7 @@ func (m *Model) termMenu(x, y int) tea.Cmd {
 			{label: "Rename…", run: func(m *Model) tea.Cmd { return m.renameSession(id) }},
 			{label: "Kill Terminal…", run: func(m *Model) tea.Cmd { return m.confirmKill(id) }},
 		},
-		[]item{{label: "Toggle Size to Content Width", hint: "M-z", run: func(m *Model) tea.Cmd { return m.toggleTermWide() }}})...)
+		[]item{{label: "Toggle Size to Content Width", hint: "alt+z", run: func(m *Model) tea.Cmd { return m.toggleTermWide() }}})...)
 
 	return nil
 }
