@@ -353,6 +353,28 @@ func TestDormantConversationTitle(t *testing.T) {
 	}
 }
 
+// TestInputWakes: input is refused asleep unless it asks to wake the session,
+// and then it reaches what came back.
+func TestInputWakes(t *testing.T) {
+	needProc(t)
+
+	boot := start(t)
+
+	d := boot()
+	defer d.Close()
+
+	var s proto.Session
+	call(t, "session.new", map[string]any{"workspace": t.TempDir(), "cmd": []string{"sh"}}, &s)
+	call(t, "session.sleep", map[string]any{"id": s.ID}, nil)
+
+	if err := proto.Call("session.input", proto.InputParams{ID: s.ID, Text: "echo wo\r"}, nil); err == nil || !strings.Contains(err.Error(), "asleep") {
+		t.Fatalf("input asleep: %v", err)
+	}
+
+	call(t, "session.input", proto.InputParams{ID: s.ID, Text: "echo wo''ke\r", Wake: true}, nil)
+	waitFor(t, "the input to reach the woken shell", func() bool { return strings.Contains(readScreen(t, s.ID), "woke") })
+}
+
 // TestSleepGenericAgents: what comes back depends on what ran, the same way
 // for any agent. One with a [resume] is continued by it; a shell wakes to a
 // shell; whatever else ran in front, a server, is not brought back but the

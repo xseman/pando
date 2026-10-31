@@ -792,6 +792,12 @@ func (d *Daemon) dispatch(method string, raw json.RawMessage) (any, error) {
 			return nil, err
 		}
 
+		if p.Wake {
+			if _, err := d.wakeSession(p.ID); err != nil {
+				return nil, err
+			}
+		}
+
 		s, err := d.session(p.ID)
 		if err != nil {
 			return nil, err

@@ -279,6 +279,6 @@ session, put off until `session.wake` (`sleep.go`).
   shell tool keeps it `running`, a background one too (`commandsUnder`); a
   timer inside the agent (`/loop`) shows nowhere and does not hold it.
 - `asleep` is settled: `session.wait` stops at it; `session.input` is
-  refused. A wait begun asleep follows the woken session (`d.session` each
+  refused unless `wake` is set, as `pando session send` and `keys` do. A wait begun asleep follows the woken session (`d.session` each
   poll). The exit of the process it stops neither closes it nor falls back.
 - `d.moving` keeps a sleep and a wake of one session apart.

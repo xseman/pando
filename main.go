@@ -542,11 +542,11 @@ func session(rest []string) error {
 
 		id, text := pos[0], strings.Join(pos[1:], " ")
 
-		in := proto.InputParams{ID: id, Text: text}
+		in := proto.InputParams{ID: id, Text: text, Wake: true}
 		if strings.Contains(text, "\n") {
 			// Typed line by line a multi-line prompt submits at its first
 			// newline; a paste arrives as one block wherever the app brackets it.
-			in = proto.InputParams{ID: id, Paste: text}
+			in = proto.InputParams{ID: id, Paste: text, Wake: true}
 		}
 
 		if err := proto.Call("session.input", in, nil); err != nil {
@@ -592,7 +592,7 @@ func session(rest []string) error {
 			keys = append(keys, k)
 		}
 
-		return proto.Call("session.input", proto.InputParams{ID: pos[0], Keys: keys}, nil)
+		return proto.Call("session.input", proto.InputParams{ID: pos[0], Keys: keys, Wake: true}, nil)
 
 	case "wait":
 		s, err := waitFor(arg(pos, 0, ""), *until, *match, *timeout)

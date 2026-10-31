@@ -177,9 +177,10 @@ nothing. `pando session keys` with no keys prints the names it accepts.
 
 ## Asleep sessions
 
-A session unused for a while (`sleep_after`), or put to sleep by the user, is
-`asleep`: its process, and a claude's background job, were stopped to free
-memory. Its screen still reads; input is refused. Wake it before you send:
+An agent's session unused for a while (`sleep_after`), or one put to sleep by
+the user, is `asleep`: its process, and a claude's background job, were stopped
+to free memory. Its screen still reads. `pando session send` and `keys` wake it
+first and wait for its prompt; anything else wakes it by hand:
 
 ```sh
 pando session wake reviewer                      # returns once its agent is back at its prompt

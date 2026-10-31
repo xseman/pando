@@ -404,6 +404,7 @@ type InputParams struct {
 	Keys  []Key  `json:"keys,omitempty"`
 	Paste string `json:"paste,omitempty"`
 	Mouse *Mouse `json:"mouse,omitempty"`
+	Wake  bool   `json:"wake,omitempty"` // an asleep session wakes first, and the call waits for it; without it the input is refused
 }
 
 // ReadParams is session.read: the session's screen as plain text. Scrollback

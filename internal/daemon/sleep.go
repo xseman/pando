@@ -340,5 +340,5 @@ func agentOf(spec proto.SessionSpec, argv []string) string {
 	return programOf(argv[i:])
 }
 
-// errAsleep is what input to an asleep session gets.
+// errAsleep is what input to an asleep session gets without Wake.
 var errAsleep = errors.New("session is asleep: wake it first (pando session wake)")
