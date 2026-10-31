@@ -282,7 +282,7 @@ settings (`spaces_hide`, `spaces_sort`, `spaces_group`) read by
 | ------------------- | ---------------------------------------------------- |
 | Filter ›            | the states shown                                     |
 | Sort by Created     | creation order (`SessionSpec.Created`)               |
-| Sort by Updated     | newest input or state change first (`Updated`)       |
+| Sort by Updated     | newest input, question or real work (`Updated`)      |
 | Sort Projects …     | saved order, or newest session change first          |
 | Group by Workspace  | the tree above                                       |
 | Group by Time       | `agTime` headings Today … Older; rows add the branch |

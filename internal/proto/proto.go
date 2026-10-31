@@ -307,7 +307,8 @@ type Session struct {
 	Shell     bool   `json:"shell,omitempty"` // running on a shell command under it, not on its screen's word
 	Title     string `json:"title"`
 	Program   string `json:"program,omitempty"` // what runs in its foreground: the shell, or claude started in it
-	// Updated is its last input or change of status, Created before either;
+	// Updated is its last input, question, exit or burst of output that
+	// lasted, Created before any; a flip of status a redraw makes is none;
 	// a restarted daemon keeps its last use (Active), and the changes of its
 	// first 30 s, the agent coming back, do not count.
 	Updated time.Time `json:"updated,omitzero"`

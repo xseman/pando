@@ -268,8 +268,9 @@ session, put off until `session.wake` (`sleep.go`).
 
 - On its own: `sleep_after` minutes since `used`: the last input, a client's
   `session.screen` (a TUI asks for the session it shows every 30 s while
-  `sleep_after` is on), or a status change past `startGrace` (30 s) after a
-  start, so an agent coming back does not count. `Active` keeps it over a
+  `sleep_after` is on), or a status change that is real work (`worked`: a
+  question, an exit, a burst over `longBurst`, not a redraw's flip) past
+  `startGrace` (30 s) after a start, so an agent coming back does not count. `Active` keeps it over a
   restart. Not with `attention` (done unseen), not a Terminal shell (they go
   with their session), nor a session one of whose shells is not unused the
   same way (a quiet server, an editor); where nothing says what runs in

@@ -467,7 +467,7 @@ func TestUpdatedSkipsRedraw(t *testing.T) {
 		t.Fatalf("redraw after a resize: %+v", s)
 	}
 
-	s.resized = now.Add(-time.Minute)
+	s.resized, s.busySince = now.Add(-time.Minute), now.Add(-longBurst)
 	if !s.tick(now) || s.status != "running" || !s.info().Updated.Equal(now) {
 		t.Fatalf("output: %+v", s)
 	}
@@ -485,7 +485,7 @@ func TestUpdatedSkipsStartGrace(t *testing.T) {
 		t.Fatalf("settling after the start: %+v", s.info())
 	}
 
-	s.started = now.Add(-time.Minute)
+	s.started, s.busySince = now.Add(-time.Minute), now.Add(-longBurst)
 	s.lastOutput = now
 
 	if !s.tick(now) || s.status != "running" || !s.info().Updated.Equal(now) {

@@ -445,11 +445,29 @@ func (s *session) tick(now time.Time) bool {
 		s.attention = false
 	}
 
-	if prev != s.status && now.Sub(s.started) >= startGrace { // within it, its agent coming back
+	worked := now.Sub(s.started) >= startGrace && s.worked(prev) // within it, its agent coming back
+	if worked {
 		s.active = now
 	}
 
-	return prev != s.status || prevAttn != s.attention
+	return prev != s.status || prevAttn != s.attention || worked
+}
+
+// worked reports the change from status prev as something that happened: a
+// question, an exit, or a burst of output that lasted, counted once it has. A
+// flip shorter than that is a redraw, which can hit every session at once: it
+// would stamp them all with one moment and say nothing about any of them.
+func (s *session) worked(prev string) bool {
+	long := s.lastOutput.Sub(s.busySince) >= longBurst
+
+	switch {
+	case s.status == "running":
+		return long && s.active.Before(s.busySince)
+	case prev == "running":
+		return long || s.status != "idle"
+	}
+
+	return prev != s.status
 }
 
 func (s *session) info() proto.Session {
