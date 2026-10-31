@@ -168,8 +168,7 @@ var (
 	lookDark   = true // the theme is dark, which VS Code shades a staged change's gutter mark darker on
 
 	plain  = lipgloss.NewStyle()
-	dim    = lipgloss.NewStyle().Faint(true)
-	muted  = fg(pal.descFg)
+	dim    = fg(pal.descFg) // a color, not SGR faint: not every terminal draws faint
 	bold   = lipgloss.NewStyle().Bold(true)
 	accent = lipgloss.NewStyle().Foreground(pal.headerAccent).Bold(true)
 )
@@ -250,7 +249,7 @@ func applyLook(theme string, dark bool, icons string, colors map[string]string) 
 
 	iconsNerd, iconsEmoji = icons == "nerd", icons == "emoji"
 	accent = lipgloss.NewStyle().Foreground(pal.headerAccent).Bold(true)
-	muted = fg(pal.descFg)
+	dim = fg(pal.descFg)
 }
 
 func fg(c color.Color) lipgloss.Style { return lipgloss.NewStyle().Foreground(c) }

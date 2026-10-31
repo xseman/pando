@@ -1520,7 +1520,7 @@ func (s *scmView) renderRow(m *Model, i, w int, hovered bool) string {
 
 		name := base.Bold(true)
 		if r.root != s.root() {
-			name = name.Faint(true)
+			name = name.Foreground(pal.descFg)
 		}
 
 		branch := icBranch.s() + " " + m.headLabel(r.root, st)

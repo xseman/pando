@@ -1529,7 +1529,7 @@ func modalInput() textinput.Model {
 	st := in.Styles()
 	st.Cursor.Blink = false // as inputStyles'
 	// A completion's rest in the placeholder's color: bubbles' ANSI 240 passes for typed text on a light theme.
-	st.Focused.Suggestion, st.Blurred.Suggestion = muted, muted
+	st.Focused.Suggestion, st.Blurred.Suggestion = dim, dim
 	in.SetStyles(st)
 	in.Focus()
 
@@ -1928,7 +1928,7 @@ func (md *modal) view(m *Model) (string, int, int) {
 
 		if it.sep {
 			if it.label != "" {
-				return fit(" "+muted.Render(it.label), rw)
+				return fit(" "+dim.Render(it.label), rw)
 			}
 
 			return dim.Render(strings.Repeat("─", rw))
@@ -1938,7 +1938,7 @@ func (md *modal) view(m *Model) (string, int, int) {
 			return fit(" "+it.label, rw)
 		}
 
-		st, note := plain, muted
+		st, note := plain, dim
 		if it.run == nil {
 			st = dim
 		}

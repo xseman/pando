@@ -141,7 +141,7 @@ func (o *outputLog) view(m *Model, w, h int) []string {
 			bg = pal.hoverBg
 		}
 
-		full := row(max(o.wide, rw+o.left), bg, []seg{sg(" "+l.at.Format("15:04:05")+" ", dim), sg(l.src+" ", muted), sg(l.msg, ifElse(l.err, fg(pal.errc), plain))})
+		full := row(max(o.wide, rw+o.left), bg, []seg{sg(" "+l.at.Format("15:04:05")+" ", dim), sg(l.src+" ", dim), sg(l.msg, ifElse(l.err, fg(pal.errc), plain))})
 
 		return ansi.Cut(full, o.left, o.left+rw)
 	})
