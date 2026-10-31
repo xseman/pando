@@ -1112,7 +1112,7 @@ func (d *Daemon) removeProject(path string) error {
 	return err
 }
 
-// moveProject puts path at index to, the order the Spaces tree and the
+// moveProject puts path at index to, the order the Sessions tree and the
 // project switcher list projects in. An index outside the list is clamped,
 // and an order that does not change is not saved.
 func (d *Daemon) moveProject(path string, to int) error {
@@ -1184,7 +1184,7 @@ func workspaces(projects []string, order map[string][]string) []proto.Workspace 
 }
 
 // moveWorkspace puts worktree path at index to among its project's, the
-// order the Spaces tree lists them in, with the sessions under them. An index
+// order the Sessions tree lists them in, with the sessions under them. An index
 // outside the list is clamped, and an order that does not change is not saved.
 func (d *Daemon) moveWorkspace(path string, to int) error {
 	all := d.workspaces()

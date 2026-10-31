@@ -1048,7 +1048,7 @@ func (m *Model) onGHCheckout(msg ghCheckoutMsg) tea.Cmd {
 		cmd = m.onNewWorkspace(msg.w)
 	}
 
-	if msg.err != nil { // a worktree made stays, on its throwaway branch: x in Spaces deletes it
+	if msg.err != nil { // a worktree made stays, on its throwaway branch: x in Sessions deletes it
 		m.flash("checkout: "+ghErrLine(msg.err), true)
 	}
 

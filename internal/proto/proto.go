@@ -88,10 +88,10 @@ type Settings struct {
 	FontOffer bool                `json:"nerd_font_offer" toml:"nerd_font_offer"`     // the status bar offers to install Symbols Nerd Font Mono while no Nerd Font is installed
 	SoundDone string              `json:"sound_done" toml:"sound_done"`               // the files played, "" for the terminal bell
 	SoundReq  string              `json:"sound_request" toml:"sound_request"`
-	SpSort    string              `json:"spaces_sort" toml:"spaces_sort"`                 // Spaces sessions by "created" or "updated"
-	SpGroup   string              `json:"spaces_group" toml:"spaces_group"`               // Spaces rows: "workspace" (the project tree), "time" (Today, Yesterday, …) or "state" (Blocked, Working, …)
-	SpProj    string              `json:"spaces_project_sort" toml:"spaces_project_sort"` // Spaces projects in their "manual" order or by "updated" (their sessions' last output)
-	SpHide    []string            `json:"spaces_hide" toml:"spaces_hide"`                 // session states Spaces leaves out: blocked, running, done, idle, asleep, exited
+	SpSort    string              `json:"spaces_sort" toml:"spaces_sort"`                 // sessions by "created" or "updated"
+	SpGroup   string              `json:"spaces_group" toml:"spaces_group"`               // Sessions rows: "workspace" (the project tree), "time" (Today, Yesterday, …) or "state" (Blocked, Working, …)
+	SpProj    string              `json:"spaces_project_sort" toml:"spaces_project_sort"` // Sessions projects in their "manual" order or by "updated" (their sessions' last output)
+	SpHide    []string            `json:"spaces_hide" toml:"spaces_hide"`                 // session states Sessions leaves out: blocked, running, done, idle, asleep, exited
 	Sleep     int                 `json:"sleep_after" toml:"sleep_after"`                 // minutes an idle session goes unused before it is put to sleep; 0 never
 	// Profiles is per agent preset what a new session of it can run with:
 	// profile name to KEY=VALUE, such as CLAUDE_CONFIG_DIR=~/.claude-work.
@@ -171,11 +171,11 @@ type State struct {
 	// LastWorkspace is the workspace the TUI showed last; pando started
 	// outside a repository opens it again.
 	LastWorkspace string `json:"last_workspace,omitempty"`
-	// Folded is the Spaces headings folded: project paths, and "time:" plus
+	// Folded is the Sessions headings folded: project paths, and "time:" plus
 	// a time heading, so a restart keeps them shut. Its order is the folded
 	// projects', the one folded last first.
 	Folded []string `json:"spaces_folded,omitempty"`
-	// Pinned is the session ids Spaces shows under Pinned, in the order
+	// Pinned is the session ids Sessions shows under Pinned, in the order
 	// they were pinned.
 	Pinned []string `json:"spaces_pinned,omitempty"`
 
@@ -456,7 +456,7 @@ type MoveParams struct {
 }
 
 // SessionMoveParams is session.move: session ID takes the place session To
-// holds now, in the order session.list and the Spaces tree list sessions.
+// holds now, in the order session.list and the Sessions tree list sessions.
 // Both are sessions of the same workspace, and ID's tabs move with it; or
 // both are tabs of one session, reordering its tab strip.
 type SessionMoveParams struct {

@@ -556,7 +556,7 @@ func (s *scmView) shownDrawers(m *Model) []git.Drawer {
 	return m.drawers()
 }
 
-// toolsRow is the strip over the drawers, as No Sessions over Spaces'
+// toolsRow is the strip over the drawers, as No Sessions over the Sessions view's
 // projects: a click folds them into it or unfolds them. With the mouse over
 // them, as the header's actions linger, toolsActions take the place of its
 // count, the one under the mouse raised.
@@ -2516,7 +2516,7 @@ func (s *scmView) activate(m *Model, r *scmRow, click bool) tea.Cmd {
 }
 
 // flipDrawer opens or closes drawer title and moves it to the top of its
-// group, as Spaces folds a project: opened it tops every drawer, closed it
+// group, as Sessions folds a project: opened it tops every drawer, closed it
 // tops the closed ones. A selected header stays selected.
 func (s *scmView) flipDrawer(m *Model, title string) tea.Cmd {
 	return s.setDrawer(m, title, !m.pane(title).Open)

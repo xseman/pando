@@ -18,11 +18,11 @@ The user guide. Settings: [06-config.md](06-config.md); keys:
 
 ## Projects, worktrees, sessions
 
-Spaces (`3`) is a tree: projects you added, their worktrees, and the
+Sessions (`3`) is a tree: projects you added, their worktrees, and the
 sessions in each worktree.
 
 ```text
-app                      project: pando ~/code/app, or `a` in Spaces
+app                      project: pando ~/code/app, or `a` in Sessions
 ├─ ⌂ main                its own checkout
 │  ├─ ○ shell            session: idle
 │  └─ ◐ claude           session: working
@@ -39,7 +39,7 @@ project of the top row stays on the first line.
 A worktree with two sessions or more has a split button on hover: its
 sessions open side by side, a group each.
 
-| Key      | In Spaces                                                                 |
+| Key      | In Sessions                                                               |
 | -------- | ------------------------------------------------------------------------- |
 | `a`      | add a project from the folder picker: places, folders, a path             |
 | `w`      | add a worktree to the selected project                                    |
@@ -85,7 +85,7 @@ checkout.
 
 - `ctrl+]` cycles focus, through each editor group too; inside a session every
   other key goes to its program.
-- `1`–`4` and `6` open Explorer, Source Control, Spaces, Search and GitHub.
+- `1`–`4` and `6` open Explorer, Source Control, Sessions, Search and GitHub.
 - ``ctrl+` ``, `ctrl+j` or `5` toggles the bottom panel; `ctrl+shift+↑`
   maximizes it. Its tabs: Terminal (`+` a new shell, the select beside it picks
   one or kills it),
@@ -96,7 +96,7 @@ checkout.
   With two groups or more side by side, the very bottom of the editor
   area's middle puts it in a new row under them all.
   A file dragged from Explorer, or a session of the worktree in view from
-  Spaces, goes the same way.
+  Sessions, goes the same way.
   `ctrl+\` moves the active tab into a new group on the right; the palette
   moves it into the group left, right, above or below. `ctrl+1`…`ctrl+9`
   focus group N, the button at the right end of a group's tab strip maximizes
@@ -150,11 +150,11 @@ checkout.
   `ui/app.go`) opens the one file whose path ends in it, else quick open
   lists them. The pointer over a link underlines it.
 - The subagents a claude, codex, agy or grok session runs list under its row in
-  Spaces while they work: their kind (codex: the name it gave the agent)
+  Sessions while they work: their kind (codex: the name it gave the agent)
   and what they do. They live inside the session; a
   click on one opens the session.
-- `p` in Spaces, the `⊙` left of a session's row or its right-click menu
-  pins it: Spaces lists it in the Pinned pane on top, and in its tree as
+- `p` in Sessions, the `⊙` left of a session's row or its right-click menu
+  pins it: Sessions lists it in the Pinned pane on top, and in its tree as
   before.
 
 | Mark | State     | Means                                                     |
@@ -190,7 +190,7 @@ aider = ["aider", "--restore-chat-history"]
   included. `pando claude` starts claude as a Claude Code background session,
   which outlives the restart; with `claude_background` (the default) every
   resumed claude comes back that way.
-- By hand: _Resume_ in Spaces (a worktree's row under the pointer, its menu,
+- By hand: _Resume_ in Sessions (a worktree's row under the pointer, its menu,
   or `↺` in the header) lists that worktree's claude conversations
   (`claude --resume`); an agent without such a list continues its last.
 
@@ -201,7 +201,7 @@ aider = ["aider", "--restore-chat-history"]
 An unused session can stop to free its memory: a claude takes 300–600 MB,
 its background job and its `claude attach` together.
 
-- `z` in Spaces, or _Sleep Session_ in a session's menu, puts it to sleep;
+- `z` in Sessions, or _Sleep Session_ in a session's menu, puts it to sleep;
   working, it asks first. `pando session sleep ID` too.
 - `sleep_after = 120` in `config.toml`, or _Settings → Sessions_, does it on
   its own to a session idle and unused that long: nobody typed into it,
@@ -225,7 +225,7 @@ a message box, and drawers for the graph, commits, file history, branches,
 worktrees, remotes, stashes and tags. A commit in a drawer shows its whole
 message when the mouse rests on it; right click copies it. The header's
 Collapse All button closes the drawers with the tree. The drawers sit under
-a Tools strip, as No Sessions in Spaces: a click on it folds them into it, and
+a Tools strip, as No Sessions in the Sessions view: a click on it folds them into it, and
 another brings them back as they were. With the mouse over the drawers, ⊟ on
 the strip closes only the drawers.
 

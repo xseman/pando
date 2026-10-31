@@ -383,7 +383,7 @@ func (g glyph) short() string {
 var (
 	icFiles      = glyph{"folder", "\uea83", "Files", "📁"}
 	icGit        = glyph{"code-fork (fa)", "\uf126", "Git", "🔀"}
-	icSpaces     = glyph{"multiple-windows", "\ueb23", "Spaces", "🪟"}
+	icSpaces     = glyph{"multiple-windows", "\ueb23", "Sessions", "🪟"}
 	icTerminal   = glyph{"terminal", "", "Term", "💻"}
 	icDot        = glyph{"circle-filled", "\ueabc", "•", ""}
 	icGear       = glyph{"gear", "", "⚙", "⚙"}
@@ -411,7 +411,7 @@ var (
 	icError      = glyph{"error", "\uea87", "✖", ""}
 	icWarning    = glyph{"warning", "\uea6c", "⚠", ""}
 	icSplit      = glyph{"split-horizontal", "", "split", ""}
-	icSplitAll   = glyph{"split-horizontal (sessions)", "\ueb56", "▥", ""} // Spaces' Split Sessions: one cell without the font
+	icSplitAll   = glyph{"split-horizontal (sessions)", "\ueb56", "▥", ""} // Sessions' Split Sessions: one cell without the font
 	icInline     = glyph{"diff", "", "inline", ""}
 	icUnfold     = glyph{"unfold", "\ueb73", "full", ""}
 	icFold       = glyph{"fold", "\ueaf5", "changes", ""}
@@ -439,7 +439,7 @@ var (
 	icMainWt     = glyph{"home", "\ueb06", "⌂", ""}           // a project's own checkout
 	icLinkedWt   = glyph{"source-control", "\uea68", "⑂", ""} // a linked worktree of it
 	icResume     = glyph{"comment-discussion", "\ueac7", "↺", ""}
-	icPin        = glyph{"pin", "\ueb2b", "⊙", ""}    // a Spaces session's pin button
+	icPin        = glyph{"pin", "\ueb2b", "⊙", ""}    // a session's pin button
 	icPinned     = glyph{"pinned", "\ueba0", "⊙", ""} // a pinned session's
 	icDatabase   = glyph{"database", "\ueace", "Databases", "💾"}
 	icTable      = glyph{"table", "\uebb7", "▦", ""}

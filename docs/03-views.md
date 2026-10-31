@@ -4,7 +4,7 @@ What each sidebar view shows and does, and where its code lives. Screen
 geometry is in [02-ui-layout.md](02-ui-layout.md).
 
 Contents: [Shape](#shape) · [Explorer](#explorer) ·
-[Source Control](#source-control) · [Spaces](#spaces) ·
+[Source Control](#source-control) · [Sessions](#sessions) ·
 [Terminal](#terminal) · [Search](#search) · [GitHub](#github) ·
 [Databases](#databases) · [Commands](#commands) · [Text effects](#text-effects)
 
@@ -23,14 +23,14 @@ items(m) ──▶ context menu + command palette
 | -------------- | --- | -------------- | ---------------------------------------------------------------------------- |
 | Explorer       | `1` | `explorer.go`  | directory tree, git decorations, problems (`probDecoFor`)                    |
 | Source Control | `2` | `scm.go`       | message box, action button, sections, drawers                                |
-| Spaces         | `3` | `agents.go`    | project → worktree → session tree                                            |
+| Sessions       | `3` | `agents.go`    | project → worktree → session tree                                            |
 | Search         | `4` | `search.go`    | query boxes, matches by file                                                 |
 | Terminal       | `5` | `agents.go`    | shells under the editor or in a sidebar                                      |
 | GitHub         | `6` | `github.go`    | pull requests, notifications, issues; needs `gh`                             |
 | Databases      | `7` | `databases.go` | SQLite files, `.env` and `[databases]` servers, their tables; needs a client |
 
 `ctrl+f` filters a list (`startFilter`) from a framed box under the header;
-Spaces' header has a search button for it.
+Sessions' header has a search button for it.
 
 ## Explorer
 
@@ -117,12 +117,12 @@ A Commit with nothing staged is muted too, and a click on it does nothing.
   (`git.Drawers`), File History the selected file's log, Compare its range;
   which show and their order live in `git_drawers`, open and height in
   `git_panes`.
-- Drawers stack like Spaces' projects (`flipDrawer`): open ones above closed
+- Drawers stack like Sessions' projects (`flipDrawer`): open ones above closed
   ones, an opened drawer on top, a closed one on top of the closed, in
   `git_drawers` order. _Collapse All Drawers_ (the strip's ⊟ or a header's
   menu; `collapseDrawers`) closes the open ones where they show; the view's
   Collapse All (`collapseAll`) closes them with the tree.
-- The drawers sit under a `▾ Tools  N` strip (`toolsRow`), as Spaces' No
+- The drawers sit under a `▾ Tools  N` strip (`toolsRow`), as Sessions' No
   Sessions: `toolsActions` take the place of N while the mouse is over the
   drawers, lingering as the header's do. Folded (`git_drawers_folded`), the
   strip is all that shows, the drawers not built nor loaded, each keeping
@@ -154,7 +154,7 @@ A Commit with nothing staged is muted too, and a click on it does nothing.
 | Compare `b` with… (`comparePicker`)       | `r..HEAD`                    |
 | Open Changed Files on a PR or its notice  | `git.FetchPR`: `base...head` |
 
-## Spaces
+## Sessions
 
 Sessions belong to worktrees, worktrees to projects. Switching a session
 re-roots Explorer and Source Control to its worktree.
@@ -207,13 +207,13 @@ re-roots Explorer and Source Control to its worktree.
 ### Status
 
 The daemon decides each status
-([01-architecture.md](01-architecture.md#status)); Spaces
+([01-architecture.md](01-architecture.md#status)); Sessions
 draws herdr's glyphs, one per state (`sessionGlyph`, `sessionState`; the
 table is in [usage.md](usage.md#sessions)). `done` is `idle` with
 `attention`; an `exited` row is a failure, shown as `exit N`.
 
 - Rows roll up the most demanding glyph of what they hold (`groupGlyph`).
-- A working `◐` turns a quarter every `spinStep` (250 ms), in Spaces and on
+- A working `◐` turns a quarter every `spinStep` (250 ms), in Sessions and on
   tabs, every one in step (`spinGlyph`); `spinMsg` ticks only while one
   works, and `animations = false` stops it. A plain shell, with no screen to
   read, turns only with a program other than itself in front (`works`): its
@@ -226,7 +226,7 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
 - `session_highlight` tints blocked, exited and done tabs (`sessionTint`);
   the tint pulses until the session is clicked or shown in the focused
   group (`pulses`); shown in another group it pulses on that group's frame. A
-  Spaces row is never tinted, so none reads as selected: its status says
+  Sessions row is never tinted, so none reads as selected: its status says
   `input`, `done` or `exit N` in its symbol's color, bold on the pulse's
   beat. `"steady"` drops the pulse, `"off"` the tint and
   the color.
@@ -303,7 +303,7 @@ daemon saw it run in (`seen_env`) that no profile sets; the choice goes in
 `session.new`'s `env`. A project's `+` asks for its worktree first
 (`worktreePicker`), _New Worktree…_ included (`sessionWorktreeMsg`). The `+`
 follows the name of the row under the pointer, or of the selected one while
-Spaces has the keyboard (`agents.actions`).
+Sessions has the keyboard (`agents.actions`).
 
 A worktree's _Resume_ (`resumePicker`) starts one that continues a
 conversation: an installed agent's `[resume_id]` without the id, which for
@@ -322,7 +322,7 @@ Terminal panel.
   `terminal_position` makes it a tab of a sidebar, its tabs with it; drag any
   of them there, and back under the editor, where nothing else goes.
 - It holds the worktree's `terminal` agent sessions (`termOwned`), hidden from
-  Spaces, whichever session is shown. One a script gave a `parent` shows there
+  Sessions, whichever session is shown. One a script gave a `parent` shows there
   too and dies with that session; the panel's own have none.
 - Switching sessions keeps the shell in view, switching worktrees re-attaches
   the panel (`attachTerm`); an open panel with no shell starts one

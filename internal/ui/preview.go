@@ -5191,7 +5191,7 @@ func (p *preview) closeNow(m *Model) tea.Cmd {
 
 func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	switch {
-	case p.kind == "": // the welcome screen: the keys its text lists, as Spaces takes them
+	case p.kind == "": // the welcome screen: the keys its text lists, as Sessions takes them
 		switch k.String() {
 		case "n":
 			if m.ws != "" {

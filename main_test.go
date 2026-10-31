@@ -192,7 +192,7 @@ func TestE2E(t *testing.T) {
 	send("\r")
 
 	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(50 * time.Millisecond) {
-		if lines := strings.Split(screen(), "\n"); len(lines) > 0 && strings.HasSuffix(strings.TrimRight(lines[0], " "), "SPACES") {
+		if lines := strings.Split(screen(), "\n"); len(lines) > 0 && strings.HasSuffix(strings.TrimRight(lines[0], " "), "SESSIONS") {
 			break
 		}
 

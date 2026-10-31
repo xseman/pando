@@ -205,7 +205,7 @@ func (e *explorer) reveal(m *Model, path string) {
 
 // autoReveal selects path in Explorer, as auto_reveal, and brings Explorer to
 // the front of its column, unless that column has the keyboard on another
-// view than Spaces: a file opened from Search or Source Control there leaves
+// view than Sessions: a file opened from Search or Source Control there leaves
 // that view in front.
 func (m *Model) autoReveal(path string) {
 	if n := m.ex.selected(); n == nil || n.path != path { // shown already: arrowing through previews rebuilds nothing

@@ -73,7 +73,7 @@ pando session new --agent claude --ws /path/to/worktree --name reviewer --wait
 Names are unique among live sessions; a second `reviewer` is refused rather
 than shadowed. A name is not reused after the session is gone.
 
-Pick the name so the user recognizes the work in Spaces:
+Pick the name so the user recognizes the work in Sessions:
 
 - **Follow the house style.** Read `session ls` first and name yours the way
   the existing ones are named: the same separator, case, order and length.
@@ -206,12 +206,12 @@ agent to write its answer to a file and read the file yourself.
 
 ## Pass a message to another session
 
-The user names the recipient as Spaces shows it ("the claude in feat/x"), not
+The user names the recipient as Sessions shows it ("the claude in feat/x"), not
 by id. Hit exactly that session:
 
 1. **Find.** Join `session ls` (its `workspace` path) with `ws ls` (that
    path's `project`, shown by basename, and `branch`). Match the label against
-   `name`, `agent`, `program` and `title`; Spaces' done is `idle`, unseen.
+   `name`, `agent`, `program` and `title`; Sessions' done is `idle`, unseen.
    From here on use the `id`.
 2. **Prove.** Exactly one candidate; not `$PANDO_SESSION`; `program` not a
    shell (`bash`, `zsh`, `fish`…), which would run the text as a command —

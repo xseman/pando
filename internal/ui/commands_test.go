@@ -440,7 +440,7 @@ func TestAgentsTreeGaps(t *testing.T) {
 
 	lines := strings.Split(checkWidths(t, m), "\n")
 
-	top := slices.IndexFunc(lines, func(l string) bool { return strings.HasPrefix(ansi.Strip(l), " SPACES") }) + 1
+	top := slices.IndexFunc(lines, func(l string) bool { return strings.HasPrefix(ansi.Strip(l), " SESSIONS") }) + 1
 	if top <= 0 {
 		t.Fatalf("no Spaces header:\n%s", strings.Join(lines, "\n"))
 	}
@@ -3924,8 +3924,8 @@ func TestSpacesCloseOrDelete(t *testing.T) {
 		r            agRow
 		label, title string
 	}{
-		{project, "Close Project…", "Close project " + filepath.Base(m.ws) + "? It leaves Spaces, nothing on disk changes. Its 2 sessions are killed."},
-		{main, "Close Project…", "Close project " + filepath.Base(m.ws) + "? It leaves Spaces, nothing on disk changes. Its 2 sessions are killed."},
+		{project, "Close Project…", "Close project " + filepath.Base(m.ws) + "? It leaves Sessions, nothing on disk changes. Its 2 sessions are killed."},
+		{main, "Close Project…", "Close project " + filepath.Base(m.ws) + "? It leaves Sessions, nothing on disk changes. Its 2 sessions are killed."},
 		{linked, "Delete Worktree…", "Delete worktree feat? The checkout " + wt + " is removed, the branch stays. Its session is killed."},
 	} {
 		if got := removeLabel(&c.r); got != c.label {

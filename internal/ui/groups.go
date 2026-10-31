@@ -377,7 +377,7 @@ func (m *Model) idleGroup() bool {
 }
 
 // closeGroup takes the active group out of the grid, its neighbour taking
-// the keyboard; a session behind it runs on, in Spaces.
+// the keyboard; a session behind it runs on, in Sessions.
 func (m *Model) closeGroup() tea.Cmd {
 	p := m.cur
 	next := ifElse(p.up.a == p, p.up.b, p.up.a).leaves()[0]
@@ -473,7 +473,7 @@ func (m *Model) splitEditor(side int) tea.Cmd {
 	return m.moveTabTo(id, m.cur, side)
 }
 
-// splitSessions is Spaces' Split Sessions on worktree path: its sessions a
+// splitSessions is Sessions' Split Sessions on worktree path: its sessions a
 // group each, side by side and as wide as each other, the files of the
 // groups it had in the first, as they were, unsaved edits too.
 func (m *Model) splitSessions(path string) tea.Cmd {
@@ -652,7 +652,7 @@ func (m *Model) dragSplit(d *drag, x, y int, release bool) tea.Cmd {
 // at the edge it is near, a quarter of the group's width or height; dst is
 // nil where it would not move: into the active group showing it, and beside
 // it when it is the only tab there, which no split would leave anything
-// behind. A session held from Spaces may be in no group yet, or behind the
+// behind. A session held from Sessions may be in no group yet, or behind the
 // active group's front tab, which a drop into it brings up. With two groups
 // or more along the area's bottom edge, the last rows of its middle third,
 // dividers too, are a new group under them all, dst the whole grid.
@@ -702,7 +702,7 @@ func (m *Model) gridDrop(x, y int, id string) (dst *pane, side int, t dropTarget
 	return dst, side, dropTarget{rc: rect{b.x, b.w}, y: b.y, h: b.h, fill: true, col: -1, label: label}
 }
 
-// dragOpenTo follows a file held from Explorer, or a session from Spaces,
+// dragOpenTo follows a file held from Explorer, or a session from Sessions,
 // that the press opened, over the editor area as its tab held off the strip:
 // let go, it goes to the group under it, or a new one at the edge it is near.
 func (m *Model) dragOpenTo(d *drag, x, y int, release bool) tea.Cmd {

@@ -239,9 +239,9 @@ func (c *config) encode() []byte {
 		"else your login shell. One that is missing or fails at once falls back on bash.", "shell", s.Shell)
 
 	kv("A session that waits for an answer, finished unseen or ended with an error: \"tint\"\n"+
-		"its tab, and color its status in Spaces, in its symbol's color and pulse until it is clicked\n"+
+		"its tab, and color its status in Sessions, in its symbol's color and pulse until it is clicked\n"+
 		"(colors blocked_bg, done_bg and their _soft_bg), \"steady\" to tint without the pulse, or \"off\".", "session_highlight", s.SessHi)
-	kv("Spaces: sessions sorted by \"created\" or \"updated\" (last input or change of state),\n"+
+	kv("Sessions view: sessions sorted by \"created\" or \"updated\" (last input or change of state),\n"+
 		"grouped by \"workspace\" (project and worktree) or \"time\" (Today, Yesterday, …), and\n"+
 		"the states left out: blocked, running, done, idle, asleep, exited.", "spaces_sort", s.SpSort)
 	kv("", "spaces_group", s.SpGroup)
@@ -249,7 +249,7 @@ func (c *config) encode() []byte {
 	kv("Put a session to sleep once it has been idle and unused - nobody typed into it, looked\n"+
 		"at it or saw it change - for this many minutes: its process, and a claude's background\n"+
 		"job, stop to free their memory; opening it brings the agent back. 0: never.", "sleep_after", s.Sleep)
-	kv("Spaces: projects in their \"manual\" order (drag, alt+up/down) or by \"updated\",\n"+
+	kv("Sessions view: projects in their \"manual\" order (drag, alt+up/down) or by \"updated\",\n"+
 		"the one whose sessions changed last first.", "spaces_project_sort", s.SpProj)
 	b.WriteString("\n# Sidebar columns per side, from the screen edge toward main, each with its tabs\n" +
 		"# and optional width. Views: \"files\", \"git\", \"agents\", \"search\", \"session\"; unlisted\n" +

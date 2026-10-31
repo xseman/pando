@@ -45,7 +45,7 @@ Sleep 1200ms
 
 # The next pando starts a daemon, which brings the session back: its shell,
 # and claude resumed on the same conversation by the command it typed there.
-# The start is cut to Spaces (3), beside the session.
+# The start is cut to Sessions (3), beside the session.
 Type "pando"
 Sleep 400ms
 Hide
@@ -57,7 +57,7 @@ Show
 Wait+Screen@60s /cortado/
 Sleep 2500ms
 
-# Still the same conversation: ask it, ctrl+] focusing it from Spaces. (The
+# Still the same conversation: ask it, ctrl+] focusing it from Sessions. (The
 # wait for the answer is cut.)
 Ctrl+]
 Sleep 300ms

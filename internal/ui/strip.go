@@ -323,7 +323,7 @@ func (m *Model) grabTab(s int, id string, x int) {
 // dragGhost is the held tab lifted off its strip and carried by the pointer,
 // as VS Code drags a tab's image: the cell it was picked up by stays under
 // the pointer, a row lower so the drop mark on the strip stays in sight. A
-// file held from Explorer, or a session from Spaces, rides as the tab it
+// file held from Explorer, or a session from Sessions, rides as the tab it
 // opens in, its label starting under the pointer.
 func (m *Model) dragGhost() (box []string, x, y int, ok bool) {
 	d := m.drag

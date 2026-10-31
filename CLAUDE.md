@@ -46,7 +46,7 @@ libgit2: git is shelled out.
 | ------------------------------------------------------------------- | ---------------------------------------- |
 | daemon, socket protocol, sessions, resume                           | `docs/01-architecture.md`                |
 | columns, rows, mouse hit-testing, modals, drag                      | `docs/02-ui-layout.md`                   |
-| Explorer, Source Control, Spaces, Search, GitHub, commands          | `docs/03-views.md`                       |
+| Explorer, Source Control, Sessions, Search, GitHub, commands        | `docs/03-views.md`                       |
 | diffs, editor, Markdown, LSP, suggestions, staging lines, revisions | `docs/04-preview.md`                     |
 | anything calling git                                                | `docs/05-git.md`                         |
 | config.toml, state.json, settings, keys, colors                     | `docs/06-config.md`                      |

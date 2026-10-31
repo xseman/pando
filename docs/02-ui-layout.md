@@ -145,7 +145,7 @@ take a message (`previewMsg`, `onScreen`, drafts).
 - Splitting: a tab dragged over a group's body (`gridDrop`) splits it on the
   edge it is near, a quarter of its width or height, and moves into a group
   of its own there; on a strip or the middle it moves into that group, whose
-  session keeps a tab beside it, and a session held from Spaces whose tab
+  session keeps a tab beside it, and a session held from Sessions whose tab
   waits in the active group comes to the front. A group's only tab offers
   nothing over its own group. With two groups or
   more along the area's bottom edge (`lowest`), the lower half of the edge
@@ -252,11 +252,11 @@ Nothing is saved; a wider screen undoes it.
 ```text
 editor < minEditor (40)?
   1. columns ─────────▶ narrow to 20, outermost first
-  2. side w/o Spaces ─▶ folds into its rail (folds)
-  3. Spaces ──────────▶ narrows to 20
+  2. other side ──────▶ folds into its rail (folds)
+  3. Sessions ────────▶ narrows to 20
 editor < 20?
   4. editor ──────────▶ gives up all but 20 cells
-  5. columns ─────────▶ drop, outermost first, Spaces last
+  5. columns ─────────▶ drop, outermost first, Sessions last
 ```
 
 A side opened from its rail stays open until the next resize (`unfold`). A
@@ -270,19 +270,19 @@ focused one alone ([Editor groups](#editor-groups)).
 | column divider                            | width, saved on release                    |
 | editor group divider                      | the groups' ratio, saved                   |
 | editor or session tab over a group        | split it or move in (`gridDrop`)           |
-| Explorer file, Spaces session over one    | the same (`dragOpen`, `dragRowTo`)         |
+| Explorer file, session over one           | the same (`dragOpen`, `dragRowTo`)         |
 | the border over the bottom panel          | `terminal_height`                          |
 | Source Control drawer, GitHub pane header | the pane's top edge                        |
 | tab onto a bar, or the half facing main   | slot between chips (`slotAt`, `placeView`) |
 | tab below a bar, toward the screen edge   | a new column                               |
-| Spaces project, worktree or session row   | a tinted row between rows (`dropSlot`)     |
+| Sessions project, worktree or session row | a tinted row between rows (`dropSlot`)     |
 
-`dropAt` picks the target, `dropBox` draws it. A Spaces row moves only on
+`dropAt` picks the target, `dropBox` draws it. A Sessions row moves only on
 release, onto the row of its kind under the pointer (`dropOn`); a project
 goes above a project's upper half, below its lower half, and into a gap
 between projects (`projectDrop`). Let go anywhere else, it stays.
 A file pressed in Explorer opens in the preview tab, a session of the
-worktree in view in Spaces opens as a click opens it, and held on, its tab
+worktree in view in Sessions opens as a click opens it, and held on, its tab
 goes over the editor area as one off its strip (`dragOpenTo`), the tab it
 opens in riding under the pointer (`dragGhost`). A session that moves among
 its worktree's opens on the release instead, over the editor area
@@ -342,8 +342,8 @@ Model.mouse
   sooner gets the last frame again (`motionFrame`, `still`) and a
   `redrawMsg` draws where the pointer stopped. Drawn per motion, a fast drag
   queued its motions, hundreds a second, and trailed the pointer.
-- A tab, a file or a Spaces row held draws the frame under its overlays
-  once (`baseFrame`, `baseKey`: the drag, its strip slot, its Spaces row):
+- A tab, a file or a Sessions row held draws the frame under its overlays
+  once (`baseFrame`, `baseKey`: the drag, its strip slot, its Sessions row):
   its motions draw only the drop box, once per target, and the ghost over
   it, hover held as it was. Any other message draws it anew. A modal keeps
   its frame the same way while it takes keys (`baseKey.md`), unless a key
@@ -354,7 +354,7 @@ Model.mouse
   it has rested `tipDelay`, until `actionsLinger` (`tipShown`, `hoverBox`):
   header actions, activity bar chips, strip buttons, the Terminal's `+` and `✕`, Source
   Control rows and ∨, Search's toggles, ▸ and ⋯, find widgets, status bar
-  items. A session name its Spaces row or its tab cuts, at 32 cells
+  items. A session name its Sessions row or its tab cuts, at 32 cells
   (`sessionName`) or at the edge, shows whole the same way (`fullName`,
   `sessTab.tip`). Moving on from a tip shows the next at once (`tipSeen`);
   a key, a click or the wheel puts it away until the pointer moves
@@ -400,7 +400,7 @@ group has one strip, the files' tabs then the sessions'.
   (unsaved, its `●` turns into it), in any group; a click on it closes that
   tab. It raises like a button while the mouse is on it (`overX`,
   `closeHot`).
-- A session's tab in the editor strip shows its glyph in Spaces' color and
+- A session's tab in the editor strip shows its glyph in Sessions' color and
   sits on a much softer shade of it (`tabTint`), active or not, so it reads
   apart from the files'; a session_highlight tint or `hover_bg` takes its
   place.

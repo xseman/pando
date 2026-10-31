@@ -1,4 +1,4 @@
-# The README's still: Explorer on the left, Spaces on the right with two
+# The README's still: Explorer on the left, Sessions on the right with two
 # projects and their sessions, and between them two editor groups side by
 # side, the file and the claude session that just changed it. Only hero.png
 # is kept; the GIF vhs insists on writing, a few frames, is ignored by git.
@@ -20,7 +20,7 @@ Source docs/demo/setup.tape
 # VHS cannot send a palette command: Move Editor into Left Group is ctrl+e here.
 Type `cfg 27 hero claude-edits claude-ask ctrl+e=view.moveEditorIntoLeftGroup` Enter
 Type "go build ./... >/dev/null 2>&1; pando project add . >/dev/null; for b in discount readme; do pando ws new $b >/dev/null; done" Enter
-# A second project, so Spaces holds two.
+# A second project, so Sessions holds two.
 Type "web=$STATE/web; git init -q -b main $web && echo '<h1>shop</h1>' > $web/index.html && git -C $web add -A && git -C $web -c user.name=Demo -c user.email=demo@example.com commit -qm 'a page'" Enter
 Type "pando project add $web >/dev/null; pando ws new landing --project $web >/dev/null; wt=$PANDO_DATA_DIR/worktrees" Enter
 # claude trusts $REPO and $STATE but asks about a worktree of another repository.

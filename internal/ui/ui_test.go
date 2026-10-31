@@ -533,7 +533,7 @@ func TestTwoSidebarsAndDrag(t *testing.T) {
 	m := testModel(t)
 	click(m, tabAt(m, viewAgents), 0, tea.MouseRight)
 
-	if m.modal == nil || m.modal.title != "Spaces" {
+	if m.modal == nil || m.modal.title != "Sessions" {
 		t.Fatalf("right click on a view chip opens its menu: %+v", m.modal)
 	}
 
@@ -552,7 +552,7 @@ func TestTwoSidebarsAndDrag(t *testing.T) {
 
 	checkWidths(t, m)
 
-	if header := ansi.Strip(ansi.Cut(strings.Split(m.View().Content, "\n")[0], r.x, m.w)); !strings.Contains(header, "SPACES") {
+	if header := ansi.Strip(ansi.Cut(strings.Split(m.View().Content, "\n")[0], r.x, m.w)); !strings.Contains(header, "SESSIONS") {
 		t.Fatalf("right sidebar header = %q", header)
 	}
 
@@ -2443,7 +2443,7 @@ func TestColumns(t *testing.T) {
 	}
 
 	out := strings.Split(checkWidths(t, m), "\n")
-	if !strings.HasPrefix(out[0], " SPACES") || !strings.Contains(ansi.Cut(out[actH], 25, 55), strings.ToUpper(filepath.Base(m.ws))) {
+	if !strings.HasPrefix(out[0], " SESSIONS") || !strings.Contains(ansi.Cut(out[actH], 25, 55), strings.ToUpper(filepath.Base(m.ws))) {
 		t.Fatalf("a single-tab column starts with its header:\n%s\n%s", out[0], out[actH])
 	}
 

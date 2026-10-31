@@ -47,7 +47,7 @@ Needs git. Optional: `gh` for GitHub, `rg` for search, `sqlite3` (3.37+),
 run picks `nerd` when one is installed, and the status bar offers to install
 it when none is).
 
-![pando with Explorer on the left and Spaces on the right, two projects and their claude sessions in it, one working, one waiting for a yes, one done; between them two editor groups side by side, store.go and the claude session that just changed it](docs/demo/hero.png)
+![pando with Explorer on the left and Sessions on the right, two projects and their claude sessions in it, one working, one waiting for a yes, one done; between them two editor groups side by side, store.go and the claude session that just changed it](docs/demo/hero.png)
 
 ## Features
 
@@ -93,7 +93,7 @@ pando main.go:42:5 # the project holding main.go, the file open at line 42
 
 | Key      | Does                                                           |
 | -------- | -------------------------------------------------------------- |
-| `3`      | Spaces: your projects, worktrees and sessions                  |
+| `3`      | Sessions: your projects, worktrees and sessions                |
 | `w`      | a new worktree for the selected project                        |
 | `n`      | a new session in the worktree: an installed agent or a shell   |
 | `ctrl+]` | move focus out of the session; inside it every key goes to it  |
@@ -106,7 +106,7 @@ Every GIF below is pando itself, recorded by `make demo`.
 
 <table>
 <tr>
-<td width="50%" valign="top"><img src="docs/demo/tui.gif" alt="three claude sessions, each in a worktree of its own, come to life; one finishes (✓), one waits for a yes (×, pulsing), and the finished one's diff is reviewed and committed without leaving pando" width="100%"><p align="center"><sub><b>Agents in worktrees.</b> A session per worktree, its state in Spaces as it changes; review and commit what it did without leaving pando. <a href="docs/usage.md#sessions">More</a></sub></p></td>
+<td width="50%" valign="top"><img src="docs/demo/tui.gif" alt="three claude sessions, each in a worktree of its own, come to life; one finishes (✓), one waits for a yes (×, pulsing), and the finished one's diff is reviewed and committed without leaving pando" width="100%"><p align="center"><sub><b>Agents in worktrees.</b> A session per worktree, its state in Sessions as it changes; review and commit what it did without leaving pando. <a href="docs/usage.md#sessions">More</a></sub></p></td>
 <td width="50%" valign="top"><img src="docs/demo/resume.gif" alt="a claude conversation, pando closed and its daemon stopped; the next pando brings the session back and claude continues the same conversation" width="100%"><p align="center"><sub><b>Resume.</b> Stop the daemon, start pando again: every session comes back and its agent continues the same conversation. <a href="docs/usage.md#resume">More</a></sub></p></td>
 </tr>
 <tr>

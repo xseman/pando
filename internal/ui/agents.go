@@ -272,7 +272,7 @@ func (m *Model) busyProjects() map[string]bool {
 	return busy
 }
 
-// shownProjects are the projects in the order Spaces lists them: the open
+// shownProjects are the projects in the order Sessions lists them: the open
 // ones in the project Sort's order, then the folded ones, the one folded last
 // first; then the projects with no session, under bareHead, in the Sort's.
 func (a *agents) shownProjects(m *Model) []string {
@@ -368,7 +368,7 @@ func (a *agents) pinFolded(m *Model, rows []agRow, above int) []agRow {
 	return slices.Insert(rows, k, gaps...)
 }
 
-// listedSessions are the sessions Spaces shows: the Filter's states left out,
+// listedSessions are the sessions the view shows: the Filter's states left out,
 // in the Sort's order. Created keeps the order they were made in; Updated,
 // and grouping by Time or State, puts the newest first.
 func (m *Model) listedSessions() []proto.Session {
@@ -389,7 +389,7 @@ func (m *Model) listedSessions() []proto.Session {
 	return out
 }
 
-// byWorkspace reports Spaces grouped by Workspace, the project tree, not by
+// byWorkspace reports Sessions grouped by Workspace, the project tree, not by
 // Time or State.
 func (m *Model) byWorkspace() bool {
 	g := m.st.Settings.SpGroup
@@ -562,7 +562,7 @@ func (a *agents) pinnedRows(m *Model, sessions []proto.Session, q string) []agRo
 }
 
 // togglePin pins session id under Pinned, or unpins it, dropping the
-// sessions gone since; Spaces keeps its selection on the row it was on.
+// sessions gone since; Sessions keeps its selection on the row it was on.
 func (m *Model) togglePin(id string) tea.Cmd {
 	sel := m.ag.selected(m)
 
@@ -688,7 +688,7 @@ func (a *agents) snap(m *Model) {
 	}
 }
 
-// bar is the scrollbar beside line y of Spaces: the Pinned pane's or the tree's.
+// bar is the scrollbar beside line y of Sessions: the Pinned pane's or the tree's.
 func (a *agents) bar(m *Model, y int) (listBar, bool) {
 	h := m.bodyH(viewAgents)
 	geo := func() (pinPane, int) {
@@ -1073,7 +1073,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 
 		bg, base := m.rowColors(viewAgents, i == a.l.sel, y == hover)
 
-		var plus, kill []seg // the + under the pointer, or on the selection while Spaces has the keyboard; a worktree's ✕ on hover only
+		var plus, kill []seg // the + under the pointer, or on the selection while Sessions has the keyboard; a worktree's ✕ on hover only
 
 		pointed := y == hover || i == a.l.sel && m.focused(viewAgents)
 		if pointed && r.kind != agSession { // a session's is its pin, in the gutter
@@ -1861,7 +1861,7 @@ func (a *agents) remove(m *Model, r *agRow) tea.Cmd {
 		}
 
 		kill = m.sessionsIn(paths...)
-		title = fmt.Sprintf("Close project %s? It leaves Spaces, nothing on disk changes.%s",
+		title = fmt.Sprintf("Close project %s? It leaves Sessions, nothing on disk changes.%s",
 			filepath.Base(r.project), killedText(len(kill)))
 		label, method, params = "Close Project", "project.remove", map[string]string{"path": r.project}
 
@@ -2235,7 +2235,7 @@ func (a *agents) viewMenu(m *Model, x, y int) tea.Cmd {
 	}, x, y)
 }
 
-// filterMenu toggles which session states Spaces shows; it stays open, as
+// filterMenu toggles which session states Sessions shows; it stays open, as
 // VS Code's submenu does, until esc.
 func (a *agents) filterMenu(m *Model, x, y int) tea.Cmd {
 	build := func(m *Model) []item {
@@ -2634,7 +2634,7 @@ func (a *agents) moveProject(m *Model, from, to string) {
 	}
 }
 
-// sessionsMovable says whether the Spaces tree lists sessions in the order
+// sessionsMovable says whether the Sessions tree lists sessions in the order
 // session.move keeps: grouped by worktree and sorted by Created. Sorted by
 // Updated or grouped by time or state, the order is the clock's.
 func (m *Model) sessionsMovable() bool {
@@ -2643,7 +2643,7 @@ func (m *Model) sessionsMovable() bool {
 	return st.SpSort != "updated" && m.byWorkspace()
 }
 
-// siblings are the ids of the sessions Spaces lists in session id's worktree,
+// siblings are the ids of the sessions the view lists in session id's worktree,
 // id among them, in their order.
 func (m *Model) siblings(id string) []string {
 	s := m.session(id)
@@ -3233,7 +3233,7 @@ func (m *Model) spaceSessions() []proto.Session {
 	return slices.DeleteFunc(m.mainSessions(), func(s proto.Session) bool { return s.Workspace != m.ws })
 }
 
-// mainSessions are the sessions the Spaces tree lists and the main area
+// mainSessions are the sessions the Sessions tree lists and the main area
 // shows: all but the Terminal panel's shells.
 func (m *Model) mainSessions() []proto.Session {
 	return slices.DeleteFunc(slices.Clone(m.sessions), func(s proto.Session) bool { return s.Agent == termAgent })
@@ -3283,7 +3283,7 @@ func (m *Model) ensureTerm() tea.Cmd {
 	return m.newTerm()
 }
 
-// tabGlyph is session s's glyph in a tab and its color, as Spaces draws
+// tabGlyph is session s's glyph in a tab and its color, as Sessions draws
 // them. A shell's screen says nothing about an agent's state: a server
 // printing logs would read as working. Only an agent shows a glyph, one
 // started by hand in a terminal too; a shell gets "".

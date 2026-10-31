@@ -43,7 +43,7 @@ const (
 )
 
 var (
-	viewTitles = []string{"Explorer", "Source Control", "Spaces", "Search", "Terminal", "GitHub", "Databases"}
+	viewTitles = []string{"Explorer", "Source Control", "Sessions", "Search", "Terminal", "GitHub", "Databases"}
 	viewKeys   = []string{"files", "git", "agents", "search", "terminal", "github", "databases"} // values of settings.left and settings.right
 	// showKeys show each view from anywhere where there is such a key, else
 	// from a sidebar: the Terminal's toggles the panel.
@@ -98,12 +98,12 @@ type drag struct {
 	col     int    // dragDivider: the column being resized
 	pane    string // dragPane: Git drawer title, or GitHub section title with v viewGitHub
 	v       view   // dragTab: the tab being dragged; dragPane: viewGit or viewGitHub
-	proj    string // dragRow: the project being moved in the Spaces list
+	proj    string // dragRow: the project being moved in the Sessions list
 	sess    string // dragRow: the session being moved under its worktree instead
 	ws      string // dragRow: the worktree being moved under its project instead
 	to      string // dragRow: the one of its kind whose place it would take on release, "" none
 	strip   int    // dragStrip: the tab strip, stripEditor and on
-	tab     string // dragStrip: the tab being moved, an editor's or a session's id; dragOpen: the file's held from Explorer, or the session's from Spaces
+	tab     string // dragStrip: the tab being moved, an editor's or a session's id; dragOpen: the file's held from Explorer, or the session's from Sessions
 	org     int    // dragStrip: the screen column of the strip's first cell
 	slot    int    // dragStrip: where the tab would land, an index in stripOrder; -1 nowhere
 	x0      int    // dragTab, dragStrip: where it was picked up; dragRow: the row's column pressed; dragMsgSel: the message text's screen origin, with y0
@@ -867,9 +867,9 @@ func (m *Model) overBy(ws []int, mainMin int) int {
 }
 
 // folds are the sides folded into a rail: hidden by hand, or squeezed. The
-// side without Spaces is squeezed when, its columns and the others at 20
+// side without Sessions is squeezed when, its columns and the others at 20
 // cells, it would still leave the editor under minEditor: it folds before
-// Spaces gives up a cell, and its rail opens it again (unfold), Spaces and
+// Sessions gives up a cell, and its rail opens it again (unfold), Sessions and
 // the editor then making room.
 func (m *Model) folds(cs []col) [2]bool {
 	f := m.hidden
@@ -992,8 +992,8 @@ func (m *Model) resize() { m.h = max(m.termH-2*m.bord(), 1) }
 // layout places left columns | main | right columns, separated by a divider
 // or by the facing borders of framed panels. A folded side collapses into
 // one rail. Short of room, the other columns narrow to 20 cells, the
-// outermost first, then Spaces does, then the editor gives up all but 20
-// cells; only then does a column go, the outermost first and Spaces last.
+// outermost first, then Sessions does, then the editor gives up all but 20
+// cells; only then does a column go, the outermost first and Sessions last.
 func (m *Model) layout() (cs []rect, c rect) {
 	if m.frame != nil {
 		return m.frame.rects, m.frame.main
@@ -4465,7 +4465,7 @@ func (m *Model) vertTabs(s int) []tab {
 }
 
 func (m *Model) viewHeader(s int, v view, w int) string {
-	title := []string{strings.ToUpper(filepath.Base(m.ws)), "SOURCE CONTROL", "SPACES", "SEARCH", "TERMINAL", "GITHUB", "DATABASES"}[v]
+	title := []string{strings.ToUpper(filepath.Base(m.ws)), "SOURCE CONTROL", "SESSIONS", "SEARCH", "TERMINAL", "GITHUB", "DATABASES"}[v]
 
 	var right []seg
 
@@ -4558,7 +4558,7 @@ type base struct {
 }
 
 // baseKey is what the frame under a drag's overlays hangs on while only its
-// motions arrive: the drag, the slot it marks on its strip, the Spaces row
+// motions arrive: the drag, the slot it marks on its strip, the Sessions row
 // it would take. Under a modal it is the modal while it takes keys, unless
 // a key may change what is under it: a move or change hook (a theme's
 // preview), an item run with the modal kept open. Zero for anything else,
@@ -5290,7 +5290,7 @@ func welcome(w, h int, sess, files, focused bool) []string {
 		"n      new session",
 		"w      new worktree",
 		"a      add project",
-		"3      Spaces panel",
+		"3      Sessions panel",
 		"^n     new file, or double click",
 	}
 	out := make([]string, max(h, 0))
@@ -5373,7 +5373,7 @@ func (m *Model) viewItems() []item {
 		{label: "Show Output", hint: "^⇧u", run: func(m *Model) tea.Cmd { return m.showPanel(ptOutput) }},
 		{label: "Show Explorer", hint: showKeys[viewFiles], run: show(viewFiles)},
 		{label: "Show Source Control", hint: showKeys[viewGit], run: show(viewGit)},
-		{label: "Show Spaces", hint: showKeys[viewAgents], run: show(viewAgents)},
+		{label: "Show Sessions", hint: showKeys[viewAgents], run: show(viewAgents)},
 		{label: "Show Search", hint: showKeys[viewSearch], run: show(viewSearch)},
 		{label: "Toggle Terminal", hint: "^`", run: func(m *Model) tea.Cmd { return m.toggleTerminal() }},
 	}
