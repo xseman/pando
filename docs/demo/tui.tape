@@ -15,7 +15,7 @@ Set TypingSpeed 50ms
 Source docs/demo/setup.tape
 # claude-edits for two of them, agent ask (claude-ask) for the one that has to
 # wait for a yes. VHS cannot send ctrl+0: Focus Sidebar is ctrl+y here.
-Type `cfg 34 claude-edits claude-ask ctrl+y=view.focusSidebar` Enter
+Type `cfg 38 claude-edits claude-ask ctrl+y=view.focusSidebar` Enter
 Type "pando project add . >/dev/null; for b in count discount readme; do pando ws new $b >/dev/null; done" Enter
 Type "wt=/tmp/pando-state/data/worktrees/pando-demo" Enter
 Type "a=$(pando session new --agent claude --ws $wt/count --wait | jq -r .id)" Enter

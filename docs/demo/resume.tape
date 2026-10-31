@@ -12,7 +12,7 @@ Source docs/demo/settings.tape
 Source docs/demo/setup.tape
 # resume: claude comes back in the terminal, as it ran, rather than as a
 # Claude Code background job that would outlive the recording.
-Type `cfg 30 resume` Enter
+Type `cfg 36 resume` Enter
 # claude typed into a shell session, as `n` then `claude` would: the shell
 # is what the daemon respawns, and what it types the resume command into.
 # The shell is started with claude's isolated config directory in its

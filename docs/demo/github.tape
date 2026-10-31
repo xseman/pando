@@ -11,7 +11,7 @@ Require ttyd
 
 Source docs/demo/settings.tape
 Source docs/demo/setup.tape
-Type `cfg 40` Enter
+Type `cfg 46` Enter
 # The daemon keeps the PATH of the shell that starts it: the fake gh goes
 # first on the PATH pando starts with.
 Type "export PATH=$DEMO/gh:$PATH; clear" Enter
@@ -46,7 +46,3 @@ Sleep 3s
 # the branch in the status bar.
 Type "w"
 Sleep 3s
-
-# Spaces (3): the worktree beside the checkout, ready for a session.
-Type "3"
-Sleep 2000ms

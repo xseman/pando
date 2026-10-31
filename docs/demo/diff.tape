@@ -12,7 +12,7 @@ Require ttyd
 Source docs/demo/settings.tape
 Source docs/demo/setup.tape
 Type "bash $DEMO/merge.sh $REPO" Enter
-Type `cfg 30 ctrl+k=editor.saveFile ctrl+e=editor.acceptIncomingChange` Enter
+Type `cfg 34 ctrl+k=editor.saveFile ctrl+e=editor.acceptIncomingChange` Enter
 Type "clear" Enter
 Type "pando" Enter
 Wait+Screen@30s /\^.p/
@@ -103,10 +103,13 @@ Ctrl+]
 Sleep 1200ms
 Down 11
 Sleep 1200ms
+Hide
 Ctrl+e
-Sleep 1500ms
+Sleep 800ms
 Ctrl+k
 Sleep 1200ms
+Show
+Sleep 1500ms
 
 # Back in Source Control ⏎ stages the resolved file. The message box shows
 # the message git prepared ("Merge branch 'feat'"), and Continue (C) commits

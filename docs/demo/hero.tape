@@ -33,11 +33,10 @@ Type "pando session new --ws $web --name 'dev server' -- python3 -m http.server 
 # Two keep working, one waits for a yes, and the one shown beside the file is done.
 Type "pando session send $c 'document the store package in README.md, with an example' --enter; pando session send $d 'turn index.html into a landing page for the coffee shop' --enter" Enter
 Type "pando session send $b 'run go vet ./... and go run .' --wait --timeout 120000 >/dev/null" Enter
-Type "pando session send $a 'add a Count method to Store' --wait --timeout 180000 >/dev/null; echo RE''ADY" Enter
-Wait+Screen@240s /READY\n/
-# The finished session over the editor area once pando is up; the focus
-# stays in the sidebar.
-Type `clear; (sleep 3; pando session switch $a >/dev/null) & pando .` Enter
+# The session over the editor area once pando is up; the focus stays in the
+# sidebar. Claude lays its text out once, so it gets its prompt only when it
+# stands beside the file, as wide as it is shown.
+Type `clear; (sleep 3; pando session switch $a >/dev/null; sleep 9; pando session send $a 'add a Count method to Store' --enter >/dev/null) & pando .` Enter
 Sleep 5s
 
 # store.go in front of it, then into a group of its own on the left: the file
@@ -50,6 +49,8 @@ Enter
 Sleep 1s
 Ctrl+e
 Sleep 1500ms
+Wait+Screen@240s /\ds . done/
+Sleep 3s
 # A tape hidden to its end has no frames, and vhs saves no screenshot then.
 Show
 Sleep 100ms

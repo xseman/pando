@@ -11,7 +11,7 @@ Require gopls
 
 Source docs/demo/settings.tape
 Source docs/demo/setup.tape
-Type `cfg 26 ctrl+e=editor.findReferences ctrl+h=view.goBack ctrl+y=editor.renameSymbol ctrl+n=editor.quickFix` Enter
+Type `cfg 30 ctrl+e=editor.findReferences ctrl+h=view.goBack ctrl+y=editor.renameSymbol ctrl+n=editor.quickFix` Enter
 Type "go build ./... >/dev/null 2>&1; clear" Enter
 # gopls indexes on its first request; ask once here so the demo never waits for it.
 Type "pando" Enter

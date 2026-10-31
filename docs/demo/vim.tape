@@ -10,7 +10,7 @@ Require ttyd
 
 Source docs/demo/settings.tape
 Source docs/demo/setup.tape
-Type `cfg 26 vim` Enter
+Type `cfg 30 vim` Enter
 Type "clear" Enter
 Type "pando" Enter
 Wait+Screen@30s /\^.p/
