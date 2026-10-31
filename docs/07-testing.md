@@ -211,6 +211,9 @@ Tape rules:
   to a ctrl letter (`cfg 26 ctrl+k=editor.saveFile`).
 - Inside a session every key goes to the agent, `[keys]` bindings included.
 - `cfg … claude-ask` for a permission prompt.
-- Wait on CLI output or claude's answer, never the welcome screen.
+- Wait on pando's status bar (`/\^.p/`) before a tape's first key, CLI output or
+  claude's answer after it, never the welcome screen or a fixed sleep.
   `Wait+Screen` matches the whole screen: `^` is its start.
+- A session starts 120 cells wide and claude does not rewrap what it wrote:
+  send the prompt once the session stands in its group.
 - Page (`PageDown`); line scrolling costs a frame per line.
