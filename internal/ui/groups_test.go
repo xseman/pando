@@ -153,6 +153,25 @@ func TestEvenPair(t *testing.T) {
 // accent, from the rule under its strip to the row under the group, by the
 // dividers and a column's edge beside it; a click moves the frame, and a group
 // drawn alone has none.
+// TestScreenEventFetchesEveryGroup: a session in a group without the keyboard
+// goes on drawing; a session in no group asks for nothing.
+func TestScreenEventFetchesEveryGroup(t *testing.T) {
+	m := groupsModel(t)
+	press(m, `ctrl+\\`)
+
+	ps := m.grid.leaves()
+	other := ps[b2i(ps[0] == m.cur)]
+	other.g.sess, other.g.preview = "s1", false
+
+	if !m.tiled() || m.onEvent(proto.Event{Kind: "screen", ID: "s1"}) == nil {
+		t.Fatalf("the unfocused group's session stays as it was: tiled=%v", m.tiled())
+	}
+
+	if m.onEvent(proto.Event{Kind: "screen", ID: "gone"}) != nil {
+		t.Fatal("a session on no screen was fetched")
+	}
+}
+
 func TestGroupFrame(t *testing.T) {
 	m := groupsModel(t)
 	press(m, `ctrl+\`) // .env on the right, with the keyboard

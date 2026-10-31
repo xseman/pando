@@ -2929,7 +2929,7 @@ func (m *Model) onEvent(ev proto.Event) tea.Cmd {
 	case "sessions":
 		return loadSessions()
 	case "screen":
-		if ev.ID == m.sess || ev.ID == m.tv.id {
+		if ev.ID == m.sess || ev.ID == m.tv.id || m.tiled() && slices.ContainsFunc(m.grid.leaves(), func(p *pane) bool { return p.g.sess == ev.ID }) {
 			return m.fetchScreen()
 		}
 
