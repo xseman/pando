@@ -121,6 +121,7 @@ var keybindings = []keybinding{
 	{keys: []string{`ctrl+\`}, when: ctxNotTerm, run: func(m *Model, _ string) tea.Cmd { return m.splitEditor(sideRight) }},
 	{keys: []string{"alt+t"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.agentNavigator() }},
 	{keys: []string{"alt+n"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.newTabMenu() }},
+	{keys: []string{"alt+s"}, when: ctxAny, cond: func(m *Model) bool { return m.ws != "" }, run: func(m *Model, _ string) tea.Cmd { return m.harnessPicker(m.ws) }},
 	{keys: []string{"alt+a"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.nextAlarm() }},
 	{keys: []string{"ctrl+pgdown"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.cycleEditor(1) }},
 	{keys: []string{"ctrl+pgup"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.cycleEditor(-1) }},

@@ -3604,7 +3604,7 @@ func TestWelcomeHeaderPath(t *testing.T) {
 	m.ws = "/tmp/pando-state/data/worktrees/" + strings.Repeat("deep/", 20) + "pando-demo/work-branch"
 
 	for _, w := range []int{40, 200} {
-		got := ansi.Strip(m.editorLines(w)[0])
+		got := ansi.Strip(m.editorLines(w)[m.stripH()])
 		if want := " pando  " + m.ws; w == 200 && !strings.HasPrefix(got, want) || w == 40 && (!strings.HasPrefix(got, " pando  …") || !strings.HasSuffix(got, "/pando-demo/work-branch") || ansi.StringWidth(got) != w) {
 			t.Fatalf("width %d: header %q", w, got)
 		}

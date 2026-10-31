@@ -5093,14 +5093,14 @@ func (m *Model) pvH() int {
 func (m *Model) hbarH() int { return b2i(m.pv.hbar(m, m.pvW()).on()) }
 
 // stripH is the rows of tab strip over the main area: a session always has
-// one (it carries the + that opens another), and so does any open editor,
-// with its rule under it.
+// one (it carries the + that opens another), and so do any open editor and
+// the empty main area, with its rule under it.
 func (m *Model) stripH() int {
 	if m.showsSession() {
 		return sessStripH
 	}
 
-	return 2 * b2i(m.showsPreview() && len(m.editors) > 0)
+	return 2 * b2i(m.pv.kind == "" || len(m.editors) > 0)
 }
 
 // headH is the rows of header under the tab strip: none for a session, whose
@@ -5175,7 +5175,8 @@ func (m *Model) editorLines(w int) []string {
 		}
 
 		header = row(w, nil, []seg{sg(" pando", accent), sg("  "+ws, dim)})
-		body = welcome(w, h, m.sess != "")
+		h -= m.stripH()
+		body = welcome(w, h, m.sess != "", m.focus == onMain)
 	}
 
 	out := make([]string, 0, m.h)
@@ -5208,8 +5209,10 @@ func (m *Model) editorLines(w int) []string {
 
 // welcome fills the empty main area. With a session behind its tab the first
 // line names what is missing here — an editor — rather than claiming the
-// workspace has no session.
-func welcome(w, h int, sess bool) []string {
+// workspace has no session. The keys are split by where they work: Explorer
+// and the other lists take n, w and a for themselves, so focused says whether
+// the second group works yet.
+func welcome(w, h int, sess, focused bool) []string {
 	first := "No session in this workspace."
 	if sess {
 		first = "No editor open."
@@ -5218,10 +5221,18 @@ func welcome(w, h int, sess bool) []string {
 	text := []string{
 		first,
 		"",
-		"double click or ^n   new file",
-		"n  new session       3  Spaces panel",
-		"w  new worktree      a  add project",
-		"^p quick open        ^] cycle sidebar / main focus",
+		"Anywhere:",
+		"alt+s  new session",
+		"alt+n  new tab, as the + above",
+		"^p     quick open",
+		"^]     next panel",
+		"",
+		ifElse(focused, "In this area:", "In this area, click it or ^] first:"),
+		"n      new session",
+		"w      new worktree",
+		"a      add project",
+		"3      Spaces panel",
+		"^n     new file, or double click",
 	}
 	out := make([]string, max(h, 0))
 
@@ -5249,7 +5260,7 @@ var hotkeys = map[view][][2]string{
 	viewDB:     {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"n", "new connection"}, {"e D", "edit/remove"}, {"c y", "copy name/path"}, {"r", "refresh"}, {"C", "collapse"}, {"^f", "filter"}},
 }
 
-var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4 6 7", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"alt+t", "agents"}, {"alt+a", "next alarm"}, {"alt+n", "new tab"}, {"^tab", "editors"}, {"^⇧pgup ^⇧pgdn", "move tab"}, {"^f", "find"}, {"^⇧m", "problems"}, {"^⇧u", "output"}, {"alt+, alt+.", "back/forward"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"F10", "manage"}, {"esc q", "quit"}}
+var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4 6 7", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"alt+t", "agents"}, {"alt+a", "next alarm"}, {"alt+n", "new tab"}, {"alt+s", "new session"}, {"^tab", "editors"}, {"^⇧pgup ^⇧pgdn", "move tab"}, {"^f", "find"}, {"^⇧m", "problems"}, {"^⇧u", "output"}, {"alt+, alt+.", "back/forward"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"F10", "manage"}, {"esc q", "quit"}}
 
 var previewKeys = [][2]string{{"↑↓", "move"}, {"⇧↑↓", "select"}, {"^a", "all"}, {"y", "copy"}, {"s", "split diff"}, {"m", "stage/revert lines"}, {"] [", "next, prev change"}, {"} {", "next, prev file"}, {"F8 ⇧F8", "next, prev problem"}, {"^⇧[ ^⇧]", "fold, unfold"}, {"w", "wrap"}, {"^f", "find"}, {"^h", "replace"}, {"^g", "go to line"}, {"f12", "definition"}, {"⇧f12", "references"}, {"^k", "hover"}, {"^.", "code action"}, {"e", "edit"}, {"q", "close"}}
 

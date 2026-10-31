@@ -588,3 +588,49 @@ func TestWelcomeKeys(t *testing.T) {
 		t.Fatalf("3 on the empty main area focuses Spaces, focus %d", m.focus)
 	}
 }
+
+// TestWelcomeSaysWhereKeysWork: from a list, whose n is its own, alt+s still
+// starts a session, and the text says the area's own keys need it focused.
+func TestWelcomeSaysWhereKeysWork(t *testing.T) {
+	m := testModelSized(t, 100, 30)
+	m.sess, m.focus = "", 0
+
+	if out := checkWidths(t, m); !strings.Contains(out, "click it or ^] first") {
+		t.Fatalf("a list has the keyboard, the text does not say so:\n%s", out)
+	}
+
+	press(m, "alt+s")
+
+	if m.modal == nil || !strings.HasPrefix(m.modal.title, "New session in ") {
+		t.Fatalf("alt+s from a list opens %+v", m.modal)
+	}
+
+	m.modal, m.focus = nil, onMain
+
+	if out := checkWidths(t, m); strings.Contains(out, "click it or ^] first") {
+		t.Fatalf("the area has the keyboard, the text still asks for it:\n%s", out)
+	}
+}
+
+// TestWelcomePlus: the empty main area has the strip's +, and its menu starts
+// a session.
+func TestWelcomePlus(t *testing.T) {
+	m := testModelSized(t, 100, 24)
+	m.sess = ""
+
+	if m.stripH() == 0 {
+		t.Fatal("the empty main area has no strip")
+	}
+
+	click(m, m.mainX()+tabPlus(m.editorTabs(m.mainW()))[0].x+1, m.mainY(), tea.MouseLeft)
+
+	if m.modal == nil {
+		t.Fatal("the + opens no menu")
+	}
+
+	m.modal.choose(m, slices.IndexFunc(m.modal.items, func(it item) bool { return it.label == "New Session…" }))
+
+	if m.modal == nil || !strings.HasPrefix(m.modal.title, "New session in ") {
+		t.Fatalf("New Session asks %+v", m.modal)
+	}
+}

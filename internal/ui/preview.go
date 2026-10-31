@@ -1276,7 +1276,7 @@ func (m *Model) newTabMenu() tea.Cmd {
 	}
 
 	x := m.mainX() + tabPlus(m.editorTabs(m.mainW()))[0].x
-	m.modal = newMenu("", x, m.mainY()+1, append(items, item{label: "New Session…", run: func(m *Model) tea.Cmd { return m.harnessPicker(m.ws) }})...)
+	m.modal = newMenu("", x, m.mainY()+1, append(items, item{label: "New Session…", hint: "alt+s", run: func(m *Model) tea.Cmd { return m.harnessPicker(m.ws) }})...)
 
 	return nil
 }
