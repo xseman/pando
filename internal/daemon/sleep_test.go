@@ -290,8 +290,9 @@ func TestSleepKeepsName(t *testing.T) {
 	})
 
 	slept := make(chan error, 1)
+	id := s.ID // the loop below decodes into s while this runs
 
-	go func() { slept <- proto.Call("session.sleep", map[string]any{"id": s.ID}, nil) }()
+	go func() { slept <- proto.Call("session.sleep", map[string]any{"id": id}, nil) }()
 
 	for going := true; going; {
 		select {
