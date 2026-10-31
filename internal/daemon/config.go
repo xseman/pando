@@ -231,7 +231,7 @@ func (c *config) encode() []byte {
 		"decodes in, counts roll and busy labels shimmer.", "animations", s.Anim)
 	kv("An icon button the pointer rests on names itself and its key in a box by the pointer,\n"+
 		"as VS Code's hovers do.", "tooltips", s.Tips)
-	kv("Terminal panel: \"bottom\" (under the editor), \"left\" or \"right\" (a sidebar column\nof its own), its height in rows, and whether it is open.", "terminal_position", s.TermPos)
+	kv("Terminal panel: \"bottom\" (under the editor), \"left\" or \"right\" (a tab of that\nsidebar), its height in rows, and whether it is open.", "terminal_position", s.TermPos)
 	kv("", "terminal_height", s.TermH)
 	kv("", "terminal_open", s.TermOpen)
 	kv("The shell every terminal opens - a session, a session's tab, the Terminal panel - as a\n"+

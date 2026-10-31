@@ -11,8 +11,8 @@ import (
 	"github.com/xseman/pando/internal/proto"
 )
 
-// The bottom panel, VS Code's: tabs for the Terminal, the Problems and the
-// Output, under the editor or in a column of its own.
+// The panel, VS Code's: tabs for the Terminal, the Problems and the Output,
+// under the editor or as one tab of a sidebar, which takes them all with it.
 // The Terminal's shells are a select in its strip, VS Code's, a + before it.
 
 // panelTab is one of the panel's tabs.
@@ -109,12 +109,6 @@ func (m *Model) panelRule(w, x0, sx, sy int) string {
 		}
 	}
 
-	if m.termRows() > 0 {
-		if st, ok := m.sashStyle(termSash); ok {
-			return ruleRow(w, marks, st)
-		}
-	}
-
 	return ruleRow(w, marks)
 }
 
@@ -153,21 +147,25 @@ func (m *Model) showPanel(tab panelTab) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-// panelStripClick is a left click at cell x of the bottom panel's strip, w
-// wide, on screen row sy: a button runs, a tab shows; the rest of the row is
-// the panel's sash.
-func (m *Model) panelStripClick(x, sy, w int) tea.Cmd {
+// panelStripClick is left click mo at cell x of the bottom panel's strip, w
+// wide: a button runs, a tab shows.
+func (m *Model) panelStripClick(x, w int, mo tea.Mouse) tea.Cmd {
 	if a, ok := hit(m.termButtons(), x); ok {
 		return a.run(m)
 	}
 
 	if tab, ok := m.panelTabAt(x, panelTabX, w); ok {
-		return m.pickPanelTab(tab)
+		return m.pressPanelTab(tab, mo)
 	}
 
-	m.drag = &drag{kind: dragTerm, y0: sy, h0: m.termRows()}
-
 	return nil
+}
+
+// pressPanelTab shows tab on left click mo; dragged from there, it carries
+// the whole panel.
+func (m *Model) pressPanelTab(tab panelTab, mo tea.Mouse) tea.Cmd {
+	m.drag = &drag{kind: dragTab, v: viewTerm, x0: mo.X, y0: mo.Y}
+	return m.pickPanelTab(tab)
 }
 
 // pickPanelTab shows tab, a click on its label: the Terminal's shell, or
@@ -229,14 +227,14 @@ func (m *Model) termPick() tea.Cmd {
 // ok is false while the panel is not shown.
 func (m *Model) panelOrigin() (x, y, w, h int, ok bool) {
 	if n := m.termRows(); n > 0 {
-		return m.area().x, m.areaH() + panelTopH, m.area().w, n - panelTopH, true
+		return m.area().x, m.areaH() + m.panelTop(), m.area().w, n - m.panelTop(), true
 	}
 
 	if !m.shown(viewTerm) {
 		return 0, 0, 0, 0, false
 	}
 
-	rc := m.colRect(m.colOf(viewTerm))
+	rc := m.panelRect()
 
 	return rc.x, m.bodyTop(viewTerm) + termStripH, rc.w, m.bodyH(viewTerm) - termStripH, true
 }

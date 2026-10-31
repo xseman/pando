@@ -109,6 +109,10 @@ checkout.
   too.
 - Drag a view's tab to move it, a divider to resize. A second click on the
   open view's icon hides its sidebar; `ctrl+b` hides both.
+- Drag any tab of the bottom panel to a sidebar's tabs and the whole panel moves
+  there, or to the sidebar's outer half for a column of its own; its tab dragged
+  to the bottom of the editor brings it back. Nothing else goes there. Closed
+  in a sidebar it keeps its tab, which opens it.
 - Rest the pointer on an icon button for its name and key, or on a session
   whose name is cut for the whole of it (Settings' _Tooltips_ turns that
   off). A view's header buttons show for a few seconds after the pointer

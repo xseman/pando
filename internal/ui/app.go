@@ -130,6 +130,7 @@ type dropTarget struct {
 	col   int // the column joined, with at the tab's index in it; -1 otherwise
 	at    int
 	own   bool // a column of its own at that edge, instead of a tab of the one there
+	under bool // the panel's place under the editor
 	fill  bool // emptied and labelled though it covers h rows, as a group a tab splits off
 	label string
 }
@@ -759,13 +760,16 @@ func (m *Model) allCols() []col {
 		}
 	}
 
-	side, docked := 0, m.termOpen() && m.termPos() != "bottom"
+	side, docked := 0, m.termPos() != "bottom"
 	if m.termPos() == "right" {
 		side = 1
 	}
 
-	if !docked { // a shut or bottom terminal is no column at all
+	if !docked || !m.termOpen() { // a shut terminal is no column of its own
 		out = slices.DeleteFunc(out, func(c col) bool { return slices.Equal(c.views, []view{viewTerm}) })
+	}
+
+	if !docked { // nor is a bottom one a tab
 		for i := range out {
 			out[i].views = slices.DeleteFunc(out[i].views, func(v view) bool { return v == viewTerm })
 		}
@@ -785,7 +789,7 @@ func (m *Model) allCols() []col {
 		}
 
 		if view(v) == viewTerm {
-			if docked && !slices.ContainsFunc(out, func(c col) bool { return slices.Contains(c.views, viewTerm) }) {
+			if docked && m.termOpen() && !slices.ContainsFunc(out, func(c col) bool { return slices.Contains(c.views, viewTerm) }) {
 				if side == 0 {
 					out = slices.Insert(out, 0, col{views: []view{viewTerm}})
 				} else {
@@ -935,17 +939,20 @@ func (m *Model) railViews(i int) []view {
 	return out
 }
 
-// viewOn is the tab column i shows, its most recently shown one; false when
-// there is no such column.
+// viewOn is the tab column i shows, its most recently shown one, the shut
+// Terminal keeping its tab but showing nothing; false when there is no such
+// column.
 func (m *Model) viewOn(i int) (view, bool) {
 	vs := m.colViews(i)
 	if len(vs) == 0 {
 		return 0, false
 	}
 
+	shut := func(v view) bool { return v == viewTerm && !m.termOpen() }
+
 	best := vs[0]
 	for _, v := range vs {
-		if m.recent[v] > m.recent[best] {
+		if !shut(v) && (shut(best) || m.recent[v] > m.recent[best]) {
 			best = v
 		}
 	}
@@ -1149,7 +1156,7 @@ func (m *Model) termRows() int {
 		h = 12
 	}
 
-	return max(min(h, m.panelH()-3), panelTopH+2)
+	return max(min(h, m.panelH()-3), m.panelTop()+2)
 }
 
 // bodyTop is the first list row of view v, below the activity bar, the view
@@ -1353,8 +1360,13 @@ func (m *Model) cycleFocus() {
 	}
 }
 
-// showView selects tab v, unhides its side and focuses its column.
+// showView selects tab v, unhides its side and focuses its column; the shut
+// Terminal's tab opens it.
 func (m *Model) showView(v view) tea.Cmd {
+	if v == viewTerm && !m.termOpen() {
+		return tea.Batch(m.setTermOpen(true, nil), m.showView(v), m.startTerm())
+	}
+
 	i := m.colOf(v)
 	m.clock++
 	m.recent[v] = m.clock
@@ -1431,9 +1443,16 @@ func removeView(cs []col, v view) []col {
 // dock saves a changed column layout and shows tab v in it.
 func (m *Model) dock(cs []col, v view) tea.Cmd {
 	sides := colSettings(cs)
-	cmd := m.setSettings(map[string]any{"left": sides[0], "right": sides[1]})
+	patch := map[string]any{"left": sides[0], "right": sides[1]}
 
-	return tea.Batch(cmd, m.showView(v), m.scm.loadDrawers(m))
+	if v == viewTerm { // the panel opens where its tab went
+		m.termMax = false
+		patch["terminal_position"] = ifElse(cs[colWith(cs, v)].right, "right", "left")
+
+		return tea.Batch(m.setTermOpen(true, patch), m.showView(v), m.startTerm())
+	}
+
+	return tea.Batch(m.setSettings(patch), m.showView(v), m.scm.loadDrawers(m))
 }
 
 // colWith is the index of the column holding v, -1 when no column does.
@@ -1442,22 +1461,17 @@ func colWith(cs []col, v view) int {
 }
 
 // moveView docks tab v in the column next to main on side `to` (0 left, 1
-// right). The Terminal never shares a column, in either direction.
+// right).
 func (m *Model) moveView(v view, to int) tea.Cmd {
-	if v == viewTerm { // every other view docks as an ordinary tab, below
-		return m.moveTerminal([]string{"left", "right"}[to])
-	}
-
 	cs := removeView(m.cols(), v)
 	left := leftCount(cs)
 
-	alone := func(i int) bool { return i >= 0 && i < len(cs) && soloCol(cs[i]) }
 	switch {
-	case to == 0 && left > 0 && !alone(left-1):
+	case to == 0 && left > 0:
 		cs[left-1].views = append(cs[left-1].views, v)
 	case to == 0:
-		cs = slices.Insert(cs, max(left, 0), col{views: []view{v}})
-	case left < len(cs) && !alone(left):
+		cs = slices.Insert(cs, 0, col{views: []view{v}})
+	case left < len(cs):
 		cs[left].views = append(cs[left].views, v)
 	default:
 		cs = slices.Insert(cs, left, col{views: []view{v}, right: true})
@@ -1492,7 +1506,7 @@ func (m *Model) mergeView(v view) tea.Cmd {
 	}
 
 	for _, j := range []int{toward, 2*i - toward} {
-		if j < 0 || j >= len(cs) || cs[j].right != cs[i].right || soloCol(cs[j]) {
+		if j < 0 || j >= len(cs) || cs[j].right != cs[i].right {
 			continue
 		}
 
@@ -1510,8 +1524,13 @@ func (m *Model) mergeView(v view) tea.Cmd {
 // dropAt is where tab v dropped at x, y would go: over a sidebar's activity
 // bar, or the half of the column toward main, it joins that column at the gap
 // between the chips under the mouse; past the half toward the screen edge it
-// gets a column of its own beside it.
+// gets a column of its own beside it. The panel alone also goes under the
+// editor (underDrop).
 func (m *Model) dropAt(v view, x, y int) dropTarget {
+	if t, ok := m.underDrop(x, y); ok && v == viewTerm {
+		return t
+	}
+
 	cs, c := m.layout()
 	left := leftCount(m.cols())
 
@@ -1549,11 +1568,17 @@ func (m *Model) dropAt(v view, x, y int) dropTarget {
 		return own
 	}
 
-	if v == viewTerm || soloCol(m.cols()[i]) { // never share a column: moveView opens one beside main
-		return dropTarget{rc: rc, side: side, col: -1, label: []string{"Left Sidebar", "Right Sidebar"}[side]}
-	}
-
 	return m.slotAt(v, i, x, y)
+}
+
+// underDrop is the drop under the editor at x, y: the panel's own rows while
+// it is there, else the lowest quarter of main.
+func (m *Model) underDrop(x, y int) (dropTarget, bool) {
+	_, c := m.layout()
+	h := max(m.termRows(), m.panelH()/4)
+
+	return dropTarget{rc: c, y: m.panelH() - h, h: h, col: -1, under: true, fill: true, label: "Bottom Panel"},
+		x >= c.x && x < c.x+c.w && y >= m.panelH()-h && y < m.panelH()
 }
 
 // onBar reports x, y over column i's activity bar: the top rows, or the strip
@@ -1637,8 +1662,10 @@ func (m *Model) dragTabTo(d *drag, x, y int, release bool) tea.Cmd {
 	switch {
 	case !d.moved && d.hide: // VS Code's activity bar: a second click on the open view hides its side
 		return m.hide(m.colOf(d.v))
-	case !d.moved:
+	case !d.moved, d.drop.under && m.termRows() > 0:
 		return nil
+	case d.drop.under:
+		return m.moveTerminal("bottom")
 	case d.drop.own:
 		return m.splitTo(d.v, d.drop.side)
 	case d.drop.col >= 0:
@@ -1671,15 +1698,8 @@ func (m *Model) placeView(v view, i, at int) tea.Cmd {
 	return m.dock(cs, v)
 }
 
-// soloCol reports a column that shares with no other view: the Terminal's.
-func soloCol(c col) bool { return slices.Contains(c.views, viewTerm) }
-
 // splitTo gives v a column of its own at the outer edge of side `to`.
 func (m *Model) splitTo(v view, to int) tea.Cmd {
-	if v == viewTerm && m.termPos() != []string{"left", "right"}[to] {
-		return m.moveTerminal([]string{"left", "right"}[to])
-	}
-
 	cs := removeView(m.cols(), v)
 	if to == 0 {
 		cs = slices.Insert(cs, 0, col{views: []view{v}})
@@ -1741,11 +1761,6 @@ func (m *Model) menuOf(items []item, x, y int) tea.Cmd {
 }
 
 func (m *Model) tabMenu(v view, x, y int) tea.Cmd {
-	if v == viewTerm {
-		m.modal = newMenu(viewTitles[v], x, y, m.terminalItems()...)
-		return nil
-	}
-
 	cs := m.cols()
 	i := m.colOf(v)
 
@@ -1755,6 +1770,10 @@ func (m *Model) tabMenu(v view, x, y int) tea.Cmd {
 	}
 
 	items := []item{{label: label, run: func(m *Model) tea.Cmd { return m.moveView(v, other) }}}
+	if v == viewTerm { // its own say where it goes
+		items = m.terminalItems()
+	}
+
 	if len(cs[i].views) > 1 {
 		items = append(items, item{label: "Move to Own Column", run: func(m *Model) tea.Cmd { return m.splitView(v) }})
 	}
@@ -1768,7 +1787,8 @@ func (m *Model) tabMenu(v view, x, y int) tea.Cmd {
 	return nil
 }
 
-// terminalItems are the Terminal's own moves: it is a panel, not a tab.
+// terminalItems are what the panel offers wherever it is: where it goes, and
+// its shells.
 func (m *Model) terminalItems() []item {
 	var items []item
 
@@ -3339,23 +3359,23 @@ func (m *Model) mouse(msg tea.MouseMsg) tea.Cmd {
 			m.focus = onPanel
 			m.scm.input.Blur()
 		}
-		// y == 0 is the border over the panel, y == 1 its strip, with its tabs
-		// and buttons, y == 2 the rule under it, the rest its body.
-		switch y := mo.Y - m.areaH(); {
-		case y == 0 || y == 2: // the border and the rule are the sash too
+		// y == 0 is its strip, with its tabs and buttons, y == 1 the rule
+		// under it, the rest its body; above it the border, the sash.
+		switch y := mo.Y - m.panelStripY(); {
+		case y < 0:
 			if click && mo.Button == tea.MouseLeft {
 				m.drag = &drag{kind: dragTerm, y0: mo.Y, h0: m.termRows()}
 			}
 
 			return nil
 
-		case y > 2:
-			return m.panelMouse(msg, mo.X-c.x, y-panelTopH)
-		case !click || mo.Button != tea.MouseLeft:
+		case y > 1:
+			return m.panelMouse(msg, mo.X-c.x, y-termStripH)
+		case y == 1, !click, mo.Button != tea.MouseLeft:
 			return nil
 		}
 
-		return m.panelStripClick(mo.X-c.x, mo.Y, c.w)
+		return m.panelStripClick(mo.X-c.x, c.w, mo)
 	}
 
 	return m.groupMouse(msg, click)
@@ -3661,8 +3681,8 @@ func (m *Model) viewMouse(v view, msg tea.MouseMsg, x, y int) tea.Cmd {
 				return a.run(m)
 			}
 
-			if tab, ok := m.panelTabAt(x, panelTabX, m.colRect(m.colOf(viewTerm)).w); ok && click && mo.Button == tea.MouseLeft {
-				return m.pickPanelTab(tab)
+			if tab, ok := m.panelTabAt(x, panelTabX, m.termW()); ok && click && mo.Button == tea.MouseLeft {
+				return m.pressPanelTab(tab, mo)
 			}
 
 			return nil
@@ -3754,7 +3774,7 @@ func (m *Model) dragMouse(msg tea.MouseMsg) tea.Cmd {
 	return tea.Batch(m.saveCols(), m.fetchScreen())
 }
 
-// dragTerm resizes the bottom panel by its title row, as VS Code's sash does;
+// dragTerm resizes the bottom panel by the border over it, as VS Code's sash does;
 // the height is saved when the row is let go.
 func (m *Model) dragTerm(d *drag, y int, release bool) tea.Cmd {
 	if release {
@@ -3768,7 +3788,7 @@ func (m *Model) dragTerm(d *drag, y int, release bool) tea.Cmd {
 	}
 
 	m.termMax, d.moved = false, true
-	m.st.Settings.TermH = max(panelTopH+2, min(d.h0+d.y0-y, m.panelH()-3))
+	m.st.Settings.TermH = max(m.panelTop()+2, min(d.h0+d.y0-y, m.panelH()-3))
 
 	return m.fetchScreen()
 }
@@ -3870,9 +3890,10 @@ func (m *Model) View() tea.View {
 	case caret: // a text box has the keyboard
 		v.Cursor = tea.NewCursor(cx, b+cy)
 
-	case m.focus == onPanel && m.ptab == ptTerm && m.termRows() > panelTopH:
-		if m.tv.scr.CursorVisible && !m.tv.find.editing && m.tv.term.id == m.tv.id && m.tv.scr.CursorX >= m.tv.left {
-			v.Cursor = appCursor(c.x+m.tv.scr.CursorX-m.tv.left, b+m.areaH()+panelTopH+m.tv.scr.CursorY, m.tv.scr.CursorStyle)
+	case m.termFocused() && m.termShowing():
+		x, y, _, h, _ := m.panelOrigin()
+		if h > 0 && m.tv.scr.CursorVisible && !m.tv.find.editing && m.tv.term.id == m.tv.id && m.tv.scr.CursorX >= m.tv.left {
+			v.Cursor = appCursor(x+m.tv.scr.CursorX-m.tv.left, b+y+m.tv.scr.CursorY, m.tv.scr.CursorStyle)
 		}
 
 	case m.focus == onMain && m.showsSession():
@@ -3945,8 +3966,8 @@ const sashDelay = 300 * time.Millisecond
 type sashMsg struct{}
 
 // sashUnder is the sash at content cell (x, y): the gaps the mouse code
-// starts a dragDivider in, the Terminal title row outside its tabs and ✕,
-// and the pane headers whose drag resizes.
+// starts a dragDivider in, the border over the bottom panel and the pane
+// headers whose drag resizes.
 func (m *Model) sashUnder(x, y int) sash {
 	if y < 0 || y >= m.panelH() {
 		return noSash
@@ -3971,19 +3992,7 @@ func (m *Model) sashUnder(x, y int) sash {
 		return gridSash(p)
 	}
 
-	if m.termRows() == 0 || y < m.areaH() || y > m.areaH()+2 || x < c.x || x >= c.x+c.w {
-		return noSash
-	}
-
-	if y != m.areaH()+1 { // the border over the strip and the rule under it, all along
-		return termSash
-	}
-
-	if x >= c.x+c.w-m.termBtnW() {
-		return noSash
-	}
-
-	if _, ok := m.panelTabAt(x-c.x, panelTabX, c.w); ok {
+	if m.termRows() == 0 || y < m.areaH() || y >= m.panelStripY() || x < c.x || x >= c.x+c.w {
 		return noSash
 	}
 
@@ -4069,6 +4078,9 @@ func (m *Model) sideTitle(s int) string {
 	}
 
 	v, _ := m.viewOn(s)
+	if v == viewTerm { // its tabs say it
+		return ""
+	}
 
 	return viewTitles[v]
 }
@@ -4581,6 +4593,7 @@ func (m *Model) baseFrame(cs []rect, c rect, b int) (lines []string, top, bot st
 		lines []string
 		title string
 		focus int
+		lit   int // the focus that lights its edges, the panel's on a maximized one
 	}
 
 	var ps []panel
@@ -4588,21 +4601,20 @@ func (m *Model) baseFrame(cs []rect, c rect, b int) (lines []string, top, bot st
 	left := leftCount(m.cols())
 	for i := 0; i <= len(cs); i++ {
 		if i == left {
-			ps = append(ps, panel{c, m.mainLines(c.w), m.mainTitle(), onMain})
+			p := panel{c, m.mainLines(c.w), m.mainTitle(), onMain, onMain}
+			if m.termMax && m.termRows() > 0 {
+				p.title, p.lit = "", onPanel
+			}
+
+			ps = append(ps, p)
 		}
 
 		if i < len(cs) && cs[i].w > 0 {
-			ps = append(ps, panel{cs[i], m.sidebar(i, cs[i].w), m.sideTitle(i), i})
+			ps = append(ps, panel{cs[i], m.sidebar(i, cs[i].w), m.sideTitle(i), i, i})
 		}
 	}
 
-	edge := func(p panel) lipgloss.Style {
-		if m.focus == p.focus {
-			return fg(pal.accent)
-		}
-
-		return fg(pal.panelBorder)
-	}
+	edge := func(p panel) lipgloss.Style { return m.frameStyle(p.lit) }
 	status, _ := m.statusLine(m.w)
 
 	// owner is the column the divider before panel j resizes: the sidebar
@@ -4661,6 +4673,25 @@ func (m *Model) baseFrame(cs []rect, c rect, b int) (lines []string, top, bot st
 		return ""
 	}
 
+	// boxEdges are main's edges on row i of a framed bottom panel, none above
+	// it: the editor's corners, the panel's, then its sides.
+	boxEdges := func(i int) (string, string) {
+		if b == 0 || m.termMax || m.termRows() == 0 || i < m.areaH() {
+			return "", ""
+		}
+
+		l, r, st := "│", "│", m.frameStyle(onPanel)
+
+		switch i - m.areaH() {
+		case 0:
+			l, r, st = "└", "┘", m.frameStyle(onMain)
+		case 1:
+			l, r = "┌", "┐"
+		}
+
+		return renderText(st, l), renderText(st, r)
+	}
+
 	lines = make([]string, m.panelH()+m.ruled()+1) // the panel rows, the rule, then the status bar
 	for i := range m.panelH() {
 		var sb strings.Builder
@@ -4673,6 +4704,15 @@ func (m *Model) baseFrame(cs []rect, c rect, b int) (lines []string, top, bot st
 		sb.Grow(n)
 
 		el, er := frameEdge(c.x-1, i, hasL), frameEdge(c.x+c.w, i, hasR)
+		bl, br := boxEdges(i)
+
+		if el == "" && hasL {
+			el = bl
+		}
+
+		if er == "" && hasR {
+			er = br
+		}
 
 		for j, p := range ps {
 			l, r := ls[j], rs[j]
@@ -4715,14 +4755,29 @@ func (m *Model) baseFrame(cs []rect, c rect, b int) (lines []string, top, bot st
 		}
 
 		// The title keeps the text's shade, the lines go soft.
-		tb.WriteString(renderText(edge(p), "┌─") + renderText(ifElse(m.focus == p.focus, edge(p).Bold(true), dim), t) +
+		tb.WriteString(renderText(edge(p), "┌─") + renderText(ifElse(m.focus == p.lit, edge(p).Bold(true), dim), t) +
 			renderText(edge(p), strings.Repeat("─", max(p.rc.w-1-ansi.StringWidth(t), 0))+"┐"))
-		bb.WriteString(frameRun(fs, p.rc.x-1, m.panelH(), 1, "└", edge(p)) +
-			frameRun(fs, p.rc.x, m.panelH(), p.rc.w, "─", edge(p)) +
-			frameRun(fs, p.rc.x+p.rc.w, m.panelH(), 1, "┘", edge(p)))
+
+		st := edge(p)
+		if p.focus == onMain && m.termRows() > 0 { // the panel's frame ends the row
+			st = m.frameStyle(onPanel)
+		}
+
+		bb.WriteString(frameRun(fs, p.rc.x-1, m.panelH(), 1, "└", st) +
+			frameRun(fs, p.rc.x, m.panelH(), p.rc.w, "─", st) +
+			frameRun(fs, p.rc.x+p.rc.w, m.panelH(), 1, "┘", st))
 	}
 
 	return lines, tb.String(), bb.String()
+}
+
+// frameStyle is the edge of the frame focus lights.
+func (m *Model) frameStyle(focus int) lipgloss.Style {
+	if m.focus == focus {
+		return fg(pal.accent)
+	}
+
+	return fg(pal.panelBorder)
 }
 
 // statusLine is the bottom row, VS Code's status bar: on its

@@ -342,9 +342,9 @@ func (m *Model) termFindBoxes() (boxes [][]string, xs, ys []int) {
 
 	w, h := m.termBody() // the screen, left of the column of shells
 	if m.termRows() > 0 {
-		add(&m.tv.term, m.tv.id, m.area().x, m.areaH()+panelTopH, w, h)
+		add(&m.tv.term, m.tv.id, m.area().x, m.areaH()+m.panelTop(), w, h)
 	} else {
-		add(&m.tv.term, m.tv.id, m.colRect(m.colOf(viewTerm)).x, m.bodyTop(viewTerm)+termStripH, w, h)
+		add(&m.tv.term, m.tv.id, m.panelRect().x, m.bodyTop(viewTerm)+termStripH, w, h)
 	}
 
 	return boxes, xs, ys

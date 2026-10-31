@@ -282,3 +282,217 @@ func TestPanelTabHover(t *testing.T) {
 		t.Fatalf("the rule under the hovered tab: %q", rule)
 	}
 }
+
+// framedPanel is a model with the panel under the editor, 8 rows tall.
+func framedPanel(t *testing.T, borders bool) *Model {
+	t.Helper()
+	m := testModelSized(t, 100, 30)
+	m.setSettings(map[string]any{"panel_borders": borders})
+	m.st.Settings.TermH = 8
+	m.moveTerminal("bottom")
+
+	return m
+}
+
+// dragTo presses at (x, y), drags to (tx, ty) and lets go, cells of the panels.
+func dragTo(m *Model, x, y, tx, ty int) {
+	b := m.bord()
+	m.Update(tea.MouseClickMsg{X: x, Y: y + b, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: tx, Y: ty + b, Button: tea.MouseLeft})
+	m.Update(tea.MouseReleaseMsg{X: tx, Y: ty + b, Button: tea.MouseLeft})
+}
+
+// TestPanelOwnFrame: with panel_borders the panel is framed apart from the
+// editor, untitled, and only the two facing edges are its sash.
+func TestPanelOwnFrame(t *testing.T) {
+	m := framedPanel(t, true)
+	lines := strings.Split(checkWidths(t, m), "\n")
+	y := slices.IndexFunc(lines, func(l string) bool { return strings.Contains(l, "│┌⎻⎻") })
+
+	if y < 1 || !strings.Contains(lines[y-1], "│└──") || !strings.HasSuffix(lines[y-1], "─┘") || !strings.HasSuffix(lines[y], "⎻┐") || strings.Contains(lines[y], "Terminal") {
+		t.Fatalf("the editor's frame closes, the panel's opens:\n%s", strings.Join(lines, "\n"))
+	}
+
+	if y != m.areaH()+2 || m.panelStripY() != m.areaH()+2 || !strings.Contains(lines[y+1], "Terminal   Problems") {
+		t.Fatalf("the top edge on screen row %d, the editor %d rows, the strip on %d", y, m.areaH(), m.panelStripY())
+	}
+
+	if _, h := m.termBody(); h != m.termRows()-4 {
+		t.Fatalf("body %d rows of %d", h, m.termRows())
+	}
+
+	x := m.area().x + 1 + m.panelChips(panelTabX, m.area().w)[ptProblems].x
+	click(m, x, m.panelStripY()+1, tea.MouseLeft)
+
+	if m.ptab != ptProblems {
+		t.Fatalf("the tab under the click: %d", m.ptab)
+	}
+
+	for row, sash := range map[int]bool{m.areaH(): true, m.areaH() + 1: true, m.panelStripY(): false, m.panelStripY() + 1: false} {
+		m.Update(tea.MouseClickMsg{X: m.area().x + 40, Y: row + 1, Button: tea.MouseLeft})
+
+		if (m.drag != nil && m.drag.kind == dragTerm) != sash {
+			t.Fatalf("row %d: sash %v, drag %+v", row, sash, m.drag)
+		}
+
+		m.Update(tea.MouseReleaseMsg{X: m.area().x + 40, Y: row + 1, Button: tea.MouseLeft})
+	}
+}
+
+// TestPanelSashLightsWhole: rested on, both facing edges light all along, a
+// group's frame giving way as it does to a divider that lights.
+func TestPanelSashLightsWhole(t *testing.T) {
+	m := groupsModel(t)
+	m.setSettings(map[string]any{"panel_borders": true})
+	press(m, `ctrl+\`)
+	m.moveTerminal("bottom")
+	m.focus = onMain
+
+	if !m.tiled() {
+		t.Fatal("the groups are not side by side")
+	}
+
+	m.Update(tea.MouseMotionMsg{X: m.area().x + 5, Y: m.areaH() + 1})
+	m.sashSince = time.Now().Add(-sashDelay)
+
+	lines := m.termPanelLines(m.area().w, m.termRows())
+	under, over, rule := ansi.Strip(lines[0]), ansi.Strip(lines[1]), ansi.Strip(lines[3])
+
+	if strings.Trim(under, "━") != "" || strings.Trim(over, "━") != "" || strings.Contains(rule, "━") {
+		t.Fatalf("the edges light whole, the rule stays:\n%q\n%q\n%q", under, over, rule)
+	}
+}
+
+// TestPanelMaximizedFrame: maximized, the panel takes the editor's frame and
+// spends no row on edges of its own.
+func TestPanelMaximizedFrame(t *testing.T) {
+	m := framedPanel(t, true)
+	m.maximizeTerminal(true)
+
+	lines := strings.Split(checkWidths(t, m), "\n")
+	if strings.Contains(lines[0], "Terminal") || strings.Contains(strings.Join(lines[1:len(lines)-2], ""), "│└") {
+		t.Fatalf("maximized:\n%s", strings.Join(lines, "\n"))
+	}
+
+	if _, h := m.termBody(); h != m.panelH()-termStripH {
+		t.Fatalf("body %d rows of %d", h, m.panelH())
+	}
+}
+
+// TestPanelSharesSidebar: in a sidebar the panel is a tab beside the views;
+// shut, the tab stays, the view shown before it comes back, and the tab opens
+// it. A column of its own goes when it shuts, as it always has.
+func TestPanelSharesSidebar(t *testing.T) {
+	m := framedPanel(t, false)
+	m.moveTerminal("left")
+
+	if i := m.colOf(viewTerm); i < 0 || i != m.colOf(viewFiles) || m.termPos() != "left" || m.termRows() != 0 || !m.shown(viewTerm) {
+		t.Fatalf("not a tab beside Explorer: %+v", m.cols())
+	}
+
+	m.showView(viewFiles)
+	m.toggleTerminal()
+
+	if !m.termOpen() || !m.shown(viewTerm) {
+		t.Fatalf("behind Explorer, the toggle did not bring it up: open=%v %+v", m.termOpen(), m.cols())
+	}
+
+	m.showView(viewFiles)
+	m.showView(viewTerm)
+	m.toggleTerminal()
+
+	if m.termOpen() || m.colOf(viewTerm) != m.colOf(viewFiles) || !m.shown(viewFiles) || m.shown(viewTerm) {
+		t.Fatalf("shut: open=%v %+v", m.termOpen(), m.cols())
+	}
+
+	m.Update(tea.MouseClickMsg{X: tabAt(m, viewTerm), Y: 0, Button: tea.MouseLeft})
+	m.Update(tea.MouseReleaseMsg{X: tabAt(m, viewTerm), Y: 0, Button: tea.MouseLeft})
+
+	if !m.termOpen() || !m.shown(viewTerm) {
+		t.Fatalf("its tab did not open it: open=%v %+v", m.termOpen(), m.cols())
+	}
+
+	m.splitView(viewTerm)
+
+	if vs := m.colViews(m.colOf(viewTerm)); !slices.Equal(vs, []view{viewTerm}) {
+		t.Fatalf("own column: %v", vs)
+	}
+
+	m.toggleTerminal()
+
+	if m.colOf(viewTerm) >= 0 {
+		t.Fatalf("a shut panel kept its column: %+v", m.cols())
+	}
+}
+
+// TestPanelDrags: any tab of the strip carries the panel to a sidebar's tabs
+// or a column of its own, the tab there brings it back, and nothing else goes
+// under the editor.
+func TestPanelDrags(t *testing.T) {
+	m := framedPanel(t, false)
+	tab := func() (int, int) {
+		return m.area().x + 1 + m.panelChips(panelTabX, m.area().w)[ptOutput].x, m.panelStripY()
+	}
+
+	x, y := tab()
+	dragTo(m, x, y, x+20, y)
+
+	if m.termPos() != "bottom" || m.ptab != ptOutput {
+		t.Fatalf("a drag along its own strip moved it: %s, tab %d", m.termPos(), m.ptab)
+	}
+
+	x, y = tab()
+	dragTo(m, x, y, tabAt(m, viewGit), 0)
+
+	if m.termPos() != "left" || m.colOf(viewTerm) != m.colOf(viewFiles) || m.ptab != ptOutput || m.termRows() != 0 {
+		t.Fatalf("dropped on the tabs: %s %+v tab %d", m.termPos(), m.cols(), m.ptab)
+	}
+
+	low := m.panelH() - 2
+	dragTo(m, tabAt(m, viewFiles), 0, m.area().x+20, low)
+
+	if m.colOf(viewFiles) < 0 || m.termPos() != "left" || m.dropAt(viewFiles, m.area().x+20, low).under {
+		t.Fatalf("Explorer went under the editor: %s %+v", m.termPos(), m.cols())
+	}
+
+	dragTo(m, tabAt(m, viewTerm), 0, m.area().x+20, low)
+
+	if m.termPos() != "bottom" || m.colOf(viewTerm) >= 0 || m.termRows() == 0 {
+		t.Fatalf("not back under the editor: %s %+v", m.termPos(), m.cols())
+	}
+
+	x, y = tab()
+	dragTo(m, x, y, 1, 10)
+
+	if vs := m.colViews(m.colOf(viewTerm)); !slices.Equal(vs, []view{viewTerm}) || m.termPos() != "left" {
+		t.Fatalf("dropped at the edge: %s %v", m.termPos(), vs)
+	}
+}
+
+// TestPanelBesideSideBar: past a side activity bar the panel starts after the
+// bar, its strip and its screen one with what is drawn.
+func TestPanelBesideSideBar(t *testing.T) {
+	m := framedPanel(t, false)
+	m.setSettings(map[string]any{"activity_bar": "side"})
+	m.moveTerminal("left")
+	checkWidths(t, m)
+
+	i := m.colOf(viewTerm)
+	rc := m.colRect(i)
+
+	if bw := m.barW(i); bw == 0 || m.panelRect() != (rect{rc.x + bw, rc.w - bw}) || m.termW() != rc.w-bw {
+		t.Fatalf("panel %+v in column %+v", m.panelRect(), rc)
+	}
+
+	if w, _ := m.termBody(); w != rc.w-m.barW(i) {
+		t.Fatalf("screen %d wide in %+v", w, rc)
+	}
+
+	x := m.panelRect().x + m.panelChips(panelTabX, m.termW())[ptOutput].x
+	m.Update(tea.MouseClickMsg{X: x, Y: 0, Button: tea.MouseLeft})
+	m.Update(tea.MouseReleaseMsg{X: x, Y: 0, Button: tea.MouseLeft})
+
+	if m.ptab != ptOutput {
+		t.Fatalf("the tab under the click: %d", m.ptab)
+	}
+}

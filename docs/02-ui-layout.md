@@ -186,17 +186,35 @@ take a message (`previewMsg`, `onScreen`, drafts).
 ## Terminal panel
 
 `terminal_position = "bottom"` puts it under main: `termRows()` comes off
-`mainH()`, and a border over its strip, the rule under it and the strip's empty
-part are a sash for `terminal_height`; the border and the rule light heavy while
-the mouse rests on it or drags. `panelTopH` counts the three rows.
-`left` or `right` makes it a column holding only `viewTerm`, its tabs too.
+`mainH()`, and the border over its strip is a sash for `terminal_height`, as a
+sidebar's edge is for its width: it lights heavy while the mouse rests on it or
+drags. `panelTopH` counts the border, the strip and its rule. With `borders` the
+panel is framed apart from the editor: the editor's bottom edge, then its own top
+edge, both the sash and lit whole, as a sidebar's facing edges are, so `panelTop`
+is four; maximized it takes the screen's frame and spends two. Edges drawn in the
+cells' middle are a whole row apart, so the panel's is a scan line (`⎻`), a few
+pixels higher, stepping down to its corners. `panelStripY` is the strip's row. Its frame has no title, in a column either: the tabs under it say
+what it is.
+
+`left` or `right` makes it `viewTerm`, one tab of that side's sidebar, its tabs
+inside it (`panelRect`, past a side activity bar). A `terminal` listed alone in
+a column keeps a column of its own, and with no column it gets one.
+
+- Any tab of its strip (`pressPanelTab`), or `viewTerm`'s chip, drags the whole
+  panel as a view's tab drags (`dragTab`, `dock` saves `terminal_position` with
+  the columns). The panel alone also drops under the editor (`underDrop`): its
+  own rows, or the lowest quarter of main.
+- Shut, it keeps its tab in a shared column and `viewOn` passes over it, the
+  column showing the view before it; the tab opens it (`showView`). Shut in a
+  column of its own, the column goes. ``ctrl+` `` brings it up from behind
+  another tab, then closes it.
 
 The strip holds the panel's tabs (`panel.go`, `panelChips`: Terminal,
 Problems with their count, Output; short titles in a strip too
 narrow for them), the active one bold and marked on the rule under it, then
 the buttons (`termButtons`: on the Terminal `+` and the select, then ⋮ the
 tab's menu and where the panel goes,
-maximize and ✕ under the editor, ✕ closing the shell in a column), always
+maximize under the editor, ✕ closing the panel), always
 shown, `termStripH` rows over the body; a column has no header row and
 keeps the tabs. Each worktree keeps its panel maximized or not, a restart
 too (`terminals`' `max`).
@@ -251,7 +269,7 @@ focused one alone ([Editor groups](#editor-groups)).
 | editor group divider                      | the groups' ratio, saved                   |
 | editor or session tab over a group        | split it or move in (`gridDrop`)           |
 | Explorer file, Spaces session over one    | the same (`dragOpen`, `dragRowTo`)         |
-| terminal rule and strip's empty part      | `terminal_height`                          |
+| the border over the bottom panel          | `terminal_height`                          |
 | Source Control drawer, GitHub pane header | the pane's top edge                        |
 | tab onto a bar, or the half facing main   | slot between chips (`slotAt`, `placeView`) |
 | tab below a bar, toward the screen edge   | a new column                               |

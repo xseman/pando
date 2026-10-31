@@ -4033,12 +4033,10 @@ func (m *Model) clearTerm(id string) tea.Cmd {
 // shells.
 func (m *Model) termBody() (w, h int) {
 	if n := m.termRows(); n > 0 { // the panel under the editor
-		return max(m.area().w, 1), max(n-panelTopH, 1) // the border, the tab strip and its rule
+		return max(m.area().w, 1), max(n-m.panelTop(), 1)
 	}
 
-	rc := m.colRect(m.colOf(viewTerm))
-
-	return max(rc.w, 1), max(m.bodyH(viewTerm)-termStripH, 1)
+	return max(m.panelRect().w, 1), max(m.bodyH(viewTerm)-termStripH, 1)
 }
 
 // fetchTerm asks for the Terminal panel's screen, sized to its column.
@@ -4079,29 +4077,52 @@ func (m *Model) termShowing() bool {
 	return m.termOpen() && m.shown(viewTerm)
 }
 
-// termPanelLines are the bottom panel: a border, a strip of its tabs and
+// termPanelLines are the bottom panel: a border, or with panel_borders the
+// editor's bottom edge and a top edge of its own, a strip of its tabs and
 // buttons, the rule under it, then the tab's body, spanning the editor area
-// like VS Code's panel. The border, the strip's empty part and the rule are
-// the panel's sash: in the bottom panel the rule lights heavy while the
-// mouse rests on the panel's edge or drags it.
+// like VS Code's panel. The border is the panel's sash, as a sidebar's edge
+// is its: it lights heavy while the mouse rests on it or drags it.
 func (m *Model) termPanelLines(w, h int) []string {
-	top := frameRun(m.frames(), m.area().x, m.areaH(), w, "─", fg(pal.rulerBorder)) // the bottom of a group's frame
-	if st, ok := m.sashStyle(termSash); ok {
-		top = ruleRow(w, nil, st)
+	x, sy := m.area().x, m.panelStripY()
+	st, lit := m.sashStyle(termSash)
+
+	var top []string // the bottom of a group's frame runs through the first
+
+	switch {
+	case m.bord() == 1 && m.termMax: // the screen's frame is the panel's
+	case m.bord() == 1:
+		// Its own edge is a scan line, a few pixels nearer the editor's than
+		// a row: edges in the cells' middle are a whole row apart.
+		fs, edge, own, under, over := m.frames(), "─", "⎻", m.frameStyle(onMain), m.frameStyle(onPanel)
+		if lit { // both edges, whole, as a sidebar's facing edges light
+			fs, edge, own, under, over = nil, "━", "━", st, st
+		}
+
+		top = []string{frameRun(fs, x, m.areaH(), w, edge, under), renderText(over, strings.Repeat(own, w))}
+
+	case lit:
+		top = []string{ruleRow(w, nil, st)}
+	default:
+		top = []string{frameRun(m.frames(), x, m.areaH(), w, "─", fg(pal.rulerBorder))}
 	}
 
-	strip := m.panelStrip(w, panelTabX, m.area().x, m.areaH()+1)
-
-	return append([]string{top, strip, m.panelRule(w, panelTabX, m.area().x, m.areaH()+1)}, m.panelBody(w, h-panelTopH)...)
+	return append(append(top, m.panelStrip(w, panelTabX, x, sy), m.panelRule(w, panelTabX, x, sy)), m.panelBody(w, h-m.panelTop())...)
 }
 
 // termLines are the panel in a column: its strip, the rule, then the tab's
 // body.
 func (m *Model) termLines(w, h int) []string {
-	i := m.colOf(viewTerm)
-	strip := m.panelStrip(w, panelTabX, m.colRect(i).x, m.barH(i))
+	x, y := m.panelRect().x, m.barH(m.colOf(viewTerm))
 
-	return append([]string{strip, m.panelRule(w, panelTabX, m.colRect(i).x, m.barH(i))}, m.panelBody(w, h-termStripH)...)
+	return append([]string{m.panelStrip(w, panelTabX, x, y), m.panelRule(w, panelTabX, x, y)}, m.panelBody(w, h-termStripH)...)
+}
+
+// panelRect is the room the panel has in its column, past a side activity bar.
+func (m *Model) panelRect() rect {
+	i := m.colOf(viewTerm)
+	rc, bw := m.colRect(i), m.barW(i)
+
+	return rect{x: rc.x + bw*(1-m.side(i)), w: rc.w - bw}
 }
 
 // panelTabX is where the panel's tabs start in its strip.
@@ -4113,12 +4134,12 @@ func (m *Model) termW() int {
 		return m.area().w
 	}
 
-	return m.colRect(m.colOf(viewTerm)).w
+	return m.panelRect().w
 }
 
 // termButtons are the buttons at the right end of the Terminal's strip, shown
-// always as the editor's are: the panel under the editor maximizes and closes,
-// a column's shell closes.
+// always as the editor's are: the panel closes, under the editor it maximizes
+// too.
 func (m *Model) termButtons() []rowAction {
 	var acts []rowAction
 
@@ -4132,15 +4153,13 @@ func (m *Model) termButtons() []rowAction {
 	acts = append(acts, rowAction{g: icEllipsis, tip: "More Actions…", run: func(m *Model) tea.Cmd { return m.panelMenu() }})
 
 	if m.termRows() > 0 {
-		acts = append(acts,
-			rowAction{
-				g: ifElse(m.termMax, icRestore, icMax), tip: ifElse(m.termMax, "Restore Panel  ^⇧↓", "Maximize Panel  ^⇧↑"),
-				run: func(m *Model) tea.Cmd { return m.maximizeTerminal(!m.termMax) },
-			},
-			rowAction{g: icClose, tip: "Close Terminal  ^`", run: func(m *Model) tea.Cmd { return m.toggleTerminal() }})
-	} else {
-		acts = append(acts, rowAction{g: icClose, tip: "Kill Terminal…", run: func(m *Model) tea.Cmd { return m.confirmKill(m.tv.id) }})
+		acts = append(acts, rowAction{
+			g: ifElse(m.termMax, icRestore, icMax), tip: ifElse(m.termMax, "Restore Panel  ^⇧↓", "Maximize Panel  ^⇧↑"),
+			run: func(m *Model) tea.Cmd { return m.maximizeTerminal(!m.termMax) },
+		})
 	}
+
+	acts = append(acts, rowAction{g: icClose, tip: "Close Terminal  ^`", run: func(m *Model) tea.Cmd { return m.toggleTerminal() }})
 
 	layoutRight(acts, m.termW(), 2)
 
@@ -4196,7 +4215,7 @@ func (m *Model) termStripW() int {
 		return max(m.area().w-1-m.termBtnW(), 1)
 	}
 
-	return max(m.colRect(m.colOf(viewTerm)).w-m.termBtnW(), 1)
+	return max(m.panelRect().w-m.termBtnW(), 1)
 }
 
 // focusTerminal opens the terminal when it is shut and puts the keyboard in it.
@@ -4233,6 +4252,10 @@ func (m *Model) newTerm() tea.Cmd {
 // toggleTerminal is ⌃`: it opens the terminal where it is docked and focuses
 // it, and closes it when it is already open, wherever the focus is.
 func (m *Model) toggleTerminal() tea.Cmd {
+	if m.termOpen() && m.termPos() != "bottom" && !m.shown(viewTerm) { // behind another tab: to the front
+		return m.showView(viewTerm)
+	}
+
 	if m.termOpen() {
 		m.termMax = false
 		cmd := m.setTermOpen(false, nil)
@@ -4260,18 +4283,17 @@ func (m *Model) showTerminal() tea.Cmd {
 	return tea.Batch(cmd, m.showView(viewTerm))
 }
 
-// moveTerminal parks the panel under the editor or in a sidebar of its own.
+// moveTerminal parks the panel under the editor, or as a tab of the sidebar
+// next to it.
 func (m *Model) moveTerminal(pos string) tea.Cmd {
-	cmds := []tea.Cmd{m.setTermOpen(true, map[string]any{"terminal_position": pos})}
-
-	m.termMax = false
-	if pos == "bottom" {
-		m.focus = onPanel
-	} else {
-		cmds = append(cmds, m.splitTo(viewTerm, b2i(pos == "right")))
+	if pos != "bottom" {
+		return m.moveView(viewTerm, b2i(pos == "right"))
 	}
 
-	return tea.Batch(append(cmds, m.startTerm())...)
+	cmd := m.setTermOpen(true, map[string]any{"terminal_position": pos})
+	m.termMax, m.focus = false, onPanel
+
+	return tea.Batch(cmd, m.startTerm())
 }
 
 // maximizeTerminal is ⌃⇧↑: the bottom panel takes the whole editor area, and
@@ -4305,3 +4327,21 @@ const termStripH = sessStripH
 // panelTopH is the rows over the bottom panel's screen: a border, as VS Code
 // draws over its panel, then the strip and its rule.
 const panelTopH = termStripH + 1
+
+// panelTop is the rows over the bottom panel's body: panelTopH, with
+// panel_borders the editor's bottom edge and the panel's own top edge for the
+// border, only the strip and its rule under the screen's frame when it is
+// maximized.
+func (m *Model) panelTop() int {
+	switch {
+	case m.bord() == 0:
+		return panelTopH
+	case m.termMax:
+		return termStripH
+	}
+
+	return panelTopH + 1
+}
+
+// panelStripY is the row of the bottom panel's strip.
+func (m *Model) panelStripY() int { return m.areaH() + m.panelTop() - termStripH }

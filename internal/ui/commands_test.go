@@ -4001,26 +4001,26 @@ func TestSashHover(t *testing.T) {
 	press(m, "ctrl+j")
 
 	_, c := m.layout()
-	x, y := c.x+c.w/2+20, m.mainH()+1 // past the tabs, before the buttons
+	x, y := c.x+c.w/2+20, m.mainH() // the border over the strip
 	m.Update(tea.MouseMotionMsg{X: x + m.bord(), Y: y + m.bord()})
 
 	if m.sashAt != termSash {
-		t.Fatalf("the Terminal's title row is a sash: %v", m.sashAt)
+		t.Fatalf("the border over the panel is a sash: %v", m.sashAt)
 	}
 
 	m.sashSince = time.Now().Add(-sashDelay)
 
 	lines := m.termPanelLines(c.w, m.termRows())
-	if top, head, rule := ansi.Strip(lines[0]), ansi.Strip(lines[1]), ansi.Strip(lines[2]); !strings.Contains(top, "━") || strings.Contains(head, "━") || !strings.Contains(rule, "━") {
-		t.Fatalf("the rested-on strip lights the border over it and the rule under it, not itself:\n%q\n%q\n%q", top, head, rule)
+	if top, head, rule := ansi.Strip(lines[0]), ansi.Strip(lines[1]), ansi.Strip(lines[2]); !strings.Contains(top, "━") || strings.Contains(head, "━") || strings.Contains(rule, "━") {
+		t.Fatalf("the rested-on border lights, the strip and its rule stay:\n%q\n%q\n%q", top, head, rule)
 	}
 
-	// The border and the rule are the sash all along, over and under the tabs too.
-	for _, y := range []int{m.mainH(), m.mainH() + 2} {
-		m.Update(tea.MouseMotionMsg{X: c.x + 2 + m.bord(), Y: y + m.bord()})
+	// The strip and the rule are not the sash, as nothing in a sidebar but its edge is.
+	for _, y := range []int{m.mainH() + 1, m.mainH() + 2} {
+		m.Update(tea.MouseMotionMsg{X: x + m.bord(), Y: y + m.bord()})
 
-		if m.sashAt != termSash {
-			t.Fatalf("row %d of the panel is the sash: %v", y-m.mainH(), m.sashAt)
+		if m.sashAt == termSash {
+			t.Fatalf("row %d of the panel is the sash", y-m.mainH())
 		}
 	}
 
@@ -4028,7 +4028,7 @@ func TestSashHover(t *testing.T) {
 }
 
 // TestPaneSashHover lights an open Source Control drawer's header as the
-// Terminal's rule lights: a rule across its free part once the pointer
+// panel's border lights: a rule across its free part once the pointer
 // rests, the accent while it is dragged. A folded drawer's header only folds.
 func TestPaneSashHover(t *testing.T) {
 	m := gitModel(t)

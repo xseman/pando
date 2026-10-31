@@ -319,7 +319,8 @@ Terminal panel.
 ## Terminal
 
 - ``ctrl+` `` or `5` toggles the panel ([keys](09-keys.md#terminals));
-  `terminal_position` docks it in a sidebar.
+  `terminal_position` makes it a tab of a sidebar, its tabs with it; drag any
+  of them there, and back under the editor, where nothing else goes.
 - It holds the worktree's `terminal` agent sessions (`termOwned`), hidden from
   Spaces, whichever session is shown. One a script gave a `parent` shows there
   too and dies with that session; the panel's own have none.
