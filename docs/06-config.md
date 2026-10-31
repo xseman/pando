@@ -82,7 +82,7 @@ config.toml edited ───────────┘  └─ "state" event �
 | `spaces_group`         | `workspace` | `workspace`, `time` (Today, Yesterday, …), `state` (Blocked, Working, …)       |
 | `spaces_project_sort`  | `manual`    | `manual` (drag, `alt+↑↓`), `updated` (sessions' last input or change)          |
 | `spaces_hide`          | `[]`        | states left out: `blocked` `running` `done` `idle` `asleep` `exited`           |
-| `sleep_after`          | `0`         | minutes idle and unused before a session sleeps; `0` never                     |
+| `sleep_after`          | `60`        | minutes idle and unused before a session sleeps; `0` never                     |
 | `sounds`               | `true`      | sound for a session out of view                                                |
 | `sound_done`           | desktop     | file on finish; `""`: bell                                                     |
 | `sound_request`        | desktop     | file on a question; `""`: bell                                                 |

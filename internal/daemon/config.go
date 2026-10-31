@@ -49,7 +49,7 @@ func defaultConfig() config {
 			Theme: "vscode", DiffView: "inline", Borders: true, FmtSave: true, Diags: true,
 			ActBar: "side", TermPos: "bottom", TermH: 12, SessHi: "tint",
 			SpSort: "created", SpGroup: "workspace", SpProj: "manual", ExSort: "name",
-			Sounds: true, SoundDone: done, SoundReq: req, Updates: true, FontOffer: true, Anim: true, Tips: true, Blanks: "selection", ClaudeBg: true, TabSize: 4, MDWidth: 80,
+			Sounds: true, SoundDone: done, SoundReq: req, Updates: true, FontOffer: true, Anim: true, Tips: true, Blanks: "selection", ClaudeBg: true, TabSize: 4, MDWidth: 80, Sleep: 60,
 			Drawers: []string{"Commits", "Graph", "Branches", "Stashes", "Remotes"},
 			Right:   proto.Columns{{Views: []string{"agents"}}},
 		},

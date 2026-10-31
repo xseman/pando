@@ -204,13 +204,13 @@ its background job and its `claude attach` together.
 
 - `z` in Sessions, or _Sleep Session_ in a session's menu, puts it to sleep;
   working, it asks first. `pando session sleep ID` too.
-- `sleep_after = 120` in `config.toml`, or _Settings → Sessions_, does it on
-  its own to an agent's session idle and unused that long: nobody typed into
-  it, looked at it or saw it change. Blocked, working, a background command
-  running, finished but not looked at yet (`✓`), or running something pando
-  would not bring back, it stays awake, and so does a plain shell. A timer
-  inside the agent (`/loop`) does not hold it: set `sleep_after` above its
-  interval.
+- After an hour it happens on its own to an agent's session idle and unused
+  that long: nobody typed into it, looked at it or saw it change. Blocked,
+  working, a background command running, finished but not looked at yet (`✓`),
+  or running something pando would not bring back, it stays awake, and so does
+  a plain shell. A timer inside the agent (`/loop`) does not hold it: set
+  `sleep_after` above its interval. `sleep_after` in `config.toml`, or
+  _Settings → Sessions_, sets the minutes; `0` turns it off.
 - Asleep (`◌`), its screen stays, its process and a claude's background job
   are stopped. A daemon restart leaves it asleep. A Terminal panel's shell
   goes with it, idle at its prompt with no job behind it.
