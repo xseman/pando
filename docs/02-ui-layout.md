@@ -399,8 +399,9 @@ group has one strip, the files' tabs then the sessions'.
 - The editor strip's `+`, right after its last tab (`tabPlus`, `tabPlusW` kept
   free in `editorTabs`) or `alt+n`, opens `newTabMenu` under it: _Open File…_
   (quick open), _Open Session…_ (a picker of `spaceSessions`, when it has any) and
-  _New Session…_ (`harnessPicker`, or `alt+s` straight to it). The empty main
-  area has the strip too (`stripH`), so the `+` is there with no tab.
+  _New Session…_ (`harnessPicker`, or `alt+s` straight to it) and _Resume
+  Session…_ (`resumePicker`). The empty main area has the strip too (`stripH`),
+  so the `+` is there with no tab.
 
 ## Modals
 

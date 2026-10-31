@@ -123,7 +123,8 @@ checkout.
   session on screen keeps its tab when you switch to another or open a file,
   also one a worktree switch or a restart brought back.
 - The `+` after a group's last tab, or `alt+n`, opens a file (as `ctrl+p`), one of the
-  space's sessions, or a new session; `alt+s` goes straight to a new session.
+  space's sessions, a new session, or a resumed one; `alt+s` goes straight to a
+  new session.
   The empty editor area has the `+` too, and lists which keys work from
   anywhere and which need it focused.
 - A session re-roots Explorer and Source Control to its worktree; Explorer

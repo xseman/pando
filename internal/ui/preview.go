@@ -1265,7 +1265,8 @@ func tabPlus(tabs []edTab) []rowAction {
 }
 
 // newTabMenu is the + beside the tabs, under it for a click and for a key: a
-// file by quick open, a session of the space in view, or a new session in it.
+// file by quick open, a session of the space in view, or a new or resumed
+// session in it.
 func (m *Model) newTabMenu() tea.Cmd {
 	items := []item{{label: "Open File…", hint: "^p", run: func(m *Model) tea.Cmd { return m.loadIndex(true) }}}
 	if len(m.spaceSessions()) > 0 {
@@ -1276,7 +1277,9 @@ func (m *Model) newTabMenu() tea.Cmd {
 	}
 
 	x := m.mainX() + tabPlus(m.editorTabs(m.mainW()))[0].x
-	m.modal = newMenu("", x, m.mainY()+1, append(items, item{label: "New Session…", hint: "alt+s", run: func(m *Model) tea.Cmd { return m.harnessPicker(m.ws) }})...)
+	m.modal = newMenu("", x, m.mainY()+1, append(items,
+		item{label: "New Session…", hint: "alt+s", run: func(m *Model) tea.Cmd { return m.harnessPicker(m.ws) }},
+		item{label: "Resume Session…", run: func(m *Model) tea.Cmd { return m.resumePicker(m.ws) }})...)
 
 	return nil
 }

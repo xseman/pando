@@ -512,7 +512,7 @@ func TestTerminalStripCarriesTheButtons(t *testing.T) {
 }
 
 // TestTabPlus opens the + beside the tabs: quick open, the sessions of the
-// space in view only, and the new session picker.
+// space in view only, and the new and resume session pickers.
 func TestTabPlus(t *testing.T) {
 	m := testModel(t)
 	drainInputs(m)
@@ -543,6 +543,15 @@ func TestTabPlus(t *testing.T) {
 
 	if m.modal == nil || !strings.HasPrefix(m.modal.title, "New session in ") {
 		t.Fatalf("New Session asks %+v", m.modal)
+	}
+
+	m.st.Agents = map[string][]string{"shell": {"sh"}, "claude": {"sh"}, "codex": {"sh"}}
+	m.st.Resume = map[string][]string{"claude": {"claude", "--continue"}, "codex": {"codex", "resume", "--last"}}
+
+	pick("Resume Session…")
+
+	if m.modal == nil || m.modal.title != "Resume in "+filepath.Base(m.ws) {
+		t.Fatalf("Resume Session asks %+v", m.modal)
 	}
 
 	pick("Open Session…")
