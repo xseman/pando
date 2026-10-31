@@ -93,10 +93,15 @@ func (p claudeProcess) bgJob() string {
 // background job would be resumed by id, which claude refuses while the job
 // holds the conversation, rather than attached to.
 func readClaude(path string) (claudeProcess, bool) {
+	return parseClaude(func() ([]byte, error) { return os.ReadFile(path) })
+}
+
+// parseClaude is readClaude over read, one look at the file each call.
+func parseClaude(read func() ([]byte, error)) (claudeProcess, bool) {
 	var p claudeProcess
 
 	for try := 0; ; try++ {
-		b, err := os.ReadFile(path)
+		b, err := read()
 		if err != nil {
 			return p, false
 		}

@@ -39,38 +39,30 @@ func TestReadClaudeTornWrite(t *testing.T) {
 	pid := sleeper(t)
 	fakeClaudeProc(t, claudeProcess{PID: pid, SessionID: "conv", Kind: "bg", JobID: "job1"})
 
-	path := filepath.Join(claudeDir(), "sessions", strconv.Itoa(pid)+".json")
-	whole := mustRead(t, path)
-	mustWrite(t, path, whole[:len(whole)/2])
+	whole := []byte(mustRead(t, filepath.Join(claudeDir(), "sessions", strconv.Itoa(pid)+".json")))
+	reads := 0
 
-	done := make(chan struct{})
+	tornFor := func(n int) func() ([]byte, error) { // the file as n looks at it find it half written
+		reads = 0
 
-	go func() { // the write lands while readClaude is still at it
-		time.Sleep(tornWait + tornWait/2)
+		return func() ([]byte, error) {
+			reads++
+			if reads <= n {
+				return whole[:len(whole)/2], nil
+			}
 
-		_ = os.WriteFile(path, []byte(whole), 0o600)
+			return whole, nil
+		}
+	}
 
-		close(done)
-	}()
-
-	p, ok := readClaude(path)
-
-	<-done
-
-	if !ok || p.SessionID != "conv" || p.bgJob() != "job1" {
-		t.Fatalf("a half-written file read again: ok %v %+v", ok, p)
+	for _, n := range []int{1, tornRetries} {
+		if p, ok := parseClaude(tornFor(n)); !ok || p.SessionID != "conv" || p.bgJob() != "job1" {
+			t.Fatalf("a file half-written for %d reads: ok %v %+v", n, ok, p)
+		}
 	}
 	// One that never parses is given up on, not waited for.
-	mustWrite(t, path, whole[:len(whole)/2])
-
-	start := time.Now()
-
-	if _, ok := readClaude(path); ok {
-		t.Fatal("a file that never parses read as a live process")
-	}
-
-	if d := time.Since(start); d > time.Second { // tornRetries waits, with room for a loaded machine
-		t.Fatalf("gave up after %v", d)
+	if _, ok := parseClaude(tornFor(tornRetries + 1)); ok || reads != tornRetries+1 {
+		t.Fatalf("a file that never parses: ok %v after %d reads", ok, reads)
 	}
 }
 
