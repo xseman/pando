@@ -25,7 +25,8 @@ Type "c=$(pando session new --agent claude --ws $wt/readme --wait | jq -r .id)" 
 # the tree comes alive on screen.
 Type `(sleep 5; pando session send $a 'add a Count method to Store' --enter; sleep 1; pando session send $b 'run go vet ./... and go run .' --enter; sleep 1; pando session send $c 'document the store package in README.md, with an example' --enter) >/dev/null 2>&1 &` Enter
 Type "clear; pando" Enter
-Sleep 1500ms
+Wait+Screen@30s /\^.p/
+Sleep 300ms
 Type "3"
 Sleep 500ms
 Show

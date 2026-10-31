@@ -15,7 +15,8 @@ Type `cfg 26 ctrl+e=editor.findReferences ctrl+h=view.goBack ctrl+y=editor.renam
 Type "go build ./... >/dev/null 2>&1; clear" Enter
 # gopls indexes on its first request; ask once here so the demo never waits for it.
 Type "pando" Enter
-Sleep 2s
+Wait+Screen@30s /\^.p/
+Sleep 300ms
 Ctrl+p
 Sleep 300ms
 Type "store.go"

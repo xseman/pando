@@ -15,7 +15,8 @@ Type "bash $DEMO/merge.sh $REPO" Enter
 Type `cfg 30 ctrl+k=editor.saveFile ctrl+e=editor.acceptIncomingChange` Enter
 Type "clear" Enter
 Type "pando" Enter
-Sleep 1500ms
+Wait+Screen@30s /\^.p/
+Sleep 300ms
 Type "2"
 Sleep 800ms
 Down Down Down

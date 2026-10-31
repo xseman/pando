@@ -13,7 +13,8 @@ Source docs/demo/setup.tape
 Type `cfg 26 ctrl+k=editor.saveFile` Enter
 Type "clear" Enter
 Type "pando" Enter
-Sleep 1500ms
+Wait+Screen@30s /\^.p/
+Sleep 300ms
 Show
 Sleep 1200ms
 

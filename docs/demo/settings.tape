@@ -4,10 +4,11 @@ Set Shell bash
 Set FontFamily "JetBrainsMono Nerd Font Mono"
 Set FontSize 20
 # vhs subtracts padding and margin from these, so they carry both: the terminal
-# itself stays 1200x720, 98 columns, the size the tapes count columns against
-# (side by side wants a 90 column main area, beside a hidden sidebar's icons).
-Set Width 1320
-Set Height 840
+# itself stays 1248x774, the size the tapes count columns against, panel borders
+# included (side by side wants a 90 column main area, beside a hidden sidebar's
+# icons).
+Set Width 1368
+Set Height 894
 Set Padding 20
 Set Margin 40
 # A blue gradient, which `make demo` builds (make docs/demo/bg.png for a bare vhs run).

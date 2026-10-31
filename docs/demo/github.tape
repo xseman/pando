@@ -16,7 +16,8 @@ Type `cfg 40` Enter
 # first on the PATH pando starts with.
 Type "export PATH=$DEMO/gh:$PATH; clear" Enter
 Type "pando" Enter
-Sleep 1500ms
+Wait+Screen@30s /\^.p/
+Sleep 300ms
 # The pull requests load once, hidden; 1 goes back to Explorer.
 Type "6"
 Wait+Screen@10s /Round to the cent/

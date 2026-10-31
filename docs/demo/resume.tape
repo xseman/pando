@@ -25,7 +25,7 @@ Type `pando session send barista 'The secret word is cortado. Answer in one shor
 # for a while: wait for pando and the conversation in it, or the GIF would
 # open on the hidden setup.
 Type "clear; pando" Enter
-Wait+Screen@120s /PANDO-DEMO/
+Wait+Screen@120s /\^.p/
 Type "3"
 Wait+Screen@30s /cortado/
 Sleep 500ms
@@ -50,7 +50,7 @@ Type "pando"
 Sleep 400ms
 Hide
 Enter
-Wait+Screen@30s /PANDO-DEMO/
+Wait+Screen@30s /\^.p/
 Type "3"
 Sleep 400ms
 Show

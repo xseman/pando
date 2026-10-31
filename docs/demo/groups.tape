@@ -17,7 +17,8 @@ Type `cfg 22 ctrl+e=view.splitEditorRight ctrl+y=view.toggleMaximizedEditorGroup
 Type "pando project add . >/dev/null && pando session new --ws . --name shop --wait -- bash --norc >/dev/null" Enter
 Type "pando session send shop 'go vet ./... && go run .' --wait >/dev/null; clear" Enter
 Type "pando" Enter
-Sleep 1500ms
+Wait+Screen@30s /\^.p/
+Sleep 300ms
 Ctrl+p
 Wait+Screen@5s /Go to File/
 Type "main.go"

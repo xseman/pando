@@ -13,7 +13,8 @@ Source docs/demo/setup.tape
 Type `cfg 26 vim` Enter
 Type "clear" Enter
 Type "pando" Enter
-Sleep 1500ms
+Wait+Screen@30s /\^.p/
+Sleep 300ms
 Ctrl+p
 Sleep 300ms
 Type "store.go"

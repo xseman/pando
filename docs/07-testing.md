@@ -194,7 +194,7 @@ make demo ─▶ make install          overwrites $(PREFIX)/bin/pando
 
 | File            | Role                                                        |
 | --------------- | ----------------------------------------------------------- |
-| `settings.tape` | 98×27 cells, VS Code Light theme, `bg.png` (made by `make`) |
+| `settings.tape` | 1248×774 px, VS Code Light theme, `bg.png` (made by `make`) |
 | `setup.tape`    | hidden start: clean env, fresh repo, `source cfg.sh`        |
 | `cfg.sh`        | `cfg <width> [preset…] [key=command…]`; `mode=light`        |
 | `gh/gh`         | fake gh for `github.tape`                                   |

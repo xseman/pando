@@ -15,7 +15,8 @@ Source docs/demo/setup.tape
 Type `cfg 23 ctrl+k=editor.submitChanges` Enter
 Type "sqlite3 shop.db < $DEMO/shop.sql && clear" Enter
 Type "pando" Enter
-Sleep 1500ms
+Wait+Screen@30s /\^.p/
+Sleep 300ms
 # 7 shows the Databases view; shop.db unfolds to its tables, orders opens.
 Type "7"
 Sleep 500ms

@@ -12,7 +12,8 @@ Source docs/demo/setup.tape
 Type `cfg 30 ctrl+n=editor.toggleRenderedMarkdown ctrl+o=editor.markdownSideBySide` Enter
 Type "cp $DEMO/README.demo.md README.md && clear" Enter
 Type "pando" Enter
-Sleep 1500ms
+Wait+Screen@30s /\^.p/
+Sleep 300ms
 Ctrl+p
 Sleep 300ms
 Type "README.md"
