@@ -130,7 +130,8 @@ checkout.
   opened from Search or Source Control sharing Explorer's column leaves that
   view in front.
 - Each session is one tab; the sessions of a worktree share its Terminal
-  panel's shells, which outlive them. `alt+t` picks a session. An agent started in a shell, claude typed at its prompt,
+  panel's shells, which outlive them. `alt+t` picks a session, `alt+a` goes to
+  the next one waiting on you. An agent started in a shell, claude typed at its prompt,
   shows its state on the tab.
 - Drag over a terminal to select and copy; `ctrl+f` finds in its scrollback.
 - Ctrl+click a link in a terminal, as in VS Code's: a URL or an OSC 8

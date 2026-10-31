@@ -271,6 +271,9 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
   last among the open ones, saved there (Sort Projects Manually only).
 - `alt+t` opens the agent navigator, a picker with `@blocked`, `@running`,
   `@shell`, `@done`, `@idle`, `@exited`, `@worktree` and `!agent` filters.
+- `alt+a` opens the next session waiting on you (`alarms`): blocked, then
+  ended with an error, then finished unseen, the one waiting longest first in
+  each. Each press walks on from the session on screen.
 
 ### View options
 

@@ -2132,6 +2132,7 @@ func (a *agents) items(m *Model) []item {
 	}
 	goTo := []item{
 		{label: "Go to Agent or Worktree…", hint: "M-t", run: func(m *Model) tea.Cmd { return m.agentNavigator() }},
+		{label: "Go to Next Alarm", hint: "M-a", run: func(m *Model) tea.Cmd { return m.nextAlarm() }},
 		{label: "View Options…", hint: "o", run: func(m *Model) tea.Cmd { return a.viewMenu(m, m.mouseX, m.mouseY) }},
 	}
 
@@ -2835,6 +2836,36 @@ func (m *Model) agentNavigator() tea.Cmd {
 	m.modal = newPicker("Go to Agent or Worktree", items)
 
 	return nil
+}
+
+// alarmStates are the session states that wait on the user, the most urgent
+// first.
+var alarmStates = []string{"blocked", "exited", "done"}
+
+// alarms are the sessions waiting on the user: blocked, then ended with an
+// error, then finished unseen, the one waiting longest first in each.
+func (m *Model) alarms() []proto.Session {
+	rank := func(s proto.Session) int { return slices.Index(alarmStates, sessionState(s)) }
+	out := slices.DeleteFunc(m.mainSessions(), func(s proto.Session) bool { return rank(s) < 0 })
+
+	slices.SortStableFunc(out, func(a, b proto.Session) int {
+		return cmp.Or(cmp.Compare(rank(a), rank(b)), a.Updated.Compare(b.Updated))
+	})
+
+	return out
+}
+
+// nextAlarm opens the alarm after the session on screen, the first of them
+// when it is none: each press walks on.
+func (m *Model) nextAlarm() tea.Cmd {
+	q := m.alarms()
+	if len(q) == 0 {
+		return flash("nothing is waiting", false)
+	}
+
+	i := slices.IndexFunc(q, func(s proto.Session) bool { return s.ID == m.sess })
+
+	return m.openSession(q[(i+1)%len(q)].ID)
 }
 
 // sessionItems are a picker's rows for ss, the ones waiting on you first:
