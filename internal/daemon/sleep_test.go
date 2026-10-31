@@ -450,8 +450,9 @@ func TestSleepGenericAgents(t *testing.T) {
 
 // TestAutoSleep puts a session to sleep once it has gone unused for
 // sleep_after, its Terminal panel's shell with it; one in use, one working,
-// one running something pando would not bring back, one whose panel works
-// or runs a server, and one that rang for attention nobody gave stay awake.
+// one running something pando would not bring back, one whose panel works,
+// runs a server or holds a job, a plain shell, and one that rang for attention
+// nobody gave stay awake.
 func TestAutoSleep(t *testing.T) {
 	needProc(t)
 
@@ -465,12 +466,21 @@ func TestAutoSleep(t *testing.T) {
 	d := boot()
 	defer d.Close()
 
+	d.mu.Lock()
+	d.state.Resume = map[string][]string{"sh": {"sh"}} // sh is the agent here, bash the shell
+	d.mu.Unlock()
+
 	ws := t.TempDir()
 	newSession := func(parent, line string) string {
 		t.Helper()
 
+		cmd := []string{"sh"}
+		if parent != "" {
+			cmd = []string{"bash", "--norc"}
+		}
+
 		var s proto.Session
-		call(t, "session.new", map[string]any{"workspace": ws, "cmd": []string{"sh"}, "parent": parent}, &s)
+		call(t, "session.new", map[string]any{"workspace": ws, "cmd": cmd, "parent": parent}, &s)
 
 		if line != "" {
 			call(t, "session.input", proto.InputParams{ID: s.ID, Text: line + "\r"}, nil)
@@ -487,8 +497,13 @@ func TestAutoSleep(t *testing.T) {
 	newSession(busyPanel, "while :; do echo tick; sleep 0.2; done")
 	serverPanel := newSession("", "") // its panel's shell runs a quiet server: idle, yet not to be stopped
 	newSession(serverPanel, "sleep 300")
+	jobPanel := newSession("", "") // its panel's shell is at its prompt, a job behind it
+	newSession(jobPanel, "sleep 300 &")
 	viewed := newSession("", "")
 	rang := newSession("", `printf '\a'`)
+
+	var shell proto.Session
+	call(t, "session.new", map[string]any{"workspace": ws, "cmd": []string{"bash", "--norc"}}, &shell)
 
 	stop := make(chan struct{})
 	defer close(stop)
@@ -518,7 +533,10 @@ func TestAutoSleep(t *testing.T) {
 	waitFor(t, "the idle session to fall asleep", func() bool { return status(idle) == "asleep" && status(panel) == "asleep" })
 	time.Sleep(time.Second) // long past sleep_after for the rest too
 
-	for name, id := range map[string]string{"busy": busy, "server": server, "busy panel's": busyPanel, "server panel's": serverPanel, "viewed": viewed, "rang": rang} {
+	for name, id := range map[string]string{
+		"busy": busy, "server": server, "busy panel's": busyPanel, "server panel's": serverPanel, "job panel's": jobPanel,
+		"viewed": viewed, "rang": rang, "shell": shell.ID,
+	} {
 		if st := status(id); st == "asleep" {
 			t.Errorf("the %s session fell asleep", name)
 		}

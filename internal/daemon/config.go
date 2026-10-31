@@ -246,8 +246,8 @@ func (c *config) encode() []byte {
 		"the states left out: blocked, running, done, idle, asleep, exited.", "spaces_sort", s.SpSort)
 	kv("", "spaces_group", s.SpGroup)
 	kv("", "spaces_hide", list(s.SpHide))
-	kv("Put a session to sleep once it has been idle and unused - nobody typed into it, looked\n"+
-		"at it or saw it change - for this many minutes: its process, and a claude's background\n"+
+	kv("Put an agent's session to sleep once it has been idle and unused - nobody typed into it,\n"+
+		"looked at it or saw it change - for this many minutes: its process, and a claude's background\n"+
 		"job, stop to free their memory; opening it brings the agent back. 0: never.", "sleep_after", s.Sleep)
 	kv("Sessions view: projects in their \"manual\" order (drag, alt+up/down) or by \"updated\",\n"+
 		"the one whose sessions changed last first.", "spaces_project_sort", s.SpProj)

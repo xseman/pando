@@ -264,7 +264,7 @@ session, put off until `session.wake` (`sleep.go`).
 | A session in front runs…                             | By hand | On its own | Wakes to           |
 | ---------------------------------------------------- | ------- | ---------- | ------------------ |
 | an agent with a resume (spec.Resume)                 | yes     | when idle  | the agent, resumed |
-| its shell, at the prompt                             | yes     | when idle  | a new shell        |
+| its shell, at the prompt                             | yes     | no         | a new shell        |
 | something else (a server, an editor)                 | yes     | no         | a new shell        |
 | a known agent with no `[resume]` (gemini, agy, grok) | refused | no         | -                  |
 
@@ -273,10 +273,11 @@ session, put off until `session.wake` (`sleep.go`).
   `sleep_after` is on), or a status change that is real work (`worked`: a
   question, an exit, a burst over `longBurst`, not a redraw's flip) past
   `startGrace` (30 s) after a start, so an agent coming back does not count. `Active` keeps it over a
-  restart. Not with `attention` (done unseen), not a Terminal shell (they go
-  with their session), nor a session one of whose shells is not unused the
-  same way (a quiet server, an editor); where nothing says what runs in
-  front (no /proc), only an agent with a resume.
+  restart. Not with `attention` (done unseen), not a shell (a Terminal shell
+  goes with its session), nor a session one of whose shells is not unused the
+  same way (a quiet server, an editor, a job behind the prompt). An agent's
+  shell tool keeps it `running`, a background one too (`commandsUnder`); a
+  timer inside the agent (`/loop`) shows nowhere and does not hold it.
 - `asleep` is settled: `session.wait` stops at it; `session.input` is
   refused. A wait begun asleep follows the woken session (`d.session` each
   poll). The exit of the process it stops neither closes it nor falls back.

@@ -108,12 +108,13 @@ func (d *Daemon) canSleep(s *session) error {
 	return nil
 }
 
-// sleepy reports whether session s goes to sleep on its own at now: it, and
-// each shell it is the parent of, which goes with it, is unused. Those shells
-// never sleep on their own. d.mu is held.
+// sleepy reports whether session s goes to sleep on its own at now: an agent
+// with a resume, unused, and each shell it is the parent of, which goes with
+// it, too. A shell has little memory to give back and its variables and jobs
+// to lose, so none sleeps on its own. d.mu is held.
 func (d *Daemon) sleepy(s *session, now time.Time) bool {
-	after := time.Duration(d.state.Settings.Sleep) * sleepUnit
-	if after <= 0 || s.isAsleep() || d.moving[s.spec.ID] || s.info().Parent != "" || !d.unused(s, now, after) {
+	info, after := s.info(), time.Duration(d.state.Settings.Sleep)*sleepUnit
+	if after <= 0 || s.isAsleep() || info.Resume == nil || info.Parent != "" || d.moving[s.spec.ID] || !d.unused(s, now, after) {
 		return false
 	}
 
@@ -128,15 +129,22 @@ func (d *Daemon) sleepy(s *session, now time.Time) bool {
 
 // unused reports session s idle and unused for after, its finished turn seen
 // (attention), with what runs in front one pando brings back: an agent with
-// a resume, or its own shell at the prompt. A server or an editor, or
-// nothing that says what runs (no /proc), keeps it awake. d.mu is held.
+// a resume, or its own shell at the prompt with no job left running. A server
+// or an editor, or nothing that says what runs (no /proc), keeps it awake.
+// d.mu is held.
 func (d *Daemon) unused(s *session, now time.Time, after time.Duration) bool {
 	info := s.info()
 	if info.Status != "idle" || info.Attention || now.Sub(s.used()) < after {
 		return false
 	}
 
-	return info.Resume != nil || info.Program != "" && info.Program == programOf(info.Cmd) && !d.knownAgent(info.Program)
+	if info.Resume != nil {
+		return true
+	}
+
+	pid, _ := s.foreground()
+
+	return info.Program != "" && info.Program == programOf(info.Cmd) && !d.knownAgent(info.Program) && len(childrenOf(pid)) == 0
 }
 
 // startGrace is how long after a session starts its status changes are its
