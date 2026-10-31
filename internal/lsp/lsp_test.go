@@ -335,6 +335,16 @@ func TestColumns(t *testing.T) {
 	}
 }
 
+// TestSpliceInsertsInOrder: gopls writes a new test file as two inserts at
+// its start, and the package clause must stay first.
+func TestSpliceInsertsInOrder(t *testing.T) {
+	edits := []textEdit{{NewText: "package a\n"}, {NewText: "func F() {}\n"}}
+
+	if got, want := splice("", edits), "package a\nfunc F() {}\n"; got != want {
+		t.Fatalf("spliced %q, want %q", got, want)
+	}
+}
+
 func TestApplyWorkspaceEdit(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "a.go")

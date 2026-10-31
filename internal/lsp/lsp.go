@@ -542,14 +542,15 @@ func applyEdits(path string, edits []textEdit) error {
 	return os.WriteFile(path, []byte(splice(string(b), edits)), st.Mode().Perm())
 }
 
-// splice applies edits to text, last one first so earlier offsets hold.
+// splice applies edits to text, last one first so earlier offsets hold;
+// inserts at one position stay in the order they came, as the LSP asks.
 func splice(text string, edits []textEdit) string {
 	slices.SortStableFunc(edits, func(a, b textEdit) int {
-		return cmp.Or(b.Range.Start.Line-a.Range.Start.Line, b.Range.Start.Character-a.Range.Start.Character)
+		return cmp.Or(a.Range.Start.Line-b.Range.Start.Line, a.Range.Start.Character-b.Range.Start.Character)
 	})
 
 	lines := strings.Split(text, "\n")
-	for _, e := range edits {
+	for _, e := range slices.Backward(edits) {
 		a := offsetOf(lines, e.Range.Start.Line, e.Range.Start.Character)
 
 		z := offsetOf(lines, e.Range.End.Line, e.Range.End.Character)
