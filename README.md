@@ -76,6 +76,9 @@ it when none is).
   the system keyring), their tables in a grid: filter, sort and page, then
   edit cells and rows and submit them in one transaction, or open the client
   in the terminal for the rest.
+- **Customizations**: a tab beside Sessions, what an agent loads in this
+  worktree: its skills, instructions, hooks, MCP servers and plugins as VS
+  Code lists them, each opening its file; it follows the session's agent.
 - **Layout**: VS Code's editor groups, files and sessions split side by side
   or stacked by dragging a tab, a bottom panel with the terminals, the
   problems and the output, a settings tab, draggable views and columns, VS

@@ -40,14 +40,15 @@ const (
 	viewTerm
 	viewGitHub // pull requests, issues and notifications through gh, where it is installed
 	viewDB     // the worktree's SQLite files and the servers it names, through their clients, where one is installed
+	viewCustom // what one agent loads in the worktree, where an agent it knows is installed: a tab in Sessions' header, in no column
 )
 
 var (
-	viewTitles = []string{"Explorer", "Source Control", "Sessions", "Search", "Terminal", "GitHub", "Databases"}
-	viewKeys   = []string{"files", "git", "agents", "search", "terminal", "github", "databases"} // values of settings.left and settings.right
+	viewTitles = []string{"Explorer", "Source Control", "Sessions", "Search", "Terminal", "GitHub", "Databases", "Customizations"}
+	viewKeys   = []string{"files", "git", "agents", "search", "terminal", "github", "databases", "customizations"} // values of settings.left and settings.right
 	// showKeys show each view from anywhere where there is such a key, else
 	// from a sidebar: the Terminal's toggles the panel.
-	showKeys = []string{"^⇧e", "^⇧g", "3", "^⇧f", "^`", "6", "7"}
+	showKeys = []string{"^⇧e", "^⇧g", "3", "^⇧f", "^`", "6", "7", "8"}
 )
 
 // hasGH reports gh on the PATH, which the GitHub view needs; tests turn it off.
@@ -210,7 +211,7 @@ type Model struct {
 	cur       *pane     // the group with the keyboard, its state in Model; a leaf of grid
 	maxed     bool      // the active group fills the editor area, the others waiting
 
-	filters   [viewDB + 1]filter // per view
+	filters   [viewCustom + 1]filter // per view
 	gh        ghView
 	ghPages   map[string]ghCached        // the pages of pull requests and issues seen, shown again while they are fetched
 	ghDrafts  map[string]*textarea.Model // each page's comment box, kept with what was typed in it when the page closes
@@ -218,6 +219,9 @@ type Model struct {
 	hasGH     bool                       // gh is installed: the GitHub view shows
 	db        dbView
 	hasDB     bool // a database client is installed: the Databases view shows
+	cu        customView
+	hasCustom bool // an agent it knows is installed: Sessions' header has its tab
+	custTab   bool // Sessions' column draws Customizations
 	mouseX    int  // last mouse position (content rows) for hover
 	mouseY    int
 	overBar   barPoint  // the scrollbar cell under the mouse: its slider hovers
@@ -489,6 +493,7 @@ func New(st proto.State, wss []proto.Workspace, ss []proto.Session, ws string, e
 		ambiguous:  true, // until the terminal answers that it disambiguates keys
 		hasGH:      hasGH(),
 		hasDB:      hasDB(),
+		hasCustom:  hasCustom(st),
 		diagIn:     newDiagBox(),
 		logIn:      newLogBox(),
 		diags:      map[string][]lsp.Diagnostic{},
@@ -783,8 +788,10 @@ func (m *Model) allCols() []col {
 		out = removeView(out, viewDB)
 	}
 
+	out = removeView(out, viewCustom)
+
 	for v, ok := range seen {
-		if view(v) == viewGitHub && !m.hasGH || view(v) == viewDB && !m.hasDB {
+		if view(v) == viewGitHub && !m.hasGH || view(v) == viewDB && !m.hasDB || view(v) == viewCustom {
 			continue
 		}
 
@@ -906,8 +913,10 @@ func leftCount(cs []col) int {
 	return n
 }
 
-// colOf is the column holding tab v.
+// colOf is the column holding tab v; Customizations' is Sessions'.
 func (m *Model) colOf(v view) int {
+	v = ifElse(v == viewCustom, viewAgents, v)
+
 	return slices.IndexFunc(m.cols(), func(c col) bool { return slices.Contains(c.views, v) })
 }
 
@@ -960,10 +969,21 @@ func (m *Model) viewOn(i int) (view, bool) {
 	return best, true
 }
 
+// bodyOn is what column i draws: the tab viewOn says, or Customizations in
+// Sessions' place.
+func (m *Model) bodyOn(i int) (view, bool) {
+	v, ok := m.viewOn(i)
+	if v == viewAgents && m.custTab {
+		return viewCustom, ok
+	}
+
+	return v, ok
+}
+
 // shown reports whether v is the visible tab of an open column.
 func (m *Model) shown(v view) bool {
 	i := m.colOf(v)
-	a, ok := m.viewOn(i)
+	a, ok := m.bodyOn(i)
 
 	return ok && a == v && m.colRect(i).w > 0 && !m.railed(i)
 }
@@ -1162,12 +1182,13 @@ func (m *Model) termRows() int {
 // bodyTop is the first list row of view v, below the activity bar, the view
 // header (the session and the Terminal have none: their strips have the buttons) and the filter line.
 func (m *Model) bodyTop(v view) int {
-	return m.barH(m.colOf(v)) + headRows(v) + 3*b2i(m.filters[v].on)
+	return m.barH(m.colOf(v)) + m.headRows(v) + 3*b2i(m.filters[v].on)
 }
 
-// headRows is the rows of view header over view v's body: 1, but the session's
-// and the Terminal's strips carry their buttons instead.
-func headRows(v view) int { return b2i(v != viewTerm) }
+// headRows is the rows of view header over view v's body: 1, and a rule under
+// tabs, but the session's and the Terminal's strips carry their buttons
+// instead.
+func (m *Model) headRows(v view) int { return b2i(v != viewTerm) + b2i(m.tabbed(v)) }
 
 // barH is column i's activity bar height; a column with a single tab has none.
 func (m *Model) barH(i int) int {
@@ -1257,6 +1278,8 @@ func (m *Model) listBar(v view, y int) (listBar, bool) {
 		b = listBar{geo: func() vbar { return vbar{len(m.ex.nodes), m.bodyH(viewFiles), m.ex.l.top} }, to: func(top int) tea.Cmd { m.ex.l.top = top; return nil }}
 	case viewDB:
 		b = listBar{geo: func() vbar { return vbar{len(m.db.rows(m)), m.bodyH(viewDB), m.db.l.top} }, to: func(top int) tea.Cmd { m.db.l.top = top; return nil }}
+	case viewCustom:
+		b = listBar{geo: func() vbar { return vbar{len(m.cu.rows(m)), m.bodyH(viewCustom), m.cu.l.top} }, to: func(top int) tea.Cmd { m.cu.l.top = top; return nil }}
 	case viewAgents:
 		return m.ag.bar(m, y)
 	case viewGitHub:
@@ -1369,7 +1392,13 @@ func (m *Model) showView(v view) tea.Cmd {
 
 	i := m.colOf(v)
 	m.clock++
-	m.recent[v] = m.clock
+
+	on := ifElse(v == viewCustom, viewAgents, v)
+	if on == viewAgents {
+		m.custTab = v == viewCustom
+	}
+
+	m.recent[on] = m.clock
 
 	if side := m.side(i); i >= 0 && m.folds(m.cols())[side] {
 		m.unfold[side] = true // opened by hand: it stays open where it would be squeezed
@@ -1385,6 +1414,8 @@ func (m *Model) showView(v view) tea.Cmd {
 		return tea.Batch(m.gh.ensure(m), m.fetchScreen())
 	case viewDB:
 		return tea.Batch(m.db.ensure(m), m.fetchScreen())
+	case viewCustom:
+		return tea.Batch(m.cu.ensure(m), m.fetchScreen())
 	default:
 		return m.fetchScreen()
 	}
@@ -1761,6 +1792,7 @@ func (m *Model) menuOf(items []item, x, y int) tea.Cmd {
 }
 
 func (m *Model) tabMenu(v view, x, y int) tea.Cmd {
+	v = ifElse(v == viewCustom, viewAgents, v) // it goes where Sessions goes
 	cs := m.cols()
 	i := m.colOf(v)
 
@@ -2043,6 +2075,10 @@ func (m *Model) headerActions(s int, v view, w int) []titleAction {
 		add(icRefresh, "Refresh  r", m.db.refresh)
 		add(icCollapse, "Collapse All  C", func(m *Model) tea.Cmd { m.db.collapseAll(); return nil })
 
+	case viewCustom:
+		add(icRefresh, "Refresh  r", m.cu.refresh)
+		add(icCollapse, "Collapse All  C", func(m *Model) tea.Cmd { m.cu.collapseAll(); return nil })
+
 	case viewAgents:
 		add(icAdd, "New Session…  n", func(m *Model) tea.Cmd { return m.ag.newSession(m, m.ag.selected(m)) })
 		add(icResume, "Resume Session…", func(m *Model) tea.Cmd { return m.ag.resume(m, m.ag.selected(m)) })
@@ -2054,6 +2090,19 @@ func (m *Model) headerActions(s int, v view, w int) []titleAction {
 
 	if m.barH(s) == 0 && bw == 0 { // no activity bar to hold the gear
 		add(icGear, settingsTip, func(m *Model) tea.Cmd { return m.manageMenu(m.mouseX, m.mouseY+1) })
+	}
+
+	// Tabs stay where they are: the actions that fit beside them show, in
+	// order, the rest stay on their keys and in the menu.
+	if tabs := m.headTabs(v, w); len(tabs) > 0 {
+		room, n := w-tabs[1].x-tabs[1].w-1, 0
+		for ; n < len(acts); n++ {
+			if room -= ansi.StringWidth(acts[n].label); room < 0 {
+				break
+			}
+		}
+
+		acts = acts[:n]
 	}
 
 	x := w
@@ -2195,7 +2244,7 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 		m.fixFocus()
 	}
 
-	return tea.Batch(saved, restored, m.loadDrafts(), m.ensureTerm(), hub, m.db.shown(m))
+	return tea.Batch(saved, restored, m.loadDrafts(), m.ensureTerm(), hub, m.db.shown(m), m.cu.shown(m))
 }
 
 // nextTab is the session a closed tab hands its focus to: the tab left of it,
@@ -2256,7 +2305,7 @@ func (m *Model) switchSession(id string) tea.Cmd {
 	m.sess, m.preview = id, false
 	m.openSessTab(id)
 
-	return tea.Batch(switched, m.ensureTerm(), m.fetchScreen(), m.refreshGit(), m.wake(id))
+	return tea.Batch(switched, m.ensureTerm(), m.fetchScreen(), m.refreshGit(), m.wake(id), m.cu.shown(m))
 }
 
 func (m *Model) session(id string) *proto.Session {
@@ -2404,7 +2453,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		m.ex.rebuild(m)
 		m.scm.fit(m) // the box learns its width when drawn: a resize rewraps it
-		cmds := []tea.Cmd{tick(), m.blink(), m.tickGit(), m.scm.saveDraft(m), m.scm.loadDrawers(m), m.gh.shown(m), m.db.shown(m), m.saveWorkspace(), m.saveEditors(), m.saveTerm(), m.saveDrafts()}
+		cmds := []tea.Cmd{tick(), m.blink(), m.tickGit(), m.scm.saveDraft(m), m.scm.loadDrawers(m), m.gh.shown(m), m.db.shown(m), m.cu.shown(m), m.saveWorkspace(), m.saveEditors(), m.saveTerm(), m.saveDrafts()}
 		m.eachGroup(func() { cmds = append(cmds, m.pv.reloadIfLive(m)) }) // what every group shows
 		// ponytail: other projects' branches come back every 30 s, one git call
 		// per project; watch their HEADs if that lags.
@@ -2617,6 +2666,10 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case dbObjsMsg:
 		return m, m.db.onObjs(m, msg)
+
+	case custMsg:
+		m.cu.onScan(m, msg)
+		return m, nil
 
 	case tableMsg:
 		return m, m.onTableLoad(msg)
@@ -2882,7 +2935,7 @@ func (m *Model) paste(msg tea.PasteMsg) tea.Cmd {
 		m.inputs <- proto.InputParams{ID: m.tv.id, Paste: msg.Content}
 
 	case m.focus != onMain:
-		v, ok := m.viewOn(m.focus)
+		v, ok := m.bodyOn(m.focus)
 
 		switch {
 		case ok && m.filters[v].editing:
@@ -3044,7 +3097,7 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 		return m.pv.key(m, k)
 	}
 
-	v, _ := m.viewOn(m.focus)
+	v, _ := m.bodyOn(m.focus)
 	if v == viewTerm { // a terminal takes every other key, a list its own
 		return m.panelKey(k)
 	}
@@ -3096,6 +3149,13 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 
 		return m.showView(viewDB)
 
+	case "8":
+		if !m.hasCustom {
+			return nil
+		}
+
+		return m.showView(viewCustom)
+
 	case "ctrl+f":
 		if v == viewSearch {
 			return m.sr.focus()
@@ -3107,7 +3167,7 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 		return m.openSettings()
 
 	case "?":
-		m.modal = helpModal(m.hasGH, m.hasDB)
+		m.modal = helpModal(m.hasGH, m.hasDB, m.hasCustom)
 		return nil
 
 	case "b":
@@ -3153,6 +3213,8 @@ func (m *Model) viewKey(v view, k tea.KeyPressMsg) tea.Cmd {
 		return m.gh.key(m, k)
 	case viewDB:
 		return m.db.key(m, k)
+	case viewCustom:
+		return m.cu.key(m, k)
 	default: // Agents; the Terminal and the session are handled before here.
 		return m.ag.key(m, k)
 	}
@@ -3196,6 +3258,8 @@ func (m *Model) refilter(v view) {
 		m.gh.l.top = 0
 	case viewDB:
 		m.db.l.top = 0
+	case viewCustom:
+		m.cu.l.top = 0
 	default:
 		m.ag.l.top = 0
 	}
@@ -3547,7 +3611,7 @@ func (m *Model) sideMouse(s int, rc rect, msg tea.MouseMsg) tea.Cmd {
 	mo := msg.Mouse()
 	_, click := msg.(tea.MouseClickMsg)
 
-	v, ok := m.viewOn(s)
+	v, ok := m.bodyOn(s)
 	if !ok {
 		return nil
 	}
@@ -3607,9 +3671,18 @@ func (m *Model) sideMouse(s int, rc rect, msg tea.MouseMsg) tea.Cmd {
 
 		return nil
 
-	case y == bar && headRows(v) > 0:
+	case y == bar+1 && m.tabbed(v): // the rule under the tabs
+		return nil
+
+	case y == bar && m.headRows(v) > 0:
 		if !click {
 			return nil
+		}
+
+		for _, t := range m.headTabs(v, rc.w) {
+			if x >= t.x && x < t.x+t.w {
+				return m.showView(t.v)
+			}
 		}
 
 		for _, a := range m.headerActions(s, v, rc.w) {
@@ -3629,7 +3702,7 @@ func (m *Model) sideMouse(s int, rc rect, msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 
-	y -= bar + headRows(v)
+	y -= bar + m.headRows(v)
 	if m.filters[v].on {
 		if y < 3 { // the box and its frame
 			if click {
@@ -3698,6 +3771,8 @@ func (m *Model) viewMouse(v view, msg tea.MouseMsg, x, y int) tea.Cmd {
 		return m.gh.mouse(m, msg, y)
 	case viewDB:
 		return m.db.mouse(m, msg, y)
+	case viewCustom:
+		return m.cu.mouse(m, msg, y)
 	default: // Agents.
 		return m.ag.mouse(m, msg, x, y)
 	}
@@ -4077,9 +4152,13 @@ func (m *Model) sideTitle(s int) string {
 		return ""
 	}
 
-	v, _ := m.viewOn(s)
+	v, _ := m.bodyOn(s)
 	if v == viewTerm { // its tabs say it
 		return ""
+	}
+
+	if m.tabbed(v) { // one title, so that switching tabs moves nothing
+		return "Agents"
 	}
 
 	return viewTitles[v]
@@ -4137,15 +4216,19 @@ func (m *Model) sidebar(s, w int) []string {
 }
 
 func (m *Model) sidebarBody(s, w int) []string {
-	active, _ := m.viewOn(s)
+	active, _ := m.bodyOn(s)
 
 	out := make([]string, 0, m.h)
 	if m.barH(s) > 0 {
 		out = append(out, m.activityBar(s, w)...)
 	}
 
-	if headRows(active) > 0 {
+	if m.headRows(active) > 0 {
 		out = append(out, m.viewHeader(s, active, w))
+	}
+
+	if m.tabbed(active) {
+		out = append(out, ruleRow(w, nil, fg(pal.tabBorder)))
 	}
 
 	if f := &m.filters[active]; f.on { // a framed box, as Search's
@@ -4166,6 +4249,8 @@ func (m *Model) sidebarBody(s, w int) []string {
 		out = append(out, m.gh.lines(m, w, h)...)
 	case viewDB:
 		out = append(out, m.db.lines(m, w, h)...)
+	case viewCustom:
+		out = append(out, m.cu.lines(m, w, h)...)
 	default:
 		out = append(out, m.ag.lines(m, w, h)...)
 	}
@@ -4465,7 +4550,7 @@ func (m *Model) vertTabs(s int) []tab {
 }
 
 func (m *Model) viewHeader(s int, v view, w int) string {
-	title := []string{strings.ToUpper(filepath.Base(m.ws)), "SOURCE CONTROL", "SESSIONS", "SEARCH", "TERMINAL", "GITHUB", "DATABASES"}[v]
+	title := []string{strings.ToUpper(filepath.Base(m.ws)), "SOURCE CONTROL", "SESSIONS", "SEARCH", "TERMINAL", "GITHUB", "DATABASES", "CUSTOMIZATIONS"}[v]
 
 	var right []seg
 
@@ -4482,7 +4567,48 @@ func (m *Model) viewHeader(s int, v view, w int) string {
 		right = []seg{sg(sum+" ", dim)}
 	}
 
-	return row(w, nil, []seg{sg(" "+title, accent)}, right...)
+	left := []seg{sg(" "+title, accent)}
+
+	if tabs := m.headTabs(v, w); len(tabs) > 0 {
+		left = []seg{sg(" ", plain)}
+
+		for i, t := range tabs {
+			if i > 0 {
+				left = append(left, sg("  ", plain))
+			}
+
+			left = append(left, sg(t.label, ifElse(t.v == v, accent.Underline(true), dim)))
+		}
+	}
+
+	return row(w, nil, left, right...)
+}
+
+// tabbed reports whether v shares its header row with the other tab: where an
+// agent Customizations knows is installed, a chip of their own would cost the
+// column an activity bar.
+func (m *Model) tabbed(v view) bool {
+	return m.hasCustom && (v == viewAgents || v == viewCustom)
+}
+
+// headTabs are the tabs in view v's header row, the same cells whichever shows
+// and wherever the mouse is: only a column too narrow for both halves them.
+func (m *Model) headTabs(v view, w int) []tab {
+	if !m.tabbed(v) {
+		return nil
+	}
+
+	sessions, custom := viewTitles[viewAgents], viewTitles[viewCustom]
+	if half := max((w-3)/2, 1); ansi.StringWidth(sessions)+ansi.StringWidth(custom)+3 > w {
+		sessions, custom = ansi.Truncate(sessions, half, ""), ansi.Truncate(custom, half, "")
+	}
+
+	n := ansi.StringWidth(sessions)
+
+	return []tab{
+		{v: viewAgents, x: 1, w: n, label: sessions},
+		{v: viewCustom, x: n + 3, w: ansi.StringWidth(custom), label: custom},
+	}
 }
 
 // dropBox paints where a dragged tab would land: a frame over the panels a
@@ -5317,6 +5443,7 @@ var hotkeys = map[view][][2]string{
 	viewAgents: {{"↑↓", "move"}, {"alt+↑↓", "reorder"}, {"⏎", "switch"}, {"n", "session"}, {"w", "worktree"}, {"a", "project"}, {"x", "kill"}, {"z", "sleep"}, {"o", "view options"}, {"^f", "filter"}},
 	viewGitHub: {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"d", "changes"}, {"o", "on github.com"}, {"y", "copy link"}, {"w", "worktree"}, {"x", "done"}, {"^r", "refresh"}, {"C", "collapse"}, {"^f", "filter"}},
 	viewDB:     {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"n", "new connection"}, {"e D", "edit/remove"}, {"c y", "copy name/path"}, {"r", "refresh"}, {"C", "collapse"}, {"^f", "filter"}},
+	viewCustom: {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"a", "agent"}, {"c y", "copy name/path"}, {"r", "refresh"}, {"C", "collapse"}, {"^f", "filter"}},
 }
 
 var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4 6 7", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"alt+t", "agents"}, {"alt+a", "next alarm"}, {"alt+n", "new tab"}, {"alt+s", "new session"}, {"^tab", "editors"}, {"^⇧pgup ^⇧pgdn", "move tab"}, {"^f", "find"}, {"^⇧m", "problems"}, {"^⇧u", "output"}, {"alt+, alt+.", "back/forward"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"F10", "manage"}, {"esc q", "quit"}}
@@ -5385,6 +5512,10 @@ func (m *Model) viewItems() []item {
 		items = append(items, item{label: "Show Databases", hint: "7", run: show(viewDB)})
 	}
 
+	if m.hasCustom {
+		items = append(items, item{label: "Show Customizations", hint: "8", run: show(viewCustom)})
+	}
+
 	for _, it := range m.terminalItems() {
 		if it.label != "Close Terminal" {
 			items = append(items, it)
@@ -5412,7 +5543,7 @@ func (m *Model) viewItems() []item {
 		{label: "Focus Sidebar", hint: "^0", run: func(m *Model) tea.Cmd { return m.focusSidebar() }},
 		{label: "Toggle Sidebars", hint: "^b", run: func(m *Model) tea.Cmd { return m.toggleSidebars() }},
 		{label: "Open Settings", hint: "^,", run: func(m *Model) tea.Cmd { return m.openSettings() }},
-		{label: "Keyboard Shortcuts", hint: "?", run: func(m *Model) tea.Cmd { m.modal = helpModal(m.hasGH, m.hasDB); return nil }},
+		{label: "Keyboard Shortcuts", hint: "?", run: func(m *Model) tea.Cmd { m.modal = helpModal(m.hasGH, m.hasDB, m.hasCustom); return nil }},
 		{label: "Quit", hint: "q", run: func(m *Model) tea.Cmd { return m.confirmQuit() }},
 	}...)
 	if m.pv.kind != "" || m.sess != "" {
@@ -5486,6 +5617,10 @@ func (m *Model) categories() []category {
 		cs = append(cs, category{"Databases", m.db.items(m)})
 	}
 
+	if m.hasCustom {
+		cs = append(cs, category{"Customizations", m.cu.items(m)})
+	}
+
 	if m.showsPreview() {
 		cs = append(cs, category{"Editor", append(m.pv.items(m), m.pv.keyItems(m)...)})
 	}
@@ -5499,7 +5634,7 @@ func (m *Model) manageMenu(x, y int) tea.Cmd {
 	items := []item{
 		{label: "Command Palette", hint: "^⇧p", run: func(m *Model) tea.Cmd { return m.commandPalette() }},
 		{label: "Settings", hint: "^,", run: func(m *Model) tea.Cmd { return m.openSettings() }},
-		{label: "Keyboard Shortcuts", hint: "?", run: func(m *Model) tea.Cmd { m.modal = helpModal(m.hasGH, m.hasDB); return nil }},
+		{label: "Keyboard Shortcuts", hint: "?", run: func(m *Model) tea.Cmd { m.modal = helpModal(m.hasGH, m.hasDB, m.hasCustom); return nil }},
 		{sep: true},
 	}
 
@@ -5742,8 +5877,9 @@ func staleModal(sessions int) *modal {
 }
 
 // helpModal is the keys of every view; the GitHub view's where gh is
-// installed, the Databases view's where a database client is.
-func helpModal(gh, dbs bool) *modal {
+// installed, the Databases view's where a database client is, the
+// Customizations view's where an agent it knows is.
+func helpModal(gh, dbs, custom bool) *modal {
 	items := []item{heading("Everywhere")}
 
 	views := []view{viewFiles, viewGit, viewSearch, viewAgents}
@@ -5753,6 +5889,10 @@ func helpModal(gh, dbs bool) *modal {
 
 	if dbs {
 		views = append(views, viewDB)
+	}
+
+	if custom {
+		views = append(views, viewCustom)
 	}
 
 	items = append(items, keyRows(globalKeys)...)

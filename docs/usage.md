@@ -10,6 +10,7 @@ The user guide. Settings: [06-config.md](06-config.md); keys:
 - [Review and commit](#review-and-commit)
 - [GitHub](#github)
 - [Databases](#databases)
+- [Customizations](#customizations)
 - [Editor](#editor)
 - [Settings, keys, updates](#settings-keys-updates)
 - [CLI](#cli)
@@ -387,6 +388,23 @@ table without a primary key: any change to its row), and so does a row gone;
 column and a blob are read only.
 
 ![a SQLite table sorted, filtered and edited in a grid, the pending SQL submitted in one transaction, then sqlite3 in the terminal and the form that adds a server](demo/databases.gif)
+
+## Customizations
+
+A tab beside Sessions, in its header (`8`), when `claude`, `codex`, `grok` or
+`agy` is installed: what that agent loads in this worktree, its Skills and Instructions, and for `claude`
+its Agents, Hooks, MCP Servers and Plugins too. A section says `user` or
+`workspace` when all its entries are in one, and splits under both otherwise.
+`⏎` opens the file, on its line in a shared one such as `settings.json`.
+
+The list follows the session's agent. The top row or `a` picks another, which
+stands until you switch sessions; a shell session keeps the last one. pando
+only reads here: change an entry in its file, or ask the agent to.
+
+The list comes from the files alone. It does not start the agent, so it shows
+no live MCP status, no claude.ai connectors and no skills that a plugin or the
+agent itself brings. A file that does not parse and a skill linking to nothing
+show a warning.
 
 ## Editor
 

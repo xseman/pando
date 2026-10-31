@@ -443,13 +443,14 @@ var (
 	icDatabase   = glyph{"database", "\ueace", "Databases", "💾"}
 	icTable      = glyph{"table", "\uebb7", "▦", ""}
 	icView       = glyph{"eye", "\uea70", "◫", ""} // a view of a database: rows read, never written
+	icCustom     = glyph{"tools", "\ueb6d", "Customizations", "🧰"}
 	allGlyphs    = []glyph{
 		icFiles, icGit, icSpaces, icGear, icNewFile, icNewDir, icRefresh, icCollapse, icTree, icList,
 		icAdd, icRemove, icDiscard, icWorktree, icSparkle, icCheck, icChevron, icTwistyR, icTwistyD, icClose, icMax, icRestore, icBranch, icPublish, icSync, icError, icWarning, icSplit, icSplitAll, icInline, icUnfold, icFold,
 		icSearch, icCase, icWord, icRegex, icEllipsis, icClearAll, icOptions, icPreview, icSource,
 		icPrevRev, icNextRev, icUp, icDown, icHistory, icTag, icDetach, icReplace, icPreserve, icReplaceAll, icTerminal, icDot,
 		icMainWt, icLinkedWt, icResume, icPin, icPinned, icWrap, icGitHub, icPR, icPRDraft, icPRNew, icIssue, icBell, icBellDot, icCheckAll,
-		icMerge, icCompare, icComment, icPRClosed, icReopen, icDatabase, icTable, icView,
+		icMerge, icCompare, icComment, icPRClosed, icReopen, icDatabase, icTable, icView, icCustom,
 	}
 )
 
@@ -474,7 +475,7 @@ var (
 
 // viewIcon is a view's tab and rail icon.
 func viewIcon(v view) glyph {
-	return []glyph{icFiles, icGit, icSpaces, icSearch, icTerminal, icGitHub, icDatabase}[v]
+	return []glyph{icFiles, icGit, icSpaces, icSearch, icTerminal, icGitHub, icDatabase, icCustom}[v]
 }
 
 // Doctor lists every UI glyph with its codepoint and the installed font that

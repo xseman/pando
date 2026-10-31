@@ -6,7 +6,8 @@ geometry is in [02-ui-layout.md](02-ui-layout.md).
 Contents: [Shape](#shape) · [Explorer](#explorer) ·
 [Source Control](#source-control) · [Sessions](#sessions) ·
 [Terminal](#terminal) · [Search](#search) · [GitHub](#github) ·
-[Databases](#databases) · [Commands](#commands) · [Text effects](#text-effects)
+[Databases](#databases) · [Customizations](#customizations) ·
+[Commands](#commands) · [Text effects](#text-effects)
 
 ## Shape
 
@@ -28,6 +29,7 @@ items(m) ──▶ context menu + command palette
 | Terminal       | `5` | `agents.go`    | shells under the editor or in a sidebar                                      |
 | GitHub         | `6` | `github.go`    | pull requests, notifications, issues; needs `gh`                             |
 | Databases      | `7` | `databases.go` | SQLite files, `.env` and `[databases]` servers, their tables; needs a client |
+| Customizations | `8` | `custom.go`    | a tab of Sessions: what one agent loads in the worktree; needs a known agent |
 
 `ctrl+f` filters a list (`startFilter`) from a framed box under the header;
 Sessions' header has a search button for it.
@@ -521,6 +523,57 @@ start; without any the view does not exist.
 - A table opens in an editor tab, transient on a click, pinned on a double
   click or Open Table; opening one whose tab is open shows that tab, edits
   and all: [04-preview.md](04-preview.md#tables).
+
+## Customizations
+
+`custom.go`. VS Code's Customizations editor as a list: what one agent loads in
+this worktree, read from its files and never written. It is a tab beside
+Sessions in that view's header row (`headTabs`), not a column's view: `allCols`
+leaves it out wherever config lists it, so it costs Sessions no activity bar
+and no width, and moves with Sessions. `viewOn` stays the column's tab, for
+chips, menus and drags; `bodyOn` is what the column draws, `custTab` choosing.
+Both tabs sit under the frame title Agents, a rule row below them, and keep
+their cells whichever shows; the header's hover actions that do not fit beside them stay on their keys.
+A section names its scope when it has entries in one, scope rows appear
+when it has both, and details line up in a column set by every entry, folded or
+not (`nameW`, at most 40%). `⏎` opens the file, on
+the entry's line where it shares a JSON file with others. `ensure` scans off
+the UI's goroutine (`scanCustom`) when the target changes and every `custTTL`
+while on screen. A scan reads files only: nothing starts the agent or its MCP
+servers, so connectors and live status are out of reach, and a skill a plugin
+or the agent bundles is not listed.
+
+| Agent    | Skills, User and Workspace                                   | Instructions, User and Workspace                                                                  |
+| -------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `claude` | `$CONF/skills`, `.claude/skills`                             | `$CONF/CLAUDE.md`, `$CONF/rules/*.md`; `CLAUDE.md`, `.claude/CLAUDE.md`, `CLAUDE.local.md`, rules |
+| `codex`  | `~/.agents/skills`, `$CONF/skills`; `.agents/skills`         | `$CONF/AGENTS.override.md`, `$CONF/AGENTS.md`; the same two in the worktree                       |
+| `grok`   | its own, `.agents` and `.claude` skills, at both levels      | `$CONF/AGENTS.md`; `AGENTS.md`, `CLAUDE.md`                                                       |
+| `agy`    | `~/.gemini/config/skills`; `.agents/skills`, `.agent/skills` | `~/.gemini/GEMINI.md`; `GEMINI.md`, `AGENTS.md`, `.agents/rules/*.md`                             |
+
+`$CONF` is the agent's config directory: the session's own
+`CLAUDE_CONFIG_DIR` or `CODEX_HOME` first, a profile's, then pando's
+environment, then the default. Two skills of one name in a scope show the
+first one's. Only `claude` has the other sections:
+
+| Section | User                                                 | Workspace                                                                |
+| ------- | ---------------------------------------------------- | ------------------------------------------------------------------------ |
+| Agents  | `$CONF/agents/*.md`                                  | `.claude/agents/*.md`                                                    |
+| Hooks   | `$CONF/settings.json`                                | `.claude/settings.json`, `.claude/settings.local.json`                   |
+| MCP     | `.claude.json`'s `mcpServers`                        | its `projects[worktree].mcpServers`, `.mcp.json`                         |
+| Plugins | `$CONF/plugins/installed_plugins.json`, `user` scope | the same file's entries of this worktree, `enabledPlugins` marking `off` |
+
+The agent shown (`target`) is the session's, by `Program` then `Agent`; a shell
+keeps the last one, and `a` or the top row picks another until the session
+changes. A row never holds a secret: MCP entries decode to their transport
+only, so `env` and `headers` stay unread, and a hook shows the file its command
+names, or its first word, never a word with `=`. The file itself opens whole.
+`printable` cleans what comes from a skill before it reaches a row. A file
+that does not parse, or a skill linking to nothing, is a row with a warning,
+as an empty section would say it holds nothing.
+
+`jsonKeys` walks to an object by `json.Decoder` tokens for the keys' lines, and
+`skillMeta` reads the two frontmatter fields without a YAML dependency; both
+take bytes and have a fuzz target.
 
 ## Commands
 

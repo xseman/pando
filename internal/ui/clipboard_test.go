@@ -14,7 +14,8 @@ import (
 // TestMain keeps the tests off the desktop's clipboard: a copy a test makes
 // would otherwise land where the person running them pastes. It also takes
 // gh and sqlite3 away, CI's runners have them: every layout would grow a
-// GitHub and a Databases view on a machine with them and not without; their
+// GitHub and a Databases view on a machine with them and not without, and
+// the same goes for the agents behind Customizations; their
 // own tests put them back. No call reaches the person's own daemon either:
 // pando's directories are a temporary one's. With fakeLSPEnv set the binary
 // is a language server for the tests that start one.
@@ -40,6 +41,7 @@ func TestMain(m *testing.M) {
 	hasGH = func() bool { return false }
 	motionGap = 0 // every motion draws, whatever the clock
 	hasDB = func() bool { return false }
+	hasCustom = func(proto.State) bool { return false }
 	hasKeyring = func() bool { return false } // never the desktop's keyring
 	keyringLoad = func(string) string { return "" }
 	keyringSave = func(string, string) error { return nil }
