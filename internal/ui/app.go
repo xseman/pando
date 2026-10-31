@@ -5231,7 +5231,7 @@ func (m *Model) editorLines(w int) []string {
 
 		header = row(w, nil, []seg{sg(" pando", accent), sg("  "+ws, dim)})
 		h -= m.stripH()
-		body = welcome(w, h, m.sess != "", m.focus == onMain)
+		body = welcome(w, h, m.sess != "", len(m.editors) > 0, m.focus == onMain)
 	}
 
 	out := make([]string, 0, m.h)
@@ -5264,13 +5264,17 @@ func (m *Model) editorLines(w int) []string {
 
 // welcome fills the empty main area. With a session behind its tab the first
 // line names what is missing here — an editor — rather than claiming the
-// workspace has no session. The keys are split by where they work: Explorer
-// and the other lists take n, w and a for themselves, so focused says whether
-// the second group works yet.
-func welcome(w, h int, sess, focused bool) []string {
+// workspace has no session; with files behind their tabs it points at those.
+// The keys are split by where they work: Explorer and the other lists take n,
+// w and a for themselves, so focused says whether the second group works yet.
+func welcome(w, h int, sess, files, focused bool) []string {
 	first := "No session in this workspace."
 	if sess {
 		first = "No editor open."
+	}
+
+	if files {
+		first = "Pick a tab above, or:"
 	}
 
 	text := []string{
@@ -5425,7 +5429,7 @@ func (m *Model) viewItems() []item {
 			item{label: "Close All Editors", run: func(m *Model) tea.Cmd { return m.closeEditors() }})
 	}
 
-	if len(m.editors) > 1 {
+	if len(m.editors) > 1 && m.pv.kind != "" {
 		items = append(items, item{label: "Close Other Editors", run: func(m *Model) tea.Cmd { return m.closeOtherEditors() }})
 	}
 

@@ -1411,7 +1411,18 @@ func (m *Model) stripMouse(x int, mo tea.Mouse) tea.Cmd {
 		return m.sessionTitleMenu()
 	}
 
+	if button == tea.MouseLeft && m.clicks.double(x, 0) {
+		m.showWelcome()
+	}
+
 	return nil
+}
+
+// showWelcome puts the welcome screen in front, the tabs waiting in the strip.
+func (m *Model) showWelcome() {
+	m.saveSpot()
+	m.pv.close(m)
+	m.edIdx, m.preview = -1, true
 }
 
 // sessTabClick is a click on session tab t at strip column x: the right

@@ -634,3 +634,61 @@ func TestWelcomePlus(t *testing.T) {
 		t.Fatalf("New Session asks %+v", m.modal)
 	}
 }
+
+// A double click past the strip's tabs brings the welcome screen up over
+// them; a tab brings its file back, unsaved text and cursor and all.
+func TestDoubleClickStripShowsWelcome(t *testing.T) {
+	m := testModelSized(t, 120, 30)
+
+	fire(m, m.newUntitled())
+	fire(m, m.newUntitled())
+	press(m, "h", "i")
+
+	x, y := m.mainX()+m.mainW()/2, m.mainY()
+
+	click(m, x, y, tea.MouseLeft)
+
+	if !m.pv.untitled() {
+		t.Fatal("one click on the strip changes nothing")
+	}
+
+	click(m, x, y, tea.MouseLeft)
+
+	out := checkWidths(t, m)
+	if m.pv.kind != "" || len(m.editors) != 2 || !strings.Contains(out, "alt+s  new session") || !strings.Contains(out, "Pick a tab above") {
+		t.Fatalf("the welcome screen over two tabs: kind %q, %d tabs\n%s", m.pv.kind, len(m.editors), out)
+	}
+
+	for _, it := range m.commands() {
+		if it.label == "Close Other Editors" {
+			t.Fatal("no tab is active: there are no others")
+		}
+	}
+
+	fire(m, m.showEditor(1))
+
+	if m.pv.buf == nil || m.pv.buf.text() != "hi" || m.pv.cur.col != 2 {
+		t.Fatalf("the tab comes back with its text and cursor: %+v at %+v", m.pv.buf, m.pv.cur)
+	}
+}
+
+// Over a session it goes the same way, and the session's tab takes it back.
+func TestDoubleClickSessionStripShowsWelcome(t *testing.T) {
+	m := testModelSized(t, 120, 30)
+	m.switchSession("s1")
+
+	x, y := m.mainX()+m.mainW()/2, m.mainY()
+	click(m, x, y, tea.MouseLeft)
+	click(m, x, y, tea.MouseLeft)
+
+	if out := checkWidths(t, m); m.showsSession() || !strings.Contains(out, "No editor open.") {
+		t.Fatalf("the welcome screen over the session:\n%s", out)
+	}
+
+	tab := m.editorTabs(m.mainW())[0]
+	click(m, m.mainX()+tab.x+1, y, tea.MouseLeft)
+
+	if !m.showsSession() {
+		t.Fatal("its tab shows the session again")
+	}
+}

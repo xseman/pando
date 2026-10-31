@@ -419,7 +419,8 @@ group has one strip, the files' tabs then the sessions'.
   (quick open), _Open Session…_ (a picker of `spaceSessions`, when it has any) and
   _New Session…_ (`harnessPicker`, or `alt+s` straight to it) and _Resume
   Session…_ (`resumePicker`). The empty main area has the strip too (`stripH`),
-  so the `+` is there with no tab.
+  so the `+` is there with no tab. A double click past the tabs shows it with
+  tabs open (`showWelcome`): no tab is active (`edIdx` -1) until one is clicked.
 
 ## Modals
 

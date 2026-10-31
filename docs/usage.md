@@ -130,7 +130,8 @@ checkout.
   space's sessions, a new session, or a resumed one; `alt+s` goes straight to a
   new session.
   The empty editor area has the `+` too, and lists which keys work from
-  anywhere and which need it focused.
+  anywhere and which need it focused; a double click on the strip past the
+  tabs brings it up with tabs open.
 - A session re-roots Explorer and Source Control to its worktree; Explorer
   selects the file its editor shows and comes to the front of its column
   (`auto_reveal`), as for any file or change opened, or tab picked. A file
