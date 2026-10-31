@@ -792,3 +792,54 @@ func TestDragSessionFromSpaces(t *testing.T) {
 
 	checkWidths(t, m)
 }
+
+// TestDragSessionOntoSession: a session held from Spaces over another one in
+// the group joins its strip, or comes to the front when its tab waits there;
+// the one in front keeps a tab even when it was shown without one.
+func TestDragSessionOntoSession(t *testing.T) {
+	m := testModelSized(t, 160, 40)
+	drainInputs(m)
+	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: m.ws, Agent: "shell"}, Status: "idle"})
+	fire(m, m.switchSession("s2"))
+	fire(m, m.switchSession("s1"))
+	m.focus = m.colOf(viewFiles)
+	press(m, "3") // Spaces in Explorer's place
+
+	x, top, a := m.colRect(m.colOf(viewAgents)).x+4, m.bodyTop(viewAgents), m.area()
+	o := slices.IndexFunc(m.ag.rows(m), func(r agRow) bool { return r.kind == agSession && r.s.ID == "s2" })
+
+	m.Update(tea.MouseClickMsg{X: x, Y: top + o, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: a.x + a.w/2, Y: a.y + a.h/2, Button: tea.MouseLeft})
+
+	if out := checkWidths(t, m); !strings.Contains(out, "Move Here") {
+		t.Fatalf("its tab waits behind s1: the middle takes it too:\n%s", out)
+	}
+
+	m.Update(tea.MouseReleaseMsg{X: a.x + a.w/2, Y: a.y + a.h/2, Button: tea.MouseLeft})
+
+	if ps := m.grid.leaves(); len(ps) != 1 || m.sess != "s2" || !m.showsSession() {
+		t.Fatalf("s2 in front, no split: %d groups, session %q", len(ps), m.sess)
+	}
+
+	// Into a group showing a session it has no tab for: both keep one.
+	press(m, `ctrl+\`)
+
+	ps := m.grid.leaves()
+	if len(ps) != 2 || ps[0].g.sess != "s1" {
+		t.Fatalf("s1 on the left, s2 on the right: %d groups", len(ps))
+	}
+
+	ps[0].g.tabs = nil
+	l, r := ps[0].boxIn(m.area()), ps[1].boxIn(m.area())
+	tab := m.editorTabs(m.mainW())[0]
+
+	m.Update(tea.MouseClickMsg{X: r.x + tab.x + 1, Y: r.y, Button: tea.MouseLeft})
+	m.Update(tea.MouseMotionMsg{X: l.x + l.w/2, Y: l.y + l.h/2, Button: tea.MouseLeft})
+	m.Update(tea.MouseReleaseMsg{X: l.x + l.w/2, Y: l.y + l.h/2, Button: tea.MouseLeft})
+
+	if got := m.stripSessions(); m.grid.g == nil || m.sess != "s2" || !slices.Contains(got, "s1") || !slices.Contains(got, "s2") {
+		t.Fatalf("one group, s2 in front of s1's tab: %v, session %q", got, m.sess)
+	}
+
+	checkWidths(t, m)
+}

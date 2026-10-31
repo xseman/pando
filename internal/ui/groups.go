@@ -426,6 +426,10 @@ func (m *Model) moveTabTo(id string, dst *pane, side int) tea.Cmd {
 	if file >= 0 {
 		put = m.restore(e)
 	} else {
+		if m.sess != "" { // shown without a tab, as a worktree or a restart brings one back: it keeps one
+			m.openSessTab(m.sess)
+		}
+
 		m.term, m.sess, m.preview = term{}, id, false
 		m.openSessTab(id)
 	}
@@ -646,9 +650,10 @@ func (m *Model) dragSplit(d *drag, x, y int, release bool) tea.Cmd {
 // gridDrop is where tab id held over the editor area at (x, y) would land:
 // into the group under it, on its strip or its middle, or into a new group
 // at the edge it is near, a quarter of the group's width or height; dst is
-// nil where it would not move: into the active group holding it, and beside
+// nil where it would not move: into the active group showing it, and beside
 // it when it is the only tab there, which no split would leave anything
-// behind. A session held from Spaces may be in no group yet. With two groups
+// behind. A session held from Spaces may be in no group yet, or behind the
+// active group's front tab, which a drop into it brings up. With two groups
 // or more along the area's bottom edge, the last rows of its middle third,
 // dividers too, are a new group under them all, dst the whole grid.
 func (m *Model) gridDrop(x, y int, id string) (dst *pane, side int, t dropTarget) {
@@ -688,7 +693,7 @@ func (m *Model) gridDrop(x, y int, id string) (dst *pane, side int, t dropTarget
 	}
 
 	held := slices.Contains(m.stripSessions(), id) || slices.ContainsFunc(m.editors, func(e preview) bool { return e.id() == id })
-	if dst == m.cur && held && (side == sideInto || len(m.editors)+len(m.stripSessions()) < 2) {
+	if dst == m.cur && held && (side == sideInto && id == m.stripActive(stripEditor) || len(m.editors)+len(m.stripSessions()) < 2) {
 		return nil, 0, t
 	}
 

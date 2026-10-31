@@ -144,8 +144,10 @@ take a message (`previewMsg`, `onScreen`, drafts).
   focuses that group (`holder`), otherwise it opens in the focused group.
 - Splitting: a tab dragged over a group's body (`gridDrop`) splits it on the
   edge it is near, a quarter of its width or height, and moves into a group
-  of its own there; on a strip or the middle it moves into that group. A
-  group's only tab offers nothing over its own group. With two groups or
+  of its own there; on a strip or the middle it moves into that group, whose
+  session keeps a tab beside it, and a session held from Spaces whose tab
+  waits in the active group comes to the front. A group's only tab offers
+  nothing over its own group. With two groups or
   more along the area's bottom edge (`lowest`), the lower half of the edge
   band in the area's middle third, dividers too, is _New Row_: a group under
   them all, as wide as the area. `ctrl+\`
