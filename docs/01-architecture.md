@@ -120,7 +120,8 @@ driving the API.
 
 A TUI fetches one screen per terminal at a time, numbered (`takeoff`); a
 reply that is not the terminal's latest is dropped, and a fetch asked for in
-flight runs after it, for that terminal alone.
+flight runs after it, for that terminal alone. A `screen` event fetches only
+the terminals showing that session (`fetchSession`).
 
 `session.screen` counts as viewed: the next tick clears attention for 2 s
 and sends `sessions`. Its `scroll` counts back from the bottom;

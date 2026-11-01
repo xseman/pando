@@ -3140,6 +3140,32 @@ func (m *Model) fetchScreen() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
+// fetchSession refreshes the terminals showing session id, the only ones its
+// output changed.
+func (m *Model) fetchSession(id string) tea.Cmd {
+	var cmds []tea.Cmd
+
+	if id == m.tv.id {
+		cmds = append(cmds, m.fetchTerm())
+	}
+
+	if !m.tiled() {
+		if id == m.sess {
+			cmds = append(cmds, m.fetchMain())
+		}
+
+		return tea.Batch(cmds...)
+	}
+
+	m.eachGroup(func() {
+		if m.sess == id {
+			cmds = append(cmds, m.fetchMain())
+		}
+	})
+
+	return tea.Batch(cmds...)
+}
+
 // takeoff numbers a screen of session id for t, false while one is on its way
 // and only asking for another after it. A screen of another session held
 // nothing up: it lands on no terminal.

@@ -256,6 +256,31 @@ func settles(t *testing.T, groups int, seed uint64, switches bool) {
 	}
 }
 
+// I4: output in one pane asks for that pane's screen alone.
+func TestOutputFetchesItsTerminal(t *testing.T) {
+	for _, groups := range []int{1, 3} {
+		l := fetchModel(t, groups)
+		l.run(l.m.fetchScreen())
+
+		for len(l.pending) > 0 {
+			l.deliver(0)
+		}
+
+		for _, id := range []string{"s1", "t1"} {
+			before := l.calls
+			l.output(id)
+
+			if n := l.calls - before; n != 1 {
+				t.Fatalf("groups %d: output in %s asked for %d screens", groups, id, n)
+			}
+
+			for len(l.pending) > 0 {
+				l.deliver(0)
+			}
+		}
+	}
+}
+
 // One session in two groups, as a saved layout can hold it.
 func TestSameSessionTwoGroups(t *testing.T) {
 	l := fetchModel(t, 2)
