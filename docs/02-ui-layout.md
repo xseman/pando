@@ -415,7 +415,11 @@ group has one strip, the files' tabs then the sessions'.
   the preview tab showing another file (`renameTab`), a file opened or one
   closed leaves it in place. `session_at` keeps it over a restart. The
   group's own session, one a worktree switch or a restart showed without a
-  tab, keeps a tab behind the files too (`stripSessions`).
+  tab, keeps a tab behind the files too (`stripSessions`). Sessions share what
+  the files leave, short names whole and long ones cut, the tip whole
+  (`sessRoom`), so a long name does not drop off the end. Under `minSessTab`
+  each, tabs left of the active one give way; a tab that does not fit is
+  skipped, the ones after it still shown.
 - The editor strip's `+`, right after its last tab (`tabPlus`, `tabPlusW` kept
   free in `editorTabs`) or `alt+n`, opens `newTabMenu` under it: _Open File…_
   (quick open), _Open Session…_ (a picker of `spaceSessions`, when it has any) and

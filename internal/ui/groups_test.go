@@ -654,6 +654,100 @@ func TestSessionBehindFiles(t *testing.T) {
 	}
 }
 
+// TestSessionTabBesideFile: a session's tab stays on a strip its name is too
+// long for: the name is cut, the tip keeps it whole, short names keep their
+// width, and the files give way only when the cut would leave too little.
+func TestSessionTabBesideFile(t *testing.T) {
+	long, wide := strings.Repeat("n", 32), strings.Repeat("w", 40)+".go" // as long as sessionName leaves a name
+
+	m := testModelSized(t, 200, 40)
+	drainInputs(m)
+
+	m.Update(sessionsMsg{
+		{SessionSpec: proto.SessionSpec{ID: "long", Workspace: m.ws, Agent: "shell", Name: long}, Status: "idle"},
+		{SessionSpec: proto.SessionSpec{ID: "short", Workspace: m.ws, Agent: "shell", Name: "ab"}, Status: "idle"},
+	})
+
+	tests := []struct {
+		name   string
+		room   int
+		files  []string
+		active string // a file or a session
+		sess   []string
+		first  bool // the sessions moved before the files
+		want   []string
+	}{
+		{name: "beside the file", room: 32, files: []string{"README.md"}, active: "README.md", sess: []string{"long"}, want: []string{"README.md", "long"}},
+		{name: "left of the file", room: 40, files: []string{"README.md", ".env"}, active: ".env", sess: []string{"long"}, first: true, want: []string{"long", "README.md", ".env"}},
+		{name: "files on both sides", room: 34, files: []string{"README.md", ".env", "main.go"}, active: ".env", sess: []string{"long"}, want: []string{".env", "main.go", "long"}},
+		{name: "past a wide file", room: 32, files: []string{".env", wide}, active: ".env", sess: []string{"long"}, want: []string{".env", "long"}},
+		{name: "a file too wide costs nothing", room: 56, files: []string{wide}, active: "long", sess: []string{"long"}, first: true, want: []string{"long"}},
+		{name: "a short name stays", room: 44, files: []string{".env"}, active: ".env", sess: []string{"short", "long"}, want: []string{".env", "short", "long"}},
+		{name: "in front the files give way", room: 62, files: []string{"README.md", ".env", "main.go"}, active: "long", sess: []string{"long"}, want: []string{".env", "main.go", "long"}},
+		{name: "too tight, the files go", room: 30, files: []string{"README.md", ".env", "main.go"}, active: "main.go", sess: []string{"long"}, want: []string{"main.go", "long"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m.editors, m.edIdx, m.pv, m.sess, m.preview, m.sessAfter = nil, -1, preview{}, "", true, nil
+			m.sessTabs = map[string][]string{m.ws: tt.sess}
+
+			for _, f := range tt.files {
+				m.editors = append(m.editors, preview{kind: pvFile, path: filepath.Join(m.ws, f)})
+				if f == tt.active {
+					m.edIdx, m.pv = len(m.editors)-1, m.editors[len(m.editors)-1]
+				}
+			}
+
+			if m.edIdx < 0 {
+				m.sess, m.preview = tt.active, false
+			}
+
+			if tt.first {
+				m.sessAfter = map[string][]string{tt.sess[0]: {}}
+			}
+
+			tabs := m.editorTabs(tt.room + ifElse(m.showsSession(), m.sessBtnW(), m.stripBtnW()) + tabPlusW)
+
+			var got []string
+
+			for _, x := range tabs {
+				if x.i >= 0 {
+					got = append(got, filepath.Base(m.editors[x.i].path))
+				} else {
+					got = append(got, x.id)
+				}
+
+				if x.x+x.w+tabGap > tt.room {
+					t.Fatalf("%q ends past the strip's %d: %d+%d", x.label, tt.room, x.x, x.w)
+				}
+
+				if x.id == "short" && !strings.Contains(x.label, "ab") {
+					t.Fatalf("a short name is not cut: %q", x.label)
+				}
+
+				if whole := strings.Contains(x.label, long); x.id == "long" && whole != (tt.active == "long") {
+					t.Fatalf("whole only in front, %q: %q", tt.active, x.label)
+				}
+
+				if x.id == "long" && tt.active != "long" && x.tip != long {
+					t.Fatalf("the tip keeps it whole: %q", x.tip)
+				}
+			}
+
+			if !slices.Equal(got, tt.want) {
+				t.Fatalf("tabs %q, want %q", got, tt.want)
+			}
+
+			if tt.name == "beside the file" || tt.name == "a short name stays" {
+				if last := tabs[len(tabs)-1]; last.x+last.w+tabGap != tt.room {
+					t.Fatalf("the long name takes what is left: ends at %d of %d", last.x+last.w+tabGap, tt.room)
+				}
+			}
+		})
+	}
+}
+
 // TestCloseIdleGroup: a group whose session ended shows nothing; ⌃w or ⌃d
 // closes it, the other group taking the keyboard.
 func TestCloseIdleGroup(t *testing.T) {

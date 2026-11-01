@@ -1046,9 +1046,16 @@ type edTab struct {
 	bg      color.Color // a session's session_highlight tint, else its glyph's (tabTint)
 }
 
+// minSessTab is the width, its gap included, a session's tab in the editor
+// strip is cut down to so that the files beside it leave it on the strip.
+// ponytail: with less room than this it still drops off the end; reaching it
+// there takes an overflow menu.
+const minSessTab = 12
+
 // editorTabs lays the strip out: the open files, then the sessions opened
 // over the editor area, a session moved among the files where it went;
-// tabs on the left give way until the active one fits.
+// long session names are cut to what the files leave, and tabs on the left
+// give way until the active one fits.
 func (m *Model) editorTabs(w int) []edTab {
 	sessOn := m.showsSession()
 	w -= ifElse(sessOn, m.sessBtnW(), m.stripBtnW()) + tabPlusW
@@ -1076,16 +1083,21 @@ func (m *Model) editorTabs(w int) []edTab {
 
 	pos := map[string]int{} // a session before the file at its sessPos
 
-	for _, id := range m.stripSessions() {
-		pos[id] = m.sessPos(id)
+	sessTab := func(id string, room int) edTab {
 		s := *m.session(id)
 		active := sessOn && id == m.sess
-		label, tip := m.sessLabel(s, active || id == m.overTab, w-3)
+		label, tip := m.sessLabel(s, active || id == m.overTab, room)
 		g, c := m.tabGlyph(s)
-		items = append(items, edTab{
+
+		return edTab{
 			i: -1, id: id, w: ansi.StringWidth(label), label: label, tip: tip, active: active,
 			icon: ifElse(g == "", seg{}, sg(g, fg(c))), bg: cmp.Or(m.highlight(s), ifElse(g == "", nil, m.tabTint(c))),
-		})
+		}
+	}
+
+	for _, id := range m.stripSessions() {
+		pos[id] = m.sessPos(id)
+		items = append(items, sessTab(id, w-3))
 	}
 
 	key := func(t edTab) int {
@@ -1098,13 +1110,47 @@ func (m *Model) editorTabs(w int) []edTab {
 
 	slices.SortStableFunc(items, func(a, b edTab) int { return cmp.Compare(key(a), key(b)) })
 
-	at, total := -1, 0
+	at := slices.IndexFunc(items, func(t edTab) bool { return t.active })
+
+	// Sessions share what the files leave, or a long name drops off the strip's
+	// end. Files left of an active file stay while that leaves the sessions
+	// their least; below it they give way as ever. A file too wide to fit
+	// beside them is skipped below, so it costs them nothing.
+	keep, left := w, 0
+
+	var sess []int
 
 	for k, t := range items {
-		if t.active {
-			at = k
-		}
+		switch {
+		case t.i < 0:
+			sess = append(sess, t.w+tabGap)
 
+		case k < at:
+			left += t.w + tabGap
+
+		case keep-t.w-tabGap >= minSessTab:
+			keep -= t.w + tabGap
+		}
+	}
+
+	if !sessOn && len(sess) > 0 && (keep-left)/len(sess) >= minSessTab {
+		keep -= left
+	}
+
+	slices.Sort(sess)
+
+	if room, cut := sessRoom(sess, keep); cut {
+		room = min(max(room, minSessTab), w-3)
+
+		for k, t := range items {
+			if t.i < 0 && t.w+tabGap > room {
+				items[k] = sessTab(t.id, room)
+			}
+		}
+	}
+
+	total := 0
+	for _, t := range items {
 		total += t.w + tabGap
 	}
 
@@ -1118,8 +1164,8 @@ func (m *Model) editorTabs(w int) []edTab {
 
 	x := 0
 	for _, t := range items[start:] {
-		if x+t.w+tabGap > w {
-			break
+		if x+t.w+tabGap > w { // a wide tab goes alone: the ones after it may fit
+			continue
 		}
 
 		t.x = x
@@ -1128,6 +1174,20 @@ func (m *Model) editorTabs(w int) []edTab {
 	}
 
 	return out
+}
+
+// sessRoom is the width tabs, narrowest first, are cut to so that they fit in
+// keep cells, the ones narrower than that left whole; cut is false if all fit.
+func sessRoom(widths []int, keep int) (room int, cut bool) {
+	for i, w := range widths {
+		if n := len(widths) - i; w*n > keep {
+			return keep / n, true
+		}
+
+		keep -= w
+	}
+
+	return 0, false
 }
 
 // stripSessions are the sessions of the workspace in view opened over the
