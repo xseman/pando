@@ -449,7 +449,7 @@ func (p *preview) editKey(m *Model, k tea.KeyPressMsg) (tea.Cmd, bool) {
 		return p.copyLines(m, 1), true
 	case "alt+shift+up":
 		return p.copyLines(m, -1), true
-	case "ctrl+shift+k":
+	case "ctrl+shift+k", "ctrl+shift+d":
 		a, z := p.cutRange()
 		return p.edit(m, a, z, ""), true
 

@@ -235,6 +235,15 @@ func TestEditorLineOps(t *testing.T) {
 	if got := m.pv.buf.text(); got != "one\ntwo\nthree" {
 		t.Fatalf("delete line: %q", got)
 	}
+
+	m.pv.cur = pos{1, 0}
+	press(m, "ctrl+shift+d") // the same, by its other name
+
+	if got := m.pv.buf.text(); got != "one\nthree" {
+		t.Fatalf("delete line, ctrl+shift+d: %q", got)
+	}
+
+	press(m, "ctrl+z")
 	// ⌃/ comments with the language's marker and toggles back.
 	m.pv.cur = pos{0, 0}
 	press(m, "ctrl+/")

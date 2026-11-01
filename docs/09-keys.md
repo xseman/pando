@@ -137,7 +137,7 @@ Editable only:
 - `(` `,`: the call's parameter hints, active parameter in bold; `esc` closes them
 - `ctrl+z`, `ctrl+y` `ctrl+shift+z`: undo, redo
 - `ctrl+x`, `ctrl+v`: cut (the line without a selection), paste
-- `ctrl+shift+k`: delete the line or selection
+- `ctrl+shift+k`, `ctrl+shift+d`: delete the line or selection
 - `alt+↑` `alt+↓`: move the line
 - `alt+shift+↑`, `alt+shift+↓` `ctrl+d`: copy the line up, down
 - `ctrl+/`: toggle a comment on the line or every selected line, in the
