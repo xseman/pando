@@ -299,6 +299,46 @@ func TestSameSessionTwoGroups(t *testing.T) {
 	}
 }
 
+// Two TUIs of different size on one session, against a daemon whose program
+// redraws on a resize: a fetch that resizes prints, and everyone hears.
+func TestTwoClientsSettle(t *testing.T) {
+	a, b := fetchModel(t, 1), fetchModel(t, 1)
+	_, resized := b.m.Update(tea.WindowSizeMsg{Width: 150, Height: 40})
+
+	size := [2]int{}
+	resizes := 0
+	serve := func(p proto.ScreenParams) {
+		if p.Cols > 0 && [2]int{p.Cols, p.Rows} != size {
+			size = [2]int{p.Cols, p.Rows}
+			resizes++
+		}
+	}
+
+	// the model hands out params only through a Cmd: read them off the wire
+	a.onScreen, b.onScreen = serve, serve
+	a.run(a.m.fetchScreen())
+	b.run(resized)
+
+	for range 50 {
+		before := resizes
+
+		a.output("s1")
+		b.output("s1")
+
+		for _, l := range []*fetchLab{a, b} {
+			for len(l.pending) > 0 {
+				l.deliver(0)
+			}
+		}
+
+		if resizes == before {
+			return
+		}
+	}
+
+	t.Fatalf("still resizing after 50 redraws: %d resizes", resizes)
+}
+
 // A line of a TUI wider than this one stays inside its group.
 func TestForeignWidthFits(t *testing.T) {
 	l := fetchModel(t, 2)
@@ -317,6 +357,20 @@ func TestForeignWidthFits(t *testing.T) {
 
 	m.still = false
 	checkWidths(t, m)
+}
+
+// A second shell in the panel is sized though the panel's room did not change.
+func TestPanelShellGetsSize(t *testing.T) {
+	m := fetchModel(t, 1).m
+	m.tv.ownSize("t1", 80, 20)
+
+	if c, r := m.tv.ownSize("t1", 80, 20); c != 0 || r != 0 {
+		t.Fatalf("same room, sent %dx%d", c, r)
+	}
+
+	if c, _ := m.tv.ownSize("t2", 80, 20); c != 80 {
+		t.Fatal("another shell gets no size")
+	}
 }
 
 // pumpScreens plays a daemon that answers in order: it hands every screen in

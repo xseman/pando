@@ -2928,11 +2928,11 @@ func (m *Model) paste(msg tea.PasteMsg) tea.Cmd {
 		cmd = tea.Batch(cmd, m.sr.restart(m))
 
 	case m.focus == onMain && m.showsSession():
-		m.term.scroll = 0
+		m.term.scroll, m.term.sized = 0, termSize{}
 		m.inputs <- proto.InputParams{ID: m.sess, Paste: msg.Content}
 
 	case m.termFocused() && m.tv.id != "":
-		m.tv.scroll = 0
+		m.tv.scroll, m.tv.sized = 0, termSize{}
 		m.inputs <- proto.InputParams{ID: m.tv.id, Paste: msg.Content}
 
 	case m.focus != onMain:

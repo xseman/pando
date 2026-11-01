@@ -123,6 +123,13 @@ reply that is not the terminal's latest is dropped, and a fetch asked for in
 flight runs after it, for that terminal alone. A `screen` event fetches only
 the terminals showing that session (`fetchSession`).
 
+The call's `cols` and `rows` resize the session, so a fetch brought by output
+sends none (`ownSize`): two TUIs of different size would otherwise take the
+session from each other on every redraw. `fetchScreen` sends them: a layout
+change, a switch, a wake, a reconnect, the 30 s tick. So do a key and a paste.
+The last TUI used wins; a TUI gone leaves the session at its size until the
+next of those.
+
 `session.screen` counts as viewed: the next tick clears attention for 2 s
 and sends `sessions`. Its `scroll` counts back from the bottom;
 `Screen.Pushed` counts the lines scrolled into scrollback, and a call that

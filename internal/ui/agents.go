@@ -2971,14 +2971,21 @@ func expandHome(p string) string {
 	return p
 }
 
+// termSize is a size a terminal asked of a session.
+type termSize struct {
+	id         string
+	cols, rows int
+}
+
 // term renders the active session's screen, fetched from the daemon.
 type term struct {
 	id              string
 	scr             proto.Screen
 	scroll          int
 	fetching, again bool
-	flight          string // the session of the screen on its way
-	seq             int    // that screen's number: an older one landing late is no news
+	flight          string   // the session of the screen on its way
+	sized           termSize // the size last asked for: only a change resizes the session
+	seq             int      // that screen's number: an older one landing late is no news
 	// sel is a drag over the screen: anchor and end, as column and line
 	// (lineAt), so it stays on its text as the screen scrolls; selecting
 	// while the button is down. The release copies it.
@@ -3127,9 +3134,14 @@ type screenMsg struct {
 	seq int // takeoff's
 }
 
-// fetchScreen refreshes the terminals: the session of every group on screen
-// and the Terminal panel's shell.
+// fetchScreen refreshes the session of every group on screen and the Terminal
+// panel's shell, each taking its session to its size: what calls it changed
+// the layout or the sessions, a user acted here, or the tick came by, which
+// takes back a session a TUI gone left at its size.
 func (m *Model) fetchScreen() tea.Cmd {
+	m.tv.sized = termSize{}
+	m.eachGroup(func() { m.term.sized = termSize{} })
+
 	cmds := []tea.Cmd{m.fetchTerm()}
 	if !m.tiled() {
 		return tea.Batch(append(cmds, m.fetchMain())...)
@@ -3166,6 +3178,21 @@ func (m *Model) fetchSession(id string) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
+// ownSize is the size to send with a screen of session id: none unless this
+// terminal's room changed, or fetchScreen asked for it. A size with the fetch
+// an output brings would take the session back from a TUI of another size,
+// whose fetch for the redraw takes it again.
+func (t *term) ownSize(id string, cols, rows int) (int, int) {
+	s := termSize{id, cols, rows}
+	if t.sized == s {
+		return 0, 0
+	}
+
+	t.sized = s
+
+	return cols, rows
+}
+
 // takeoff numbers a screen of session id for t, false while one is on its way
 // and only asking for another after it. A screen of another session held
 // nothing up: it lands on no terminal.
@@ -3198,6 +3225,8 @@ func (m *Model) fetchMain() tea.Cmd {
 	if t.id == m.sess { // the scroll counts back from this screen
 		p.Pushed = t.scr.Pushed
 	}
+
+	p.Cols, p.Rows = t.ownSize(p.ID, p.Cols, p.Rows)
 
 	return func() tea.Msg {
 		var scr proto.Screen
@@ -3244,6 +3273,8 @@ func (m *Model) onScreen(msg screenMsg) tea.Cmd {
 			}
 
 			find = t.t.refind(m)
+		} else {
+			t.t.sized = termSize{} // it may never have arrived
 		}
 
 		if t.t.again {
@@ -3746,7 +3777,7 @@ func (t *term) key(m *Model, id string, k tea.KeyPressMsg) tea.Cmd {
 		return m.wake(id)
 	}
 
-	t.scroll = 0
+	t.scroll, t.sized = 0, termSize{} // the TUI typed in takes the session to its size
 
 	m.inputs <- proto.InputParams{ID: id, Keys: []proto.Key{{Code: key.Code, Mod: int(key.Mod), Text: key.Text}}}
 
@@ -4105,6 +4136,8 @@ func (m *Model) fetchTerm() tea.Cmd {
 	if t.term.id == t.id {
 		p.Pushed = t.scr.Pushed
 	}
+
+	p.Cols, p.Rows = t.ownSize(p.ID, p.Cols, p.Rows)
 
 	return func() tea.Msg {
 		var scr proto.Screen
