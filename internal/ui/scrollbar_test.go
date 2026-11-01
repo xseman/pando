@@ -258,14 +258,14 @@ func TestSessionScrollStays(t *testing.T) {
 	m.term.scr = proto.Screen{Lines: make([]string, m.sessH()), Scrollback: 200, Pushed: 100}
 	m.term.scroll = 5
 
-	m.Update(screenMsg{"s1", proto.Screen{Lines: make([]string, m.sessH()), Scrollback: 207, Pushed: 107}, nil})
+	m.Update(screenMsg{"s1", proto.Screen{Lines: make([]string, m.sessH()), Scrollback: 207, Pushed: 107}, nil, m.term.seq})
 
 	if m.term.scroll != 12 {
 		t.Fatalf("7 lines pushed under the page: scroll %d, want 12", m.term.scroll)
 	}
 
 	m.term.scroll = 0
-	m.Update(screenMsg{"s1", proto.Screen{Lines: make([]string, m.sessH()), Scrollback: 210, Pushed: 110}, nil})
+	m.Update(screenMsg{"s1", proto.Screen{Lines: make([]string, m.sessH()), Scrollback: 210, Pushed: 110}, nil, m.term.seq})
 
 	if m.term.scroll != 0 {
 		t.Fatalf("at the bottom the view follows the output: scroll %d", m.term.scroll)

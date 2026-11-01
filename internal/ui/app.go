@@ -194,6 +194,7 @@ type Model struct {
 	events      <-chan proto.Event
 	inputs      chan proto.InputParams
 	gitBusy     bool
+	flights     int       // takeoff's screens so far
 	gitNext     time.Time // when the tick may refresh git again
 	clicks      clicks
 	drag        *drag

@@ -118,6 +118,10 @@ driving the API.
   SIGHUP to the shell's and the foreground job's process groups, SIGKILL
   after 2 s.
 
+A TUI fetches one screen per terminal at a time, numbered (`takeoff`); a
+reply that is not the terminal's latest is dropped, and a fetch asked for in
+flight runs after it, for that terminal alone.
+
 `session.screen` counts as viewed: the next tick clears attention for 2 s
 and sends `sessions`. Its `scroll` counts back from the bottom;
 `Screen.Pushed` counts the lines scrolled into scrollback, and a call that

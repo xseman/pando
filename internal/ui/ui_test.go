@@ -2867,7 +2867,7 @@ func TestStillEventKeepsFrame(t *testing.T) {
 		t.Fatal("a screen event draws the frame it had")
 	}
 
-	m.Update(screenMsg{"s1", proto.Screen{Lines: []string{"after"}}, nil})
+	m.Update(screenMsg{"s1", proto.Screen{Lines: []string{"after"}}, nil, 0})
 
 	if !strings.Contains(m.View().Content, "after") {
 		t.Fatal("the screen it asked for is drawn")

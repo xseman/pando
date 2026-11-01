@@ -2977,6 +2977,8 @@ type term struct {
 	scr             proto.Screen
 	scroll          int
 	fetching, again bool
+	flight          string // the session of the screen on its way
+	seq             int    // that screen's number: an older one landing late is no news
 	// sel is a drag over the screen: anchor and end, as column and line
 	// (lineAt), so it stays on its text as the screen scrolls; selecting
 	// while the button is down. The release copies it.
@@ -3122,6 +3124,7 @@ type screenMsg struct {
 	id  string
 	scr proto.Screen
 	err error
+	seq int // takeoff's
 }
 
 // fetchScreen refreshes the terminals: the session of every group on screen
@@ -3137,18 +3140,31 @@ func (m *Model) fetchScreen() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
+// takeoff numbers a screen of session id for t, false while one is on its way
+// and only asking for another after it. A screen of another session held
+// nothing up: it lands on no terminal.
+func (m *Model) takeoff(t *term, id string) (int, bool) {
+	if t.fetching && t.flight == id {
+		t.again = true
+		return 0, false
+	}
+
+	m.flights++
+	t.fetching, t.again, t.flight, t.seq = true, false, id, m.flights
+
+	return t.seq, true
+}
+
 func (m *Model) fetchMain() tea.Cmd {
 	t := &m.term
 	if m.sess == "" || m.w == 0 || !m.showsSession() {
 		return nil
 	}
 
-	if t.fetching {
-		t.again = true
+	seq, ok := m.takeoff(t, m.sess)
+	if !ok {
 		return nil
 	}
-
-	t.fetching = true
 
 	// One column less than the view: the scrollbar has it.
 	p := proto.ScreenParams{ID: m.sess, Cols: max(m.mainW()-1, 1), Rows: m.sessH(), Scroll: t.scroll}
@@ -3162,14 +3178,14 @@ func (m *Model) fetchMain() tea.Cmd {
 
 		err := proto.Call("session.screen", p, &scr)
 
-		return screenMsg{p.ID, scr, err}
+		return screenMsg{p.ID, scr, err, seq}
 	}
 }
 
 // onScreen routes a screen to whichever terminal asked for it.
 func (m *Model) onScreen(msg screenMsg) tea.Cmd {
 	for _, p := range m.grid.leaves() {
-		if p != m.cur && p.g.sess == msg.id { // a group without the keyboard asked for it
+		if p != m.cur && p.g.sess == msg.id && p.g.term.seq == msg.seq { // a group without the keyboard asked for it
 			var cmd tea.Cmd
 
 			m.within(p, func() { cmd = m.onScreen(msg) })
@@ -3179,10 +3195,11 @@ func (m *Model) onScreen(msg screenMsg) tea.Cmd {
 	}
 
 	for _, t := range []struct {
-		t    *term
-		want string
-	}{{&m.term, m.sess}, {&m.tv.term, m.tv.id}} {
-		if msg.id != t.want {
+		t     *term
+		want  string
+		fetch func() tea.Cmd
+	}{{&m.term, m.sess, m.fetchMain}, {&m.tv.term, m.tv.id, m.fetchTerm}} {
+		if msg.id != t.want || msg.seq != t.t.seq {
 			continue
 		}
 
@@ -3205,7 +3222,7 @@ func (m *Model) onScreen(msg screenMsg) tea.Cmd {
 
 		if t.t.again {
 			t.t.again = false
-			return tea.Batch(find, m.fetchScreen())
+			return tea.Batch(find, t.fetch()) // its own screen: another's flight must not set its again
 		}
 
 		if find != nil {
@@ -4051,12 +4068,11 @@ func (m *Model) fetchTerm() tea.Cmd {
 		return nil
 	}
 
-	if t.fetching {
-		t.again = true
+	seq, ok := m.takeoff(&t.term, t.id)
+	if !ok {
 		return nil
 	}
 
-	t.fetching = true
 	_, h := m.termBody()
 
 	p := proto.ScreenParams{ID: t.id, Cols: m.termCols(), Rows: h, Scroll: t.scroll}
@@ -4069,7 +4085,7 @@ func (m *Model) fetchTerm() tea.Cmd {
 
 		err := proto.Call("session.screen", p, &scr)
 
-		return screenMsg{p.ID, scr, err}
+		return screenMsg{p.ID, scr, err, seq}
 	}
 }
 

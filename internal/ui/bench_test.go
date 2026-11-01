@@ -67,7 +67,7 @@ func BenchmarkStreaming(b *testing.B) {
 		_ = m.View()
 
 		m.term.fetching = true
-		m.Update(screenMsg{"s1", scr, nil})
+		m.Update(screenMsg{"s1", scr, nil, 0})
 		_ = m.View()
 	}
 }
@@ -289,7 +289,7 @@ func TestAllocBudgets(t *testing.T) {
 		{"streaming turn", 265, func() {
 			session.Update(eventMsg{Kind: "screen", ID: "s1"})
 			_ = session.View()
-			session.Update(screenMsg{"s1", session.term.scr, nil})
+			session.Update(screenMsg{"s1", session.term.scr, nil, 0})
 			_ = session.View()
 		}},
 		{"typing in the palette", 2020, func() {
