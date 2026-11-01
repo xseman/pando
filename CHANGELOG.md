@@ -1,5 +1,85 @@
 # Changelog
 
+## [0.9.0](https://github.com/xseman/pando/compare/v0.8.0...v0.9.0) (2026-11-01)
+
+
+### Features
+
+* **cli:** session send and keys wake an asleep session ([bc51e1b](https://github.com/xseman/pando/commit/bc51e1b449cd2fef80c995865d514b79d1e303b3))
+* **daemon:** a worktree's shells move among each other, whatever their parent ([0844ecc](https://github.com/xseman/pando/commit/0844eccd66af668b6d69aa7ff60446ecb8a9ff49))
+* **daemon:** sessions sleep after an hour by default ([c16104b](https://github.com/xseman/pando/commit/c16104b5bf49aa400325524c3b08d61b30d10632))
+* **ui:** a + after the editor tabs opens a file or a session ([dfcb69f](https://github.com/xseman/pando/commit/dfcb69ff3f8fc4ae22ba63beed503f39f32127a1))
+* **ui:** a click on any Spaces project's name switches to it ([5cbeccc](https://github.com/xseman/pando/commit/5cbeccc21926eb4a3fbab28641dbf2208c16b5e2))
+* **ui:** a Customizations tab beside Sessions ([3c38b76](https://github.com/xseman/pando/commit/3c38b76af727dff5159acbd73c7e4d842483c7ac))
+* **ui:** a double click past the tabs shows the welcome screen ([38cc6ac](https://github.com/xseman/pando/commit/38cc6acfb62a35afaadb232ac359be94b73d1007))
+* **ui:** a Spaces project's chevron under the pointer is raised as a button ([43a58f1](https://github.com/xseman/pando/commit/43a58f1cc85644701cea3f3613ba90dd8c980979))
+* **ui:** a tab held at the bottom's middle opens a row under all groups ([d0af04d](https://github.com/xseman/pando/commit/d0af04df7ca27a6d358b738b1c3704c462eff838))
+* **ui:** a worktree's sessions share its Terminal panel's shells ([92c6216](https://github.com/xseman/pando/commit/92c6216c00ad7d90076991af3510e1c0cdf96c0d))
+* **ui:** alt+a goes to the next session waiting on you ([3eab59f](https://github.com/xseman/pando/commit/3eab59f9760e8901cec7a000221ac9a456384182))
+* **ui:** alt+n opens the + beside the tabs, and the palette has it ([16c60d7](https://github.com/xseman/pando/commit/16c60d7920d124ddf1e3c3f33ac9904041389a62))
+* **ui:** ctrl+shift+d deletes the line in the editor ([484ff9f](https://github.com/xseman/pando/commit/484ff9f799a30b629811ae543d6dccd7a4a01bed))
+* **ui:** Resume Session in the + menu ([7f4bdd2](https://github.com/xseman/pando/commit/7f4bdd251d63dc2aff60ecc126b859cb4fef1fb1))
+* **ui:** Spaces is called Sessions ([90fb580](https://github.com/xseman/pando/commit/90fb580205a353feecb7d26b182dc9551cfbd4a7))
+* **ui:** the drawers sit under a TOOLS strip, as NO SESSIONS in Spaces ([73cc994](https://github.com/xseman/pando/commit/73cc9946c8a33ce20170997f6478b54d7972bc52))
+* **ui:** the empty area has the +, alt+s starts a session anywhere ([5f38a7f](https://github.com/xseman/pando/commit/5f38a7f65a87a4fd4b0092df863bb8fb36f25c8a))
+* **ui:** the focused group's content is framed on every side ([f858819](https://github.com/xseman/pando/commit/f8588190c10b542c862a4979bf5be2afb7758d4f))
+* **ui:** the focused group's frame is drawn heavy ([7d6c151](https://github.com/xseman/pando/commit/7d6c1516ebc80ef951cc7efa3b81bd4330e45918))
+* **ui:** the panel is framed apart and moves into the sidebars ([c36992d](https://github.com/xseman/pando/commit/c36992d90443c61136e8387328d3070796f1a067))
+* **ui:** the sidebar strips read in title case ([7aca2a9](https://github.com/xseman/pando/commit/7aca2a9cc7f4ea33b4a017090d561e436d0c9eb0))
+* **ui:** tree chevrons are VS Code's codicon twisties with Nerd Font icons ([d1930b9](https://github.com/xseman/pando/commit/d1930b9ee7d1e64ae2d35f1d64cbc0c567e5bd44))
+
+
+### Bug Fixes
+
+* **daemon:** asleep sessions keep their name ([f973339](https://github.com/xseman/pando/commit/f973339b9f708ac7aab00fe1aec7aab2a8ff3a09))
+* **daemon:** only an agent sleeps on its own ([482cb93](https://github.com/xseman/pando/commit/482cb9396799de44ab29bb589b94b25f1224690a))
+* **daemon:** Updated moves on real work, not on a redraw's flip ([4eb1a40](https://github.com/xseman/pando/commit/4eb1a402539a6940a52858b9b09160263039e257))
+* **lsp:** inserts at one position keep the server's order ([4dc3d21](https://github.com/xseman/pando/commit/4dc3d21b845cfb5d63bbde99193d9582a4c91cd9))
+* **ui:** a long session name no longer drops its tab off the strip ([690df0d](https://github.com/xseman/pando/commit/690df0dceeee15686f7e8a7b9ad00c0a7b81f5a0))
+* **ui:** a selected folded header with whitespace marks keeps its ⋯ ([c11e09d](https://github.com/xseman/pando/commit/c11e09d78c3a5768a4a32da5a3aa0e9a4a29aae0))
+* **ui:** a session dropped on a session joins its strip ([8278c1e](https://github.com/xseman/pando/commit/8278c1e60a6973c6dc3d1b78cdef169c8a94aaee))
+* **ui:** a session in a group without the keyboard keeps drawing ([783f524](https://github.com/xseman/pando/commit/783f5247ad8b5a0cb730eb0a5e6262de7aedfe91))
+* **ui:** a terminal's screen no longer fetches the other terminals ([dfa6354](https://github.com/xseman/pando/commit/dfa6354d3fb7d27642c3b50b27af76b95455d237))
+* **ui:** an esc with a mouse report behind it stays an esc under tmux ([df69687](https://github.com/xseman/pando/commit/df69687a457e831a3310290cf07cac7274875f55))
+* **ui:** dimmed text is a color, not SGR faint ([7f87f8f](https://github.com/xseman/pando/commit/7f87f8f19a936395649b4360c43ea8c083d588ab))
+* **ui:** key hints say alt+, not M- ([c3467c1](https://github.com/xseman/pando/commit/c3467c1f75454080ecdd304558973c15ed0083f2))
+* **ui:** output no longer resizes a session between two TUIs ([867981d](https://github.com/xseman/pando/commit/867981dd08435a53a8a00792c6ec5ce68e20e9fc))
+
+
+### Performance Improvements
+
+* **ui:** a file's indent guides are counted once per text ([702e85a](https://github.com/xseman/pando/commit/702e85ae3498c1e25a5d82a58bf5e8899e1a7a99))
+* **ui:** a frame takes what the last frame drew ([0abc389](https://github.com/xseman/pando/commit/0abc389ecf38997de8f243c629bd01684864e755))
+* **ui:** a gutter's line number styles are built once per color pair ([86efe6b](https://github.com/xseman/pando/commit/86efe6b57adde46a94856082045ef1a15c66414e))
+* **ui:** a modal measures its items once, not on every frame ([0f10cd0](https://github.com/xseman/pando/commit/0f10cd0eabbb88d569d234250f9d915e4e90c7d6))
+* **ui:** a screen event fetches only the terminals of its session ([864971f](https://github.com/xseman/pando/commit/864971f26d1860b5dc56c77fc3d7e2c09f4c3969))
+* **ui:** keys typed into a modal draw it over the frame drawn once ([f22b788](https://github.com/xseman/pando/commit/f22b7889a2411cac29f26e440bb6958fc31e64ad))
+
+
+### Documentation
+
+* **demo:** hero shows two sessions at work ([846528f](https://github.com/xseman/pando/commit/846528f5d63183f243ecc766ab955fbed4d29ecf))
+* **demo:** re-record every GIF with panel borders ([6c0e20f](https://github.com/xseman/pando/commit/6c0e20f762ca722ca140ec37b2c4d04e65aa1457))
+* **demo:** re-record the GIFs after a frame by frame review ([6f6e709](https://github.com/xseman/pando/commit/6f6e70984b295df613016d3f0be625827d3b203c))
+* **demo:** record the tapes with panel borders ([8ffbc36](https://github.com/xseman/pando/commit/8ffbc36faeb3f4c341a578ba04186892fd537729))
+* **keys:** alt+n's row names the resumed session too ([2cc3db8](https://github.com/xseman/pando/commit/2cc3db817331cd799047f5e805092f500c32762a))
+
+
+### Build System
+
+* **deps:** bubbletea v2.1.1, its renderer's flush about a quarter faster ([99a4039](https://github.com/xseman/pando/commit/99a40398fc030464d235dba085cdec946e609d02))
+
+
+### Maintenance
+
+* **ui:** pickers of sessions build their rows in sessionItems ([4d314c2](https://github.com/xseman/pando/commit/4d314c20a83ee961333778df0f6093501d0504ea))
+
+
+### Testing
+
+* **daemon:** the sleep goroutine reads no session the loop rewrites ([6e9be0a](https://github.com/xseman/pando/commit/6e9be0a9fb8ab396b4e9111cf45302e8f660ec26))
+* **daemon:** torn sessions file without a race ([e56f507](https://github.com/xseman/pando/commit/e56f507d8bde08919f9d02127b4aa813e79bc9dd))
+
 ## [0.8.0](https://github.com/xseman/pando/compare/v0.7.0...v0.8.0) (2026-10-29)
 
 
