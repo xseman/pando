@@ -4,9 +4,14 @@ import (
 	"bytes"
 	"image"
 	"image/png"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // A binary file opens as a card: its name, an image's format and size or
@@ -48,9 +53,60 @@ func TestBinaryCard(t *testing.T) {
 		t.Fatal("a binary file took an edit")
 	}
 
-	if out := open(blob); !strings.Contains(out, "Binary file") || !strings.Contains(out, "2.0 KB on disk") || !strings.Contains(out, "not text") {
+	out := open(blob)
+	if !strings.Contains(out, "Binary file") || !strings.Contains(out, "2.0 KB on disk") || !strings.Contains(out, "not text") {
 		t.Fatalf("binary card:\n%s", out)
 	}
+
+	// Its button hands the file to the desktop's opener, as Explorer's o does.
+	bin, got := t.TempDir(), filepath.Join(t.TempDir(), "opened")
+	mustWrite(t, filepath.Join(bin, "xdg-open"), "#!/bin/sh\nprintf %s \"$1\" > "+got+"\n")
+
+	if err := os.Chmod(filepath.Join(bin, "xdg-open"), 0o755); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	bx, by := -1, -1
+
+	for y, l := range strings.Split(out, "\n") {
+		if before, _, ok := strings.Cut(l, "Open with Default App"); ok {
+			bx, by = ansi.StringWidth(before), y
+		}
+	}
+
+	if strings.Contains(m.View().Content, bgParams(pal.buttonBg)) {
+		t.Fatal("the button is lit with the mouse away")
+	}
+
+	m.Update(tea.MouseMotionMsg{X: bx, Y: by}) // the pointer over it lights it
+
+	if !strings.Contains(m.View().Content, bgParams(pal.buttonBg)) {
+		t.Fatal("the button under the mouse is not lit")
+	}
+
+	m.Update(tea.MouseClickMsg{X: bx, Y: by, Button: tea.MouseLeft}) // held down: a shade on, nothing opened yet
+
+	if !strings.Contains(m.View().Content, bgParams(pal.buttonHoverBg)) {
+		t.Fatal("the button held down looks the same")
+	}
+
+	m.Update(tea.MouseReleaseMsg{X: bx, Y: by, Button: tea.MouseLeft})
+
+	for range 100 {
+		if b, err := os.ReadFile(got); err == nil && len(b) > 0 {
+			if string(b) != blob {
+				t.Fatalf("opened %q, want %q", b, blob)
+			}
+
+			return
+		}
+
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	t.Fatal("the button opened nothing")
 }
 
 // A byte order mark makes UTF-16 text, not a binary file.

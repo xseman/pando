@@ -43,7 +43,8 @@ its tab with it: Stage All keeps the open diff's changes on screen. A file
 with a NUL in its first 8000 bytes
 is a card instead (`binaryCard`, shown as an error is): its name, an image's
 format and size (`image.DecodeConfig`: PNG, JPEG, GIF) or the type
-`http.DetectContentType` sniffs, and its size on disk.
+`http.DetectContentType` sniffs, and its size on disk, over an Open with
+Default App button (`binaryError`; `o` too), as Explorer's `o` opens it.
 
 A line longer than `maxTokenize` (20 000 bytes, VS Code's
 maxTokenizationLineLength) stays plain (`tokenizable`): chroma takes a

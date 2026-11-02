@@ -134,6 +134,8 @@ type preview struct {
 	bodies    map[ghBodyKey][2][]string // the page's Markdown bodies, laid out
 	raw       string
 	err       string
+	bin       bool       // err is a binaryCard, with its Open with Default App button
+	binDown   bool       // that button is held down: it opens on the release over it
 	lines     []string   // styled, one per source line
 	plain     [][]rune   // the same lines without styles
 	meta      []lineMeta // diff rows: line numbers and change kind
@@ -1722,7 +1724,7 @@ func (p *preview) fetch(full bool) (string, error) {
 				size = st.Size()
 			}
 
-			return "", errors.New(strings.Join(binaryCard(p.path, buf, size), "\n"))
+			return "", binaryError(strings.Join(binaryCard(p.path, buf, size), "\n"))
 		}
 
 		s := string(buf)
@@ -1837,6 +1839,8 @@ func (p *preview) onLoad(m *Model, msg previewMsg) {
 
 	if msg.err != nil {
 		p.err, p.raw, p.keep = msg.err.Error(), "", nil
+		p.bin = errors.As(msg.err, new(binaryError))
+
 		return
 	}
 
@@ -3895,6 +3899,15 @@ func (p *preview) view(m *Model, w, h int) (header string, body []string, footer
 			body = append(body, ifElse(i == 0 && len(lines) > 1, plain, dim).Render("  "+l))
 		}
 
+		if p.bin { // a key's chip, VS Code's primary button under the mouse, its hover shade held down
+			st := keycapHot()
+			if p.overOpenDefault(m.mouseX-m.mainX(), m.mouseY-m.mainY()-m.headH()-m.stripH()) {
+				st = lipgloss.NewStyle().Background(ifElse(p.binDown, pal.buttonHoverBg, pal.buttonBg)).Foreground(pal.buttonFg).Bold(p.binDown)
+			}
+
+			body = append(body, "", "  "+st.Render(openDefaultLabel)+dim.Render(" o"))
+		}
+
 		return header, body, footer
 	}
 
@@ -4044,6 +4057,11 @@ func (p *preview) refold(m *Model) {
 		a := pos{min(p.anchor.line, p.lastLine()), p.anchor.col}
 		p.anchor = &a
 	}
+}
+
+// overOpenDefault reports body cell x, y on the binary card's button.
+func (p *preview) overOpenDefault(x, y int) bool {
+	return p.bin && p.err != "" && y == strings.Count(p.err, "\n")+3 && x >= 2 && x < 2+len(openDefaultLabel)
 }
 
 // hoverY is the body row under the mouse, -1 when it is off the body.
@@ -5503,6 +5521,8 @@ func (p *preview) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 			if err := openExternal(p.path); err != nil {
 				return flash(err.Error(), true)
 			}
+
+			return flash("opened "+filepath.Base(p.path)+" in the default app", false)
 		}
 	}
 
@@ -5586,6 +5606,18 @@ func (p *preview) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 
 	if p.kind == pvSettings && p.set != nil && y >= 0 {
 		return p.set.mouse(m, msg, x, y)
+	}
+
+	if p.bin && p.err != "" { // the card's button: down on it, up over it
+		if _, up := msg.(tea.MouseReleaseMsg); up && p.binDown {
+			p.binDown = false
+
+			if p.overOpenDefault(x, y) {
+				return p.key(m, tea.KeyPressMsg{Code: 'o', Text: "o"})
+			}
+		}
+
+		p.binDown = p.binDown || click && mo.Button == tea.MouseLeft && p.overOpenDefault(x, y)
 	}
 
 	if !p.ready || p.err != "" || len(p.plain) == 0 {

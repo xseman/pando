@@ -32,6 +32,15 @@ func binaryCard(path string, head []byte, size int64) []string {
 	return []string{filepath.Base(path), kind, fileSize(size) + " on disk", why}
 }
 
+// binaryError is a binaryCard, returned as the error the file's text would be:
+// drawn instead of the text, over a button that opens the file elsewhere.
+type binaryError string
+
+func (e binaryError) Error() string { return string(e) }
+
+// openDefaultLabel is the binary card's button.
+const openDefaultLabel = " Open with Default App "
+
 // fileSize is n bytes as a person reads it, in steps of 1024.
 func fileSize(n int64) string {
 	if n < 1024 {
