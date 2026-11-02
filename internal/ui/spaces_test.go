@@ -396,3 +396,52 @@ func TestSpacesGroupByState(t *testing.T) {
 
 	checkWidths(t, m)
 }
+
+// TestSpacesUnfoldRunning opens a folded project when one of its sessions
+// goes to work; folded again while it works, it stays shut.
+func TestSpacesUnfoldRunning(t *testing.T) {
+	m := testModel(t)
+	other := addProject(t, m, "dev", "s2", "s3")
+	press(m, "3")
+	m.ag.fold(other, true)
+
+	set := func(id, status string) {
+		next := slices.Clone(m.sessions)
+		next[slices.IndexFunc(next, func(s proto.Session) bool { return s.ID == id })].Status = status
+		m.Update(sessionsMsg(next))
+	}
+
+	set("s2", "blocked")
+
+	if !m.ag.collapsed[other] {
+		t.Fatal("only a session going to work opens its folded project, not one waiting for an answer")
+	}
+
+	set("s2", "running")
+
+	if m.ag.collapsed[other] || slices.Contains(m.ag.folded, other) {
+		t.Fatalf("a session at work opens its folded project: folded %v", m.ag.folded)
+	}
+
+	m.ag.fold(other, true)
+	set("s2", "running")
+
+	if !m.ag.collapsed[other] {
+		t.Fatal("folded again while its session works, the project stays shut")
+	}
+
+	set("s3", "running")
+
+	if m.ag.collapsed[other] {
+		t.Fatal("another session going to work opens it again")
+	}
+
+	m.ag.fold(other, true)
+	set("s3", "idle")
+	m.Update(reconnectMsg{})
+	set("s3", "running")
+
+	if !m.ag.collapsed[other] {
+		t.Fatal("an agent a restarted daemon resumes opens nothing")
+	}
+}

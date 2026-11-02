@@ -185,6 +185,7 @@ type Model struct {
 	msgErr      bool
 	msgAt       time.Time
 	soundAt     time.Time         // when the last sound cue played
+	reconnAt    time.Time         // when the daemon came back: the agents it resumed start out running
 	seen        map[string]string // session to the state it was last clicked or shown in
 	blinkOn     bool              // a pulsing tint is at its full shade
 	blinking    bool              // its ticker runs
@@ -2487,7 +2488,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, reconnect()
 		}
 
-		m.events = msg.ch
+		m.events, m.reconnAt = msg.ch, time.Now()
 		m.flash("reconnected", false)
 
 		return m, tea.Batch(waitEvent(m.events), loadState(), loadWorkspaces(), loadSessions(), m.fetchScreen())
@@ -2552,9 +2553,10 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		cmd := m.sound(m.soundFor(msg))
-		sel := m.ag.selected(m)
+		sel, prev := m.ag.selected(m), m.sessions
 
 		m.sessions = msg
+		cmd = tea.Batch(cmd, m.ag.unfoldRunning(m, prev))
 
 		m.ag.follow(m, sel)
 

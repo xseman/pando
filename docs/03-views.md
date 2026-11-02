@@ -271,6 +271,11 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
   selection walks both (`snap`, `rowAt`).
 - A folded project tops the folded list (`spaces_folded`); unfolded, it goes
   last among the open ones, saved there (Sort Projects Manually only).
+- A session going to work (to `running`) opens its folded project
+  (`unfoldRunning`); folded again while it works, it stays shut. A session
+  the list did not hold yet, every one on start, opens nothing; nor does one
+  in the first 30 s after a reconnect, a restarted daemon's agents coming back
+  (`resumeGrace`).
 - `alt+t` opens the agent navigator, a picker with `@blocked`, `@running`,
   `@shell`, `@done`, `@idle`, `@exited`, `@worktree` and `!agent` filters.
 - `alt+a` opens the next session waiting on you (`alarms`): blocked, then

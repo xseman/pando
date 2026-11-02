@@ -1320,6 +1320,36 @@ func (a *agents) lines(m *Model, w, h int) []string {
 	})...)
 }
 
+// resumeGrace is how long after a reconnect a session going to work is its
+// agent coming back, the daemon's startGrace.
+const resumeGrace = 30 * time.Second
+
+// unfoldRunning opens the folded projects where a session went to work since
+// list prev: what an agent does shows. Only the change opens one, so a
+// project folded again while its agent works stays shut; a session prev
+// misses, as every one is on start, opens nothing; nor do the agents a
+// restarted daemon resumes, running as they come back (resumeGrace).
+func (a *agents) unfoldRunning(m *Model, prev []proto.Session) tea.Cmd {
+	if time.Since(m.reconnAt) < resumeGrace {
+		return nil
+	}
+
+	var saved tea.Cmd
+
+	for _, s := range m.mainSessions() {
+		i := slices.IndexFunc(prev, func(o proto.Session) bool { return o.ID == s.ID })
+		if s.Status != "running" || i < 0 || prev[i].Status == "running" {
+			continue
+		}
+
+		if p := m.projectOf(s.Workspace); a.shut(m, p) {
+			saved = tea.Batch(saved, a.unfold(m, p))
+		}
+	}
+
+	return saved
+}
+
 // reveal selects workspace path's row, its project unfolded (and No Sessions
 // over it), as a click on it would: whatever switches the workspace shows
 // where it went. A selection already inside that workspace, a clicked
