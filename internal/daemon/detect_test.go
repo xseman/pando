@@ -189,6 +189,44 @@ func TestScrolledViewHolds(t *testing.T) {
 	}
 }
 
+// Claude marks its scrolled view: a wheel back down to it after the turn
+// ended redraws the idle prompt as an echo of the wheel, and no output
+// follows. The marker gone ends the hold.
+func TestScrolledClaudeEndsHold(t *testing.T) {
+	now := time.Now()
+	s := &session{status: "running", program: "claude", emu: vt.NewEmulator(80, 8)}
+
+	go func() {
+		for buf := make([]byte, 64); ; {
+			if _, err := s.emu.Read(buf); err != nil {
+				return
+			}
+		}
+	}()
+
+	draw := func(at time.Time, marker string) {
+		s.lastOutput = at
+		_, _ = s.emu.WriteString("\x1b[H\x1b[2J● Done.\r\n" + marker + "\r\n\r\n────\r\n❯ \r\n────\r\n  ⏵⏵ bypass permissions on")
+	}
+
+	_ = s.input(proto.InputParams{Mouse: &proto.Mouse{Kind: "wheel", Button: int(uv.MouseWheelUp)}})
+
+	draw(now, "      Jump to bottom (ctrl+End) ↓")
+	s.tick(now.Add(2 * busyWindow))
+
+	if !s.held || s.status != "running" {
+		t.Fatalf("scrolled up mid-turn: held %v, %q, want running", s.held, s.status)
+	}
+
+	_ = s.input(proto.InputParams{Mouse: &proto.Mouse{Kind: "wheel", Button: int(uv.MouseWheelDown)}})
+	draw(s.inputAt.Add(10*time.Millisecond), "  Its marker reads Jump to bottom (ctrl+End) ↓") // an answer quoting it
+	s.tick(s.lastOutput.Add(2 * busyWindow))
+
+	if s.held || s.status != "idle" {
+		t.Fatalf("back at the bottom, the turn over: held %v, %q, want idle", s.held, s.status)
+	}
+}
+
 // A subagent's row ticks under claude's idle prompt: running while its clock
 // prints, idle once the output stops.
 func TestBackgroundAgentRuns(t *testing.T) {

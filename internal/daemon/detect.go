@@ -25,7 +25,11 @@ type rules struct {
 	// prompt stops saying idle and output timing decides instead.
 	backgroundLine *regexp.Regexp
 	titleBlocked   *regexp.Regexp
-	idlePrompt     bool // a ❯ prompt line with nothing above says idle
+	// scrolled is the line the app draws over its prompt while its own view
+	// is scrolled back: the screen says whether the status holds, not the
+	// last wheel.
+	scrolled   *regexp.Regexp
+	idlePrompt bool // a ❯ prompt line with nothing above says idle
 }
 
 const screenLines = 12
@@ -47,7 +51,9 @@ var agentRules = map[string]rules{
 		runningLine: regexp.MustCompile(`(?m)^\s*[*·✢✳✶✻✽]\s+\S.*…(?:\s+\((?:\d+[smh]|thinking)|\s*$)`),
 		// "◯ deep-task  Checking the decoder   8m 33s · ↓ 127.6k tokens"
 		backgroundLine: regexp.MustCompile(`(?m)^\s*◯\s+\S.*\s\d+[hms](?:\s?\d+[ms])?\b`),
-		idlePrompt:     true,
+		// "            Jump to bottom (ctrl+End) ↓", centred; an answer is indented by two
+		scrolled:   regexp.MustCompile(`(?m)^\s{3,}Jump to bottom\b.*↓\s*$`),
+		idlePrompt: true,
 	},
 	"codex": {
 		titleBlocked: regexp.MustCompile(`Action Required`),
@@ -99,6 +105,18 @@ func screenState(program, title string, lines []string) string {
 	}
 
 	return ""
+}
+
+// scrolledBack reports r's scrolled line in the few lines over the last ❯
+// line, where the app draws it: text of an answer higher up does not count.
+func (r rules) scrolledBack(lines []string) bool {
+	for i := len(lines) - 1; i >= 0; i-- {
+		if promptLine.MatchString(lines[i]) {
+			return r.scrolled.MatchString(strings.Join(lines[max(i-4, 0):i], "\n"))
+		}
+	}
+
+	return false
 }
 
 // aboveInput is the screen above its last ❯ line, without the rule over that

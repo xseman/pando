@@ -60,8 +60,10 @@ type session struct {
 	// up sent to an app that takes the mouse: what its screen shows is
 	// history, and a scrolled app may draw nothing while it works, so the
 	// status stays as it was until a key, or output the app writes on its own.
-	// ponytail: a turn that ends while scrolled shows running until then; the
-	// view the app holds is not something a terminal tells.
+	// An app whose rules name its scrolled marker (claude) sets it from the
+	// screen instead.
+	// ponytail: for any other app, a turn that ends while scrolled shows
+	// running until then; the view it holds is not something a terminal tells.
 	held bool
 	// attached is set while the foreground attaches to a background job
 	// (claude attach), which sets no title of its own: the shell's, the
@@ -398,6 +400,12 @@ func (s *session) tick(now time.Time) bool {
 		s.screenAt, s.screenProg = s.lastOutput, prog
 		lines := strings.Split(s.emu.String(), "\n")
 		s.seen = screenState(prog, s.title, lines)
+
+		// A wheel back down redraws the live view as an echo of the input:
+		// with the turn over, no output follows to end the hold.
+		if r := agentRules[prog]; r.scrolled != nil {
+			s.held = r.scrolledBack(lines)
+		}
 
 		body := aboveInput(lines)
 		s.still = s.seen == "idle" && body == s.body
