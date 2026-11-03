@@ -556,8 +556,8 @@ func (s *scmView) shownDrawers(m *Model) []git.Drawer {
 	return m.drawers()
 }
 
-// toolsRow is the strip over the drawers, as No Sessions over the Sessions view's
-// projects: a click folds them into it or unfolds them. With the mouse over
+// toolsRow is the strip over the drawers: a click folds them into it or
+// unfolds them. With the mouse over
 // them, as the header's actions linger, toolsActions take the place of its
 // count, the one under the mouse raised.
 func (s *scmView) toolsRow(m *Model, w int, hot, hovered bool) string {

@@ -196,7 +196,7 @@ func TestSpacesIdleAge(t *testing.T) {
 }
 
 // TestSpacesNoSessions lists the projects with no session last, under a
-// heading of their own that counts them, folds like a project and sinks to
+// dim caption of their own that counts them, folds like a project and sinks to
 // the bottom edge folded; each is one dimmed row with no fold, folded or not,
 // ⏎ on it switches into it, nothing moves across the heading, and a switch
 // into one opens it.
@@ -221,7 +221,7 @@ func TestSpacesNoSessions(t *testing.T) {
 		}
 	}
 
-	want := []string{filepath.Base(m.ws), "s1", "", bareHead, "", filepath.Base(b1), filepath.Base(b2)} // a rule under the strip; nothing under them to set apart
+	want := []string{filepath.Base(m.ws), "s1", "", bareHead, filepath.Base(b1), filepath.Base(b2)} // nothing under them to set apart
 	if !slices.Equal(shape, want) {
 		t.Fatalf("rows %q want %q", shape, want)
 	}
@@ -229,15 +229,15 @@ func TestSpacesNoSessions(t *testing.T) {
 	head := slices.IndexFunc(rows, func(r agRow) bool { return r.when == bareHead })
 	lines := m.ag.lines(m, 40, m.bodyH(viewAgents))
 
-	if l := strings.TrimRight(ansi.Strip(lines[head]), " "); !strings.HasPrefix(l, " ▾ No Sessions") || !strings.HasSuffix(l, " 2") {
-		t.Fatalf("the strip counts its projects: %q", l)
+	if l := strings.TrimRight(ansi.Strip(lines[head]), " "); !strings.HasPrefix(l, " ▾ no sessions") || !strings.HasSuffix(l, " 2") {
+		t.Fatalf("the caption counts its projects: %q", l)
 	}
 
-	if l := ansi.Strip(lines[head+1]); strings.Trim(l, "─ ") != "" {
-		t.Fatalf("a rule under the strip, over the projects it holds: %q", l)
+	if l := ansi.Strip(lines[head-1]); strings.TrimSpace(l) != "" {
+		t.Fatalf("a blank over the caption, no rule: %q", l)
 	}
 
-	m.ag.l.sel = head + 2
+	m.ag.l.sel = head + 1
 	press(m, "alt+up")
 
 	if !slices.Equal(m.st.Projects, []string{m.ws, b1, b2}) {
@@ -248,11 +248,11 @@ func TestSpacesNoSessions(t *testing.T) {
 	m.ag.fold(b1, true)
 
 	rows = m.ag.rows(m)
-	if l := ansi.Strip(m.ag.lines(m, 40, m.bodyH(viewAgents))[head+2]); !strings.HasPrefix(l, "   · "+filepath.Base(b1)+" ") || rows[head+3].project != b2 {
-		t.Fatalf("folded too, a row in the project order, no chevron, no branch: %q", l)
+	if l := ansi.Strip(m.ag.lines(m, 40, m.bodyH(viewAgents))[head+1]); !strings.HasPrefix(l, "     "+filepath.Base(b1)+" ") || rows[head+2].project != b2 {
+		t.Fatalf("folded too, a row in the project order, no chevron, no glyph, no branch: %q", l)
 	}
 
-	m.ag.l.sel = head + 2
+	m.ag.l.sel = head + 1
 	press(m, "n")
 
 	if m.modal == nil || m.modal.title != "New session in "+filepath.Base(b1) {
@@ -274,8 +274,8 @@ func TestSpacesNoSessions(t *testing.T) {
 		t.Fatalf("folded, the heading sits on the bottom edge: %d rows of %d", len(rows), m.bodyH(viewAgents))
 	}
 
-	if lines := m.ag.lines(m, 40, m.bodyH(viewAgents)); strings.Trim(ansi.Strip(lines[len(lines)-2]), "─ ") != "" || strings.Trim(ansi.Strip(lines[len(lines)-3]), " ") != "" {
-		t.Fatalf("folded, a rule right over it, blank above:\n%s", strings.Join(lines, "\n"))
+	if lines := m.ag.lines(m, 40, m.bodyH(viewAgents)); strings.TrimSpace(ansi.Strip(lines[len(lines)-2])) != "" {
+		t.Fatalf("folded, blanks over it, no rule:\n%s", strings.Join(lines, "\n"))
 	}
 
 	m.ag.reveal(m, b2)
@@ -287,8 +287,8 @@ func TestSpacesNoSessions(t *testing.T) {
 	m.ag.fold(m.wss[0].Project, true)
 
 	rows = m.ag.rows(m)
-	if h := slices.IndexFunc(rows, func(r agRow) bool { return r.when == bareHead }); h < 1 || strings.Trim(ansi.Strip(m.ag.lines(m, 40, m.bodyH(viewAgents))[h-1]), "─ ") != "" {
-		t.Fatalf("a folded project over the strip leaves the rule over it: %+v", rows)
+	if h := slices.IndexFunc(rows, func(r agRow) bool { return r.when == bareHead }); h < 1 || strings.TrimSpace(ansi.Strip(m.ag.lines(m, 40, m.bodyH(viewAgents))[h-1])) != "" {
+		t.Fatalf("a folded project over the caption leaves a blank over it: %+v", rows)
 	}
 
 	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: b2, Agent: "shell"}, Status: "idle"})

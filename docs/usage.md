@@ -34,7 +34,8 @@ app                      project: pando ~/code/app, or `a` in Sessions
 A project whose only worktree is its own checkout shows it on its line,
 `app  ⌂ main`, its sessions right under it; a click on the branch switches
 to it. An idle session says how long it has been idle (`3h`). Projects with
-no session wait under _No Sessions_ at the bottom, a dimmed line each: a
+no session wait under a dim _no sessions_ caption at the bottom, a dimmed
+name each: a
 click switches to it, `n` starts a session in it. Scrolled down, the
 project of the top row stays on the first line.
 A worktree with two sessions or more has a split button on hover: its
@@ -228,7 +229,7 @@ a message box, and drawers for the graph, commits, file history, branches,
 worktrees, remotes, stashes and tags. A commit in a drawer shows its whole
 message when the mouse rests on it; right click copies it. The header's
 Collapse All button closes the drawers with the tree. The drawers sit under
-a Tools strip, as No Sessions in the Sessions view: a click on it folds them into it, and
+a Tools strip: a click on it folds them into it, and
 another brings them back as they were. With the mouse over the drawers, ⊟ on
 the strip closes only the drawers.
 

@@ -177,12 +177,12 @@ re-roots Explorer and Source Control to its worktree.
 ▾ ○ other  ⌂ main + ↺ ⎇  its checkout alone: on the heading (merged), buttons as glyphs with tips
    └─ ○ shell           12m
 
-▸ ○ folded            2   folded projects sink to the bottom (pinFolded): no rule, no button, a session count
+▸ ○ folded            2   folded projects sink to the bottom (pinFolded): not bold, no rule, no button, a session count
 ▸ ○ folded            1
-▾ No Sessions        21   a strip over the projects with no session (bareHead), folds as a heading, a rule over it folded too
-──────────────────────────  its rule, under it
-   · dotfiles  + ⎇       a row each (bare), dimmed, no fold: buttons as a heading holding its checkout
-   · kolibrik
+                          a blank, no rule
+▾ no sessions        21   a dim caption over the projects with no session (bareHead), folds as a heading
+     dotfiles  + ⎇       a row each (bare), dimmed, no glyph, no fold: buttons as a heading holding its checkout
+     kolibrik
 ```
 
 - A project heading holds its own checkout when that is its only worktree
@@ -193,11 +193,11 @@ re-roots Explorer and Source Control to its worktree.
   project in view only selects, staying on its worktree. The chevron under
   the pointer is raised as a button, as the pin is. Chevrons are the codicon
   twisties (`icTwistyR`, `icTwistyD`) with Nerd Font icons, `▸` `▾` without.
-- Projects with no session, listed or filtered, go under _No Sessions_
+- Projects with no session, listed or filtered, go under _no sessions_
   (`bareHead`, `busyProjects`), last, in the project Sort's order: a row
   each, their fold kept for later but not shown (`shut`). A click or `⏎`
   switches to its first worktree, `n` starts a session as on a heading;
-  nothing moves across the strip (`apart`). A switch into one opens it
+  nothing moves across the caption (`apart`). A switch into one opens it
   (`reveal`).
 - A session row says its name, then its title where the name does not say
   it (`titleAfter`). A title starting with the issue key a set name ends in

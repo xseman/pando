@@ -323,8 +323,7 @@ func (a *agents) fold(k string, shut bool) {
 // rule over it, VS Code's border over a pane; and a blank one before the
 // folded that follow an open one, so a run of them stays a tight list. A
 // heading with nothing under it, a project with no session, has nothing to
-// set apart either. bareHead is a strip with a rule under it too, over the
-// projects it holds, so it reads as none of them.
+// set apart either. The row before bareHead is a blank: a caption, not a pane.
 func (a *agents) withGaps(rows []agRow) []agRow {
 	out := make([]agRow, 0, len(rows)+4)
 	for i, r := range rows {
@@ -334,9 +333,6 @@ func (a *agents) withGaps(rows []agRow) []agRow {
 		}
 
 		out = append(out, r)
-		if r.when == bareHead && i+1 < len(rows) {
-			out = append(out, agRow{kind: agGap})
-		}
 	}
 
 	return out
@@ -1063,8 +1059,8 @@ func (a *agents) lines(m *Model, w, h int) []string {
 
 	draw := func(i, y, rw int) string { // row i on line y
 		r := rows[i]
-		if r.kind == agGap { // the rule over an open heading, over and under bareHead (folded too, it is no project), or a blank
-			if h := i + 1; h < len(rows) && (rows[h].kind == agProject || rows[h].kind == agTime) && (!a.collapsed[foldKey(rows[h])] || m.query(viewAgents) != "" || rows[h].when == bareHead) || i > 0 && rows[i-1].when == bareHead {
+		if r.kind == agGap { // the rule over an open heading, or a blank: before bareHead too
+			if h := i + 1; h < len(rows) && (rows[h].kind == agProject || rows[h].kind == agTime) && rows[h].when != bareHead && (!a.collapsed[foldKey(rows[h])] || m.query(viewAgents) != "") {
 				return ruleRow(rw, nil)
 			}
 
@@ -1119,7 +1115,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			switch {
 			case r.when == pinnedHead: // the pane's strip
 				right = count(len(ss))
-			case r.when == bareHead: // a strip as Pinned's, not one more project
+			case r.when == bareHead: // a dim caption, not one more project
 				busy := m.busyProjects()
 				right = count(len(slices.DeleteFunc(m.projects(), func(p string) bool { return busy[p] })))
 
@@ -1127,12 +1123,11 @@ func (a *agents) lines(m *Model, w, h int) []string {
 				right = count(len(ss))
 			}
 
-			left := []seg{sg(" "+chevron(open), dim)}
-			if r.when != bareHead {
-				left = append(left, sg(m.spin(glyph, ss...), fg(c)))
+			if r.when == bareHead {
+				return row(rw, bg, []seg{sg(" "+chevron(open), dim), sg("no sessions", dim)}, right...)
 			}
 
-			return row(rw, bg, append(left, sg(r.when, base.Bold(true))), right...)
+			return row(rw, bg, []seg{sg(" "+chevron(open), dim), sg(m.spin(glyph, ss...), fg(c)), sg(r.when, base.Bold(true))}, right...)
 
 		case agProject:
 			open := !a.collapsed[r.project]
@@ -1156,8 +1151,8 @@ func (a *agents) lines(m *Model, w, h int) []string {
 				}
 			}
 
-			if r.bare { // no fold, nothing to bold: a place to start a session in
-				return row(rw, bg, append([]seg{sg("   ", plain), sg(glyph, fg(c)), sg(agLabel(r), dim)}, plus...))
+			if r.bare { // no fold, no glyph, nothing to bold: a place to start a session in, its name under the projects'
+				return row(rw, bg, append([]seg{sg("     ", plain), sg(agLabel(r), dim)}, plus...))
 			}
 
 			chev := sg(" "+chevron(open), dim)
@@ -1165,7 +1160,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 				chev = sgOwn(chev.s, keycapHot().Background(pal.twistieHoverBg))
 			}
 
-			left := []seg{chev, sg(m.spin(glyph, ss...), fg(c)), sg(agLabel(r), base.Bold(true))}
+			left := []seg{chev, sg(m.spin(glyph, ss...), fg(c)), sg(agLabel(r), base.Bold(open))} // folded, a step under the open ones
 			if r.merged() {
 				left = append(append(left, sg("  ", plain)), m.wsSegs(r.ws, base)...)
 			}
