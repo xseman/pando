@@ -3241,12 +3241,22 @@ func (m *Model) startFilter(v view) tea.Cmd {
 }
 
 func (m *Model) clearFilter(v view) {
+	var found *agRow // Sessions' row found stays selected in the whole tree
+	if v == viewAgents {
+		found = m.ag.selected(m)
+	}
+
 	f := &m.filters[v]
 	f.input.Reset()
 	f.input.Blur()
 	f.on, f.editing = false, false
 
 	m.refilter(v)
+
+	if found != nil {
+		m.ag.follow(m, found)
+		m.ag.snap(m)
+	}
 }
 
 // refilter re-applies view v's query after it changed.
@@ -3268,6 +3278,7 @@ func (m *Model) refilter(v view) {
 		m.cu.l.top = 0
 	default:
 		m.ag.l.top = 0
+		m.ag.firstHit(m)
 	}
 }
 
@@ -3280,6 +3291,10 @@ func (m *Model) filterKey(v view, k tea.KeyPressMsg) tea.Cmd {
 		return nil
 
 	case "enter":
+		if v == viewAgents && strings.TrimSpace(f.input.Value()) != "" { // the row found opens
+			return m.ag.openHit(m)
+		}
+
 		f.editing = false
 		f.input.Blur()
 

@@ -115,31 +115,41 @@ func moreSessions(rows []agRow, i int) bool {
 	return j < len(rows) && rows[j].kind == agSession
 }
 
-// matching are the rows that match q, plus the heading and worktree they sit
-// under.
+// matching are the rows that match q (hits), plus the heading and worktree
+// they sit under, and bareHead over the ones under it. A project that matches
+// brings all it holds.
 func matching(q string, out []agRow) []agRow {
 	keep := make([]bool, len(out))
-	project, ws := -1, -1
+	project, ws, tail, whole := -1, -1, -1, false
 
 	for i, r := range out {
 		switch r.kind {
 		case agProject, agTime:
-			project, ws = i, -1
+			project, ws, whole = i, -1, false
+
+			if r.when == bareHead {
+				tail = i
+			}
+
 		case agWorkspace:
 			ws = i
 		}
 
-		if fuzzy(q, agLabel(r)) < 0 {
+		if !whole && !hits(q, searchText(r)) {
 			continue
 		}
 
-		keep[i] = true
+		keep[i], whole = true, whole || r.kind == agProject
 		if project >= 0 {
 			keep[project] = true
 		}
 
 		if r.kind == agSession && ws >= 0 {
 			keep[ws] = true
+		}
+
+		if r.tail && tail >= 0 {
+			keep[tail] = true
 		}
 	}
 
@@ -152,6 +162,81 @@ func matching(q string, out []agRow) []agRow {
 	}
 
 	return shown
+}
+
+// searchText is what the filter looks in for row r: its label, a project's
+// with its folder, so "nike" finds what sits in ~/work/nike, and the branch
+// of the checkout it holds (merged); bareHead's nothing, it shows over what
+// is found under it.
+func searchText(r agRow) string {
+	switch {
+	case r.kind == agProject && r.project != "":
+		return agLabel(r) + " " + filepath.Base(filepath.Dir(r.project)) + " " + r.ws.Branch
+	case r.when == bareHead:
+		return ""
+	}
+
+	return agLabel(r)
+}
+
+// hits reports every word of query q in text s, ignoring case and accents:
+// "zmazane pravidla" finds "Zmazané pravidlá", "ssd" no longer "Less CSS".
+func hits(q, s string) bool {
+	s = unaccented(s)
+	for _, w := range strings.Fields(unaccented(q)) {
+		if !strings.Contains(s, w) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// accents maps the accented letters of Slovak and Czech to their base letter.
+var accents = strings.NewReplacer("á", "a", "ä", "a", "č", "c", "ď", "d", "é", "e", "ě", "e", "í", "i", "ĺ", "l", "ľ", "l", "ň", "n",
+	"ó", "o", "ô", "o", "ö", "o", "ŕ", "r", "ř", "r", "š", "s", "ť", "t", "ú", "u", "ů", "u", "ü", "u", "ý", "y", "ž", "z")
+
+// unaccented is s lowercased, its accents dropped, as hits compares it.
+func unaccented(s string) string { return accents.Replace(strings.ToLower(s)) }
+
+// firstHit selects the first row the filter finds, a session before a
+// heading that holds one: what ⏎ opens (openHit).
+func (a *agents) firstHit(m *Model) {
+	q := m.query(viewAgents)
+	if q == "" {
+		return
+	}
+
+	rows := a.rows(m)
+	hit := func(r agRow) bool { return r.kind != agTime && !r.inert() && hits(q, searchText(r)) } // a heading's ⏎ folds it
+
+	i := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agSession && hit(r) })
+	if i < 0 {
+		i = slices.IndexFunc(rows, hit)
+	}
+
+	if i >= 0 {
+		a.l.sel = i
+		a.snap(m)
+	}
+}
+
+// openHit is ⏎ in the filter: the selected row opens as a click on its name
+// would, and the whole tree is back, the selection on that row.
+func (a *agents) openHit(m *Model) tea.Cmd {
+	r := a.selected(m)
+
+	m.clearFilter(viewAgents)
+
+	if r == nil {
+		return nil
+	}
+
+	opened := a.click(m, r, ansi.StringWidth(" "+chevron(true)))
+	a.follow(m, r)
+	a.snap(m)
+
+	return opened
 }
 
 // treeRows are Group by Workspace's rows: project, worktree, session. A
@@ -790,7 +875,7 @@ func agLabel(r agRow) string {
 		return r.sub.Type + " · " + r.sub.Description
 	}
 
-	return r.s.Agent + " " + sessionName(r.s) + " " + r.s.Title
+	return r.s.Name + " " + r.s.Title // what it is called, not the agent or program fullName falls back to: every session of it would match
 }
 
 // runsAt is session row r's status grouped by Time or State, with no project
@@ -1522,6 +1607,8 @@ func (a *agents) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 
 	case "r":
 		return tea.Batch(loadState(), loadWorkspaces(), loadSessions())
+	case "/":
+		return m.startFilter(viewAgents)
 	case "m":
 		return a.menu(m, 0, h/2)
 	case "o":

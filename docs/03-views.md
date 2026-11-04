@@ -204,6 +204,12 @@ re-roots Explorer and Source Control to its worktree.
   of the session on screen stays on top, asleep or not.
 - A project with no session: a click or `⏎` switches to its checkout, `n`
   starts a session as on a heading.
+- `/` or `ctrl+f` filters (`matching`): a row holding every word typed, in
+  any case and without accents (`hits`), in a session's name and title but
+  not its agent, a worktree's branch, a project's name, its folder's and the
+  branch of the checkout it holds (`searchText`). A project found brings all it holds; one under the caption
+  shows there, under it. The first session found is selected (`firstHit`),
+  `⏎` opens it, as a click on its name, and clears the filter (`openHit`).
 - A session row says its name, then its title where the name does not say
   it (`titleAfter`). A title starting with the issue key a set name ends in
   (`DEV-43739 …` for `jira-dev-43739`) takes the name's place (`keyedBy`).

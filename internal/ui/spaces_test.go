@@ -529,3 +529,116 @@ func TestSessionsSinkScrolls(t *testing.T) {
 		t.Fatalf("the selection stays on its session, in view: sel %d top %d, %+v", m.ag.l.sel, m.ag.l.top, r)
 	}
 }
+
+// TestSessionsFilter finds the rows holding every word typed, in any case and
+// without accents, never by the agent's name, so "ssd" no longer finds "Less
+// CSS": a project found brings all it holds, a project is found by its
+// folder's name too, and one under Other Projects stays there, under the
+// caption. ⏎ opens the first one found, a session before a heading, and
+// clears the filter.
+func TestSessionsFilter(t *testing.T) {
+	for _, c := range []struct {
+		q, s string
+		want bool
+	}{
+		{"ssd", "PR 422 ssd.stengl.sk optimalizcia", true},
+		{"ssd", "DEV-44532: PoC Less → natívne CSS", false},
+		{"zmazane", "Zmazané pravidlá a konfigurácie", true},
+		{"PRAVIDLA zmaz", "Zmazané pravidlá", true},
+		{"pravidla web", "Zmazané pravidlá", false},
+		{"claude", searchText(agRow{kind: agSession, s: proto.Session{SessionSpec: proto.SessionSpec{Agent: "claude"}, Program: "claude"}}), false},
+		{"shell", searchText(agRow{kind: agSession, s: proto.Session{SessionSpec: proto.SessionSpec{Agent: "shell"}, Title: "Pyenv"}}), false},
+		{"other", searchText(agRow{kind: agTime, when: bareHead}), false},
+		{"master", searchText(agRow{kind: agProject, project: "/w/p", ws: proto.Workspace{Path: "/w/p", Branch: "master", Main: true}}), true},
+	} {
+		if got := hits(c.q, c.s); got != c.want {
+			t.Errorf("hits(%q, %q) = %v", c.q, c.s, got)
+		}
+	}
+
+	m := testModel(t)
+	nike := filepath.Join(t.TempDir(), "nike")
+	project := func(name string, ss ...proto.Session) {
+		p := filepath.Join(nike, name)
+		m.st.Projects = append(m.st.Projects, p)
+		m.wss = append(m.wss, proto.Workspace{Path: p, Project: p, Branch: "main", Main: true})
+
+		for _, s := range ss {
+			s.Workspace = p
+			m.sessions = append(m.sessions, s)
+		}
+	}
+	sess := func(id, title, status string) proto.Session {
+		return proto.Session{SessionSpec: proto.SessionSpec{ID: id, Agent: "claude"}, Title: title, Status: status}
+	}
+
+	project("ssd.stengl.sk", sess("pr", "PR 422 ssd.stengl.sk optimalizcia", "idle"), sess("map", "orchestrator_mapa", "idle"))
+	project("super.dental", sess("less", "DEV-44532: PoC Less → natívne CSS", "idle"))
+	project("frontend-deploy", sess("py", "Pyenv v shelli", "idle"))
+	project("cloudflare-iac", sess("cf", "Zmazané pravidlá a konfigurácie", "asleep"))
+
+	found := func() []string {
+		var out []string
+
+		for _, r := range m.ag.rows(m) {
+			switch r.kind {
+			case agProject:
+				out = append(out, filepath.Base(r.project))
+			case agSession:
+				out = append(out, r.s.ID)
+			case agTime:
+				out = append(out, r.when)
+			}
+		}
+
+		return out
+	}
+	search := func(q string) {
+		if m.filters[viewAgents].on {
+			press(m, "esc")
+		}
+
+		press(m, "/")
+		typeText(m, q)
+	}
+
+	press(m, "3")
+	search("ssd")
+
+	if got := found(); !m.filters[viewAgents].on || !slices.Equal(got, []string{"ssd.stengl.sk", "pr", "map"}) {
+		t.Fatalf("/ then ssd finds its project and all it holds, nothing else: %q", got)
+	}
+
+	if r := m.ag.selected(m); r == nil || r.s.ID != "pr" {
+		t.Fatalf("the first session found is selected: %+v", r)
+	}
+
+	search("nike")
+
+	if got := found(); slices.Contains(got, filepath.Base(m.ws)) || !slices.Contains(got, "frontend-deploy") {
+		t.Fatalf("nike finds the projects in its folder: %q", got)
+	}
+
+	search("map")
+	press(m, "esc")
+
+	if r := m.ag.selected(m); m.filters[viewAgents].on || r == nil || r.s.ID != "map" {
+		t.Fatalf("esc clears the filter, the row found still selected: %+v", r)
+	}
+
+	search("zmazane")
+
+	if got := found(); !slices.Equal(got, []string{bareHead, "cloudflare-iac", "cf"}) {
+		t.Fatalf("one asleep is found where it lists, under the caption: %q", got)
+	}
+
+	press(m, "enter")
+
+	if f := m.filters[viewAgents]; f.on || m.sess != "cf" {
+		t.Fatalf("⏎ opens the session found and clears the filter: on %v, sess %q", f.on, m.sess)
+	}
+
+	if r := m.ag.selected(m); r == nil || r.s.ID != "cf" || r.tail {
+		t.Fatalf("the session opened stays selected, its project on top now: %+v", r)
+	}
+}

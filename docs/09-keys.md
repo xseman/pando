@@ -72,7 +72,8 @@ worktree, `a` add project, `3` Sessions, `ctrl+n` new file; in a split `ctrl+w`
 - `g` `home`, `G` `end`: first, last row
 - `⏎` `space`, `→` `l`, `←` `h`: activate, unfold, fold or go to the parent
 - `m`, right click: context menu
-- `ctrl+f`: filter (`⏎` keeps it, `esc` clears)
+- `ctrl+f`: filter (`⏎` keeps it, `esc` clears); in Sessions `/` too, and
+  `⏎` opens the row found
 - `1` `2` `3` `4` `6` `7` `8`: Explorer, Source Control, Sessions, Search, GitHub, Databases, Customizations
 - `tab`: focus main
 - `b`, `<` `>`: hide this column, narrow or widen it
@@ -87,7 +88,7 @@ worktree, `a` add project, `3` Sessions, `ctrl+n` new file; in a split `ctrl+w`
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Explorer       | `⏎` open, `n` `N` new file, folder, `R` `F2` rename, `D` `del` delete, `d` duplicate, `ctrl+x` `ctrl+c` `ctrl+v` cut, copy, paste, `s` stage, `e` `$EDITOR`, `o` system app, `O` containing folder, `F` find in folder, `c` `y` `Y` copy name, path, relative path, `.` dotfiles, `C` collapse, `r` refresh |
 | Source Control | `⏎` stage, unstage, `o` diff, `O` open, `d` discard, `a` `u` stage, unstage all, `U` stage untracked, `c` message, `C` commit, `A` suggest, `S` sync, publish, `B` branch or tag, `t` tree, `{` `}` repository, `r` refresh                                                                                 |
-| Sessions       | `⏎` `l` switch, `alt+↑` `alt+↓` reorder, `n` session, `w` worktree, `a` add project, `R` rename, `p` pin, `z` sleep, `x` `d` `del` kill, delete, close, `o` view options, `r` refresh                                                                                                                       |
+| Sessions       | `⏎` `l` switch, `/` find, `alt+↑` `alt+↓` reorder, `n` session, `w` worktree, `a` add project, `R` rename, `p` pin, `z` sleep, `x` `d` `del` kill, delete, close, `o` view options, `r` refresh                                                                                                             |
 | Search         | `ctrl+f` `/` `i` query, `ctrl+h` replace, `ctrl+i` include, `⏎` `o` open, `r` `R` replace in file, all, `alt+c` `alt+w` `alt+r` `alt+p` case, word, regex, preserve case, `t` tree, `ctrl+r` rerun, `x` clear, `C` collapse                                                                                 |
 | GitHub         | `⏎` open, `d` pull request diff, `w` worktree (issue: start one), `o` github.com, `y` copy link, `x` mark done, `ctrl+r` refresh, `C` collapse; on an opened page `c` comment, `x` close, `M` merge, `R` ready                                                                                              |
 | Databases      | `⏎` `l` open a table, unfold a source, `t` console, `n` new connection, `e` `D` edit, remove one, `c` `y` copy name, path, `r` `ctrl+r` refresh, `C` collapse; in its form `tab` `↑` `↓` move, `←` `→` change Type and Save, `ctrl+t` test, `⏎` save                                                        |

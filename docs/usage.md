@@ -49,6 +49,7 @@ sessions open side by side, a group each.
 | `w`      | add a worktree to the selected project                                    |
 | `n`      | start an agent or a terminal in the worktree, or a row's `+`              |
 | `x`      | kill a session, delete a worktree or close a project; a row's `✕` too     |
+| `/`      | find a project or session by words, accents optional; `⏎` opens it        |
 | `o`      | filter, sort and group the list                                           |
 | `alt+↑↓` | reorder sessions and worktrees                                            |
 

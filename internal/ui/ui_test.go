@@ -1490,6 +1490,7 @@ func TestFilesAndAgentsFilter(t *testing.T) {
 
 	press(m, "ctrl+f", "esc")
 
+	m.sessions[0].Name = "shipit" // found by its name, not its agent
 	press(m, "3", "ctrl+f", "s", "h")
 
 	var kinds []int
