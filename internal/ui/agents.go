@@ -29,15 +29,16 @@ const (
 	agSession
 	agSub  // a subagent the session above runs: seen, never selected; a click goes to its session
 	agGap  // the row before an open heading, drawn as a rule over it; blank before the folded and as the padding that sinks them; nothing selects it
-	agTime // a heading of no project: Pinned, No Sessions, Group by Time's Today, Yesterday, …, or Group by State's
+	agTime // a heading of no project: Pinned, Other Projects, Group by Time's Today, Yesterday, …, or Group by State's
 )
 
 // pinnedHead is the heading over the pinned sessions, an agTime row.
 const pinnedHead = "Pinned"
 
-// bareHead is the heading over the projects with no session, an agTime row
-// last in the tree.
-const bareHead = "No Sessions"
+// bareHead is the heading over the projects with no session awake: folded,
+// every session asleep, or none at all. An agTime row last in the tree, the
+// projects under it A–Z.
+const bareHead = "Other Projects"
 
 type agRow struct {
 	kind    int
@@ -46,7 +47,9 @@ type agRow struct {
 	s       proto.Session
 	when    string // agTime: the heading
 	pinned  bool   // a row under Pinned: a session's copy, or its worktree's
-	bare    bool   // a project under bareHead: one row, dimmed, no fold
+	bare    bool   // a project with no session: one row under bareHead, dimmed, no fold
+	tail    bool   // a row under bareHead: a tight list, no rule between its projects
+	closed  bool   // a project heading that lists nothing under it
 	sub     proto.Subagent
 }
 
@@ -54,8 +57,9 @@ type agRow struct {
 type agents struct {
 	l         list
 	collapsed map[string]bool
-	folded    []string // the collapsed keys in the order the folded list shows them, the one folded last first
-	ptop      int      // the Pinned pane's first row in view; l.top is the tree's
+	folded    []string        // the collapsed keys, saved; the one folded last first
+	opened    map[string]bool // projects under bareHead opened in place, until one of their sessions wakes
+	ptop      int             // the Pinned pane's first row in view; l.top is the tree's
 }
 
 type newSessionMsg proto.Session
@@ -152,29 +156,29 @@ func matching(q string, out []agRow) []agRow {
 
 // treeRows are Group by Workspace's rows: project, worktree, session. A
 // project whose only worktree is its own checkout shows it on its heading
-// (merged), its sessions straight under that. A folded project sinks below
-// the open ones, to the top of the folded (shownProjects), so the spaces in
-// use stay together at the top; unfolded it goes last among the open
-// (unfold). The projects with no session go after all, under bareHead, a
-// row each in the project Sort's order, whatever their fold: nothing hangs
-// off them.
+// (merged), its sessions straight under that. On top go the projects with a
+// session awake (awake) and not folded, in the project Sort's order. Every
+// other project goes under bareHead, A–Z, a row each: folded, all its
+// sessions asleep, or none at all. One asleep opens there in place (opened)
+// and goes on top once a session in it wakes.
 func (a *agents) treeRows(m *Model, sessions []proto.Session, q string) []agRow {
 	var (
-		open, bare []agRow
-		folded     [][]agRow
+		open []agRow
+		tail [][]agRow
 	)
 
-	busy := m.busyProjects()
-	add := func(p string, rows []agRow) {
-		switch {
-		case len(rows) == 0:
-		case !busy[p]:
-			bare = append(bare, rows...)
-		case a.collapsed[p]:
-			folded = append(folded, rows)
-		default:
+	busy, awake := m.busyProjects(), m.awake()
+	add := func(rows []agRow) {
+		if rows[0].tail {
+			tail = append(tail, rows)
+		} else {
 			open = append(open, rows...)
 		}
+	}
+	head := func(p string) agRow {
+		top := awake[p] && !a.collapsed[p]
+
+		return agRow{kind: agProject, project: p, bare: p != "" && !busy[p], tail: !top, closed: !top && (!busy[p] || !a.opened[p])}
 	}
 
 	known := map[string]bool{}
@@ -188,34 +192,30 @@ func (a *agents) treeRows(m *Model, sessions []proto.Session, q string) []agRow 
 			}
 		}
 
-		head := agRow{kind: agProject, project: p, bare: p != "" && !busy[p]}
-		if len(wts) == 1 && wts[0].Main && (!a.collapsed[p] || q != "" || head.bare) {
+		head := head(p)
+		if len(wts) == 1 && wts[0].Main && (!head.closed || q != "" || head.bare) {
 			head.ws = wts[0]
 		}
 
 		rows := []agRow{head}
-		if head.bare { // nothing under it to unfold
-			add(p, rows)
-			continue
-		}
 
 		for _, w := range wts {
-			if a.collapsed[p] && q == "" {
+			if head.bare || head.closed && q == "" { // nothing under it to unfold, or folded
 				break
 			}
 
 			if !head.merged() {
-				rows = append(rows, agRow{kind: agWorkspace, project: p, ws: w})
+				rows = append(rows, agRow{kind: agWorkspace, project: p, ws: w, tail: head.tail})
 			}
 
 			for _, s := range sessions {
 				if s.Workspace == w.Path {
-					rows = append(rows, agRow{kind: agSession, project: p, ws: w, s: s})
+					rows = append(rows, agRow{kind: agSession, project: p, ws: w, s: s, tail: head.tail})
 				}
 			}
 		}
 
-		add(p, rows)
+		add(rows)
 	}
 
 	var other []agRow
@@ -226,29 +226,32 @@ func (a *agents) treeRows(m *Model, sessions []proto.Session, q string) []agRow 
 		}
 
 		if other == nil {
-			other = []agRow{{kind: agProject}}
+			other = []agRow{head("")}
 		}
 
-		if !a.collapsed[""] || q != "" {
-			other = append(other, agRow{kind: agSession, ws: proto.Workspace{Path: s.Workspace}, s: s})
+		if !other[0].closed || q != "" {
+			other = append(other, agRow{kind: agSession, ws: proto.Workspace{Path: s.Workspace}, s: s, tail: other[0].tail})
 		}
 	}
 
-	add("", other)
+	if other != nil {
+		add(other)
+	}
 
-	slices.SortStableFunc(folded, func(x, y []agRow) int { return cmp.Compare(a.foldRank(x[0].project), a.foldRank(y[0].project)) })
-
-	open = append(open, slices.Concat(folded...)...)
-	if bare == nil {
+	if tail == nil {
 		return open
 	}
+
+	slices.SortStableFunc(tail, func(x, y []agRow) int {
+		return cmp.Compare(strings.ToLower(agLabel(x[0])), strings.ToLower(agLabel(y[0])))
+	})
 
 	open = append(open, agRow{kind: agTime, when: bareHead})
 	if a.collapsed[timeKey(bareHead)] && q == "" {
 		return open
 	}
 
-	return append(open, bare...)
+	return append(open, slices.Concat(tail...)...)
 }
 
 // merged reports an open project heading that holds its own checkout, its
@@ -272,37 +275,42 @@ func (m *Model) busyProjects() map[string]bool {
 	return busy
 }
 
-// shownProjects are the projects in the order Sessions lists them: the open
-// ones in the project Sort's order, then the folded ones, the one folded last
-// first; then the projects with no session, under bareHead, in the Sort's.
-func (a *agents) shownProjects(m *Model) []string {
-	busy := m.busyProjects()
+// awake are the projects with a session that is not asleep, or with the one
+// on screen whatever it is: so the project in use stays on top. "" for one
+// outside every known worktree.
+func (m *Model) awake() map[string]bool {
+	out := map[string]bool{}
 
-	open := slices.DeleteFunc(m.projects(), func(p string) bool { return !busy[p] || a.collapsed[p] })
-	folded := slices.DeleteFunc(m.projects(), func(p string) bool { return !busy[p] || !a.collapsed[p] })
-	slices.SortStableFunc(folded, func(x, y string) int { return cmp.Compare(a.foldRank(x), a.foldRank(y)) })
-
-	return append(append(open, folded...), slices.DeleteFunc(m.projects(), func(p string) bool { return busy[p] })...)
-}
-
-// shut reports project p listed folded: folded, and with a session; under
-// bareHead a project is one row either way, in the project order.
-func (a *agents) shut(m *Model, p string) bool { return a.collapsed[p] && m.busyProjects()[p] }
-
-// apart reports projects x and p listed apart, which no move crosses: one
-// folded and one open, or one with sessions (busy) and one under bareHead.
-func (a *agents) apart(busy map[string]bool, x, p string) bool {
-	return busy[x] != busy[p] || busy[p] && a.collapsed[x] != a.collapsed[p]
-}
-
-// foldRank is folded heading k's place in the folded list; one the list
-// misses goes after the rest, in its saved order.
-func (a *agents) foldRank(k string) int {
-	if i := slices.Index(a.folded, k); i >= 0 {
-		return i
+	for _, s := range m.mainSessions() {
+		if s.Status != "asleep" || s.ID == m.sess {
+			out[m.projectOf(s.Workspace)] = true
+		}
 	}
 
-	return len(a.folded)
+	return out
+}
+
+// topProjects are the projects Sessions lists on top, in the project Sort's
+// order: the ones a move reorders. The rest go A–Z under bareHead.
+func (a *agents) topProjects(m *Model) []string {
+	awake := m.awake()
+
+	return slices.DeleteFunc(m.projects(), func(p string) bool { return !awake[p] || a.collapsed[p] })
+}
+
+// top reports project p listed on top: a session in it awake, not folded.
+func (a *agents) top(m *Model, p string) bool { return !a.collapsed[p] && m.awake()[p] }
+
+// openInPlace opens project p where it lists under bareHead: unfolded, so it
+// goes on top once a session in it wakes, and opened till then.
+func (a *agents) openInPlace(p string) tea.Cmd {
+	if a.opened == nil {
+		a.opened = map[string]bool{}
+	}
+
+	a.opened[p] = true
+
+	return a.unfold(p)
 }
 
 // fold shuts heading k, on top of the folded, or opens it.
@@ -321,14 +329,13 @@ func (a *agents) fold(k string, shut bool) {
 
 // withGaps puts a row before every open heading but the first, drawn as a
 // rule over it, VS Code's border over a pane; and a blank one before the
-// folded that follow an open one, so a run of them stays a tight list. A
-// heading with nothing under it, a project with no session, has nothing to
-// set apart either. The row before bareHead is a blank: a caption, not a pane.
+// folded that follow an open one, so a run of them stays a tight list. The
+// projects under bareHead are one tight list; the row before bareHead is a
+// blank: a caption, not a pane.
 func (a *agents) withGaps(rows []agRow) []agRow {
 	out := make([]agRow, 0, len(rows)+4)
 	for i, r := range rows {
-		lone := r.kind == agProject && rows[max(i-1, 0)].kind == agProject
-		if (r.kind == agProject || r.kind == agTime) && i > 0 && rows[i-1].when != bareHead && !lone && (!a.collapsed[foldKey(r)] || rows[i-1].kind != r.kind) {
+		if (r.kind == agProject || r.kind == agTime) && i > 0 && !r.tail && (!a.collapsed[foldKey(r)] || rows[i-1].kind != r.kind) {
 			out = append(out, agRow{kind: agGap})
 		}
 
@@ -338,18 +345,12 @@ func (a *agents) withGaps(rows []agRow) []agRow {
 	return out
 }
 
-// pinFolded pads the tree with blank rows before its first folded project, or
-// a folded bareHead, so the folded sit on the panel's bottom edge as VS
-// Code's collapsed views do. A tree taller than the panel scrolls as it is;
-// all folded, they all sink. The Pinned pane takes the panel's first above
-// lines.
+// pinFolded pads the tree with blank rows before bareHead, so the projects
+// under it sit on the panel's bottom edge as VS Code's collapsed views do. A
+// tree taller than the panel scrolls as it is. The Pinned pane takes the
+// panel's first above lines.
 func (a *agents) pinFolded(m *Model, rows []agRow, above int) []agRow {
-	k := slices.IndexFunc(rows, func(r agRow) bool {
-		return r.kind == agProject && !r.bare && a.collapsed[r.project] || r.when == bareHead
-	})
-	if k >= 0 && rows[k].when == bareHead && !a.collapsed[timeKey(bareHead)] { // open, it is no folded list
-		k = -1
-	}
+	k := slices.IndexFunc(rows, func(r agRow) bool { return r.when == bareHead })
 
 	pad := m.bodyH(viewAgents) - above - len(rows)
 	if !m.byWorkspace() || k < 0 || pad <= 0 {
@@ -740,7 +741,7 @@ func (a *agents) collapseAll(m *Model) tea.Cmd {
 	var shut []string // the open ones, over the folded in the order they were listed
 
 	for _, r := range a.rows(m) {
-		if (r.kind == agProject || r.kind == agTime) && !r.bare && !a.collapsed[foldKey(r)] {
+		if (r.kind == agProject || r.kind == agTime) && !r.tail && r.when != bareHead && !a.collapsed[foldKey(r)] { // what is under bareHead is folded already
 			shut = append(shut, foldKey(r))
 		}
 	}
@@ -749,22 +750,17 @@ func (a *agents) collapseAll(m *Model) tea.Cmd {
 		a.fold(k, true)
 	}
 
+	clear(a.opened)
+
 	return a.saveFolds()
 }
 
-// unfold opens heading k. A project sorted manually goes last among the open
-// ones and is saved there: it does not go back to where it was.
-func (a *agents) unfold(m *Model, k string) tea.Cmd {
+// unfold opens heading k: a project goes back to its place in the project
+// Sort's order.
+func (a *agents) unfold(k string) tea.Cmd {
 	a.fold(k, false)
 
-	i := slices.Index(m.st.Projects, k)
-	if i < 0 || m.st.Settings.SpProj == "updated" {
-		return a.saveFolds()
-	}
-
-	m.st.Projects = append(slices.Delete(slices.Clone(m.st.Projects), i, i+1), k)
-
-	return tea.Batch(a.saveFolds(), do("project.move", proto.MoveParams{Path: k, To: len(m.st.Projects) - 1}))
+	return a.saveFolds()
 }
 
 // saveFolds sends the folded headings to state.json, so a restart keeps
@@ -1116,21 +1112,20 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			case r.when == pinnedHead: // the pane's strip
 				right = count(len(ss))
 			case r.when == bareHead: // a dim caption, not one more project
-				busy := m.busyProjects()
-				right = count(len(slices.DeleteFunc(m.projects(), func(p string) bool { return busy[p] })))
+				right = count(len(m.projects()) - len(a.topProjects(m)))
 
 			case m.st.Settings.SpGroup == "state":
 				right = count(len(ss))
 			}
 
 			if r.when == bareHead {
-				return row(rw, bg, []seg{sg(" "+chevron(open), dim), sg("no sessions", dim)}, right...)
+				return row(rw, bg, []seg{sg(" "+chevron(open), dim), sg("other projects", dim)}, right...)
 			}
 
 			return row(rw, bg, []seg{sg(" "+chevron(open), dim), sg(m.spin(glyph, ss...), fg(c)), sg(r.when, base.Bold(true))}, right...)
 
 		case agProject:
-			open := !a.collapsed[r.project]
+			open := !r.closed
 
 			var ss []proto.Session
 
@@ -1323,8 +1318,14 @@ const resumeGrace = 30 * time.Second
 // list prev: what an agent does shows. Only the change opens one, so a
 // project folded again while its agent works stays shut; a session prev
 // misses, as every one is on start, opens nothing; nor do the agents a
-// restarted daemon resumes, running as they come back (resumeGrace).
+// restarted daemon resumes, running as they come back (resumeGrace). A
+// project opened in place under bareHead is on top once awake, and shut
+// when it sleeps again.
 func (a *agents) unfoldRunning(m *Model, prev []proto.Session) tea.Cmd {
+	for p := range m.awake() {
+		delete(a.opened, p)
+	}
+
 	if time.Since(m.reconnAt) < resumeGrace {
 		return nil
 	}
@@ -1337,18 +1338,18 @@ func (a *agents) unfoldRunning(m *Model, prev []proto.Session) tea.Cmd {
 			continue
 		}
 
-		if p := m.projectOf(s.Workspace); a.shut(m, p) {
-			saved = tea.Batch(saved, a.unfold(m, p))
+		if p := m.projectOf(s.Workspace); a.collapsed[p] {
+			saved = tea.Batch(saved, a.unfold(p))
 		}
 	}
 
 	return saved
 }
 
-// reveal selects workspace path's row, its project unfolded (and No Sessions
-// over it), as a click on it would: whatever switches the workspace shows
-// where it went. A selection already inside that workspace, a clicked
-// session, stays.
+// reveal selects workspace path's row, its project unfolded (opened in place
+// under bareHead, and bareHead over it), as a click on it would: whatever
+// switches the workspace shows where it went. A selection already inside
+// that workspace, a clicked session, stays.
 func (a *agents) reveal(m *Model, path string) tea.Cmd {
 	if r := a.selected(m); r != nil && r.kind != agProject && r.ws.Path == path {
 		return nil
@@ -1356,12 +1357,16 @@ func (a *agents) reveal(m *Model, path string) tea.Cmd {
 
 	var saved tea.Cmd
 
-	if w := m.workspace(path); w != nil && a.shut(m, w.Project) {
-		saved = a.unfold(m, w.Project)
-	}
+	if w := m.workspace(path); w != nil && !a.top(m, w.Project) {
+		if m.busyProjects()[w.Project] {
+			saved = a.openInPlace(w.Project)
+		}
 
-	if w := m.workspace(path); w != nil && !m.busyProjects()[w.Project] && a.collapsed[timeKey(bareHead)] {
-		saved = tea.Batch(saved, a.unfold(m, timeKey(bareHead)))
+		if !a.top(m, w.Project) && a.collapsed[timeKey(bareHead)] {
+			saved = tea.Batch(saved, a.unfold(timeKey(bareHead)))
+		}
+	} else if w != nil {
+		delete(a.opened, w.Project) // on top now: shut when it sinks again
 	}
 
 	rows := a.rows(m)
@@ -1384,7 +1389,8 @@ func (a *agents) selected(m *Model) *agRow {
 
 // follow keeps the selection on row r, the one selected before the rows
 // changed: sorted by Updated, a session that changes moves up the list, and
-// the highlight goes with it rather than onto whatever took its place.
+// the highlight goes with it rather than onto whatever took its place. A row
+// gone into its project, one asleep under bareHead, leaves it on the project.
 func (a *agents) follow(m *Model, r *agRow) {
 	if r == nil {
 		return
@@ -1405,6 +1411,10 @@ func (a *agents) follow(m *Model, r *agRow) {
 		tree := *r
 		tree.pinned, r = false, &tree
 		i = slices.IndexFunc(rows, same)
+	}
+
+	if i < 0 && r.kind != agProject && !r.pinned {
+		i = slices.IndexFunc(rows, func(o agRow) bool { return o.kind == agProject && o.project == r.project })
 	}
 
 	if i >= 0 {
@@ -1534,14 +1544,21 @@ func (a *agents) activate(m *Model, r *agRow) tea.Cmd {
 	case agProject, agTime:
 		var saved tea.Cmd
 
-		if k := foldKey(*r); a.collapsed[k] {
-			saved = a.unfold(m, k)
-		} else {
+		k := foldKey(*r)
+		switch {
+		case r.tail && r.closed && (!a.collapsed[k] || !m.awake()[k]): // asleep under bareHead: it opens in place
+			saved = a.openInPlace(k)
+		case r.tail && !r.closed:
+			delete(a.opened, k)
+		case a.collapsed[k]:
+			saved = a.unfold(k)
+		default:
 			a.fold(k, true)
+			delete(a.opened, k) // opened in place before it woke: it goes under bareHead shut
 			saved = a.saveFolds()
 		}
 
-		a.follow(m, r) // a folded project sinks below the open ones, an unfolded one goes last among them
+		a.follow(m, r) // a folded project goes under bareHead, an unfolded one back on top
 		a.snap(m)
 
 		return saved
@@ -1549,7 +1566,10 @@ func (a *agents) activate(m *Model, r *agRow) tea.Cmd {
 	case agWorkspace:
 		return tea.Batch(m.switchWorkspace(r.ws.Path), m.refreshGit(), m.fetchScreen())
 	case agSession: // the one on screen too: it keeps its tab and takes the keyboard, as VS Code's open file does
-		return m.openSession(r.s.ID)
+		opened := m.openSession(r.s.ID)
+		a.follow(m, r) // on screen, an asleep one's project goes on top
+
+		return opened
 	}
 
 	return nil
@@ -2023,7 +2043,7 @@ func (a *agents) actions(m *Model, r agRow, w int) []rowAction {
 		return []rowAction{pin, a.killAction(r, w)}
 	}
 
-	head := " " + chevron(!a.collapsed[r.project]) + "· " + agLabel(r) // any status glyph is a cell and a space
+	head := " " + chevron(!r.closed) + "· " + agLabel(r) // any status glyph is a cell and a space
 
 	acts := []rowAction{{g: icAdd, text: "New Session", run: func(m *Model) tea.Cmd { return a.newSession(m, &r) }}}
 	resume := rowAction{g: icResume, text: "Resume", run: func(m *Model) tea.Cmd { return m.resumePicker(r.ws.Path) }}
@@ -2054,7 +2074,7 @@ func (a *agents) actions(m *Model, r agRow, w int) []rowAction {
 			acts[i].text, acts[i].tip = "", tip
 		}
 
-	case r.kind == agProject && r.project != "" && !a.collapsed[r.project]: // folded, it shows nothing
+	case r.kind == agProject && r.project != "" && !r.closed: // folded, it shows nothing
 		acts[0] = worktree
 
 	default:
@@ -2439,17 +2459,12 @@ func (a *agents) dragRowTo(m *Model, d *drag, x, y int, release bool) tea.Cmd {
 
 	a.moveProject(m, d.proj, d.to)
 
-	if a.shut(m, d.proj) { // the folded keep an order of their own, saved with them
-		return a.saveFolds()
-	}
-
 	return do("project.move", proto.MoveParams{Path: d.proj, To: slices.Index(m.st.Projects, d.proj)})
 }
 
 // dropOn is the row under the pointer whose place drag d would take: one of
 // its kind and among its own, a session's worktree's or a worktree's
-// project's, a project folded or open as it is (projectDrop); "" for none
-// or its own.
+// project's, a project on top (projectDrop); "" for none or its own.
 func (a *agents) dropOn(m *Model, d *drag) string {
 	rows, y := a.rows(m), m.hoverRow(viewAgents)
 
@@ -2507,7 +2522,7 @@ func (a *agents) dropSlot(m *Model, rows []agRow) (at, h, band int) {
 		return -1, 0, 0
 	}
 
-	open := d.proj != "" && !a.collapsed[d.proj] && m.busyProjects()[d.proj] // a tree under it
+	open := d.proj != "" && a.top(m, d.proj) // a tree under it
 
 	key := func(r agRow) string {
 		switch {
@@ -2554,42 +2569,40 @@ func (a *agents) dropSlot(m *Model, rows []agRow) (at, h, band int) {
 // alt+↑↓'s half of the drag.
 func (a *agents) shiftProject(m *Model, path string, d int) tea.Cmd {
 	if !a.projectMovable(m, path) {
-		m.flash("sort projects manually to reorder them", false)
+		if a.top(m, path) { // under bareHead they go A–Z
+			m.flash("sort projects manually to reorder them", false)
+		}
+
 		return nil
 	}
 
-	order := a.shownProjects(m)
+	order := a.topProjects(m)
 	i := slices.Index(order, path)
 
 	j := i + d
-	if i < 0 || j < 0 || j >= len(order) || a.apart(m.busyProjects(), order[j], path) { // nothing crosses into the folded, or under bareHead
+	if i < 0 || j < 0 || j >= len(order) { // nothing crosses under bareHead
 		return nil
 	}
 
 	a.moveProject(m, path, order[j])
 
-	if a.shut(m, path) {
-		return a.saveFolds()
-	}
-
 	return do("project.move", proto.MoveParams{Path: path, To: slices.Index(m.st.Projects, path)})
 }
 
-// projectMovable says whether project p moves by hand: the folded keep an
-// order of their own, the open sorted by Updated the clock's.
+// projectMovable says whether project p moves by hand: one on top sorted
+// manually. Under bareHead they go A–Z; sorted by Updated, on the clock.
 func (a *agents) projectMovable(m *Model, p string) bool {
-	return a.shut(m, p) || m.st.Settings.SpProj != "updated"
+	return a.top(m, p) && m.st.Settings.SpProj != "updated"
 }
 
 // projectDrop is the project whose place dragged project p takes with the
-// pointer on row i, one folded or open as p is: on a project's upper half p
+// pointer on row i, one on top as p is: on a project's upper half p
 // goes above it, on its lower half below, and a one-row project, a folded
 // one, is taken whole. On a gap, or past the end, p goes where the gap is:
 // above the project below it, else below the one above it. "" for none or
 // p's own place.
 func (a *agents) projectDrop(m *Model, p string, rows []agRow, i int) string {
-	busy := m.busyProjects()
-	order := slices.DeleteFunc(a.shownProjects(m), func(x string) bool { return a.apart(busy, x, p) })
+	order := a.topProjects(m)
 	from := slices.Index(order, p)
 	gap := -1 // p goes before order[gap], past the end at len(order)
 
@@ -2640,9 +2653,6 @@ func (a *agents) projectDrop(m *Model, p string, rows []agRow, i int) string {
 // It reorders the model's own copy, which the daemon is then told of.
 func (a *agents) moveProject(m *Model, from, to string) {
 	order := &m.st.Projects
-	if a.shut(m, from) { // among the folded: their own order
-		order = &a.folded
-	}
 
 	i, j := slices.Index(*order, from), slices.Index(*order, to)
 	if i < 0 || j < 0 || i == j {

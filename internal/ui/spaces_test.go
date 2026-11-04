@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -196,10 +197,10 @@ func TestSpacesIdleAge(t *testing.T) {
 }
 
 // TestSpacesNoSessions lists the projects with no session last, under a
-// dim caption of their own that counts them, folds like a project and sinks to
-// the bottom edge folded; each is one dimmed row with no fold, folded or not,
-// ⏎ on it switches into it, nothing moves across the heading, and a switch
-// into one opens it.
+// dim caption of the projects not on top that counts them, folds like a
+// project and sinks to the bottom edge; each is one dimmed row with no fold,
+// folded or not, ⏎ on it switches into it, nothing moves across the heading,
+// and a switch into one opens it.
 func TestSpacesNoSessions(t *testing.T) {
 	m := testModel(t)
 	b1, b2 := addProject(t, m, "main"), addProject(t, m, "main")
@@ -222,14 +223,14 @@ func TestSpacesNoSessions(t *testing.T) {
 	}
 
 	want := []string{filepath.Base(m.ws), "s1", "", bareHead, filepath.Base(b1), filepath.Base(b2)} // nothing under them to set apart
-	if !slices.Equal(shape, want) {
+	if shape = slices.Compact(shape); !slices.Equal(shape, want) {                                  // the blank, then the padding that sinks them
 		t.Fatalf("rows %q want %q", shape, want)
 	}
 
 	head := slices.IndexFunc(rows, func(r agRow) bool { return r.when == bareHead })
 	lines := m.ag.lines(m, 40, m.bodyH(viewAgents))
 
-	if l := strings.TrimRight(ansi.Strip(lines[head]), " "); !strings.HasPrefix(l, " ▾ no sessions") || !strings.HasSuffix(l, " 2") {
+	if l := strings.TrimRight(ansi.Strip(lines[head]), " "); !strings.HasPrefix(l, " ▾ other projects") || !strings.HasSuffix(l, " 2") {
 		t.Fatalf("the caption counts its projects: %q", l)
 	}
 
@@ -293,8 +294,8 @@ func TestSpacesNoSessions(t *testing.T) {
 
 	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: b2, Agent: "shell"}, Status: "idle"})
 
-	if got := m.ag.shownProjects(m); !slices.Equal(got, []string{b2, m.ws, b1}) { // the open busy, the folded, the bare
-		t.Fatalf("a session takes its project up among the busy: %v", got)
+	if got := m.ag.topProjects(m); !slices.Equal(got, []string{b2}) { // the folded and the bare stay under the caption
+		t.Fatalf("a session takes its project up on top: %v", got)
 	}
 }
 
@@ -443,5 +444,88 @@ func TestSpacesUnfoldRunning(t *testing.T) {
 
 	if !m.ag.collapsed[other] {
 		t.Fatal("an agent a restarted daemon resumes opens nothing")
+	}
+}
+
+// TestSessionsSwitchIntoTail clicks into a project asleep under Other
+// Projects: its session goes on screen, the project on top, and the
+// selection on its row there; a click on an asleep session opened in place
+// keeps the selection on that session.
+func TestSessionsSwitchIntoTail(t *testing.T) {
+	m := testModelSized(t, 100, 40)
+	p, q := addProject(t, m, "main"), addProject(t, m, "main")
+	m.sessions = append(m.sessions,
+		proto.Session{SessionSpec: proto.SessionSpec{ID: "p1", Workspace: p, Agent: "claude"}, Status: "asleep"},
+		proto.Session{SessionSpec: proto.SessionSpec{ID: "q1", Workspace: q, Agent: "claude"}, Status: "asleep"})
+	press(m, "3")
+
+	clickRow := func(pred func(agRow) bool, dx int) {
+		t.Helper()
+
+		i := slices.IndexFunc(m.ag.rows(m), pred)
+		if i < 0 {
+			t.Fatal("no such row")
+		}
+
+		col := m.colOf(viewAgents)
+		click(m, m.colRect(col).x+m.barW(col)+dx, m.bodyTop(viewAgents)+i-m.ag.l.top, tea.MouseLeft)
+	}
+
+	clickRow(func(r agRow) bool { return r.kind == agProject && r.project == p }, 8) // its name, not the chevron
+
+	if r := m.ag.selected(m); m.sess != "p1" || r == nil || !r.shows(p) || r.tail {
+		t.Fatalf("a switch into it selects its row on top: sess %q, %+v", m.sess, r)
+	}
+
+	clickRow(func(r agRow) bool { return r.kind == agProject && r.project == q }, 1) // the chevron: open in place
+	clickRow(func(r agRow) bool { return r.kind == agSession && r.s.ID == "q1" }, 8)
+
+	if r := m.ag.selected(m); m.sess != "q1" || r == nil || r.kind != agSession || r.s.ID != "q1" || r.tail {
+		t.Fatalf("the session clicked stays selected, on top: sess %q, %+v", m.sess, r)
+	}
+}
+
+// TestSessionsSelectionSinks keeps the selection on a project that sinks
+// under Other Projects as its last session falls asleep: on its row there,
+// not on the blank rows that pin the tail down.
+func TestSessionsSelectionSinks(t *testing.T) {
+	m := testModelSized(t, 100, 30)
+	p := addProject(t, m, "main", "a1")
+	press(m, "3")
+
+	m.ag.l.sel = slices.IndexFunc(m.ag.rows(m), func(r agRow) bool { return r.kind == agSession && r.s.ID == "a1" })
+	next := slices.Clone(m.sessions)
+	next[slices.IndexFunc(next, func(s proto.Session) bool { return s.ID == "a1" })].Status = "asleep"
+	m.Update(sessionsMsg(next))
+
+	if r := m.ag.selected(m); r == nil || r.kind != agProject || r.project != p || !r.tail {
+		t.Fatalf("the selection goes with its project under the caption: %+v", r)
+	}
+}
+
+// TestSessionsSinkScrolls puts every project but the selected one's to
+// sleep in one update: they sink under the caption, and the tree scrolls to
+// the selection, which stays on its session.
+func TestSessionsSinkScrolls(t *testing.T) {
+	m := testModelSized(t, 100, 16)
+	for i := range 12 {
+		addProject(t, m, "main", fmt.Sprintf("x%d", i))
+	}
+
+	press(m, "3", "end") // the last project's session, scrolled to
+	checkWidths(t, m)
+
+	next := slices.Clone(m.sessions)
+	for i := range next {
+		if next[i].ID != "x11" {
+			next[i].Status = "asleep"
+		}
+	}
+
+	m.Update(sessionsMsg(next))
+	checkWidths(t, m)
+
+	if r := m.ag.selected(m); r == nil || r.s.ID != "x11" || m.ag.l.sel < m.ag.l.top || m.ag.l.sel >= m.ag.l.top+m.bodyH(viewAgents) {
+		t.Fatalf("the selection stays on its session, in view: sel %d top %d, %+v", m.ag.l.sel, m.ag.l.top, r)
 	}
 }

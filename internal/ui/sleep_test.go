@@ -15,6 +15,7 @@ func TestAsleepSession(t *testing.T) {
 	m.sessions[0].Status = "asleep"
 	m.st.Settings.Width = 40
 	m.showView(viewAgents)
+	m.ag.openInPlace(m.ws) // every session asleep, it lists under Other Projects
 
 	out := checkWidths(t, m)
 	if !strings.Contains(out, "◌ napper") || !strings.Contains(out, "asleep") {
@@ -36,6 +37,8 @@ func TestAsleepSession(t *testing.T) {
 
 	// Idle: z sends it at once; working, it asks.
 	m.sessions[0].Status = "idle"
+
+	m.ag.l.sel = slices.IndexFunc(m.ag.rows(m), func(r agRow) bool { return r.kind == agSession }) // awake, on top
 	if !slices.Contains(itemLabels(m.ag.items(m)), "Sleep Session") {
 		t.Fatalf("menu %q", itemLabels(m.ag.items(m)))
 	}

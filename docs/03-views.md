@@ -173,16 +173,16 @@ re-roots Explorer and Source Control to its worktree.
    └─ ○ shell            3h   idle since (shortAgo); a shell says shell, other states their word
    ⑂ feat/x       1 ✕   linked worktree (dimmed), ✕ deletes it (hover)
    └─ ○ shell          idle   no Updated yet
-──────────────────────────  a rule over every open heading but the first, none after a lone heading (withGaps)
+──────────────────────────  a rule over every open heading but the first (withGaps)
 ▾ ○ other  ⌂ main + ↺ ⎇  its checkout alone: on the heading (merged), buttons as glyphs with tips
    └─ ○ shell           12m
-
-▸ ○ folded            2   folded projects sink to the bottom (pinFolded): not bold, no rule, no button, a session count
-▸ ○ folded            1
-                          a blank, no rule
-▾ no sessions        21   a dim caption over the projects with no session (bareHead), folds as a heading
-     dotfiles  + ⎇       a row each (bare), dimmed, no glyph, no fold: buttons as a heading holding its checkout
-     kolibrik
+                          a blank, no rule; blanks sink what follows to the bottom edge (pinFolded)
+▾ other projects     24   a dim caption over every project not on top (bareHead), folds as a heading
+▸ ◌ beratung          1   A–Z, a tight list: every session asleep, or folded: not bold, no button, a session count
+     dotfiles  + ⎇       no session (bare): dimmed, no glyph, no fold, buttons as a heading holding its checkout
+▾ ◌ super.dental  ⌂ main  asleep and opened in place (opened): its sessions under it, still A–Z
+   └─ ◌ wails-v3     asleep
+▸ ◐ templates         1   folded by hand, here though a session works
 ```
 
 - A project heading holds its own checkout when that is its only worktree
@@ -193,12 +193,17 @@ re-roots Explorer and Source Control to its worktree.
   project in view only selects, staying on its worktree. The chevron under
   the pointer is raised as a button, as the pin is. Chevrons are the codicon
   twisties (`icTwistyR`, `icTwistyD`) with Nerd Font icons, `▸` `▾` without.
-- Projects with no session, listed or filtered, go under _no sessions_
-  (`bareHead`, `busyProjects`), last, in the project Sort's order: a row
-  each, their fold kept for later but not shown (`shut`). A click or `⏎`
-  switches to its first worktree, `n` starts a session as on a heading;
-  nothing moves across the caption (`apart`). A switch into one opens it
-  (`reveal`).
+- On top go the projects with a session awake (`awake`: not asleep, or the
+  one on screen) and not folded, in the project Sort's order
+  (`topProjects`). Every other project goes under _other projects_
+  (`bareHead`), A–Z, a row each: folded, every session asleep, or no session
+  at all (`bare`). Nothing moves under the caption.
+- One asleep opens in place on its chevron (`openInPlace`, `opened`) and goes
+  on top once a session in it wakes, at its place in the order; asleep
+  again, it is shut. A switch into one opens it so (`reveal`). The project
+  of the session on screen stays on top, asleep or not.
+- A project with no session: a click or `⏎` switches to its checkout, `n`
+  starts a session as on a heading.
 - A session row says its name, then its title where the name does not say
   it (`titleAfter`). A title starting with the issue key a set name ends in
   (`DEV-43739 …` for `jira-dev-43739`) takes the name's place (`keyedBy`).
@@ -261,7 +266,7 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
   `splitSessions`): a group each, side by side and as wide as each other,
   the files of the groups it had in the first.
 - Session reordering applies under Sort by Created + Group by Workspace only;
-  an open project's under Sort Projects Manually only.
+  a project on top's under Sort Projects Manually only.
 - `p`, the gutter's ⊙ (on hover) or the menu pins a session, or unpins it
   (`togglePin`, `spaces_pinned`). Pinned lists it again on top, an `agTime`
   heading (`pinnedRows`), under its worktree so a long branch leaves the
@@ -269,8 +274,9 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
 - Pinned is a pane as tall as its rows, at most a third of the view; past
   that it scrolls on its own (`ptop`), the tree under it too (`l.top`). One
   selection walks both (`snap`, `rowAt`).
-- A folded project tops the folded list (`spaces_folded`); unfolded, it goes
-  last among the open ones, saved there (Sort Projects Manually only).
+- A folded project goes under _other projects_ (`spaces_folded` keeps the
+  folds); unfolded, it goes back to its place on top. _Collapse All Groups_
+  leaves the caption open.
 - A session going to work (to `running`) opens its folded project
   (`unfoldRunning`); folded again while it works, it stays shut. A session
   the list did not hold yet, every one on start, opens nothing; nor does one

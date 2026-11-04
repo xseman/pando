@@ -2179,13 +2179,11 @@ func (m *Model) tipLater() tea.Cmd {
 // editors it had open follow. The command saves the editors of the workspace
 // left behind and loads the one that was active in the new one.
 func (m *Model) switchWorkspace(path string) tea.Cmd {
-	unfolded := m.ag.reveal(m, path)
-
 	if path == m.ws {
-		return unfolded
+		return m.ag.reveal(m, path)
 	}
 
-	saved := tea.Batch(unfolded, m.saveEditors(), m.saveTerm(), m.saveDrafts()) // the panel's too
+	saved := tea.Batch(m.saveEditors(), m.saveTerm(), m.saveDrafts()) // the panel's too
 	m.savedDrafts = nil
 	open := m.termOpen()
 
@@ -2225,6 +2223,8 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 		m.term = term{}
 	}
 
+	unfolded := m.ag.reveal(m, path) // once the session it shows is on screen: an asleep one takes its project on top
+
 	restored := m.restoreEditors()
 	if back := m.waiting[path]; len(back) > 0 { // the tables and values it left unsent, after its files
 		delete(m.waiting, path)
@@ -2246,7 +2246,7 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 		m.fixFocus()
 	}
 
-	return tea.Batch(saved, restored, m.loadDrafts(), m.ensureTerm(), hub, m.db.shown(m), m.cu.shown(m))
+	return tea.Batch(saved, unfolded, restored, m.loadDrafts(), m.ensureTerm(), hub, m.db.shown(m), m.cu.shown(m))
 }
 
 // nextTab is the session a closed tab hands its focus to: the tab left of it,
@@ -2558,7 +2558,12 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sessions = msg
 		cmd = tea.Batch(cmd, m.ag.unfoldRunning(m, prev))
 
+		at := m.ag.l.sel
 		m.ag.follow(m, sel)
+
+		if m.ag.l.sel != at { // projects went under bareHead or back on top: the selection stays in view
+			m.ag.snap(m)
+		}
 
 		if m.showsSession() { // what the focused group shows is seen as it changes; another group's pulses on its frame
 			m.acknowledge(m.sess)

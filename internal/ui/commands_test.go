@@ -485,18 +485,18 @@ func TestAgentsTreeGaps(t *testing.T) {
 	if m.ag.l.sel != gap-1 {
 		t.Fatalf("click on the gap moved the selection to %d", m.ag.l.sel)
 	}
-	// Two folded projects are two rows, no gap between them, pinned to the
-	// panel's bottom edge by the blank rows above them: no rule over either,
-	// and no New Worktree on them.
+	// Two folded projects are two rows under Other Projects, no gap between
+	// them, pinned to the panel's bottom edge by the blank rows above them: no
+	// rule over either, and no New Worktree on them.
 	m.ag.collapsed = map[string]bool{m.ws: true, other: true}
 
 	folded := m.ag.rows(m)
-	if n := len(folded); n != m.bodyH(viewAgents) || folded[n-2].kind != agProject || folded[n-1].kind != agProject ||
-		slices.ContainsFunc(folded[:n-2], func(r agRow) bool { return r.kind != agGap }) {
+	if n := len(folded); n != m.bodyH(viewAgents) || folded[n-3].when != bareHead || folded[n-2].kind != agProject || folded[n-1].kind != agProject ||
+		slices.ContainsFunc(folded[:n-3], func(r agRow) bool { return r.kind != agGap }) {
 		t.Fatalf("folded projects stack without a gap at the bottom: %+v", folded)
 	}
 
-	for i, l := range m.ag.lines(m, 30, len(folded))[:len(folded)-2] {
+	for i, l := range m.ag.lines(m, 30, len(folded))[:len(folded)-3] {
 		if strings.TrimSpace(ansi.Strip(l)) != "" {
 			t.Fatalf("padding line %d draws %q", i, ansi.Strip(l))
 		}
@@ -509,15 +509,16 @@ func TestAgentsTreeGaps(t *testing.T) {
 	m.ag.l.sel = len(folded) - 1
 	press(m, "home")
 
-	if r := m.ag.selected(m); r == nil || r.kind != agProject {
+	if r := m.ag.selected(m); r == nil || r.kind == agGap {
 		t.Fatalf("home over the padding: sel %d", m.ag.l.sel)
 	}
-	// Unfolding the first one puts the gap back before the second.
+	// Unfolded, the first one goes back on top, a blank before the caption
+	// over the second.
 	m.ag.collapsed[m.ws] = false
 	mixed := m.ag.rows(m)
 
-	last := mixed[len(mixed)-1]
-	if last.kind != agProject || mixed[len(mixed)-2].kind != agGap {
+	n := len(mixed)
+	if mixed[0].project != m.ws || mixed[n-1].project != other || mixed[n-2].when != bareHead || mixed[n-3].kind != agGap {
 		t.Fatalf("a gap follows an unfolded project: %+v", mixed)
 	}
 }
@@ -694,78 +695,52 @@ func TestSpacesDragReorder(t *testing.T) {
 	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: other, Agent: "shell"}, Status: "idle"})
 	first := m.ws
 	press(m, "3")
-	m.ag.fold(other, true)
-	m.ag.fold(first, true) // folded last: on top of the folded
-	checkWidths(t, m)      // the list settles its scroll offset when it draws
+	checkWidths(t, m) // the list settles its scroll offset when it draws
+
 	cs, _ := m.layout()
 	x, top := cs[m.colOf(viewAgents)].x+1, m.bodyTop(viewAgents)
-	top += slices.IndexFunc(m.ag.rows(m), func(r agRow) bool { return r.kind == agProject }) // folded, on the bottom edge
-	m.Update(tea.MouseClickMsg{X: x, Y: top, Button: tea.MouseLeft})
+	at := func(p string) int {
+		return slices.IndexFunc(m.ag.rows(m), func(r agRow) bool { return r.kind == agProject && r.project == p })
+	}
+	from, to := top+at(first), top+at(other)+1 // the other project's lower half: past it
+	m.Update(tea.MouseClickMsg{X: x, Y: from, Button: tea.MouseLeft})
 
 	if m.drag == nil || m.drag.kind != dragRow || m.drag.proj != first {
 		t.Fatalf("a press on a project row starts a drag: %+v", m.drag)
 	}
 
-	if !m.ag.collapsed[first] {
-		t.Fatal("the press must not unfold the project: the fold waits for the release")
-	}
+	m.Update(tea.MouseMotionMsg{X: x, Y: to, Button: tea.MouseLeft})
 
-	m.Update(tea.MouseMotionMsg{X: x, Y: top + 1, Button: tea.MouseLeft})
-
-	if got := m.ag.shownProjects(m); !slices.Equal(got, []string{first, other}) || m.drag.to != other {
+	if got := m.ag.topProjects(m); !slices.Equal(got, []string{first, other}) || m.drag.to != other {
 		t.Fatalf("the list stays put while the drop is marked: shown %v, to %q", got, m.drag.to)
 	}
 
-	_, cmd := m.Update(tea.MouseReleaseMsg{X: x, Y: top + 1, Button: tea.MouseLeft})
+	_, cmd := m.Update(tea.MouseReleaseMsg{X: x, Y: to, Button: tea.MouseLeft})
 	if cmd == nil || m.drag != nil {
 		t.Fatalf("the release saves the order: cmd %v drag %+v", cmd != nil, m.drag)
 	}
 
-	// The folded keep an order of their own: the saved project order stays.
-	if got := m.ag.shownProjects(m); !slices.Equal(got, []string{other, first}) || !slices.Equal(m.st.Projects, []string{first, other}) {
+	if got := m.ag.topProjects(m); !slices.Equal(got, []string{other, first}) || !slices.Equal(m.st.Projects, []string{other, first}) {
 		t.Fatalf("the release moves the project: shown %v, saved %v", got, m.st.Projects)
 	}
 
 	if r := m.ag.selected(m); r == nil || r.project != first {
 		t.Fatalf("the moved row stays selected: %+v", r)
 	}
-	// A press and release on the same row is a click, and unfolds.
-	click(m, x, top, tea.MouseLeft)
-
-	if m.ag.collapsed[other] {
-		t.Fatal("a click that never moved unfolds the project")
-	}
-	// A folded project sits below every open one, and alt+↑↓ keeps it there.
-	onFirst := func() {
-		m.ag.l.sel = slices.IndexFunc(m.ag.rows(m), func(r agRow) bool { return r.kind == agProject && r.project == first })
-	}
-	onFirst()
+	// Folded, it goes under Other Projects, A–Z: alt+↑↓ leaves it there.
+	m.ag.fold(first, true)
+	m.ag.l.sel = at(first)
 	press(m, "alt+up")
 
-	if got := m.ag.shownProjects(m); !slices.Equal(got, []string{other, first}) {
-		t.Fatalf("alt+up takes a folded project above an open one: %v", got)
+	if !slices.Equal(m.st.Projects, []string{other, first}) || m.ag.projectMovable(m, first) {
+		t.Fatalf("alt+up moves a folded project: %v", m.st.Projects)
 	}
-	// alt+↑↓ does what the drag does from the keyboard, among the folded…
-	m.ag.fold(other, true)
-	onFirst()
-	press(m, "alt+up")
-
-	if got := m.ag.shownProjects(m); !slices.Equal(got, []string{first, other}) || !slices.Equal(m.st.Projects, []string{first, other}) {
-		t.Fatalf("alt+up moves the folded project: shown %v, saved %v", got, m.st.Projects)
-	}
-
-	press(m, "alt+up")
-
-	if got := m.ag.shownProjects(m); got[0] != first {
-		t.Fatalf("alt+up at the top does nothing: %v", got)
-	}
-	// …and among the open, in the saved project order.
+	// On top, alt+↑↓ does what the drag does, in the saved project order.
 	m.ag.fold(first, false)
-	m.ag.fold(other, false)
-	m.ag.l.sel = slices.IndexFunc(m.ag.rows(m), func(r agRow) bool { return r.kind == agProject && r.project == other })
+	m.ag.l.sel = at(first)
 	press(m, "alt+up")
 
-	if !slices.Equal(m.st.Projects, []string{other, first}) {
+	if !slices.Equal(m.st.Projects, []string{first, other}) {
 		t.Fatalf("alt+up moves the open project: %v", m.st.Projects)
 	}
 }
@@ -799,7 +774,7 @@ func TestSpacesProjectSort(t *testing.T) {
 
 	choose("Sort Projects by Updated")
 
-	if got := m.ag.shownProjects(m); !slices.Equal(got, []string{other, first}) || !slices.Equal(m.st.Projects, []string{first, other}) {
+	if got := m.ag.topProjects(m); !slices.Equal(got, []string{other, first}) || !slices.Equal(m.st.Projects, []string{first, other}) {
 		t.Fatalf("by updated, the saved order kept: shown %v, saved %v", got, m.st.Projects)
 	}
 
@@ -808,7 +783,7 @@ func TestSpacesProjectSort(t *testing.T) {
 	m.ag.l.sel = 0
 	press(m, "alt+down")
 
-	if got := m.ag.shownProjects(m); got[0] != other || !slices.Equal(m.st.Projects, []string{first, other}) {
+	if got := m.ag.topProjects(m); got[0] != other || !slices.Equal(m.st.Projects, []string{first, other}) {
 		t.Fatalf("alt+down leaves a project sorted by updated: shown %v, saved %v", got, m.st.Projects)
 	}
 
@@ -820,24 +795,27 @@ func TestSpacesProjectSort(t *testing.T) {
 
 	choose("Sort Projects Manually")
 
-	if got := m.ag.shownProjects(m); !slices.Equal(got, []string{first, other}) {
+	if got := m.ag.topProjects(m); !slices.Equal(got, []string{first, other}) {
 		t.Fatalf("manually, the saved order: %v", got)
 	}
 }
 
-// TestSpacesFoldedSink folds a project: it sinks below the open ones, to the
-// top of the folded, with the selection on it, and unfolding puts it last
-// among the open ones, saved there.
+// TestSpacesFoldedSink folds projects: each goes under Other Projects, A–Z
+// whatever order it was folded or saved in, the selection with it, and
+// unfolded it goes back to its place on top. A project whose sessions all
+// sleep goes there too, unless one is on screen; opened there it stays in
+// place till one wakes.
 func TestSpacesFoldedSink(t *testing.T) {
 	m := testModel(t)
 	first, second, third := m.ws, t.TempDir(), t.TempDir()
 
-	m.st.Projects = []string{first, second, third}
+	m.st.Projects = []string{third, first, second}
 	for _, p := range []string{second, third} {
 		m.wss = append(m.wss, proto.Workspace{Path: p, Project: p, Branch: "main", Main: true})
 		m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: p, Workspace: p, Agent: "shell"}, Status: "idle"})
 	}
 
+	m.sess = ""
 	press(m, "3")
 
 	projects := func() []string {
@@ -852,41 +830,78 @@ func TestSpacesFoldedSink(t *testing.T) {
 		return out
 	}
 
+	m.ag.activate(m, &agRow{kind: agProject, project: third})
 	m.ag.activate(m, &agRow{kind: agProject, project: first})
 
-	if got := projects(); !slices.Equal(got, []string{second, third, first}) {
-		t.Fatalf("a folded project sinks: %v", got)
+	if got := projects(); !slices.Equal(got, []string{second, first, third}) {
+		t.Fatalf("folded projects go under Other Projects, A–Z: %v", got)
 	}
 
 	if r := m.ag.selected(m); r == nil || r.project != first {
 		t.Fatalf("the selection goes with the folded project: %+v", r)
 	}
 
-	if rows := m.ag.rows(m); len(rows) != m.bodyH(viewAgents) || rows[len(rows)-1].project != first {
-		t.Fatalf("the folded project sits on the panel's bottom edge: %d rows of %d", len(rows), m.bodyH(viewAgents))
+	if rows := m.ag.rows(m); len(rows) != m.bodyH(viewAgents) || rows[len(rows)-1].project != third {
+		t.Fatalf("the folded sit on the panel's bottom edge: %d rows of %d", len(rows), m.bodyH(viewAgents))
 	}
 
-	m.ag.activate(m, &agRow{kind: agProject, project: third})
-
-	if got := projects(); !slices.Equal(got, []string{second, third, first}) {
-		t.Fatalf("the one folded last tops the folded: %v", got)
-	}
-
-	if cmd := m.ag.activate(m, &agRow{kind: agProject, project: first}); cmd == nil {
+	if cmd := m.ag.activate(m, &agRow{kind: agProject, project: third}); cmd == nil {
 		t.Fatal("a fold is saved")
 	}
 
-	if got := projects(); !slices.Equal(got, []string{second, first, third}) || !slices.Equal(m.st.Projects, []string{second, third, first}) {
-		t.Fatalf("an unfolded project goes last among the open: shown %v, saved %v", got, m.st.Projects)
+	if got := projects(); !slices.Equal(got, []string{third, second, first}) || !slices.Equal(m.st.Projects, []string{third, first, second}) {
+		t.Fatalf("an unfolded project goes back to its place: shown %v, saved %v", got, m.st.Projects)
+	}
+
+	asleep := slices.IndexFunc(m.sessions, func(s proto.Session) bool { return s.ID == second })
+	m.sessions[asleep].Status = "asleep"
+
+	if got := projects(); !slices.Equal(got, []string{third, first, second}) {
+		t.Fatalf("every session asleep, a project goes under Other Projects: %v", got)
+	}
+
+	m.sess = second
+	if got := projects(); !slices.Equal(got, []string{third, second, first}) {
+		t.Fatalf("the project on screen stays on top: %v", got)
+	}
+
+	m.sess = ""
+	rows := m.ag.rows(m)
+	m.ag.activate(m, &rows[slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agProject && r.project == second })])
+
+	rows = m.ag.rows(m)
+	if i := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agProject && r.project == second }); !rows[i].tail || rows[i].closed || rows[i+1].kind != agSession {
+		t.Fatalf("an asleep project opens in place: %+v", rows[i])
+	}
+
+	m.sess = second // on screen before a sessions event: folded, it goes under the caption shut
+	m.ag.activate(m, &agRow{kind: agProject, project: second})
+
+	if rows := m.ag.rows(m); rows[len(rows)-1].project != second || !rows[len(rows)-1].closed {
+		t.Fatalf("folded, a project opened in place goes shut: %+v", rows[len(rows)-1])
+	}
+
+	m.sess = ""
+	m.ag.activate(m, &agRow{kind: agProject, project: second, tail: true, closed: true})
+	m.sessions[asleep].Status = "idle"
+	m.ag.unfoldRunning(m, m.sessions)
+
+	if got := projects(); !slices.Equal(got, []string{third, second, first}) {
+		t.Fatalf("a session awake takes it back on top: %v", got)
+	}
+
+	m.sessions[asleep].Status = "asleep"
+	if rows := m.ag.rows(m); rows[len(rows)-1].project != second || !rows[len(rows)-1].closed {
+		t.Fatalf("asleep again, it goes back shut: %+v", rows[len(rows)-1])
 	}
 
 	m.ag.collapseAll(m)
 
-	if got := projects(); !slices.Equal(got, []string{second, first, third}) || !slices.Equal(m.ag.folded, []string{second, first, third}) {
-		t.Fatalf("collapse all keeps the order the list had: %v, folded %v", got, m.ag.folded)
+	if got := projects(); !slices.Equal(got, []string{first, second, third}) || m.ag.collapsed[timeKey(bareHead)] {
+		t.Fatalf("collapse all leaves them A–Z, under a caption that stays open: %v", got)
 	}
 
-	if !slices.Equal(m.st.Projects, []string{second, third, first}) {
+	if !slices.Equal(m.st.Projects, []string{third, first, second}) {
 		t.Fatalf("folding leaves the saved order alone: %v", m.st.Projects)
 	}
 }
@@ -4200,7 +4215,7 @@ func TestSpacesPin(t *testing.T) {
 	m.ag.l.sel = 1
 	press(m, "alt+down")
 
-	if !slices.Equal(m.ag.shownProjects(m), []string{m.ws}) || m.wss[0].Path != m.ws || m.ag.l.sel != 1 {
+	if !slices.Equal(m.ag.topProjects(m), []string{m.ws}) || m.wss[0].Path != m.ws || m.ag.l.sel != 1 {
 		t.Fatalf("alt+↓ on a pinned worktree moves nothing: sel %d", m.ag.l.sel)
 	}
 
@@ -4274,7 +4289,7 @@ func TestSpacesPin(t *testing.T) {
 		t.Fatalf("folded Pinned: %q want %q", shape(), want)
 	}
 
-	m.ag.unfold(m, timeKey(pinnedHead))
+	m.ag.unfold(timeKey(pinnedHead))
 	m.st.Settings.SpHide = []string{"idle"}
 
 	if slices.Contains(shape(), "Pinned") {

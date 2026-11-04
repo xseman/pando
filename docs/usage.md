@@ -33,11 +33,13 @@ app                      project: pando ~/code/app, or `a` in Sessions
 
 A project whose only worktree is its own checkout shows it on its line,
 `app  ⌂ main`, its sessions right under it; a click on the branch switches
-to it. An idle session says how long it has been idle (`3h`). Projects with
-no session wait under a dim _no sessions_ caption at the bottom, a dimmed
-name each: a
-click switches to it, `n` starts a session in it. Scrolled down, the
-project of the top row stays on the first line.
+to it. An idle session says how long it has been idle (`3h`). On top are
+only the projects where something is awake, and the one on screen. The rest
+wait A–Z under a dim _other projects_ caption at the bottom: folded, all
+asleep (`◌` and a count; the chevron opens one in place), or with no session
+(a dimmed name: a click switches to it, `n` starts a session in it). A
+project goes back on top, at its place, once a session in it wakes.
+Scrolled down, the project of the top row stays on the first line.
 A worktree with two sessions or more has a split button on hover: its
 sessions open side by side, a group each.
 
