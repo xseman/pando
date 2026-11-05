@@ -203,10 +203,10 @@ re-roots Explorer and Source Control to its worktree.
   (`bareHead`), A–Z, a row each: folded, every session asleep, or no session
   at all (`bare`). A switch into one of those with no session lifts it on
   top for five minutes (`pick`, `pickFor`, `lift`): a session started there
-  keeps it, else it sinks back. The three of them used last (`usedLast`: their newest
-  session's Updated) go above it under _recent_ (`recentHead`), newest
-  first, when that leaves some under the caption; not while filtering. Each
-  caption counts its own. Nothing moves under them.
+  keeps it, else it sinks back. The three of them used last (`usedLast`:
+  their newest session's Updated) go above it under _recent_ (`recentHead`),
+  newest first, when that leaves some under the caption; not while
+  filtering. Each caption counts its own. Nothing moves under them.
 - One asleep opens in place on its chevron (`openInPlace`, `opened`) and goes
   on top once a session in it wakes, at its place in the order; asleep
   again, it is shut. A switch into one opens it so (`reveal`). The project
