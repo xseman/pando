@@ -85,7 +85,9 @@ func run(dir string, stdin io.Reader, args ...string) (string, error) {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
-	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_OPTIONAL_LOCKS=0")
+	// LANGUAGE=en: git's messages stay English in any locale, for the few
+	// that are matched and read, as VS Code's are.
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_OPTIONAL_LOCKS=0", "LANGUAGE=en")
 	cmd.Stdin = stdin
 
 	var out, errb bytes.Buffer

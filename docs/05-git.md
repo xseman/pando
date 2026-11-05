@@ -7,7 +7,8 @@ whose output is parsed once.
 ## Running git
 
 `Run` is `git -C root …` with a 60 s timeout, `GIT_TERMINAL_PROMPT=0` (a
-credential prompt fails instead of hanging) and `GIT_OPTIONAL_LOCKS=0`.
+credential prompt fails instead of hanging), `GIT_OPTIONAL_LOCKS=0` and
+`LANGUAGE=en` (its messages English in any locale, as VS Code's).
 Every failure, git's or gh's, is a `*git.Error` carrying the arguments, stderr
 (its `Error()` text) and the exit status. Test the status, never the message:
 

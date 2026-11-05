@@ -394,6 +394,17 @@ func TestRandomBranch(t *testing.T) {
 	}
 }
 
+// TestRunSpeaksEnglish: git's messages are English whatever the locale.
+func TestRunSpeaksEnglish(t *testing.T) {
+	t.Setenv("LANGUAGE", "de")
+	t.Setenv("LC_ALL", "de_DE.UTF-8")
+
+	_, err := Run(repo(t), "branch", "-d", "nope")
+	if err == nil || !strings.HasPrefix(err.Error(), "error: ") {
+		t.Fatalf("git's error: %v", err)
+	}
+}
+
 func TestSanitizeBranch(t *testing.T) {
 	root := repo(t)
 
