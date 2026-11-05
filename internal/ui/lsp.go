@@ -75,6 +75,8 @@ func (p *lspPool) server(root, path, lang string, argv []string, asked bool) (*l
 
 	switch {
 	case c != nil && c.Err() != nil && asked: // it died: a request starts it again
+		go c.Close() // reaps the process, or it stays a zombie
+
 		delete(p.servers, key)
 
 		c = nil

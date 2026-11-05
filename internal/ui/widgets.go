@@ -2516,11 +2516,23 @@ func marked(label string, at []int, st lipgloss.Style) []seg {
 func openExternal(path string) error {
 	for _, opener := range []string{"xdg-open", "open"} {
 		if p, err := exec.LookPath(opener); err == nil {
-			return exec.Command(p, path).Start()
+			return startReaped(exec.Command(p, path))
 		}
 	}
 
 	return exec.ErrNotFound
+}
+
+// startReaped starts cmd and waits for it in the background: a child no one
+// waits for stays a zombie until pando exits, one per sound or link opened.
+func startReaped(cmd *exec.Cmd) error {
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	go func() { _ = cmd.Wait() }() // its exit status is of no use
+
+	return nil
 }
 
 // clicks counts clicks in a row on the same cell: double and triple clicks.

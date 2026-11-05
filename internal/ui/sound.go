@@ -30,7 +30,7 @@ var player = sync.OnceValue(func() []string {
 var playSound = func(path string) {
 	if p := player(); p != nil && path != "" {
 		if _, err := os.Stat(path); err == nil {
-			_ = exec.Command(p[0], append(p[1:], path)...).Start() // best effort: a cue is not worth an error
+			_ = startReaped(exec.Command(p[0], append(p[1:], path)...)) // best effort: a cue is not worth an error
 			return
 		}
 	}
