@@ -138,10 +138,10 @@ type stageMsg struct {
 }
 
 type refsMsg struct {
-	root    string
-	refs    []git.Ref
-	err     error
-	compare bool // for comparePicker, not branchPicker
+	root string
+	refs []git.Ref
+	err  error
+	pick func(m *Model, root string, refs []git.Ref) // opens the picker the refs were loaded for
 }
 
 // remotesMsg answers publish: the remotes to pick from, and whether gh can
@@ -2608,12 +2608,27 @@ func (s *scmView) drawerMenu(m *Model, title string, x, y int) tea.Cmd {
 }
 
 // branchPicker loads refs for VS Code's "Select a branch or tag to checkout".
-func (s *scmView) branchPicker(_ *Model) tea.Cmd { return s.loadRefs(false) }
+func (s *scmView) branchPicker(_ *Model) tea.Cmd { return s.loadRefs(s.onCheckoutRefs) }
+
+// detachPicker loads refs for VS Code's "Checkout to (Detached)…".
+func (s *scmView) detachPicker(_ *Model) tea.Cmd { return s.loadRefs(s.onDetachRefs) }
+
+// branchFromPicker loads refs for VS Code's "Create Branch From…".
+func (s *scmView) branchFromPicker(_ *Model) tea.Cmd { return s.loadRefs(s.onBranchFromRefs) }
 
 // comparePicker loads refs for GitLens' "Compare <branch> with".
-func (s *scmView) comparePicker(_ *Model) tea.Cmd { return s.loadRefs(true) }
+func (s *scmView) comparePicker(_ *Model) tea.Cmd { return s.loadRefs(s.onCompareRefs) }
 
-func (s *scmView) loadRefs(compare bool) tea.Cmd {
+// newBranch is VS Code's "Create Branch…": a name, then a branch at HEAD.
+func (s *scmView) newBranch(m *Model) tea.Cmd {
+	if s.root() == "" {
+		return flash("no git repository in this workspace", true)
+	}
+
+	return s.createBranch(m, s.root(), "", "")
+}
+
+func (s *scmView) loadRefs(pick func(*Model, string, []git.Ref)) tea.Cmd {
 	root := s.root()
 	if root == "" {
 		return flash("no git repository in this workspace", true)
@@ -2621,7 +2636,7 @@ func (s *scmView) loadRefs(compare bool) tea.Cmd {
 
 	return func() tea.Msg {
 		refs, err := git.Refs(root)
-		return refsMsg{root, refs, err, compare}
+		return refsMsg{root, refs, err, pick}
 	}
 }
 
@@ -2635,12 +2650,14 @@ func (s *scmView) onRefs(m *Model, msg refsMsg) tea.Cmd {
 		return flash(msg.err.Error(), true)
 	}
 
-	root, refs := msg.root, msg.refs
-	if msg.compare {
-		s.onCompareRefs(m, root, refs)
-		return nil
-	}
+	msg.pick(m, msg.root, msg.refs)
 
+	return nil
+}
+
+// onCheckoutRefs is VS Code's "Select a branch or tag to checkout", its
+// three ways to a new branch or none above the refs.
+func (s *scmView) onCheckoutRefs(m *Model, root string, refs []git.Ref) {
 	md := s.refPicker(m, "Select a branch or tag to checkout", refs, func(_ *Model, r git.Ref) tea.Cmd {
 		return s.checkout(root, refs, r, false)
 	})
@@ -2649,24 +2666,30 @@ func (s *scmView) onRefs(m *Model, msg refsMsg) tea.Cmd {
 			return s.createBranch(m, root, md.input.Value(), "")
 		}},
 		{label: icAdd.s() + " Create new branch from…", always: true, run: func(m *Model) tea.Cmd {
-			s.refPicker(m, "Select a ref to create the branch from", refs, func(m *Model, r git.Ref) tea.Cmd {
-				return s.createBranch(m, root, "", r.Name)
-			})
-
+			s.onBranchFromRefs(m, root, refs)
 			return nil
 		}},
 		{label: icDetach.s() + " Checkout detached…", always: true, run: func(m *Model) tea.Cmd {
-			s.refPicker(m, "Select a ref to checkout detached", refs, func(_ *Model, r git.Ref) tea.Cmd {
-				return s.checkout(root, refs, r, true)
-			})
-
+			s.onDetachRefs(m, root, refs)
 			return nil
 		}},
 	}
 	md.items = append(actions, md.items...)
 	md.refilter()
+}
 
-	return nil
+// onDetachRefs picks a ref to check out detached.
+func (s *scmView) onDetachRefs(m *Model, root string, refs []git.Ref) {
+	s.refPicker(m, "Select a ref to checkout detached", refs, func(_ *Model, r git.Ref) tea.Cmd {
+		return s.checkout(root, refs, r, true)
+	})
+}
+
+// onBranchFromRefs picks the ref a new branch starts at.
+func (s *scmView) onBranchFromRefs(m *Model, root string, refs []git.Ref) {
+	s.refPicker(m, "Select a ref to create the branch from", refs, func(m *Model, r git.Ref) tea.Cmd {
+		return s.createBranch(m, root, "", r.Name)
+	})
 }
 
 // onCompareRefs picks what to compare HEAD with: a ref, or a revision typed
@@ -3077,8 +3100,11 @@ func (s *scmView) items(m *Model) []item {
 		item{label: "Stage Untracked", hint: "U", run: func(m *Model) tea.Cmd { return s.stageUntracked(s.root())(m) }},
 		item{label: "Stage All Merge Changes", run: func(m *Model) tea.Cmd { return s.stageConflicts(m, s.root(), "") }})
 	group(item{label: "Sync", hint: "S", run: s.sync},
-		item{label: "Publish Branch", run: s.publish},
-		item{label: "Switch Branch…", hint: "B", run: s.branchPicker})
+		item{label: "Publish Branch", run: s.publish})
+	group(item{label: "Checkout to…", hint: "B", run: s.branchPicker},
+		item{label: "Checkout to (Detached)…", run: s.detachPicker},
+		item{label: "Create Branch…", run: s.newBranch},
+		item{label: "Create Branch From…", run: s.branchFromPicker})
 	group(item{label: mode, hint: "t", run: s.toggleTree},
 		item{label: "Collapse All", run: s.collapseAll},
 		item{label: "History Drawers…", run: func(m *Model) tea.Cmd { return s.drawerMenu(m, "", 0, m.bodyH(viewGit)/2) }},

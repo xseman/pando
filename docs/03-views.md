@@ -634,9 +634,10 @@ goes back, on the category it came from. A setting that is on is checked
 rebuilt). No menu bar: it would cost a row on every screen, and `alt+`
 mnemonics are the shell's.
 
-`commandID` turns a label into its `[keys]` id: "Git: Switch Branch…" →
-`git.switchBranch`. Renaming a label changes the id and silently breaks user
-bindings ([06-config.md](06-config.md#keys), [09-keys.md](09-keys.md)).
+`commandID` turns a label into its `[keys]` id: "Git: Checkout to…" →
+`git.checkoutTo`. Renaming a label changes the id and silently breaks user
+bindings ([06-config.md](06-config.md#keys), [09-keys.md](09-keys.md)):
+`renamedCommands` maps the old id to the new one (`git.switchBranch`).
 
 ## Text effects
 

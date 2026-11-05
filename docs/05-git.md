@@ -137,6 +137,9 @@ checkout: branch → git switch NAME
 ```
 
 A branch checked out in another worktree opens that worktree instead.
+The palette has VS Code's four: _Checkout to…_ (`B`) is the picker,
+_Checkout to (Detached)…_, _Create Branch…_ and _Create Branch From…_ go
+straight to its rows.
 
 _Create new branch…_ runs `git switch -c` on `SanitizeBranch`'s name, as VS
 Code's `sanitizeBranchName`: whitespace and what git refuses become `-`,

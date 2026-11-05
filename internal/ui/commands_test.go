@@ -136,6 +136,53 @@ func TestBranchPicker(t *testing.T) {
 		t.Fatalf("create branch: HEAD is %s (%s)", head(), m.msg)
 	}
 
+	// VS Code's four branch commands, each straight to its picker or prompt.
+	run := func(id string) {
+		t.Helper()
+
+		m.modal = nil
+		for _, it := range m.commands() {
+			if commandID(it.label) == id {
+				fire(m, it.run(m))
+				return
+			}
+		}
+
+		t.Fatalf("no command %s", id)
+	}
+
+	for id, title := range map[string]string{
+		"git.checkoutTo":         "Select a branch or tag to checkout",
+		"git.checkoutToDetached": "Select a ref to checkout detached",
+		"git.createBranch":       "New branch name",
+		"git.createBranchFrom":   "Select a ref to create the branch from",
+	} {
+		run(id)
+
+		if m.modal == nil || m.modal.title != title {
+			t.Fatalf("%s opens %+v, want %q", id, m.modal, title)
+		}
+	}
+
+	run("git.checkoutToDetached")
+	press(m, "v", "1")
+	send(m, keyMsg("enter"))
+
+	if head() != "HEAD" {
+		t.Fatalf("checkout detached v1: HEAD is %s (%s)", head(), m.msg)
+	}
+
+	// A binding to the command's old id still runs it.
+	m.modal, m.st.Settings.Keys = nil, map[string]string{"f6": "git.switchBranch"}
+	cmd, ok := m.runKey("f6")
+	fire(m, cmd)
+
+	if !ok || m.modal == nil || m.modal.title != "Select a branch or tag to checkout" {
+		t.Fatalf("git.switchBranch opens %+v", m.modal)
+	}
+
+	m.modal, m.st.Settings.Keys = nil, nil
+
 	// A branch checked out in another worktree opens that worktree.
 	wt := filepath.Join(t.TempDir(), "wt")
 	mustGit(t, root, "worktree", "add", "-q", "-b", "side", wt)
@@ -1528,7 +1575,7 @@ func TestStatusBar(t *testing.T) {
 }
 
 func TestConfigKeys(t *testing.T) {
-	if id := commandID("Git: Switch Branch…"); id != "git.switchBranch" {
+	if id := commandID("Git: Checkout to…"); id != "git.checkoutTo" {
 		t.Fatalf("command id = %q", id)
 	}
 

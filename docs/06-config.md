@@ -155,7 +155,7 @@ Sessions (`agents`) has the right side to itself.
 "ctrl+b" = ""                   # unbind
 ```
 
-An id is the palette label in camelCase (`git.switchBranch`); `pando doctor`
+An id is the palette label in camelCase (`git.checkoutTo`); `pando doctor`
 lists them, bar the contextual `view.closeOtherEditors`, `view.killTerminal`,
 `view.nextTerminal`, `view.previousTerminal`. A binding beats pando's own and
 never fires in a text box or a terminal, but does in an editable file: a bound

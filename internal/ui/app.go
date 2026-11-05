@@ -2054,7 +2054,7 @@ func (m *Model) headerActions(s int, v view, w int) []titleAction {
 	case viewGit:
 		tree := m.st.Settings.GitTree
 
-		add(icBranch, "Switch Branch…  B", m.scm.branchPicker)
+		add(icBranch, "Checkout to…  B", m.scm.branchPicker)
 		add(icCheck, "Commit  C", m.scm.commit)
 		add(ifElse(tree, icList, icTree), ifElse(tree, "View as List  t", "View as Tree  t"), m.scm.toggleTree)
 		add(icRefresh, "Refresh  r", func(m *Model) tea.Cmd { return tea.Batch(m.refreshGit(), m.scm.loadDrawers(m)) })
@@ -4975,7 +4975,7 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 	if root := m.scm.root(); root != "" {
 		st := m.scm.status[root]
 
-		button(" "+icBranch.s()+" "+m.headLabel(root, st)+" ", "Switch Branch…", ink, func(m *Model) tea.Cmd { return m.scm.branchPicker(m) })
+		button(" "+icBranch.s()+" "+m.headLabel(root, st)+" ", "Checkout Branch/Tag…", ink, func(m *Model) tea.Cmd { return m.scm.branchPicker(m) })
 
 		// VS Code's sync item: the counts behind and ahead once there are
 		// any, Publish Branch's cloud without an upstream.
@@ -5755,7 +5755,7 @@ func (m *Model) cutAround(ln string, x, bw int) [2]string {
 	})
 }
 
-// commandID is a command's name in config.toml: "Git: Switch Branch…" is git.switchBranch.
+// commandID is a command's name in config.toml: "Git: Checkout to…" is git.checkoutTo.
 func commandID(label string) string {
 	cat, name, ok := strings.Cut(label, ": ")
 	if !ok {
@@ -5779,12 +5779,18 @@ func commandID(label string) string {
 	return id.String()
 }
 
+// renamedCommands are the ids of renamed commands, old to new, so a binding
+// to the old one keeps working.
+var renamedCommands = map[string]string{"git.switchBranch": "git.checkoutTo"}
+
 // runKey runs what the config binds to a key; ok is false when it binds none.
 func (m *Model) runKey(key string) (tea.Cmd, bool) {
 	id, ok := m.st.Settings.Keys[key]
 	if !ok {
 		return nil, false
 	}
+
+	id = cmp.Or(renamedCommands[id], id)
 
 	if id == "" {
 		return nil, true // unbound on purpose
