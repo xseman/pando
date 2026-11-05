@@ -53,7 +53,14 @@ other lock is left to git.
 ## Status
 
 The TUI reads status on its 2 s tick, off the UI goroutine, and at once
-after anything it changes (a save, a stage, a commit):
+after anything it changes (a save, a stage, a commit). A refresh that finds
+the status and every index (`IndexStamp`) as the last one did doubles the
+wait before the next, up to 16 s (`gitWait`); a key, a click, a paste,
+output of a session in the workspace, or an index that moved (a stat per
+repository each tick: a stage or commit in a shell elsewhere) brings it back
+to every tick (`gitAwake`). `Discover` runs at most every 30 s, and a root's git dir is
+asked once. An open file or diff reads again only when a refresh found a
+change (`gitGen`) or its file's time or size moved (`readStamp`):
 
 ```text
  refreshGit (skipped while the last one runs; the tick's tickGit also

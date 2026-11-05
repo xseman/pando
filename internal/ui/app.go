@@ -12,6 +12,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -197,6 +198,13 @@ type Model struct {
 	gitBusy     bool
 	flights     int       // takeoff's screens so far
 	gitNext     time.Time // when the tick may refresh git again
+	gitIdle     int       // refreshes in a row that found what the one before did: the tick backs off
+	gitGen      int       // counts the refreshes that found a change: an open file reads again on one
+	gitLast     map[string]git.Status
+	gitIndex    map[string]string // each repository's IndexStamp at the last refresh
+	gitRepos    []string          // the workspace's repositories, found at gitReposAt
+	gitReposAt  time.Time
+	gitReposWs  string
 	clicks      clicks
 	drag        *drag
 	// ambiguous marks a terminal that cannot tell ⌃` from ⌃space: both
@@ -322,7 +330,9 @@ type (
 	gitMsg struct {
 		ws     string
 		repos  []string
+		found  bool // repos were looked for, not the ones found before
 		status map[string]git.Status
+		index  map[string]string // IndexStamp by repository
 		deco   map[string]byte
 		took   time.Duration // how long git took: the tick waits ten times that before the next
 	}
@@ -658,11 +668,25 @@ func (m *Model) setSettingsWith(patch, more map[string]any) tea.Cmd {
 // worktree whose status takes a second is read every ten, not every two.
 // What changes it here (a save, a stage, a commit) refreshes at once.
 func (m *Model) tickGit() tea.Cmd {
+	if m.gitIdle > 0 && m.indexMoved() { // a stage or commit from a shell pando does not run
+		m.gitAwake()
+	}
+
 	if time.Now().Before(m.gitNext) {
 		return nil
 	}
 
 	return m.refreshGit()
+}
+
+// indexMoved reports an index of the workspace's repositories changed since
+// the last refresh: a stat each, what lets the backed-off tick stay cheap.
+func (m *Model) indexMoved() bool {
+	if m.gitReposWs != m.ws {
+		return false
+	}
+
+	return slices.ContainsFunc(m.gitRepos, func(r string) bool { return git.IndexStamp(r) != m.gitIndex[r] })
 }
 
 func (m *Model) refreshGit() tea.Cmd {
@@ -673,13 +697,22 @@ func (m *Model) refreshGit() tea.Cmd {
 	m.gitBusy = true
 	ws, withDeco := m.ws, m.st.Settings.GitDeco
 
+	repos := m.gitRepos // a repository cloned or removed shows within reposEvery
+	if m.gitReposWs != ws || time.Since(m.gitReposAt) > reposEvery {
+		repos = nil
+	}
+
 	return func() tea.Msg {
 		start := time.Now()
 
-		msg := gitMsg{ws: ws, repos: git.Discover(ws), status: map[string]git.Status{}, deco: map[string]byte{}}
+		msg := gitMsg{ws: ws, repos: repos, status: map[string]git.Status{}, index: map[string]string{}, deco: map[string]byte{}}
+		if msg.repos == nil {
+			msg.repos, msg.found = git.Discover(ws), true
+		}
+
 		for _, r := range msg.repos {
 			if st, err := git.Stat(r); err == nil {
-				msg.status[r] = st
+				msg.status[r], msg.index[r] = st, git.IndexStamp(r)
 				if withDeco {
 					maps.Copy(msg.deco, git.Decorations(r, st))
 				}
@@ -690,6 +723,44 @@ func (m *Model) refreshGit() tea.Cmd {
 
 		return msg
 	}
+}
+
+// reposEvery is how long refreshes keep the repositories Discover found: it
+// costs a git call per repository, and they come and go rarely.
+const reposEvery = 30 * time.Second
+
+// gitWait is how long the tick leaves git be after a refresh. Each refresh
+// in a row that finds what the one before found doubles it, up to 16 s; what
+// may change the worktree wakes it again (gitAwake).
+func gitWait(idle int) time.Duration { return time.Second << min(idle, 4) }
+
+// gitAwake brings the refreshes back to every tick after something that may
+// have changed the worktree: input here, or output of a session in it.
+func (m *Model) gitAwake() {
+	if m.gitIdle > 0 {
+		m.gitIdle, m.gitNext = 0, time.Time{}
+	}
+}
+
+// onGitSeen counts a refresh's findings: a change bumps gitGen and keeps the
+// tick refreshing, the same status and indexes again back it off. It reports
+// a change.
+func (m *Model) onGitSeen(msg gitMsg) bool {
+	if msg.found {
+		m.gitRepos, m.gitReposWs, m.gitReposAt = msg.repos, msg.ws, time.Now()
+	}
+
+	same := reflect.DeepEqual(msg.status, m.gitLast) && maps.Equal(msg.index, m.gitIndex)
+	if same {
+		m.gitIdle++
+	} else {
+		m.gitIdle, m.gitGen = 0, m.gitGen+1
+	}
+
+	m.gitLast, m.gitIndex = msg.status, msg.index
+	m.gitNext = time.Now().Add(max(10*msg.took, gitWait(m.gitIdle)))
+
+	return !same
 }
 
 // drawers are the Source Control history drawers the settings show, top to
@@ -2344,6 +2415,11 @@ func (m *Model) showsSession() bool { return m.sess != "" && !m.preview }
 // the commands it started send back.
 // Update handles msg, then starts a text effect on whatever it changed.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg.(type) {
+	case tea.KeyPressMsg, tea.MouseMsg, tea.PasteMsg: // someone is looking: git is read every tick again
+		m.gitAwake()
+	}
+
 	_, cmd := m.update(msg)
 	cmd = tea.Batch(cmd, m.prune())
 
@@ -2482,7 +2558,12 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case eventMsg:
+		if s := m.session(msg.ID); msg.Kind == "screen" && s != nil && s.Workspace == m.ws { // it may be editing the worktree
+			m.gitAwake()
+		}
+
 		return m, tea.Batch(waitEvent(m.events), m.onEvent(proto.Event(msg)))
+
 	case disconnectedMsg:
 		m.events = nil
 		m.flash("daemon disconnected, reconnecting…", true)
@@ -2610,10 +2691,14 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.refreshGit()
 		}
 
+		var cmd tea.Cmd
+
+		if m.onGitSeen(msg) { // what every group shows may read differently now
+			m.eachGroup(func() { cmd = tea.Batch(cmd, m.pv.reloadIfLive(m)) })
+		}
+
 		m.ex.deco = msg.deco
 		m.scm.onGit(m, msg)
-
-		var cmd tea.Cmd
 
 		if w := m.workspace(m.ws); w != nil {
 			// A checkout in a shell leaves the worktree list behind: the tree,

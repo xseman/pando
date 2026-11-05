@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -170,12 +171,10 @@ func Stat(root string) (Status, error) {
 // the MERGE_MSG git wrote for it. The files live in the worktree's own git
 // dir, so linked worktrees work.
 func operation(root string) (op, msg string) {
-	out, err := Run(root, "rev-parse", "--path-format=absolute", "--git-dir")
+	dir, err := gitDir(root)
 	if err != nil {
 		return "", ""
 	}
-
-	dir := strings.TrimSpace(out)
 
 	op = operationIn(dir)
 	if op == "merge" || op == "cherry-pick" {
@@ -184,6 +183,55 @@ func operation(root string) (op, msg string) {
 	}
 
 	return op, msg
+}
+
+// gitDirs are the git dirs gitDir found, by root, with the stamp of the
+// root's .git they were found under: every refresh asks again, and only a
+// worktree removed and added back moves one.
+var gitDirs sync.Map
+
+// foundDir is a gitDirs entry.
+type foundDir struct{ dir, dotGit string }
+
+// gitDir is root's own git dir, a linked worktree's included.
+func gitDir(root string) (string, error) {
+	dotGit := ""
+	if st, err := os.Stat(filepath.Join(root, ".git")); err == nil {
+		dotGit = st.ModTime().String() + " " + strconv.FormatInt(st.Size(), 10)
+	}
+
+	if v, ok := gitDirs.Load(root); ok {
+		if f := v.(foundDir); f.dotGit == dotGit { //nolint:forcetypeassert // only gitDir stores, and only foundDir
+			return f.dir, nil
+		}
+	}
+
+	out, err := Run(root, "rev-parse", "--path-format=absolute", "--git-dir")
+	if err != nil {
+		return "", err
+	}
+
+	d := strings.TrimSpace(out)
+	gitDirs.Store(root, foundDir{d, dotGit})
+
+	return d, nil
+}
+
+// IndexStamp tells root's index apart from what it was: its time and size,
+// "" when there is none. A stage that leaves the status as it was (another
+// hunk of a file already partly staged) still moves it.
+func IndexStamp(root string) string {
+	dir, err := gitDir(root)
+	if err != nil {
+		return ""
+	}
+
+	st, err := os.Stat(filepath.Join(dir, "index"))
+	if err != nil {
+		return ""
+	}
+
+	return strconv.FormatInt(st.ModTime().UnixNano(), 36) + " " + strconv.FormatInt(st.Size(), 36)
 }
 
 // mergeMessage is a MERGE_MSG as `git commit` would clean it up: comment

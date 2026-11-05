@@ -335,6 +335,7 @@ func TestDiffFollowsStaging(t *testing.T) {
 
 	fire(m, m.openDiff(m.ws, git.Entry{Path: "a.go", Letter: 'M'}, false))
 	mustGit(t, m.ws, "add", "a.go")
+	fire(m, m.refreshGit()) // the tick's refresh sees the index move
 	fire(m, m.pv.reloadIfLive(m))
 
 	if !m.pv.entry.Staged || !strings.Contains(m.pv.raw, "+two") {

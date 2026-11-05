@@ -474,6 +474,7 @@ func TestDiffReloadKeepsPlace(t *testing.T) {
 	reloaded := func() {
 		t.Helper()
 
+		m.gitGen++ // the tick's refresh saw the agent's edit
 		m.pv.reloadIfLive(m)
 
 		if m.pv.keep == nil {
@@ -490,6 +491,7 @@ func TestDiffReloadKeepsPlace(t *testing.T) {
 			got, m.pv.row(m)-m.pv.top, m.pv.anchor, at, off, from)
 	}
 
+	m.gitGen++
 	m.pv.reloadIfLive(m)
 	press(m, "up") // while it loads
 	line := m.pv.at().line

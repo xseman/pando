@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"image/color"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -182,6 +183,7 @@ type preview struct {
 	qd         *quickDiff // the quick diff open under a change, nil for none
 	numW       int        // digits of the line-number gutter
 	ready      bool
+	read       readStamp // what its last load read, to skip a reload that would read the same
 	wrap       bool
 	blanks     string // render_whitespace, put on as the editor draws
 	top        int    // first visible screen row
@@ -235,6 +237,7 @@ type preview struct {
 
 type previewMsg struct {
 	key, raw     string
+	read         readStamp // what the load read: the preview skips reloads until it changes
 	mod          time.Time
 	trunc        bool
 	lines, plain []string
@@ -1555,6 +1558,11 @@ func (m *Model) openShow(root, rev string) tea.Cmd {
 }
 
 func (p *preview) load(m *Model) tea.Cmd {
+	var read readStamp
+	if p.kind == pvFile || p.kind == pvDiff {
+		read = p.stamp(m)
+	}
+
 	switch {
 	case p.kind == "":
 		return nil
@@ -1605,7 +1613,7 @@ func (p *preview) load(m *Model) tea.Cmd {
 	}
 
 	return func() tea.Msg {
-		msg := previewMsg{key: key}
+		msg := previewMsg{key: key, read: read}
 
 		if cp.kind == pvRev && cp.revs == nil {
 			root, err := git.Root(filepath.Dir(cp.path))
@@ -1688,8 +1696,14 @@ func (p *preview) load(m *Model) tea.Cmd {
 }
 
 // reloadIfLive refreshes files and diffs; `git show` output never changes.
+// One whose file and git state are as its last load found them is left as it
+// is: the tick would read the file and run git twice for nothing.
 func (p *preview) reloadIfLive(m *Model) tea.Cmd {
 	if p.dirty() { // unsaved edits are the truth, not what is on disk
+		return nil
+	}
+
+	if p.kind != pvFile && p.kind != pvDiff || p.ready && p.read == p.stamp(m) {
 		return nil
 	}
 
@@ -1697,11 +1711,26 @@ func (p *preview) reloadIfLive(m *Model) tea.Cmd {
 		p.keepPlace(m)
 	}
 
-	if p.kind == pvFile || p.kind == pvDiff {
-		return p.load(m)
+	return p.load(m)
+}
+
+// readStamp is what a file or diff's load depends on: the git refreshes
+// that found a change (status or index) and the file's time and size.
+type readStamp struct {
+	set  bool // a load recorded it: a preview filled in some other way reads once
+	gen  int
+	mod  time.Time
+	size int64
+}
+
+// stamp is p's readStamp now.
+func (p *preview) stamp(m *Model) readStamp {
+	st := readStamp{set: true, gen: m.gitGen}
+	if fi, err := os.Stat(cmp.Or(p.diagPath(), p.path)); err == nil {
+		st.mod, st.size = fi.ModTime(), fi.Size()
 	}
 
-	return nil
+	return st
 }
 
 // dirty reports unsaved edits in this editor.
@@ -1727,10 +1756,14 @@ func (p *preview) fetch(full bool) (string, error) {
 		}
 		defer func() { _ = f.Close() }()
 
-		buf := make([]byte, maxPreviewBytes+1)
-		n, _ := f.Read(buf)
+		var b bytes.Buffer
+		if st, err := f.Stat(); err == nil { // the size as a hint only: /proc and /sys files say 0
+			b.Grow(int(min(st.Size(), maxPreviewBytes)) + 1)
+		}
 
-		buf = buf[:n]
+		_, _ = b.ReadFrom(io.LimitReader(f, maxPreviewBytes+1)) // a byte past the cap tells a file cut short
+
+		buf, n := b.Bytes(), b.Len()
 		if bytes.IndexByte(buf[:min(n, 8000)], 0) >= 0 { // a card instead, drawn as an error is: no text, no editing
 			size := int64(n)
 			if st, err := f.Stat(); err == nil {
@@ -1833,6 +1866,8 @@ func (p *preview) onLoad(m *Model, msg previewMsg) {
 	if msg.key != p.id() {
 		return
 	}
+
+	p.read = msg.read
 
 	if msg.revs != nil {
 		p.revs, p.repo = msg.revs, msg.repo
