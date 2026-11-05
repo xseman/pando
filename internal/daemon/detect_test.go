@@ -26,6 +26,21 @@ func TestScreenState(t *testing.T) {
 		{"claude", "Claude Code", []string{"✻ Cooking… (12s · esc to interrupt)", "❯ "}, "running"},
 		{"claude", "Claude Code", []string{"✻ Wandering… (thinking)", "", "───", "❯ ", "───"}, "running"},
 		{"claude", "Claude Code", []string{"✻ Clauding… (thinking with high effort)", "❯ "}, "running"},
+		{"claude", "Claude Code", []string{"● Done.", "", "───", "❯ ", "───", "  ⏵⏵ bypass permissions on · esc to interrupt"}, "running"},
+		// The answer quotes the phrases; the footer under the input box does not say them.
+		{"claude", "Claude Code", []string{`● running: []string{"esc to interrupt"}`, "", "───", "❯ ", "───", "  ⏵⏵ bypass permissions on"}, "idle"},
+		{"claude", "Claude Code", []string{`● blocked := []string{"do you want to proceed?", "esc to cancel"}`, "", "───", "❯ ", "───", "  ⏵⏵ bypass permissions on"}, "idle"},
+		// A permission held back while the user types, a subagent's too.
+		{"claude", "Claude Code", []string{"  ⎿  $ touch e.txt", "  Waiting for permission…", "───", "❯ yyyy", "───", "  ⏸ manual mode on"}, "blocked"},
+		{"claude", "Claude Code", []string{
+			"● Launched a subagent.", "  Waiting for permission…", "───", "❯ xx", "───", "  ⏸ manual mode on", "  ● main",
+			"  ◯ quick-task  Create d.txt via touch      13s · ↓ 43.0k tokens",
+		}, "blocked"},
+		// A retry in the spinner's row, the footer's hint cut by a narrow column.
+		{"claude", "Claude Code", []string{
+			"● Bash(go test ./...)", "  ⎿  ok", "", "✻ Working a… · next try in 6m · attempt 2 · esc to interrupt", "",
+			"───", "❯ ", "───", "  ⏵⏵ bypass permissions on (shift+tab to cycle) · esc to interr…",
+		}, "running"},
 		{"claude", "Claude Code", []string{"Bash command", "  rm -rf build", "Do you want to proceed?", "❯ 1. Yes", "  2. No", "esc to cancel"}, "blocked"},
 		// A column 30 wide wraps the options until the question leaves the tail
 		// and ❯ 1. Yes reads as the prompt; the footer still says blocked.

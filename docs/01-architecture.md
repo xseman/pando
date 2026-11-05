@@ -185,7 +185,13 @@ under the worker) as shell, its ◐ blue. Each tick, `session.tick` decides:
 - `agentRules` in `internal/daemon/detect.go` holds the phrases per agent
   (`claude`, `codex`, `gemini`, `opencode`); agy and grok have none, output
   timing alone decides. The screen is reclassified only after output or a
-  change of foreground program.
+  change of foreground program. With claude's input box in view (a ❯ line
+  under a rule) its phrases count only under it, in the footer, and on the
+  line over its rule (`Waiting for permission…` while the user types): the
+  conversation over the box can quote them, and scrolled back shows whatever
+  history is in view. A dialog takes the box's place; then the whole tail
+  counts. Its spinner row counts anywhere, a retry's `esc to interrupt` there
+  too.
 - Foreground program: the PTY's process group (`TIOCGPGRP`, `/proc/<pgid>/cmdline`).
 - Shell commands: `commandsUnder` keeps the worker's direct children that run a
   command line (`sh -c`, `bash -lc`). An MCP server is no shell; a hook is gone

@@ -47,8 +47,9 @@ var agentRules = map[string]rules{
 		},
 		running: []string{"esc to interrupt", "background agents to finish", "mcp tasks still running"},
 		// "✻ Orbiting… (5s · ↓ 66 tokens)" or "✻ Wandering… (thinking)"; a finished
-		// turn says "✻ Worked for 5s", no ellipsis.
-		runningLine: regexp.MustCompile(`(?m)^\s*[*·✢✳✶✻✽]\s+\S.*…(?:\s+\((?:\d+[smh]|thinking)|\s*$)`),
+		// turn says "✻ Worked for 5s", no ellipsis. A retry takes the spinner's
+		// row: "✻ Working at lower priority · next try in 6m · esc to interrupt".
+		runningLine: regexp.MustCompile(`(?m)^\s*[*·✢✳✶✻✽]\s+\S.*(?:…(?:\s+\((?:\d+[smh]|thinking)|\s*$)|esc to interrupt)`),
 		// "◯ deep-task  Checking the decoder   8m 33s · ↓ 127.6k tokens"
 		backgroundLine: regexp.MustCompile(`(?m)^\s*◯\s+\S.*\s\d+[hms](?:\s?\d+[ms])?\b`),
 		// "            Jump to bottom (ctrl+End) ↓", centred; an answer is indented by two
@@ -90,13 +91,26 @@ func screenState(program, title string, lines []string) string {
 
 	text := strings.ToLower(strings.Join(tail, "\n"))
 
-	has := func(ps []string) bool {
-		return slices.ContainsFunc(ps, func(p string) bool { return strings.Contains(text, p) })
+	// Over its input box claude shows the conversation, which can quote any
+	// phrase here (a diff of this file does). Its own are under the box, in
+	// the footer, and on the line right over the box's rule: "Waiting for
+	// permission…" while the user types holds a dialog back. A dialog takes
+	// the box's place, its question over its ❯ 1. Yes: the whole tail counts.
+	chrome := text
+
+	if r.idlePrompt {
+		if i := inputBox(lines); i >= 0 {
+			chrome = strings.ToLower(lines[max(i-2, 0)] + "\n" + strings.Join(lines[i+1:], "\n"))
+		}
+	}
+
+	has := func(in string, ps []string) bool {
+		return slices.ContainsFunc(ps, func(p string) bool { return strings.Contains(in, p) })
 	}
 	switch {
-	case r.titleBlocked != nil && r.titleBlocked.MatchString(title), has(r.blocked):
+	case r.titleBlocked != nil && r.titleBlocked.MatchString(title), has(chrome, r.blocked):
 		return "blocked"
-	case has(r.running), r.runningLine != nil && r.runningLine.MatchString(text):
+	case has(chrome, r.running), r.runningLine != nil && r.runningLine.MatchString(text):
 		return "running"
 	case r.backgroundLine != nil && r.backgroundLine.MatchString(text):
 		return ""
@@ -105,6 +119,22 @@ func screenState(program, title string, lines []string) string {
 	}
 
 	return ""
+}
+
+// inputBox is the index in lines of claude's input box, its last ❯ line
+// when that sits under a rule; -1 when a dialog took its place.
+func inputBox(lines []string) int {
+	for i := len(lines) - 1; i > 0; i-- {
+		if promptLine.MatchString(lines[i]) {
+			if strings.HasPrefix(strings.TrimSpace(lines[i-1]), "─") {
+				return i
+			}
+
+			return -1
+		}
+	}
+
+	return -1
 }
 
 // scrolledBack reports r's scrolled line in the few lines over the last ❯
