@@ -138,6 +138,7 @@ checkout: branch → git switch NAME
 rename:   git branch -m NAME                 (the branch HEAD is on)
 delete:   git branch -d NAME, "not fully merged" → a dialog, then -D
 merge:    git merge REF, CONFLICT lines on stdout → "there are merge conflicts"
+abort:    git merge --abort                  (Abort Merge, while a merge is in progress)
 ```
 
 A branch checked out in another worktree opens that worktree instead.

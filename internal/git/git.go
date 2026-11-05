@@ -737,6 +737,12 @@ func Merge(root, ref string) error {
 	return err
 }
 
+// MergeAbort stops the merge in progress, the tree back as it was before.
+func MergeAbort(root string) error {
+	_, err := Run(root, "merge", "--abort")
+	return err
+}
+
 // badBranchRe is VS Code's sanitizeBranchName pattern, plus the "?", "@{" and
 // control characters git also refuses.
 var badBranchRe = regexp.MustCompile(`^\.|/\.|\.\.|~|\^|:|/$|\.lock$|\.lock/|\\|\*|\?|@\{|\s|[[:cntrl:]]|\.$|\[|\]$`)

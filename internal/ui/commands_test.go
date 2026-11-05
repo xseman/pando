@@ -235,6 +235,23 @@ func TestMergeBranch(t *testing.T) {
 	if st, _ := git.Stat(root); !m.msgErr || !strings.Contains(m.msg, "merge conflicts") || st.Op != "merge" {
 		t.Fatalf("merge clash: %q, op %q", m.msg, st.Op)
 	}
+
+	// Abort Merge is there while a merge is in progress, as VS Code's.
+	if hasCommand(m, "git.abortMerge") {
+		t.Fatal("Abort Merge with no merge in progress")
+	}
+
+	st, err := git.Stat(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m.scm.onGit(m, gitMsg{ws: root, repos: []string{root}, status: map[string]git.Status{root: st}})
+	fireCommand(t, m, "git.abortMerge")
+
+	if st, _ := git.Stat(root); st.Op != "" || len(st.Conflicts) != 0 || mustRead(t, filepath.Join(root, "a.txt")) != "ours\n" {
+		t.Fatalf("abort merge: %+v (%s)", st, m.msg)
+	}
 }
 
 // TestRenameDeleteBranch: VS Code's Rename Branch… and Delete Branch…, a

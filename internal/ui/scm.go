@@ -3183,6 +3183,13 @@ func (s *scmView) items(m *Model) []item {
 		item{label: "Create Branch From…", run: s.branchFromPicker},
 		item{label: "Rename Branch…", run: s.renameBranch},
 		item{label: "Delete Branch…", run: s.deletePicker})
+
+	if root := s.root(); s.status[root].Op == "merge" { // VS Code's gitMergeInProgress
+		items = append(items, item{label: "Abort Merge", run: func(*Model) tea.Cmd {
+			return s.run(root, "aborting the merge", func(root string) scmMsg { return scmMsg{text: "merge aborted", err: git.MergeAbort(root)} })
+		}})
+	}
+
 	group(item{label: mode, hint: "t", run: s.toggleTree},
 		item{label: "Collapse All", run: s.collapseAll},
 		item{label: "History Drawers…", run: func(m *Model) tea.Cmd { return s.drawerMenu(m, "", 0, m.bodyH(viewGit)/2) }},
