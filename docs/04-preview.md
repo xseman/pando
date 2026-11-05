@@ -149,7 +149,9 @@ Search and Source Control open: `setPreview` puts the next transient one in
 its tab. `pin` keeps it: `editRaw`, or a double click on the tab or the row.
 Quick open, F12 and menus open pinned; `groupSpec` drops the flag.
 `editor_limit` closes the tab with the lowest `used`, never the active or a
-dirty one. Every jump is a history entry with cursor and scroll for Go Back.
+dirty one. Every jump is a history entry with cursor and scroll for Go Back;
+it keeps the file's text only while that has unsaved edits (`historyEntry`),
+and discarding them (`forgetDraft`) drops it there too.
 `saveEditors` sends the groups (`gridSpec`, each a `groupSpec`: `file` and
 `rev` tabs only) to the daemon; `restoreEditors` reopens them. Go to Line
 takes `:120`, `:120:5`, `:120,5`.

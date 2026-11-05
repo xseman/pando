@@ -544,7 +544,7 @@ func (m *Model) saveSpot() {
 	}
 
 	if m.navAt >= 0 && m.navAt < len(m.nav) && m.nav[m.navAt].id() == spot.id() {
-		m.nav[m.navAt] = spot
+		m.nav[m.navAt] = historyEntry(spot)
 	}
 }
 
@@ -694,12 +694,25 @@ func (m *Model) restoreGroup(e proto.Editors) tea.Cmd {
 
 // navPush records a visited editor, dropping anything ahead of it.
 func (m *Model) navPush(p preview) {
-	m.nav = append(m.nav[:min(m.navAt+1, len(m.nav))], p)
+	m.nav = append(m.nav[:min(m.navAt+1, len(m.nav))], historyEntry(p))
 	if len(m.nav) > 50 {
 		m.nav = slices.Delete(m.nav, 0, 1)
 	}
 
 	m.navAt = len(m.nav) - 1
+}
+
+// historyEntry is p as the history keeps it: its text only while that holds
+// unsaved edits (a revision stepped to in the tab may leave the history the
+// one copy). Going back to a tab still open takes that tab's text
+// (setPreview), a clean one closed reads its file again, so 50 steps of
+// history hold no copies of files; forgetDraft drops discarded edits here.
+func historyEntry(p preview) preview {
+	if !p.dirty() {
+		p.buf = nil
+	}
+
+	return p
 }
 
 // navGo steps back (-1) or forward (1) through the visited editors.

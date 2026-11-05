@@ -545,3 +545,82 @@ func TestTransientEditor(t *testing.T) {
 		t.Fatalf("a double click in Explorer keeps it: %s", got)
 	}
 }
+
+// TestGoBackDropsDiscardedEdits reopens a file closed without its edits as it
+// is on disk: forgetDraft drops the history's copy of them (historyEntry
+// keeps one only while there are edits), and clean files keep none.
+func TestGoBackDropsDiscardedEdits(t *testing.T) {
+	m := testModelSized(t, 120, 30)
+	drainInputs(m)
+
+	a, b := filepath.Join(m.ws, "a.go"), filepath.Join(m.ws, "b.go")
+	mustWrite(t, a, "package a\n")
+	mustWrite(t, b, "package b\n")
+
+	open := func(p string) {
+		for _, msg := range runAll(m.openFile(p, false)) {
+			m.Update(msg)
+		}
+	}
+
+	open(a)
+
+	m.focus, m.pv.cur = onMain, pos{0, 9}
+	press(m, "Z", "Z")
+	open(b)
+
+	i := slices.IndexFunc(m.editors, func(e preview) bool { return e.path == a })
+	m.forgetDraft(m.editors[i]) // what "Close anyway" runs
+	m.dropEditor(i)
+
+	for i := range m.nav {
+		if m.nav[i].buf != nil {
+			t.Fatalf("history step %d keeps the text of %s", i, m.nav[i].path)
+		}
+	}
+
+	for _, msg := range runAll(m.navGo(-1)) {
+		m.Update(msg)
+	}
+
+	if got := string(m.pv.buf.line(0)); got != "package a" || m.pv.dirty() {
+		t.Fatalf("back on a.go: %q, dirty %v; want the file as saved", got, m.pv.dirty())
+	}
+}
+
+// TestRevisionBackKeepsEdits brings unsaved edits back with Go Back after the
+// tab stepped to a revision: the history held the only copy of them.
+func TestRevisionBackKeepsEdits(t *testing.T) {
+	m := testModelSized(t, 120, 30)
+	drainInputs(m)
+
+	for _, a := range [][]string{{"init", "-q", "-b", "main"}, {"config", "user.email", "t@t"}, {"config", "user.name", "t"}} {
+		mustGit(t, m.ws, a...)
+	}
+
+	f := filepath.Join(m.ws, "a.go")
+	mustWrite(t, f, "package a\n")
+	mustGit(t, m.ws, "add", "a.go")
+	mustGit(t, m.ws, "commit", "-qm", "one")
+
+	run := func(cmd tea.Cmd) {
+		for _, msg := range runAll(cmd) {
+			m.Update(msg)
+		}
+	}
+
+	run(m.openFile(f, false))
+	m.focus, m.pv.cur = onMain, pos{0, 9}
+	press(m, "Z", "Z")
+	run(m.pv.stepRev(m, 1))
+
+	if m.pv.kind != pvRev {
+		t.Fatalf("stepped to %s, want a revision", m.pv.kind)
+	}
+
+	run(m.navGo(-1))
+
+	if got := string(m.pv.buf.line(0)); got != "package aZZ" || !m.pv.dirty() {
+		t.Fatalf("back on a.go: %q, dirty %v; want the unsaved edits", got, m.pv.dirty())
+	}
+}

@@ -58,6 +58,12 @@ func (p *preview) draftOf(ws string) proto.Draft {
 
 // forgetDraft drops one editor's draft, for a tab closed without saving.
 func (m *Model) forgetDraft(p preview) tea.Cmd {
+	for i := range m.nav { // and the history's copy of the edits: Go Back would bring them back
+		if m.nav[i].id() == p.id() {
+			m.nav[i].buf = nil
+		}
+	}
+
 	d := p.draftOf(m.ws)
 	if d.Text == "" && m.savedDrafts[d.Key()] == "" {
 		return nil
