@@ -3,6 +3,7 @@ package ui
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -33,6 +34,7 @@ type searchOpts struct {
 	query, include, exclude string
 	caseSens, word, regex   bool
 	hidden                  bool // search dotfiles too (Files' hidden setting)
+	limit                   int  // the most matches; 0 for maxSearchMatches
 }
 
 // searchLine is one matching line; ranges are byte offsets of its matches.
@@ -332,10 +334,14 @@ func (s *searchView) onTick(m *Model, gen int) tea.Cmd {
 		caseSens: s.caseSens, word: s.word, regex: s.regex, hidden: m.st.Settings.Hidden,
 	}
 	s.re = matcher(o)
-	root := m.ws
 
-	// The results so far arrive while rg runs, the latest only: put drops a
-	// batch nobody took yet for the newer one, the last of all included.
+	return waitSearch(searchAsync(ctx, m.ws, o, gen))
+}
+
+// searchAsync runs o under root in the background. The results so far
+// arrive on the channel while rg runs, the latest only: put drops a batch
+// nobody took yet for the newer one, the last of all, not partial, included.
+func searchAsync(ctx context.Context, root string, o searchOpts, gen int) chan searchMsg {
 	ch := make(chan searchMsg, 1)
 	put := func(msg searchMsg) {
 		select {
@@ -354,7 +360,7 @@ func (s *searchView) onTick(m *Model, gen int) tea.Cmd {
 		put(searchMsg{gen: gen, files: files, truncated: truncated, err: err, ch: ch})
 	}()
 
-	return waitSearch(ch)
+	return ch
 }
 
 // waitSearch is the search's next batch.
@@ -590,7 +596,7 @@ func runSearch(ctx context.Context, root string, o searchOpts, engine string, pa
 		n := max(len(ln.ranges), 1)
 
 		f.lines, f.count, total = append(f.lines, ln), f.count+n, total+n
-		if total >= maxSearchMatches {
+		if total >= cmp.Or(o.limit, maxSearchMatches) {
 			truncated = true
 
 			cancel()
@@ -1099,16 +1105,21 @@ func (s *searchView) open(m *Model, rows []srRow) tea.Cmd {
 	}
 
 	ln := f.lines[r.line]
-	col, n := 0, 0
-
-	if len(ln.ranges) > 0 {
-		a, b := ln.ranges[0][0], ln.ranges[0][1]
-		// The preview shows tabs as four spaces.
-		col = utf8.RuneCountInString(expandTabs(ln.text[:a]))
-		n = utf8.RuneCountInString(expandTabs(ln.text[a:b]))
-	}
+	col, n := ln.span()
 
 	return m.openFileAt(filepath.Join(s.ws, f.path), ln.line-1, col, n, true)
+}
+
+// span is the line's first match as the editor counts columns: where it
+// starts and how long it is, 0 and 0 without one.
+func (ln searchLine) span() (col, n int) {
+	if len(ln.ranges) == 0 {
+		return 0, 0
+	}
+
+	a, b := ln.ranges[0][0], ln.ranges[0][1]
+	// The preview shows tabs as four spaces.
+	return utf8.RuneCountInString(expandTabs(ln.text[:a])), utf8.RuneCountInString(expandTabs(ln.text[a:b]))
 }
 
 func (s *searchView) inputKey(m *Model, k tea.KeyPressMsg) tea.Cmd {
