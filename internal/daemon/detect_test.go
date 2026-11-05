@@ -323,6 +323,21 @@ func TestCommandKeepsRunning(t *testing.T) {
 		t.Fatalf("a command seen twice: %q shell=%v, want running on a shell", s.status, s.info().Shell)
 	}
 
+	s.seen = "running" // a Bash tool call in the turn: the screen says so itself
+	s.tick(now)
+
+	if s.status != "running" || s.info().Shell {
+		t.Fatalf("a command in a running turn: %q shell=%v, want running", s.status, s.info().Shell)
+	}
+
+	s.emu = vt.NewEmulator(40, 4) // the turn over, a background command still running: clients hear of it
+	_, _ = s.emu.WriteString("● Done.\r\n❯ ")
+	s.lastOutput = now.Add(-time.Minute)
+
+	if !s.tick(now) || !s.info().Shell {
+		t.Fatalf("the turn over under a command: %q shell=%v, want a change to shell", s.status, s.info().Shell)
+	}
+
 	s.seen = "blocked"
 	s.tick(now)
 

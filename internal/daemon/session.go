@@ -387,7 +387,7 @@ func (s *session) tick(now time.Time) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	prev, prevAttn := s.status, s.attention
+	prev, prevAttn, prevShell := s.status, s.attention, s.onShell()
 
 	viewed := now.Sub(s.lastViewed) < viewedWindow
 
@@ -458,7 +458,13 @@ func (s *session) tick(now time.Time) bool {
 		s.active = now
 	}
 
-	return prev != s.status || prevAttn != s.attention || worked
+	return prev != s.status || prevAttn != s.attention || prevShell != s.onShell() || worked
+}
+
+// onShell reports a session running on a shell command alone, its screen not
+// saying running: claude's Bash tool call is its turn. s.mu is held.
+func (s *session) onShell() bool {
+	return s.status == "running" && s.command && s.seen != "running"
 }
 
 // worked reports the change from status prev as something that happened: a
@@ -501,7 +507,7 @@ func (s *session) info() proto.Session {
 	}
 
 	return proto.Session{
-		SessionSpec: s.spec, Status: status, ExitCode: s.exitCode, Attention: s.attention, Shell: status == "running" && s.command,
+		SessionSpec: s.spec, Status: status, ExitCode: s.exitCode, Attention: s.attention, Shell: status == "running" && s.onShell(),
 		Title: s.shownTitle(), Program: s.program, Updated: updated, Subagents: subagents,
 	}
 }

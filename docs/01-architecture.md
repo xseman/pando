@@ -147,7 +147,8 @@ alternate screen keeps a scrollback of its own that nothing shows;
 
 `Session.Status` is `blocked`, `running`, `idle`, `asleep` or `exited`; the TUI shows
 `idle` with `attention` as done, and `running` with `shell` (a shell command
-under the worker) as shell, its ◐ blue. Each tick, `session.tick` decides:
+under the worker, the screen not saying running) as shell, its ◐ blue. Each
+tick, `session.tick` decides:
 
 ```text
  process gone? ────────────────────────────────yes─▶ exited

@@ -168,7 +168,7 @@ checkout.
 | ---- | --------- | --------------------------------------------------------- |
 | `×`  | `blocked` | waits for you: a permission or a question                 |
 | `◐`  | `running` | works; it turns while it does                             |
-| `◐`  | `shell`   | running a shell command, in the background too (blue)     |
+| `◐`  | `shell`   | at its prompt, a shell command running under it (blue)    |
 | `✓`  | `done`    | finished, not looked at yet                               |
 | `○`  | `idle`    | at its prompt                                             |
 | `◌`  | `asleep`  | stopped to free memory; opening it brings it back         |
