@@ -3331,7 +3331,7 @@ func TestProjectPicker(t *testing.T) {
 		}
 	}
 
-	press(m, "backspace", "down", "down", "enter") // the listing: alpha, in
+	press(m, "backspace", "down", "enter") // ↓ is on alpha, past ..: in
 
 	if got := f.in.Value(); got != filepath.Join(dir, "alpha")+"/" {
 		t.Fatalf("⏎ on alpha: %q", got)
@@ -3455,6 +3455,11 @@ func TestProjectPickerKeys(t *testing.T) {
 
 	f.goTo(dir)
 	press(m, "down")
+
+	if f.at != dirList || f.dirs[f.sel] != "other" {
+		t.Fatalf("↓ from the path lands on the first folder: at %d on %q", f.at, f.dirs[f.sel])
+	}
+
 	press(m, "left")
 
 	if f.at != dirPlaces {
@@ -3467,7 +3472,7 @@ func TestProjectPickerKeys(t *testing.T) {
 		t.Fatalf("→ from the places: at %d", f.at)
 	}
 
-	press(m, "up")
+	press(m, "up", "up")
 
 	if f.at != dirPath || !f.in.Focused() {
 		t.Fatalf("↑ on .. goes to the path: at %d", f.at)
@@ -3475,7 +3480,7 @@ func TestProjectPickerKeys(t *testing.T) {
 
 	press(m, "down", "down", "up")
 
-	if f.at != dirList || f.sel != 0 {
+	if f.at != dirList || f.sel != 1 {
 		t.Fatalf("↑ below the top stays in the folders: at %d sel %d", f.at, f.sel)
 	}
 }

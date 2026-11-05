@@ -100,7 +100,8 @@ func places(home string, projects []string) []dirPlace {
 // the typed path's folders on the right, then Cancel and the primary button.
 // The path is the truth: what follows its last slash filters the folders.
 // tab completes the path, elsewhere walks path, places, folders and
-// buttons; ↓ leaves the path, ↑ from a column's top goes back to it, ← →
+// buttons; ↓ leaves the path for the first folder, ↑ from a column's top
+// goes back to it, ← →
 // cross the columns; ⏎ on a folder goes in, on the path or the primary
 // button picks it.
 type dirForm struct {
@@ -368,8 +369,8 @@ func (f *dirForm) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	case s == "enter":
 		return f.enterKey(m)
 	case f.at == dirPath:
-		if s == "down" {
-			f.at = dirList
+		if s == "down" { // onto the first folder, past ..
+			f.at, f.sel = dirList, min(1, len(f.dirs)-1)
 			f.in.Blur()
 
 			return nil
