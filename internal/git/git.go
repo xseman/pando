@@ -695,6 +695,32 @@ func CreateBranch(root, name, from string) error {
 	return err
 }
 
+// RenameBranch renames the branch HEAD is on.
+func RenameBranch(root, name string) error {
+	_, err := Run(root, "branch", "-m", name)
+	return err
+}
+
+// ErrNotMerged is DeleteBranch's error for a branch not fully merged, which
+// only force deletes.
+var ErrNotMerged = errors.New("not fully merged")
+
+// DeleteBranch deletes a local branch. One not merged into its upstream or
+// HEAD goes only with force: without, the error is ErrNotMerged.
+func DeleteBranch(root, name string, force bool) error {
+	flag := "-d"
+	if force {
+		flag = "-D"
+	}
+
+	_, err := Run(root, "branch", flag, name)
+	if err != nil && strings.Contains(err.Error(), "not fully merged") { // git exits 1 for any refusal: only its message tells
+		return fmt.Errorf("%w: %w", ErrNotMerged, err)
+	}
+
+	return err
+}
+
 // badBranchRe is VS Code's sanitizeBranchName pattern, plus the "?", "@{" and
 // control characters git also refuses.
 var badBranchRe = regexp.MustCompile(`^\.|/\.|\.\.|~|\^|:|/$|\.lock$|\.lock/|\\|\*|\?|@\{|\s|[[:cntrl:]]|\.$|\[|\]$`)

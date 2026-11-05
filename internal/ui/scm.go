@@ -2,6 +2,7 @@ package ui
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"path"
 	"path/filepath"
@@ -125,6 +126,7 @@ type scmMsg struct {
 	publish    bool   // a commit was to sync but the branch has no upstream: publish it
 	message    string // suggestion to put in the input
 	worktree   string // a checkout found the branch in this worktree: open it
+	menu       *modal // a question it leaves, as deleting a branch not fully merged
 }
 
 // modalMsg opens a menu built in a tea.Cmd, such as the "stage with merge
@@ -1365,6 +1367,10 @@ func (s *scmView) onMsg(m *Model, msg tea.Msg) tea.Cmd {
 			m.flash(msg.err.Error(), true)
 		case msg.text != "":
 			m.flash(msg.text, false)
+		}
+
+		if msg.menu != nil {
+			m.modal = msg.menu
 		}
 
 		var publish tea.Cmd
@@ -2628,6 +2634,60 @@ func (s *scmView) newBranch(m *Model) tea.Cmd {
 	return s.createBranch(m, s.root(), "", "")
 }
 
+// renameBranch is VS Code's "Rename Branch…": the branch HEAD is on takes
+// the name typed, sanitized as a new branch's.
+func (s *scmView) renameBranch(m *Model) tea.Cmd {
+	root := s.root()
+	cur := s.status[root].Branch
+
+	switch {
+	case root == "":
+		return flash("no git repository in this workspace", true)
+	case cur == "" || cur == "HEAD (no branch)": // git status' detached HEAD
+		return flash("HEAD is detached: no branch to rename", true)
+	}
+
+	m.modal = newPrompt("Rename branch "+cur, cur, func(_ *Model, v string) tea.Cmd {
+		name := git.SanitizeBranch(v)
+		if name == "" || name == cur {
+			return nil
+		}
+
+		return s.run(root, "renaming the branch", func(root string) scmMsg {
+			return scmMsg{text: "renamed " + cur + " to " + name, err: git.RenameBranch(root, name)}
+		})
+	})
+	m.modal.selected = true // typing replaces the name
+
+	return nil
+}
+
+// deletePicker loads refs for VS Code's "Delete Branch…".
+func (s *scmView) deletePicker(_ *Model) tea.Cmd { return s.loadRefs(s.onDeleteRefs) }
+
+// onDeleteRefs picks a local branch to delete, the checked-out one left out.
+func (s *scmView) onDeleteRefs(m *Model, root string, refs []git.Ref) {
+	local := slices.DeleteFunc(slices.Clone(refs), func(r git.Ref) bool { return r.Kind != "branch" || r.Head })
+	s.refPicker(m, "Select a branch to delete", local, func(_ *Model, r git.Ref) tea.Cmd {
+		return s.deleteBranch(root, r.Name, false)
+	})
+}
+
+// deleteBranch deletes a branch; one not fully merged asks first, as VS
+// Code's does, and then goes with force.
+func (s *scmView) deleteBranch(root, name string, force bool) tea.Cmd {
+	return s.run(root, "deleting the branch", func(root string) scmMsg {
+		err := git.DeleteBranch(root, name, force)
+		if errors.Is(err, git.ErrNotMerged) {
+			return scmMsg{menu: newDialog(fmt.Sprintf("The branch %q is not fully merged. Delete anyway?", name),
+				item{label: "Delete Branch", run: func(*Model) tea.Cmd { return s.deleteBranch(root, name, true) }},
+				cancelItem())}
+		}
+
+		return scmMsg{text: "deleted the branch " + name, err: err}
+	})
+}
+
 func (s *scmView) loadRefs(pick func(*Model, string, []git.Ref)) tea.Cmd {
 	root := s.root()
 	if root == "" {
@@ -3104,7 +3164,9 @@ func (s *scmView) items(m *Model) []item {
 	group(item{label: "Checkout to…", hint: "B", run: s.branchPicker},
 		item{label: "Checkout to (Detached)…", run: s.detachPicker},
 		item{label: "Create Branch…", run: s.newBranch},
-		item{label: "Create Branch From…", run: s.branchFromPicker})
+		item{label: "Create Branch From…", run: s.branchFromPicker},
+		item{label: "Rename Branch…", run: s.renameBranch},
+		item{label: "Delete Branch…", run: s.deletePicker})
 	group(item{label: mode, hint: "t", run: s.toggleTree},
 		item{label: "Collapse All", run: s.collapseAll},
 		item{label: "History Drawers…", run: func(m *Model) tea.Cmd { return s.drawerMenu(m, "", 0, m.bodyH(viewGit)/2) }},

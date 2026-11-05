@@ -137,34 +137,20 @@ func TestBranchPicker(t *testing.T) {
 	}
 
 	// VS Code's four branch commands, each straight to its picker or prompt.
-	run := func(id string) {
-		t.Helper()
-
-		m.modal = nil
-		for _, it := range m.commands() {
-			if commandID(it.label) == id {
-				fire(m, it.run(m))
-				return
-			}
-		}
-
-		t.Fatalf("no command %s", id)
-	}
-
 	for id, title := range map[string]string{
 		"git.checkoutTo":         "Select a branch or tag to checkout",
 		"git.checkoutToDetached": "Select a ref to checkout detached",
 		"git.createBranch":       "New branch name",
 		"git.createBranchFrom":   "Select a ref to create the branch from",
 	} {
-		run(id)
+		fireCommand(t, m, id)
 
 		if m.modal == nil || m.modal.title != title {
 			t.Fatalf("%s opens %+v, want %q", id, m.modal, title)
 		}
 	}
 
-	run("git.checkoutToDetached")
+	fireCommand(t, m, "git.checkoutToDetached")
 	press(m, "v", "1")
 	send(m, keyMsg("enter"))
 
@@ -194,6 +180,117 @@ func TestBranchPicker(t *testing.T) {
 
 	if m.ws != wt {
 		t.Fatalf("worktree branch: ws=%s msg=%q", m.ws, m.msg)
+	}
+}
+
+// TestRenameDeleteBranch: VS Code's Rename Branch… and Delete Branch…, a
+// branch not fully merged going only after a dialog.
+func TestRenameDeleteBranch(t *testing.T) {
+	m := testModel(t)
+
+	root := m.ws
+	for _, a := range [][]string{
+		{"init", "-q", "-b", "main"},
+		{"config", "user.email", "t@t"},
+		{"config", "user.name", "Ann"},
+		{"add", "-A"},
+		{"commit", "-qm", "init"},
+		{"branch", "feat"},
+		{"switch", "-q", "-c", "side"},
+		{"commit", "-q", "--allow-empty", "-m", "side"},
+		{"switch", "-q", "main"},
+	} {
+		mustGit(t, root, a...)
+	}
+
+	branches := func() string {
+		out, _ := git.Run(root, "branch", "--format=%(refname:short)")
+		return strings.Join(strings.Fields(out), " ")
+	}
+
+	m.scm.onGit(m, gitMsg{ws: root, repos: []string{root}, status: map[string]git.Status{root: {Branch: "main"}}})
+	fireCommand(t, m, "git.renameBranch")
+
+	if m.modal == nil || m.modal.title != "Rename branch main" || m.modal.input.Value() != "main" || !m.modal.selected {
+		t.Fatalf("rename prompt %+v", m.modal)
+	}
+
+	// The name is selected, as in VS Code: a move keeps it, a paste or a key replaces it.
+	press(m, "right", "2")
+
+	if v := m.modal.input.Value(); v != "main2" {
+		t.Fatalf("a move keeps the name: %q", v)
+	}
+
+	fireCommand(t, m, "git.renameBranch")
+	m.Update(tea.PasteMsg{Content: "x"})
+
+	if v := m.modal.input.Value(); v != "x" {
+		t.Fatalf("a paste replaces the name: %q", v)
+	}
+
+	fireCommand(t, m, "git.renameBranch")
+	press(m, "t", "r", "u", "n", "k")
+	send(m, keyMsg("enter"))
+
+	if got := branches(); got != "feat side trunk" {
+		t.Fatalf("after rename: %s (%s)", got, m.msg)
+	}
+
+	// The checked-out branch is not offered; a merged one goes at once.
+	fireCommand(t, m, "git.deleteBranch")
+
+	if got := labels(m); m.modal == nil || m.modal.title != "Select a branch to delete" ||
+		slices.ContainsFunc(got, func(l string) bool { return strings.HasSuffix(l, " trunk") }) {
+		t.Fatalf("delete picker %v", got)
+	}
+
+	// Not while another operation runs, as no git operation starts then.
+	m.scm.busy = "syncing"
+	press(m, "f", "e", "a", "t")
+	send(m, keyMsg("enter"))
+
+	if got := branches(); got != "feat side trunk" || m.scm.busy != "syncing" {
+		t.Fatalf("delete while syncing: %s, busy %q", got, m.scm.busy)
+	}
+
+	m.scm.busy = ""
+	fireCommand(t, m, "git.deleteBranch")
+	press(m, "f", "e", "a", "t")
+	send(m, keyMsg("enter"))
+
+	if got := branches(); got != "side trunk" {
+		t.Fatalf("after deleting feat: %s (%s)", got, m.msg)
+	}
+
+	// One not fully merged asks first.
+	fireCommand(t, m, "git.deleteBranch")
+	press(m, "s", "i", "d", "e")
+	send(m, keyMsg("enter"))
+
+	if m.modal == nil || !strings.Contains(m.modal.title, "not fully merged") || branches() != "side trunk" {
+		t.Fatalf("unmerged side: %+v %s", m.modal, branches())
+	}
+
+	send(m, keyMsg("enter"))
+
+	if got := branches(); got != "trunk" {
+		t.Fatalf("after deleting side anyway: %s (%s)", got, m.msg)
+	}
+
+	// A detached HEAD has no branch to rename.
+	mustGit(t, root, "switch", "-q", "--detach")
+
+	st, err := git.Stat(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m.scm.onGit(m, gitMsg{ws: root, repos: []string{root}, status: map[string]git.Status{root: st}})
+	fireCommand(t, m, "git.renameBranch")
+
+	if m.modal != nil || !m.msgErr || !strings.Contains(m.msg, "detached") {
+		t.Fatalf("rename detached: %+v %q", m.modal, m.msg)
 	}
 }
 
@@ -2689,6 +2786,22 @@ func TestSessionColorsFallBackToTheTheme(t *testing.T) {
 	if fg, bg := m.sessionColors(); fg != "#abcdef" || bg != "#123456" {
 		t.Fatalf("the terminal's own colors win: %s on %s", fg, bg)
 	}
+}
+
+// fireCommand runs command id with no modal open and delivers what its
+// command produces, once.
+func fireCommand(t *testing.T, m *Model, id string) {
+	t.Helper()
+
+	m.modal = nil
+	for _, it := range m.commands() {
+		if commandID(it.label) == id {
+			fire(m, it.run(m))
+			return
+		}
+	}
+
+	t.Fatalf("no command %s", id)
 }
 
 // runCommand runs the command config.toml calls id, as a [keys] binding does.

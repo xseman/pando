@@ -2896,6 +2896,11 @@ func (m *Model) paste(msg tea.PasteMsg) tea.Cmd {
 		cmd = m.modal.form.paste(msg)
 	case m.modal != nil && m.modal.hasInput():
 		md, before := m.modal, m.modal.input.Value()
+		if md.selected {
+			md.selected = false
+			md.input.SetValue("")
+		}
+
 		md.input, cmd = md.input.Update(msg)
 		cmd = tea.Batch(cmd, md.typed(m, before)) // as typed: quick open searches a pasted query
 

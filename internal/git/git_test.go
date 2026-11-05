@@ -749,6 +749,23 @@ func TestRefs(t *testing.T) {
 	if err := Checkout(root, Ref{Name: "feat", Kind: "branch"}, false); err != nil || head() != "feat" {
 		t.Fatalf("branch: %v %s", err, head())
 	}
+
+	if err := RenameBranch(root, "feat2"); err != nil || head() != "feat2" {
+		t.Fatalf("rename: %v %s", err, head())
+	}
+
+	// A branch with a commit HEAD lacks needs force.
+	must(t, "branch side", CreateBranch(root, "side", ""))
+	mustGit(t, root, "commit", "-q", "--allow-empty", "-m", "side")
+	must(t, "back to feat2", Checkout(root, Ref{Name: "feat2", Kind: "branch"}, false))
+
+	if err := DeleteBranch(root, "side", false); !errors.Is(err, ErrNotMerged) {
+		t.Fatalf("delete unmerged: %v", err)
+	}
+
+	if err := DeleteBranch(root, "side", true); err != nil {
+		t.Fatalf("force delete: %v", err)
+	}
 }
 
 // TestPublish pushes a branch without an upstream and sets it, as VS Code's

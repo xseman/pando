@@ -135,12 +135,15 @@ git for-each-ref --sort=-creatordate refs/heads refs/remotes refs/tags
 checkout: branch → git switch NAME
           remote → git switch --track NAME   (a local branch of that name wins)
           tag    → git switch --detach NAME
+rename:   git branch -m NAME                 (the branch HEAD is on)
+delete:   git branch -d NAME, "not fully merged" → a dialog, then -D
 ```
 
 A branch checked out in another worktree opens that worktree instead.
-The palette has VS Code's four: _Checkout to…_ (`B`) is the picker,
-_Checkout to (Detached)…_, _Create Branch…_ and _Create Branch From…_ go
-straight to its rows.
+The palette has VS Code's branch commands: _Checkout to…_ (`B`) is the
+picker, _Checkout to (Detached)…_, _Create Branch…_ and _Create Branch
+From…_ go straight to its rows; _Rename Branch…_ takes a name as a new
+branch does, _Delete Branch…_ picks a local branch but the checked-out one.
 
 _Create new branch…_ runs `git switch -c` on `SanitizeBranch`'s name, as VS
 Code's `sanitizeBranchName`: whitespace and what git refuses become `-`,

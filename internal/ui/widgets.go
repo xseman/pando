@@ -1254,6 +1254,7 @@ type modal struct {
 	lineQuery bool // a trailing ":12:5" is a position, not part of the match
 	submit    func(m *Model, value string) tea.Cmd
 	raw       bool // submit gets the value as typed, spaces kept: a table cell's
+	selected  bool // its value is selected, as VS Code's input box: a key or a paste replaces it, a move keeps it
 	keep      bool
 	tree      bool // group picker results under their directory
 	// prefix starts every query of a picker that lists one kind of thing, "@"
@@ -1979,7 +1980,15 @@ func (md *modal) view(m *Model) (string, int, int) {
 
 	if md.hasInput() {
 		md.input.SetWidth(iw - 3)
-		lines = append(lines, side+fit(realCaret(md.input.View()), iw)+side)
+
+		in := md.input
+		if md.selected { // as the editor's selection
+			st := in.Styles()
+			st.Focused.Text = st.Focused.Text.Background(pal.textSelBg)
+			in.SetStyles(st)
+		}
+
+		lines = append(lines, side+fit(realCaret(in.View()), iw)+side)
 	}
 
 	for _, r := range md.l.render(iw, rows, len(md.disp), func(i, rw int) string {
@@ -2218,6 +2227,17 @@ func (md *modal) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	var cmd tea.Cmd
 
 	before := md.input.Value()
+	if md.selected {
+		md.selected = false
+
+		switch s := k.String(); {
+		case k.Text != "":
+			md.input.SetValue("")
+		case s == "backspace" || s == "delete":
+			md.input.SetValue("")
+			return md.typed(m, before)
+		}
+	}
 
 	md.input, cmd = md.input.Update(k)
 
