@@ -36,7 +36,7 @@ func dormant(spec proto.SessionSpec, cols, rows int) *session {
 	}
 
 	s := &session{
-		spec: spec, done: make(chan struct{}), emu: vt.NewEmulator(cols, rows),
+		spec: spec, done: make(chan struct{}), emu: vt.NewEmulator(cols, dormantRows), want: [2]int{cols, rows},
 		cursorVisible: true, mouse: map[int]bool{}, status: "asleep", exited: true, asleep: true, touched: spec.Active, active: spec.Active,
 		program: spec.Program,
 	}
@@ -51,6 +51,11 @@ func dormant(spec proto.SessionSpec, cols, rows int) *session {
 
 	return s
 }
+
+// dormantRows is the screen a dormant session keeps until a client shows it
+// at its size: the notice lull writes, under a blank line. Its full screen of
+// cells, 112 bytes each, would hold nothing else, for every asleep session.
+const dormantRows = 3
 
 // lull writes asleepLine on the session's screen, dimmed as a notice is,
 // without asking for attention. s.mu is held.

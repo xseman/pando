@@ -291,7 +291,9 @@ session, put off until `session.wake` (`sleep.go`).
         add replaces it under its id, in its place ─▶ save, then its shells
         waits up to 20 s for the agent in front, idle or blocked (no /proc: none)
  restart: spec.Asleep ─▶ dormant: a screen, no process, until woken; the
-        spec's title and program, else its conversation's title
+        spec's title and program, else its conversation's title; the
+        screen 3 rows (dormantRows) until a client shows it at its size,
+        a wake at the size it was to have
 ```
 
 | A session in front runs…                             | By hand | On its own | Wakes to           |

@@ -51,8 +51,9 @@ type session struct {
 	active     time.Time // its last input or change of status: what Updated reports
 	touched    time.Time // its last input, or the use a restart carried over (used)
 	exited     bool
-	killed     bool // kill was called: its exit is no failure to fall back from
-	asleep     bool // put to sleep, or going to: the ticker leaves it be (sleepSession)
+	killed     bool   // kill was called: its exit is no failure to fall back from
+	asleep     bool   // put to sleep, or going to: the ticker leaves it be (sleepSession)
+	want       [2]int // a dormant session's size, cols and rows: its screen holds only the notice
 	exitCode   int
 	attention  bool
 	title      string
@@ -346,6 +347,10 @@ func (s *session) size() (cols, rows int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.want[0] > 0 { // a wake starts it at the size it was to have
+		return s.want[0], s.want[1]
+	}
+
 	return s.emu.Width(), s.emu.Height()
 }
 
@@ -631,6 +636,7 @@ func (s *session) screen(p proto.ScreenParams) proto.Screen {
 	s.lastViewed = time.Now()
 	if p.Cols > 0 && p.Rows > 0 && (p.Cols != s.emu.Width() || p.Rows != s.emu.Height()) {
 		s.drain(func() { s.emu.Resize(p.Cols, p.Rows) })
+		s.want = [2]int{} // shown: the screen has its size now
 		s.resized = time.Now()
 
 		if !s.exited {

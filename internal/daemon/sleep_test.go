@@ -353,6 +353,29 @@ func TestDormantConversationTitle(t *testing.T) {
 	}
 }
 
+// TestDormantScreenSmall keeps a dormant session's screen to its notice
+// until a client shows it, and still wakes it at the size it was to have.
+func TestDormantScreenSmall(t *testing.T) {
+	s := dormant(proto.SessionSpec{ID: "a", Agent: "shell", Cmd: []string{"sh"}, Asleep: true}, 100, 30)
+
+	if h := s.emu.Height(); h != dormantRows {
+		t.Fatalf("dormant screen %d rows, want %d", h, dormantRows)
+	}
+
+	if c, r := s.size(); c != 100 || r != 30 {
+		t.Fatalf("dormant size %dx%d, want 100x30", c, r)
+	}
+
+	if txt := s.text(false, 0); !strings.Contains(txt, asleepLine) {
+		t.Fatalf("dormant screen lost its notice: %q", txt)
+	}
+
+	scr := s.screen(proto.ScreenParams{Cols: 80, Rows: 24})
+	if c, r := s.size(); c != 80 || r != 24 || !strings.Contains(strings.Join(scr.Lines, "\n"), asleepLine) {
+		t.Fatalf("shown at 80x24: size %dx%d, screen %q", c, r, scr.Lines)
+	}
+}
+
 // TestInputWakes: input is refused asleep unless it asks to wake the session,
 // and then it reaches what came back.
 func TestInputWakes(t *testing.T) {
