@@ -875,6 +875,11 @@ func TestSessionsPickedTopExpires(t *testing.T) {
 		t.Fatalf("the picked project is drawn:\n%s", strings.Join(lines, "\n"))
 	}
 
+	rows := m.ag.rows(m)
+	if i := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agProject && r.project == p }); rows[i].bare {
+		t.Fatal("the picked project on top draws as a bare place, not as an active heading")
+	}
+
 	m.ag.picked[p] = time.Now().Add(-pickFor) // the time is up
 
 	if onTop() {

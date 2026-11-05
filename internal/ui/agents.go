@@ -275,7 +275,7 @@ func (a *agents) treeRows(m *Model, sessions []proto.Session, q string) []agRow 
 	head := func(p string) agRow {
 		top := awake[p] && (!a.collapsed[p] || held[p])
 
-		return agRow{kind: agProject, project: p, bare: p != "" && !busy[p] && !held[p], tail: !top, closed: !top && (!busy[p] || !a.opened[p])}
+		return agRow{kind: agProject, project: p, bare: p != "" && !busy[p] && !held[p] && !top, tail: !top, closed: !top && (!busy[p] || !a.opened[p])}
 	}
 
 	known := map[string]bool{}
