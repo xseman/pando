@@ -40,6 +40,10 @@ const pinnedHead = "Pinned"
 // projects under it A–Z.
 const bareHead = "Other Projects"
 
+// recentHead is the caption over the three projects not on top used last,
+// above bareHead: the one just put to sleep is found where it went.
+const recentHead = "Recent"
+
 type agRow struct {
 	kind    int
 	project string
@@ -103,6 +107,9 @@ func withSubagents(rows []agRow) []agRow {
 
 // inert reports a row nothing selects: a gap, or a subagent's.
 func (r agRow) inert() bool { return r.kind == agGap || r.kind == agSub }
+
+// caption reports r one of the dim captions over the projects not on top.
+func (r agRow) caption() bool { return r.when == bareHead || r.when == recentHead }
 
 // moreSessions reports whether another session follows row i's in its
 // worktree, past the subagents under it.
@@ -308,8 +315,15 @@ func (a *agents) treeRows(m *Model, sessions []proto.Session, q string) []agRow 
 		return cmp.Compare(strings.ToLower(agLabel(x[0])), strings.ToLower(agLabel(y[0])))
 	})
 
-	if q == "" {
-		tail = m.recentFirst(tail)
+	if recent := m.usedLast(a.tailProjects(m)); q == "" && recent != nil {
+		open = append(open, agRow{kind: agTime, when: recentHead})
+		if !a.collapsed[timeKey(recentHead)] {
+			for _, p := range recent {
+				open = append(open, tail[slices.IndexFunc(tail, func(rows []agRow) bool { return rows[0].project == p })]...)
+			}
+		}
+
+		tail = slices.DeleteFunc(tail, func(rows []agRow) bool { return slices.Contains(recent, rows[0].project) })
 	}
 
 	open = append(open, agRow{kind: agTime, when: bareHead})
@@ -320,10 +334,9 @@ func (a *agents) treeRows(m *Model, sessions []proto.Session, q string) []agRow 
 	return append(open, slices.Concat(tail...)...)
 }
 
-// recentFirst lifts the three projects of tail used last (their newest
-// session's Updated) above the A–Z rest, a blank row between: the one just
-// put to sleep is found where it went.
-func (m *Model) recentFirst(tail [][]agRow) [][]agRow {
+// usedLast are the three of projects ps used last, their newest session's
+// Updated, newest first; nil when that leaves none under bareHead.
+func (m *Model) usedLast(ps []string) []string {
 	used := map[string]time.Time{}
 	for _, s := range m.mainSessions() {
 		if p := m.projectOf(s.Workspace); s.Updated.After(used[p]) {
@@ -331,24 +344,14 @@ func (m *Model) recentFirst(tail [][]agRow) [][]agRow {
 		}
 	}
 
-	byUse := slices.Clone(tail)
-	slices.SortStableFunc(byUse, func(x, y []agRow) int { return used[y[0].project].Compare(used[x[0].project]) })
+	ps = slices.DeleteFunc(slices.Clone(ps), func(p string) bool { return used[p].IsZero() })
+	slices.SortStableFunc(ps, func(x, y string) int { return used[y].Compare(used[x]) })
 
-	n := 0
-	for n < min(3, len(byUse)) && !used[byUse[n][0].project].IsZero() {
-		n++
+	if len(ps) > 3 {
+		return ps[:3]
 	}
 
-	if n == 0 || n == len(tail) {
-		return tail
-	}
-
-	recent := byUse[:n]
-	rest := slices.DeleteFunc(tail, func(rows []agRow) bool {
-		return slices.ContainsFunc(recent, func(r []agRow) bool { return &r[0] == &rows[0] })
-	})
-
-	return slices.Concat(recent, [][]agRow{{{kind: agGap, tail: true}}}, rest)
+	return nil
 }
 
 // projectRows are project heading head, holding its checkout when that is
@@ -423,6 +426,13 @@ func (a *agents) topProjects(m *Model) []string {
 	return slices.DeleteFunc(m.projects(), func(p string) bool { return !awake[p] || a.collapsed[p] })
 }
 
+// tailProjects are the projects not on top: under recentHead or bareHead.
+func (a *agents) tailProjects(m *Model) []string {
+	awake := m.awake()
+
+	return slices.DeleteFunc(m.projects(), func(p string) bool { return awake[p] && !a.collapsed[p] })
+}
+
 // top reports project p listed on top: a session in it awake, not folded.
 func (a *agents) top(m *Model, p string) bool { return !a.collapsed[p] && m.awake()[p] }
 
@@ -475,7 +485,7 @@ func (a *agents) withGaps(rows []agRow) []agRow {
 // tree taller than the panel scrolls as it is. The Pinned pane takes the
 // panel's first above lines.
 func (a *agents) pinFolded(m *Model, rows []agRow, above int) []agRow {
-	k := slices.IndexFunc(rows, func(r agRow) bool { return r.when == bareHead })
+	k := slices.IndexFunc(rows, agRow.caption)
 
 	pad := m.bodyH(viewAgents) - above - len(rows)
 	if !m.byWorkspace() || k < 0 || pad <= 0 {
@@ -909,7 +919,7 @@ func (a *agents) collapseAll(m *Model) tea.Cmd {
 	var shut []string // the open ones, over the folded in the order they were listed
 
 	for _, r := range a.rows(m) {
-		if (r.kind == agProject || r.kind == agTime) && !r.tail && r.when != bareHead && !a.collapsed[foldKey(r)] { // what is under bareHead is folded already
+		if (r.kind == agProject || r.kind == agTime) && !r.tail && !r.caption() && !a.collapsed[foldKey(r)] { // what is under the captions is folded already
 			shut = append(shut, foldKey(r))
 		}
 	}
@@ -1223,8 +1233,8 @@ func (a *agents) lines(m *Model, w, h int) []string {
 
 	draw := func(i, y, rw int) string { // row i on line y
 		r := rows[i]
-		if r.kind == agGap { // the rule over an open heading, or a blank: before bareHead too
-			if h := i + 1; h < len(rows) && (rows[h].kind == agProject || rows[h].kind == agTime) && rows[h].when != bareHead && !rows[h].tail && (!a.collapsed[foldKey(rows[h])] || m.query(viewAgents) != "") {
+		if r.kind == agGap { // the rule over an open heading, or a blank: before the captions too
+			if h := i + 1; h < len(rows) && (rows[h].kind == agProject || rows[h].kind == agTime) && !rows[h].caption() && (!a.collapsed[foldKey(rows[h])] || m.query(viewAgents) != "") {
 				return ruleRow(rw, nil)
 			}
 
@@ -1279,15 +1289,23 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			switch {
 			case r.when == pinnedHead: // the pane's strip
 				right = count(len(ss))
-			case r.when == bareHead: // a dim caption, not one more project
-				right = count(len(m.projects()) - len(a.topProjects(m)))
+			case r.caption(): // a dim caption, not one more project
+				tail, recent := a.tailProjects(m), 0
+				if m.query(viewAgents) == "" {
+					recent = len(m.usedLast(tail))
+				}
+
+				right = count(len(tail) - recent)
+				if r.when == recentHead {
+					right = count(recent)
+				}
 
 			case m.st.Settings.SpGroup == "state":
 				right = count(len(ss))
 			}
 
-			if r.when == bareHead {
-				return row(rw, bg, []seg{sg(" "+chevron(open), dim), sg("other projects", dim)}, right...)
+			if r.caption() {
+				return row(rw, bg, []seg{sg(" "+chevron(open), dim), sg(strings.ToLower(r.when), dim)}, right...)
 			}
 
 			return row(rw, bg, []seg{sg(" "+chevron(open), dim), sg(m.spin(glyph, ss...), fg(c)), sg(r.when, base.Bold(true))}, right...)
@@ -1530,8 +1548,13 @@ func (a *agents) reveal(m *Model, path string) tea.Cmd {
 			saved = a.openInPlace(w.Project)
 		}
 
-		if !a.top(m, w.Project) && a.collapsed[timeKey(bareHead)] {
-			saved = tea.Batch(saved, a.unfold(timeKey(bareHead)))
+		head := bareHead
+		if slices.Contains(m.usedLast(a.tailProjects(m)), w.Project) {
+			head = recentHead
+		}
+
+		if !a.top(m, w.Project) && a.collapsed[timeKey(head)] {
+			saved = tea.Batch(saved, a.unfold(timeKey(head)))
 		}
 	} else if w != nil {
 		delete(a.opened, w.Project) // on top now: shut when it sinks again

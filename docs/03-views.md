@@ -178,9 +178,10 @@ re-roots Explorer and Source Control to its worktree.
 ▾ ○ other  ⌂ main + ↺ ⎇  its checkout alone: on the heading (merged), buttons as glyphs with tips
    └─ ○ shell           12m
                           a blank, no rule; blanks sink what follows to the bottom edge (pinFolded)
-▾ other projects     24   a dim caption over every project not on top (bareHead), folds as a heading
-▸ ◌ verba             1   the three used last first, newest on top (recentFirst)
-                          a blank, then the rest
+▾ recent              3   a dim caption over the three not on top used last, newest first (recentHead, usedLast)
+▸ ◌ verba             1
+                          a blank, no rule
+▾ other projects     24   a dim caption over the rest (bareHead), folds as a heading
 ▸ ◌ beratung          1   A–Z, a tight list: every session asleep, or folded: not bold, no button, a session count
      dotfiles  + ⎇       no session (bare): dimmed, no glyph, no fold, buttons as a heading holding its checkout
 ▾ ◌ super.dental  ⌂ main  asleep and opened in place (opened): its sessions under it, still A–Z
@@ -200,9 +201,10 @@ re-roots Explorer and Source Control to its worktree.
   one on screen) and not folded, in the project Sort's order
   (`topProjects`). Every other project goes under _other projects_
   (`bareHead`), A–Z, a row each: folded, every session asleep, or no session
-  at all (`bare`). Above the A–Z go the three used last (`recentFirst`: their
-  newest session's Updated), a blank row under them; not while filtering.
-  Nothing moves under the caption.
+  at all (`bare`). The three of them used last (`usedLast`: their newest
+  session's Updated) go above it under _recent_ (`recentHead`), newest
+  first, when that leaves some under the caption; not while filtering. Each
+  caption counts its own. Nothing moves under them.
 - One asleep opens in place on its chevron (`openInPlace`, `opened`) and goes
   on top once a session in it wakes, at its place in the order; asleep
   again, it is shut. A switch into one opens it so (`reveal`). The project

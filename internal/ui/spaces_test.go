@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"cmp"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -447,9 +448,11 @@ func TestSpacesUnfoldRunning(t *testing.T) {
 	}
 }
 
-// TestSessionsTailRecentFirst lists the three projects under Other Projects
-// used last first, newest on top, a blank row under them, then the rest
-// A–Z; the filter lists them all A–Z.
+// TestSessionsTailRecentFirst lists the three projects not on top used
+// last under their own caption, newest first, over Other Projects' rest
+// A–Z, each caption counting its own and a blank over it; a switch into one
+// under a folded Recent unfolds it; the filter lists them all A–Z under
+// Other Projects.
 func TestSessionsTailRecentFirst(t *testing.T) {
 	m := testModelSized(t, 100, 40)
 
@@ -464,32 +467,52 @@ func TestSessionsTailRecentFirst(t *testing.T) {
 	ps = append(ps, addProject(t, m, "main")) // no session: never recent
 	press(m, "3")
 
-	tail := func() []string {
+	shape := func() []string {
 		rows := m.ag.rows(m)
 
 		var got []string
 
-		for _, r := range rows[slices.IndexFunc(rows, func(r agRow) bool { return r.when == bareHead })+1:] {
-			got = append(got, r.project)
+		for _, r := range rows[slices.IndexFunc(rows, agRow.caption):] {
+			got = append(got, cmp.Or(r.when, r.project))
 		}
 
-		return got
+		return slices.Compact(got) // the blanks over the captions, and the padding
 	}
 
-	if got, want := tail(), []string{ps[4], ps[3], ps[2], "", ps[0], ps[1], ps[5]}; !slices.Equal(got, want) { // TempDirs sort by their number
+	want := []string{recentHead, ps[4], ps[3], ps[2], "", bareHead, ps[0], ps[1], ps[5]} // TempDirs sort by their number
+	if got := shape(); !slices.Equal(got, want) {
 		t.Fatalf("tail %q want %q", got, want)
 	}
 
 	rows, lines := m.ag.rows(m), m.ag.lines(m, 40, m.bodyH(viewAgents))
-	if gap := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agGap && r.tail }); strings.TrimSpace(ansi.Strip(lines[gap])) != "" {
-		t.Fatalf("a blank under the recent, no rule: %q", ansi.Strip(lines[gap]))
+	for head, n := range map[string]string{recentHead: " 3", bareHead: " 3"} {
+		i := slices.IndexFunc(rows, func(r agRow) bool { return r.when == head })
+		if l := strings.TrimRight(ansi.Strip(lines[i]), " "); !strings.HasPrefix(l, " ▾ "+strings.ToLower(head)) || !strings.HasSuffix(l, n) {
+			t.Fatalf("the caption counts its own: %q", l)
+		}
+
+		if l := ansi.Strip(lines[i-1]); strings.TrimSpace(l) != "" {
+			t.Fatalf("a blank over %s, no rule: %q", head, l)
+		}
+	}
+
+	m.ag.fold(timeKey(recentHead), true)
+
+	if got, want := shape(), []string{recentHead, "", bareHead, ps[0], ps[1], ps[5]}; !slices.Equal(got, want) {
+		t.Fatalf("Recent folded hides its own, Other Projects keeps the rest: %q want %q", got, want)
+	}
+
+	m.ag.reveal(m, ps[3])
+
+	if m.ag.collapsed[timeKey(recentHead)] {
+		t.Fatal("a switch into a recent project unfolds Recent")
 	}
 
 	press(m, "/")
 	typeText(m, "main") // every project's branch
 
-	if got := tail(); slices.Contains(got, "") {
-		t.Fatalf("the filter lists no recent: %q", got)
+	if got := shape(); slices.Contains(got, recentHead) || len(got) != 7 {
+		t.Fatalf("the filter lists all under Other Projects: %q", got)
 	}
 }
 

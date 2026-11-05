@@ -35,8 +35,8 @@ A project whose only worktree is its own checkout shows it on its line,
 `app  ⌂ main`, its sessions right under it; a click on the branch switches
 to it. An idle session says how long it has been idle (`3h`). On top are
 only the projects where something is awake, and the one on screen. The rest
-wait under a dim _other projects_ caption at the bottom, the three used
-last first, then A–Z: folded, all
+wait at the bottom, the three used last under a dim _recent_ caption,
+the others A–Z under _other projects_: folded, all
 asleep (`◌` and a count; the chevron opens one in place), or with no session
 (a dimmed name: a click switches to it, `n` starts a session in it). A
 project goes back on top, at its place, once a session in it wakes.
