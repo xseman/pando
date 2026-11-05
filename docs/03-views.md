@@ -278,6 +278,11 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
   (`togglePin`, `spaces_pinned`). Pinned lists it again on top, an `agTime`
   heading (`pinnedRows`), under its worktree so a long branch leaves the
   name its room: Filter and search apply, reordering does not.
+- `p` or the menu on a project pins it whole (its path in `spaces_pinned`):
+  under Pinned it lists as the tree lists it open, every worktree and
+  session, asleep too, its fold its own (`pinKey`, `pin:…`). A session it
+  holds pinned on its own shows under it once. The Filter takes each part
+  of Pinned apart.
 - Pinned is a pane as tall as its rows, at most a third of the view; past
   that it scrolls on its own (`ptop`), the tree under it too (`l.top`). One
   selection walks both (`snap`, `rowAt`).

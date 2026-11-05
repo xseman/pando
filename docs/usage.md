@@ -160,7 +160,8 @@ checkout.
   click on one opens the session.
 - `p` in Sessions, the `⊙` left of a session's row or its right-click menu
   pins it: Sessions lists it in the Pinned pane on top, and in its tree as
-  before.
+  before. `p` or the menu on a project pins it whole: its worktrees and
+  every session in them, new ones too, asleep or not.
 
 | Mark | State     | Means                                                     |
 | ---- | --------- | --------------------------------------------------------- |

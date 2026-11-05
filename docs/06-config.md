@@ -232,8 +232,8 @@ tick, on leaving the workspace and on quitting.
 | `editors`        | per workspace, the editor groups; `null`, nothing open, gone    |
 | `terminals`      | per workspace, panel `open`, `tab`, `max`; `null`/gone          |
 | `last_workspace` | reopened when pando starts outside a repository                 |
-| `spaces_folded`  | folded Sessions headings, paths and `time:…`; sent whole        |
-| `spaces_pinned`  | pinned session ids, in the order pinned; sent whole             |
+| `spaces_folded`  | folded Sessions headings, paths, `time:…`, `pin:…`; sent whole  |
+| `spaces_pinned`  | pinned session ids and project paths, in order; sent whole      |
 | `seen_env`       | per program, the `[resume_env]` values seen; never, edit it out |
 
 ```json

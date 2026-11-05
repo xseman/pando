@@ -80,7 +80,7 @@ func (a *agents) rows(m *Model) []agRow {
 		return append(pins, a.pinFolded(m, a.withGaps(withSubagents(out)), a.pane(pins, m.bodyH(viewAgents)).lines)...)
 	}
 
-	return append(matching(q, pins), a.withGaps(withSubagents(matching(q, out)))...)
+	return append(pins, a.withGaps(withSubagents(matching(q, out)))...)
 }
 
 // withSubagents puts the subagents a session runs under its row in the tree;
@@ -604,19 +604,39 @@ func (a *agents) groupRows(m *Model, sessions []proto.Session, q string) []agRow
 	return out
 }
 
-// pinnedRows are the Pinned heading and the pinned sessions under it, under
-// their worktree as in the tree, so a branch shows once and whole: the
-// worktrees in the order their first session was pinned, the sessions in
-// the order they were. Each stays in the tree too.
+// pinnedRows are the Pinned heading and what is pinned under it, in the
+// order it was pinned, the Filter applied to each part: a project whole, as
+// the tree lists it open, its fold its own (foldKey); a session under its
+// worktree as in the tree, so a branch shows once and whole, the worktrees
+// in the order their first session was pinned, the sessions in the order
+// they were. A pinned project's session shows under it only. Each stays in
+// the tree too.
 func (a *agents) pinnedRows(m *Model, sessions []proto.Session, q string) []agRow {
 	var (
-		wss []proto.Workspace
-		by  = map[string][]agRow{}
+		keys []string // a project's path or a worktree's, in the order pinned
+		by   = map[string][]agRow{}
 	)
 
+	whole := func(p string) bool { return slices.Contains(m.st.Projects, p) && slices.Contains(m.st.Pinned, p) } // a project pinned
+
 	for _, id := range m.st.Pinned {
+		if whole(id) {
+			var wts []proto.Workspace
+
+			for _, w := range m.wss {
+				if w.Project == id {
+					wts = append(wts, w)
+				}
+			}
+
+			head := agRow{kind: agProject, project: id, pinned: true, bare: !m.busyProjects()[id], closed: a.collapsed[pinKey(id)]}
+			keys, by[id] = append(keys, id), projectRows(head, wts, sessions, q)
+
+			continue
+		}
+
 		i := slices.IndexFunc(sessions, func(s proto.Session) bool { return s.ID == id })
-		if i < 0 {
+		if i < 0 || whole(m.projectOf(sessions[i].Workspace)) {
 			continue
 		}
 
@@ -626,13 +646,13 @@ func (a *agents) pinnedRows(m *Model, sessions []proto.Session, q string) []agRo
 		}
 
 		if by[ws.Path] == nil {
-			wss = append(wss, ws)
+			keys, by[ws.Path] = append(keys, ws.Path), []agRow{{kind: agWorkspace, project: ws.Project, ws: ws, pinned: true}}
 		}
 
 		by[ws.Path] = append(by[ws.Path], agRow{kind: agSession, ws: ws, s: sessions[i], pinned: true})
 	}
 
-	if wss == nil {
+	if keys == nil {
 		return nil
 	}
 
@@ -641,19 +661,34 @@ func (a *agents) pinnedRows(m *Model, sessions []proto.Session, q string) []agRo
 		return out
 	}
 
-	for _, ws := range wss {
-		out = append(append(out, agRow{kind: agWorkspace, project: ws.Project, ws: ws, pinned: true}), by[ws.Path]...)
+	for _, k := range keys {
+		if q == "" {
+			out = append(out, by[k]...)
+		} else {
+			out = append(out, matching(q, by[k])...) // apart: a worktree after a project would pass as its
+		}
+	}
+
+	if len(out) == 1 { // the Filter found none
+		return nil
 	}
 
 	return out
 }
 
-// togglePin pins session id under Pinned, or unpins it, dropping the
-// sessions gone since; Sessions keeps its selection on the row it was on.
+// pinKey is the collapsed key of pinned project p's heading, apart from its
+// tree's, which folding moves under bareHead.
+func pinKey(p string) string { return "pin:" + p }
+
+// togglePin pins session id or project id under Pinned, or unpins it,
+// dropping what is gone since; Sessions keeps its selection on the row it
+// was on.
 func (m *Model) togglePin(id string) tea.Cmd {
 	sel := m.ag.selected(m)
 
-	pins := slices.DeleteFunc(append([]string{}, m.st.Pinned...), func(p string) bool { return p == id || m.session(p) == nil }) // not nil: null would keep the list saved before
+	pins := slices.DeleteFunc(append([]string{}, m.st.Pinned...), func(p string) bool { // not nil: null would keep the list saved before
+		return p == id || m.session(p) == nil && !slices.Contains(m.st.Projects, p)
+	})
 	if !slices.Contains(m.st.Pinned, id) {
 		pins = append(pins, id)
 	}
@@ -804,13 +839,18 @@ func (a *agents) bar(m *Model, y int) (listBar, bool) {
 	return b, g.on() && b.row >= 0 && b.row < g.h
 }
 
-// pinLabel is the menu item that pins session id, or unpins it.
+// pinLabel is the menu item that pins session or project id, or unpins it.
 func (m *Model) pinLabel(id string) string {
-	if slices.Contains(m.st.Pinned, id) {
-		return "Unpin Session"
+	what := "Session"
+	if slices.Contains(m.st.Projects, id) {
+		what = "Project"
 	}
 
-	return "Pin Session"
+	if slices.Contains(m.st.Pinned, id) {
+		return "Unpin " + what
+	}
+
+	return "Pin " + what
 }
 
 // timeKey is the key in collapsed of a heading of no project (agTime),
@@ -819,8 +859,11 @@ func timeKey(bucket string) string { return "time:" + bucket }
 
 // foldKey is the collapsed key of a heading row.
 func foldKey(r agRow) string {
-	if r.kind == agTime {
+	switch {
+	case r.kind == agTime:
 		return timeKey(r.when)
+	case r.pinned:
+		return pinKey(r.project)
 	}
 
 	return r.project
@@ -1185,7 +1228,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			for _, s := range m.listedSessions() {
 				in := m.headOf(s, now) == r.when
 				if r.when == pinnedHead {
-					in = slices.Contains(m.st.Pinned, s.ID)
+					in = slices.Contains(m.st.Pinned, s.ID) || slices.Contains(m.st.Pinned, m.projectOf(s.Workspace))
 				}
 
 				if in {
@@ -1601,6 +1644,10 @@ func (a *agents) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	case "p":
 		if r != nil && r.kind == agSession {
 			return m.togglePin(r.s.ID)
+		}
+
+		if r != nil && r.kind == agProject && r.project != "" { // the whole project
+			return m.togglePin(r.project)
 		}
 
 	case "x", "d", "delete":
@@ -2099,10 +2146,10 @@ func removeLabel(r *agRow) string {
 }
 
 // wsRight is worktree row r's right end, rw cells wide: its session count,
-// or on a pinned row its project, where the branch leaves room: a branch is
-// in more than one.
+// or on a pinned row not under its project its project, where the branch
+// leaves room: a branch is in more than one.
 func wsRight(m *Model, r agRow, rw int) string {
-	if r.pinned {
+	if r.pinned && !slices.Contains(m.st.Pinned, r.project) {
 		if p := filepath.Base(r.project) + " "; r.project != "" && 6+ansi.StringWidth(wsName(r.ws)+p) <= rw {
 			return p
 		}
@@ -2293,7 +2340,12 @@ func (a *agents) items(m *Model) []item {
 			item{label: "Move Worktree Down", hint: "alt+↓", run: func(m *Model) tea.Cmd { return a.shiftWorkspace(m, path, 1) }})
 	}
 
-	if r != nil && r.project != "" && r.kind == agProject && len(m.st.Projects) > 1 && a.projectMovable(m, r.project) {
+	if r != nil && r.project != "" && r.kind == agProject {
+		p := r.project
+		row = append(row, item{label: m.pinLabel(p), hint: "p", run: func(m *Model) tea.Cmd { return m.togglePin(p) }})
+	}
+
+	if r != nil && r.project != "" && r.kind == agProject && !r.pinned && len(m.st.Projects) > 1 && a.projectMovable(m, r.project) {
 		// What a drag does, for the keyboard: the project keeps its place in
 		// config, so the order survives a restart either way.
 		row = append(row,
@@ -2448,7 +2500,7 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 		}
 		// A project row drags up and down the list; a press that never leaves
 		// its row is a click, so it waits for the release.
-		if p := rows[i].project; mo.Button == tea.MouseLeft && rows[i].kind == agProject && p != "" && len(m.st.Projects) > 1 && a.projectMovable(m, p) {
+		if p := rows[i].project; mo.Button == tea.MouseLeft && rows[i].kind == agProject && !rows[i].pinned && p != "" && len(m.st.Projects) > 1 && a.projectMovable(m, p) {
 			m.drag = &drag{kind: dragRow, proj: p, x0: x, y0: mo.Y}
 			return nil
 		}
@@ -2622,7 +2674,7 @@ func (a *agents) dropSlot(m *Model, rows []agRow) (at, h, band int) {
 			return r.s.ID
 		case d.ws != "" && r.kind == agWorkspace && !r.pinned:
 			return r.ws.Path
-		case d.proj != "" && r.kind == agProject:
+		case d.proj != "" && r.kind == agProject && !r.pinned:
 			return r.project
 		}
 
@@ -2715,7 +2767,7 @@ func (a *agents) projectDrop(m *Model, p string, rows []agRow, i int) string {
 			gap = slices.Index(order, rows[above].project) + 1
 		}
 
-	case rows[i].kind <= agSub:
+	case rows[i].kind <= agSub && !rows[i].pinned: // Pinned takes no drop
 		start, end := i, i
 		for start > 0 && rows[start].kind != agProject {
 			start--
@@ -2755,7 +2807,7 @@ func (a *agents) moveProject(m *Model, from, to string) {
 	*order = slices.Insert(rest, j, from)
 
 	rows := a.rows(m)
-	if k := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agProject && r.project == from }); k >= 0 {
+	if k := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agProject && r.project == from && !r.pinned }); k >= 0 {
 		a.l.sel = k
 		a.snap(m)
 	}

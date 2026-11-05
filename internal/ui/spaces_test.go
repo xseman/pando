@@ -642,3 +642,132 @@ func TestSessionsFilter(t *testing.T) {
 		t.Fatalf("the session opened stays selected, its project on top now: %+v", r)
 	}
 }
+
+// TestSpacesPinProject pins a whole project under Pinned: its worktrees and
+// every session in them, asleep too, a session pinned on its own shown once
+// under it; its heading folds apart from the tree's, the Filter takes each
+// part of Pinned alone, and it unpins to the tree's copy.
+func TestSpacesPinProject(t *testing.T) {
+	m := testModel(t)
+	m.sessions[0].Name = "gamma"
+	other := addProject(t, m, "main", "o1")
+	feat := t.TempDir()
+	m.wss = append(m.wss, proto.Workspace{Path: feat, Project: other, Branch: "feat"})
+	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "o2", Workspace: feat, Agent: "shell", Name: "beta"}, Status: "idle"})
+	m.Update(sessionsMsg(m.sessions))
+	press(m, "3")
+
+	shape := func() (out []string) {
+		for _, r := range m.ag.rows(m) {
+			l := ""
+
+			switch r.kind {
+			case agTime:
+				l = r.when
+			case agProject:
+				l = filepath.Base(r.project)
+			case agWorkspace:
+				l = "ws:" + r.ws.Branch
+			case agSession:
+				l = r.s.ID
+			}
+
+			if r.pinned {
+				l = "pin:" + l
+			}
+
+			out = append(out, l)
+		}
+
+		return out
+	}
+	sel := func(pinned bool, kind int, key string) {
+		t.Helper()
+
+		m.ag.l.sel = slices.IndexFunc(m.ag.rows(m), func(r agRow) bool {
+			return r.pinned == pinned && r.kind == kind && (r.project == key || r.s.ID == key)
+		})
+		if m.ag.l.sel < 0 {
+			t.Fatalf("no row %v %d %q: %q", pinned, kind, key, shape())
+		}
+	}
+	pinned := func() []string { return shape()[:slices.Index(shape(), filepath.Base(m.ws))] }
+	o := "pin:" + filepath.Base(other)
+
+	sel(false, agProject, other)
+	press(m, "p")
+
+	if want := []string{"Pinned", o, "pin:ws:main", "pin:o1", "pin:ws:feat", "pin:o2"}; !slices.Equal(m.st.Pinned, []string{other}) || !slices.Equal(pinned(), want) {
+		t.Fatalf("p pins the project whole: %v, rows %q want %q", m.st.Pinned, shape(), want)
+	}
+
+	if r := m.ag.selected(m); r == nil || r.kind != agProject || r.project != other || r.pinned {
+		t.Fatalf("the selection stays on the tree's project: %+v", r)
+	}
+	// A session of it pinned on its own shows once; one elsewhere after it.
+	sel(false, agSession, "o2")
+	press(m, "p")
+	sel(false, agSession, "s1")
+	press(m, "p")
+
+	if want := []string{"Pinned", o, "pin:ws:main", "pin:o1", "pin:ws:feat", "pin:o2", "pin:ws:main", "pin:s1"}; !slices.Equal(pinned(), want) {
+		t.Fatalf("o2 once, s1 after: %q want %q", shape(), want)
+	}
+	// Under its project a worktree counts its sessions, not names the project.
+	for _, l := range m.ag.lines(m, 40, m.bodyH(viewAgents))[:8] {
+		if l = strings.TrimRight(ansi.Strip(l), " "); strings.Contains(l, "feat") && (!strings.HasSuffix(l, " 1") || strings.Contains(l, filepath.Base(other))) {
+			t.Fatalf("the pinned project's worktree: %q", l)
+		}
+	}
+	// The Filter takes each part alone: s1's worktree is not the project's.
+	press(m, "/")
+	typeText(m, "gamma")
+
+	if want := []string{"Pinned", "pin:ws:main", "pin:s1", filepath.Base(m.ws), "s1"}; !slices.Equal(shape(), want) {
+		t.Fatalf("gamma under Pinned: %q want %q", shape(), want)
+	}
+
+	press(m, "esc")
+	// Its heading folds in the pane alone; the tree's copy stays on top.
+	sel(true, agProject, other)
+	press(m, "space")
+
+	if want := []string{"Pinned", o, "pin:ws:main", "pin:s1"}; !slices.Equal(pinned(), want) || !slices.Contains(m.ag.topProjects(m), other) {
+		t.Fatalf("folded under Pinned: %q want %q, on top %q", shape(), want, m.ag.topProjects(m))
+	}
+
+	press(m, "space")
+
+	labels := func() (out []string) {
+		for _, it := range m.ag.items(m) {
+			out = append(out, it.label)
+		}
+
+		return out
+	}
+	if ls := labels(); !slices.Contains(ls, "Unpin Project") || slices.Contains(ls, "Move Project Up") {
+		t.Fatalf("the pinned project's menu: %q", ls)
+	}
+	// Asleep, it stays whole under Pinned and the tree's goes under bareHead.
+	for i := range m.sessions[1:] {
+		m.sessions[1+i].Status = "asleep"
+	}
+
+	if p := pinned(); !slices.Contains(p, "pin:o1") || !slices.Contains(p, "pin:o2") || slices.Contains(m.ag.topProjects(m), other) {
+		t.Fatalf("asleep, Pinned lists all: %q", shape())
+	}
+
+	press(m, "p")
+
+	if r := m.ag.selected(m); !slices.Equal(m.st.Pinned, []string{"o2", "s1"}) || r == nil || r.kind != agProject || r.project != other || r.pinned {
+		t.Fatalf("unpinned under Pinned, onto the tree's copy: %v %+v", m.st.Pinned, r)
+	}
+
+	sel(false, agProject, m.ws)
+
+	if ls := labels(); !slices.Contains(ls, "Pin Project") {
+		t.Fatalf("the tree's project menu: %q", ls)
+	}
+
+	checkWidths(t, m)
+}
