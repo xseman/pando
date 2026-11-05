@@ -277,30 +277,7 @@ func (a *agents) treeRows(m *Model, sessions []proto.Session, q string) []agRow 
 			}
 		}
 
-		head := head(p)
-		if len(wts) == 1 && wts[0].Main && (!head.closed || q != "" || head.bare) {
-			head.ws = wts[0]
-		}
-
-		rows := []agRow{head}
-
-		for _, w := range wts {
-			if head.bare || head.closed && q == "" { // nothing under it to unfold, or folded
-				break
-			}
-
-			if !head.merged() {
-				rows = append(rows, agRow{kind: agWorkspace, project: p, ws: w, tail: head.tail})
-			}
-
-			for _, s := range sessions {
-				if s.Workspace == w.Path {
-					rows = append(rows, agRow{kind: agSession, project: p, ws: w, s: s, tail: head.tail})
-				}
-			}
-		}
-
-		add(rows)
+		add(projectRows(head(p), wts, sessions, q))
 	}
 
 	var other []agRow
@@ -337,6 +314,34 @@ func (a *agents) treeRows(m *Model, sessions []proto.Session, q string) []agRow 
 	}
 
 	return append(open, slices.Concat(tail...)...)
+}
+
+// projectRows are project heading head, holding its checkout when that is
+// its only worktree (merged), and, open, its worktrees wts with their
+// sessions, each marked as head is: under bareHead, or under Pinned.
+func projectRows(head agRow, wts []proto.Workspace, sessions []proto.Session, q string) []agRow {
+	if len(wts) == 1 && wts[0].Main && (!head.closed || q != "" || head.bare) {
+		head.ws = wts[0]
+	}
+
+	rows := []agRow{head}
+	if head.bare || head.closed && q == "" { // nothing under it to unfold, or folded
+		return rows
+	}
+
+	for _, w := range wts {
+		if !head.merged() {
+			rows = append(rows, agRow{kind: agWorkspace, project: head.project, ws: w, tail: head.tail, pinned: head.pinned})
+		}
+
+		for _, s := range sessions {
+			if s.Workspace == w.Path {
+				rows = append(rows, agRow{kind: agSession, project: head.project, ws: w, s: s, tail: head.tail, pinned: head.pinned})
+			}
+		}
+	}
+
+	return rows
 }
 
 // merged reports an open project heading that holds its own checkout, its
