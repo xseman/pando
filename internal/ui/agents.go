@@ -1610,9 +1610,11 @@ const resumeGrace = 30 * time.Second
 // when it sleeps again. A project whose last session prev had and the list
 // lacks is picked, so it stays on top for pickFor.
 func (a *agents) unfoldRunning(m *Model, prev []proto.Session) tea.Cmd {
-	for p := range m.awake() {
-		delete(a.opened, p)
-		delete(a.picked, p)
+	for _, s := range m.mainSessions() { // a session that wakes, not a pick: those expire
+		if s.Status != "asleep" || s.ID == m.sess {
+			delete(a.opened, m.projectOf(s.Workspace))
+			delete(a.picked, m.projectOf(s.Workspace))
+		}
 	}
 
 	busy := m.busyProjects()

@@ -1025,6 +1025,12 @@ func TestSessionsLastClosedStaysOnTop(t *testing.T) {
 		t.Fatal("its last session closed: the project stays on top")
 	}
 
+	m.Update(sessionsMsg(slices.Clone(m.sessions))) // the next tick, same list
+
+	if !onTop() {
+		t.Fatal("the next sessions update keeps it on top")
+	}
+
 	m.ag.picked[p] = time.Now().Add(-pickFor) // the time is up
 
 	if onTop() {
