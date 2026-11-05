@@ -1607,11 +1607,19 @@ const resumeGrace = 30 * time.Second
 // misses, as every one is on start, opens nothing; nor do the agents a
 // restarted daemon resumes, running as they come back (resumeGrace). A
 // project opened in place under bareHead is on top once awake, and shut
-// when it sleeps again.
+// when it sleeps again. A project whose last session prev had and the list
+// lacks is picked, so it stays on top for pickFor.
 func (a *agents) unfoldRunning(m *Model, prev []proto.Session) tea.Cmd {
 	for p := range m.awake() {
 		delete(a.opened, p)
 		delete(a.picked, p)
+	}
+
+	busy := m.busyProjects()
+	for _, s := range prev {
+		if p := m.projectOf(s.Workspace); s.Agent != termAgent && !busy[p] {
+			a.pick(p) // its last session closed: it stays on top for pickFor
+		}
 	}
 
 	if time.Since(m.reconnAt) < resumeGrace {

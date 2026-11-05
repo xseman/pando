@@ -999,3 +999,35 @@ func TestSessionsPinHoldsOpen(t *testing.T) {
 		t.Fatalf("unpinned and folded, it goes under Other Projects: %q", below)
 	}
 }
+
+// TestSessionsLastClosedStaysOnTop closes the last session of a project: it
+// stays on top, not under Other Projects, until pickFor is up.
+func TestSessionsLastClosedStaysOnTop(t *testing.T) {
+	m := testModelSized(t, 100, 40)
+	p := addProject(t, m, "main", "s2")
+	addProject(t, m, "main")
+	press(m, "3")
+
+	onTop := func() bool {
+		rows := m.ag.rows(m)
+		i := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agProject && r.project == p })
+
+		return i >= 0 && !rows[i].tail
+	}
+
+	if !onTop() {
+		t.Fatal("a project with a session awake is on top")
+	}
+
+	m.Update(sessionsMsg(slices.DeleteFunc(slices.Clone(m.sessions), func(s proto.Session) bool { return s.ID == "s2" })))
+
+	if !onTop() {
+		t.Fatal("its last session closed: the project stays on top")
+	}
+
+	m.ag.picked[p] = time.Now().Add(-pickFor) // the time is up
+
+	if onTop() {
+		t.Fatal("nothing started in time: it sinks back under Other Projects")
+	}
+}
