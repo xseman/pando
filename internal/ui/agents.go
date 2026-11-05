@@ -1603,8 +1603,8 @@ func (a *agents) unfoldRunning(m *Model, prev []proto.Session) tea.Cmd {
 	return saved
 }
 
-// reveal selects workspace path's row, its project unfolded (opened in place
-// under bareHead, and bareHead over it), as a click on it would: whatever
+// reveal selects workspace path's row, its project on top (lifted, or opened
+// in place under bareHead), its caption shut, as a click on it would: whatever
 // switches the workspace shows where it went. A selection already inside
 // that workspace, a clicked session, stays.
 func (a *agents) reveal(m *Model, path string) tea.Cmd {
@@ -1620,10 +1620,9 @@ func (a *agents) reveal(m *Model, path string) tea.Cmd {
 			head = recentHead
 		}
 
-		saved = a.lift(m, w.Project)
-		if a.collapsed[timeKey(head)] {
-			saved = tea.Batch(saved, a.unfold(timeKey(head)))
-		}
+		// the caption it came from shuts: the project is on top now
+		a.fold(timeKey(head), true)
+		saved = tea.Batch(a.lift(m, w.Project), a.saveFolds())
 	} else if w != nil {
 		delete(a.opened, w.Project) // on top now: shut when it sinks again
 	}

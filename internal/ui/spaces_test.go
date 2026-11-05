@@ -270,7 +270,9 @@ func TestSpacesNoSessions(t *testing.T) {
 
 	m.switchWorkspace(first)
 
-	m.ag.activate(m, &rows[head])
+	if !m.ag.collapsed[timeKey(bareHead)] { // the switch into b1 shut it
+		m.ag.activate(m, &rows[head])
+	}
 
 	if rows := m.ag.rows(m); len(rows) != m.bodyH(viewAgents) || rows[len(rows)-1].when != bareHead {
 		t.Fatalf("folded, the heading sits on the bottom edge: %d rows of %d", len(rows), m.bodyH(viewAgents))
@@ -282,8 +284,8 @@ func TestSpacesNoSessions(t *testing.T) {
 
 	m.ag.reveal(m, b2)
 
-	if r := m.ag.selected(m); m.ag.collapsed[timeKey(bareHead)] || r == nil || r.project != b2 {
-		t.Fatalf("a switch into one opens the heading and selects it: %+v", r)
+	if r := m.ag.selected(m); !m.ag.collapsed[timeKey(bareHead)] || r == nil || r.project != b2 {
+		t.Fatalf("a switch into one shuts the heading and selects it: %+v", r)
 	}
 
 	m.ag.fold(m.wss[0].Project, true)
@@ -451,7 +453,7 @@ func TestSpacesUnfoldRunning(t *testing.T) {
 // TestSessionsTailRecentFirst lists the three projects not on top used
 // last under their own caption, newest first, over Other Projects' rest
 // A–Z, each caption counting its own and a blank over it; a switch into one
-// under a folded Recent unfolds it; the filter lists them all A–Z under
+// shuts Recent it came from; the filter lists them all A–Z under
 // Other Projects.
 func TestSessionsTailRecentFirst(t *testing.T) {
 	m := testModelSized(t, 100, 40)
@@ -504,8 +506,8 @@ func TestSessionsTailRecentFirst(t *testing.T) {
 
 	m.ag.reveal(m, ps[3])
 
-	if m.ag.collapsed[timeKey(recentHead)] {
-		t.Fatal("a switch into a recent project unfolds Recent")
+	if !m.ag.collapsed[timeKey(recentHead)] {
+		t.Fatal("a switch into a recent project shuts Recent")
 	}
 
 	press(m, "/")
