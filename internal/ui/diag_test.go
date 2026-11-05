@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/xseman/pando/internal/git"
+	"github.com/xseman/pando/internal/proto"
 )
 
 // diagModel is an editor on a.go, its line 2 tab-indented, with
@@ -396,5 +397,81 @@ func TestDiagFailureShows(t *testing.T) {
 
 	if n.probs == nil || n.ptab != ptProblems || !n.termOpen() {
 		t.Fatalf("the list opens in the panel's Problems: %v, tab %d", n.probs != nil, n.ptab)
+	}
+}
+
+// TestProblemsTabAfterSwitch: back in a workspace whose panel showed
+// Problems, the tab is on Problems again and lists that workspace's problems
+// as its server reports them.
+func TestProblemsTabAfterSwitch(t *testing.T) {
+	m, path := diagModel(t)
+	root, wt := m.ws, t.TempDir()
+	m.wss = append(m.wss, proto.Workspace{Path: wt, Project: root, Branch: "feat"})
+	ds := m.diags[path]
+
+	_, cmd := m.Update(keyMsg("ctrl+shift+m"))
+	m.Update(cmd())
+
+	if m.probs == nil || m.ptab != ptProblems {
+		t.Fatalf("Problems open: %v %v", m.probs, m.ptab)
+	}
+
+	m.switchWorkspace(wt)
+	m.switchWorkspace(root)
+
+	if m.ptab != ptProblems || !m.termOpen() {
+		t.Fatalf("back on Problems: %v %v", m.ptab, m.termOpen())
+	}
+
+	_, cmd = m.Update(diagMsg{path: ds}) // the server reports root's problems again
+	if !m.problemsOpen() {
+		t.Fatalf("the report does not rebuild the Problems tab: probs %v, on %v", m.probs, m.ptab)
+	}
+
+	if b, ok := cmd().(tea.BatchMsg); ok && len(b) == 2 { // waitDiags, then the rebuilt list
+		m.Update(b[1]())
+	} else {
+		t.Fatal("the report sends no rebuilt list")
+	}
+
+	if out := ansi.Strip(checkWidths(t, m)); !strings.Contains(out, "undefined: undefined") {
+		t.Fatalf("the Problems tab lists root's problems again, probs=%v:\n%s", m.probs, out)
+	}
+}
+
+// TestProblemsTabReopened: a workspace left with its panel shut on Problems
+// opens it again on a Problems tab that lists the problems reported meanwhile.
+func TestProblemsTabReopened(t *testing.T) {
+	m, path := diagModel(t)
+	root, wt := m.ws, t.TempDir()
+	m.wss = append(m.wss, proto.Workspace{Path: wt, Project: root, Branch: "feat"})
+	ds := m.diags[path]
+
+	_, cmd := m.Update(keyMsg("ctrl+shift+m"))
+	m.Update(cmd())
+	m.toggleTerminal() // shut on Problems
+
+	m.switchWorkspace(wt)
+	m.switchWorkspace(root)
+
+	if !m.problemsOpen() { // else the report sends only waitDiags, which blocks
+		t.Fatal("shut on Problems, the list does not follow the problems")
+	}
+
+	_, cmd = m.Update(diagMsg{path: ds})                  // reported while shut
+	if b, ok := cmd().(tea.BatchMsg); ok && len(b) == 2 { // waitDiags, then the rebuilt list
+		m.Update(b[1]())
+	} else {
+		t.Fatal("a report while shut on Problems sends no rebuilt list")
+	}
+
+	m.toggleTerminal() // open again
+
+	if m.ptab != ptProblems || !m.termOpen() {
+		t.Fatalf("reopened on Problems: %v %v", m.ptab, m.termOpen())
+	}
+
+	if out := ansi.Strip(checkWidths(t, m)); !strings.Contains(out, "undefined: undefined") {
+		t.Fatalf("the reopened Problems tab lists root's problems, probs=%v:\n%s", m.probs, out)
 	}
 }

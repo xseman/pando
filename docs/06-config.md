@@ -230,7 +230,7 @@ tick, on leaving the workspace and on quitting.
 | `sessions`       | session specs a restarted daemon respawns                       |
 | `drafts`         | per repository, the commit message; `""`                        |
 | `editors`        | per workspace, the editor groups; `null`, nothing open, gone    |
-| `terminals`      | per workspace, panel `open`, `tab`, `max`; `null`/gone          |
+| `terminals`      | per workspace, panel `open`, `tab`, `max`, `panel`; `null`/gone |
 | `last_workspace` | reopened when pando starts outside a repository                 |
 | `spaces_folded`  | folded Sessions headings, paths, `time:…`, `pin:…`; sent whole  |
 | `spaces_pinned`  | pinned session ids and project paths, in order; sent whole      |

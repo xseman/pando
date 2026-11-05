@@ -26,7 +26,8 @@ const (
 
 var (
 	panelTitles = []string{"Terminal", "Problems", "Output"}
-	panelShort  = []string{"Term", "Probs", "Out"} // a strip too narrow for the titles
+	panelShort  = []string{"Term", "Probs", "Out"}   // a strip too narrow for the titles
+	panelIDs    = []string{"", "problems", "output"} // the tab a workspace keeps, proto.Terminal's Panel
 )
 
 // panelChip is a tab's label in the panel's strip, x cells from its start.

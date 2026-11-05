@@ -1131,7 +1131,7 @@ func (m *Model) setTermOpen(open bool, patch map[string]any) tea.Cmd {
 	}
 
 	patch["terminal_open"] = open
-	t := proto.Terminal{Open: open, Tab: m.tv.id}
+	t := proto.Terminal{Open: open, Tab: m.tv.id, Panel: panelIDs[m.ptab]}
 	m.keepTerm(t)
 
 	return m.setSettingsWith(patch, map[string]any{"terminals": map[string]proto.Terminal{m.ws: t}})
@@ -1145,7 +1145,7 @@ func (m *Model) saveTerm() tea.Cmd {
 		return nil
 	}
 
-	t := proto.Terminal{Open: m.termOpen(), Tab: m.tv.id, Max: m.termMax}
+	t := proto.Terminal{Open: m.termOpen(), Tab: m.tv.id, Max: m.termMax, Panel: panelIDs[m.ptab]}
 	if _, ok := m.st.Terminals[m.ws]; ok && t == m.savedTerm {
 		return nil
 	}
@@ -2238,9 +2238,10 @@ func (m *Model) switchWorkspace(path string) tea.Cmd {
 	// A session over the editor is what shows, the tabs waiting in the strip.
 	m.preview = m.preview && m.sess == ""
 	// The panel as this workspace left it: open or shut, maximized or not,
-	// on the shell it showed.
+	// on the tab and the shell it showed.
 	m.savedTerm, m.tv.id, m.tv.term = m.st.Terminals[path], "", term{}
 	m.termMax = m.savedTerm.Max && m.termOpen()
+	m.ptab = panelTab(max(slices.Index(panelIDs, m.savedTerm.Panel), 0))
 
 	if open != m.termOpen() && m.w > 0 { // New switches before the window has a size
 		m.resize()
@@ -2655,7 +2656,13 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case problemsMsg:
 		if msg.live {
 			if m.problemsOpen() {
-				msg.pk.follow(m.probs)
+				if m.probs != nil {
+					msg.pk.follow(m.probs)
+				} else { // the tab shown with no list yet: built as showPeek builds it
+					msg.pk.build()
+					msg.pk.l.sel = min(1, len(msg.pk.rows)-1)
+				}
+
 				m.probs = msg.pk
 			}
 

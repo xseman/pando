@@ -213,9 +213,10 @@ func (e Editors) Empty() bool { return len(e.Open) == 0 && len(e.Sessions) == 0 
 // Terminal is a workspace's Terminal panel as state.json keeps it, so every
 // workspace opens and shuts its own.
 type Terminal struct {
-	Open bool   `json:"open"`
-	Tab  string `json:"tab,omitempty"` // the shell it showed
-	Max  bool   `json:"max,omitempty"` // it filled the editor area (⌃⇧↑)
+	Open  bool   `json:"open"`
+	Tab   string `json:"tab,omitempty"`   // the shell it showed
+	Max   bool   `json:"max,omitempty"`   // it filled the editor area (⌃⇧↑)
+	Panel string `json:"panel,omitempty"` // the panel's tab: "problems", "output"; "" the Terminal
 }
 
 // Editor is one open file with its cursor (0-based) and scroll. An untitled

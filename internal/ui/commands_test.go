@@ -4292,6 +4292,47 @@ func TestTerminalPanelPerWorkspace(t *testing.T) {
 	}
 }
 
+// TestPanelTabPerWorkspace keeps the tab each worktree's panel showed, and
+// whether it was shut, apart from the others.
+func TestPanelTabPerWorkspace(t *testing.T) {
+	m := testModel(t)
+	root, wt := m.ws, t.TempDir()
+	m.wss = append(m.wss, proto.Workspace{Path: wt, Project: root, Branch: "feat"})
+
+	m.showPanel(ptProblems)
+	m.switchWorkspace(wt)
+
+	if m.ptab != ptTerm {
+		t.Fatalf("a worktree never visited starts on the Terminal: %v", m.ptab)
+	}
+
+	m.showPanel(ptOutput)
+	m.switchWorkspace(root)
+
+	if !m.termOpen() || m.ptab != ptProblems {
+		t.Fatalf("back on the Problems it left: open %v, on %v", m.termOpen(), m.ptab)
+	}
+
+	m.switchWorkspace(wt)
+
+	if !m.termOpen() || m.ptab != ptOutput {
+		t.Fatalf("back on its Output: open %v, on %v", m.termOpen(), m.ptab)
+	}
+
+	m.toggleTerminal()
+	m.switchWorkspace(root)
+
+	if !m.termOpen() || m.ptab != ptProblems {
+		t.Fatalf("shut elsewhere, open here on its Problems: open %v, on %v", m.termOpen(), m.ptab)
+	}
+
+	m.switchWorkspace(wt)
+
+	if m.termOpen() || m.ptab != ptOutput {
+		t.Fatalf("shut where it was shut, its tab kept: open %v, on %v", m.termOpen(), m.ptab)
+	}
+}
+
 // TestSpacesPin pins sessions under Pinned, on top and in the order they
 // were pinned, each staying in the tree: p, the gutter's button and the
 // menus pin and unpin, and the selection stays on the row it was on.

@@ -218,8 +218,9 @@ the buttons (`termButtons`: on the Terminal `+` and the select, then ⋮ the
 tab's menu and where the panel goes,
 maximize under the editor, ✕ closing the panel), always
 shown, `termStripH` rows over the body; a column has no header row and
-keeps the tabs. Each worktree keeps its panel maximized or not, a restart
-too (`terminals`' `max`).
+keeps the tabs. Each worktree keeps its panel open or shut, maximized or
+not, on the tab it showed, a restart too (`terminals`' `open`, `max`,
+`panel`); one never visited takes the last open or shut, on the Terminal.
 
 ```text
  Terminal   Problems 3   Output              +  1: fish ▾  ⋯  □  ✕

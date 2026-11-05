@@ -333,8 +333,10 @@ func (m *Model) onDiagSynced(msg diagSyncedMsg) tea.Cmd {
 	return nil
 }
 
-// problemsOpen reports a Problems list in the panel, which follows the problems.
-func (m *Model) problemsOpen() bool { return m.probs != nil }
+// problemsOpen reports a Problems list in the panel, which follows the
+// problems: the tab picked too, shown or shut, a workspace's come back to
+// with no list yet.
+func (m *Model) problemsOpen() bool { return m.probs != nil || m.ptab == ptProblems }
 
 // sevMark is a severity's glyph and color, VS Code's: ✖ error, ⚠ warning,
 // ℹ information and hint.
