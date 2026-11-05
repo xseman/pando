@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"bytes"
 	"cmp"
 	"fmt"
 	"io"
@@ -187,6 +188,10 @@ func spawn(spec proto.SessionSpec, cols, rows int, onOutput, onExit func()) (*se
 type oscFilter struct{ inOSC, esc bool }
 
 func (f *oscFilter) ascii(b []byte) []byte {
+	if !f.esc && !f.inOSC && len(b) > 0 && b[len(b)-1] != 0x1b && !bytes.Contains(b, []byte("\x1b]")) {
+		return b // no OSC starts or runs on here: nothing to drop
+	}
+
 	out := b[:0]
 	for _, c := range b {
 		switch {
@@ -677,12 +682,18 @@ func (s *session) screen(p proto.ScreenParams) proto.Screen {
 // scrollMax is the scrollback lines a session keeps.
 const scrollMax = 10000
 
-// keepBack sets the emulator up for drain: its scrollback only holds rows
-// until drain moves them into back, the alternate screen keeps none, and
-// ED 3 clears back.
+// keepBack sets the emulator up for drain: each row scrolled off the main
+// screen goes into back rendered, straight from the screen's cells (~150 B a
+// row against ~11 KB of vt's 112-byte cells, and no copy of them), the
+// alternate screen keeps none, and ED 3 clears back.
 func (s *session) keepBack() {
 	s.emu.SetScrollbackSize(scrollMax)
+	s.emu.Scrollback().SetSink(func(l uv.Line) {
+		s.back = append(s.back, l.Render())
+		s.pushed++
+	})
 	noAltScrollback(s.emu)
+	smallParser(s.emu)
 	s.emu.RegisterCsiHandler('J', func(p ansi.Params) bool {
 		if n, _, _ := p.Param(0, 0); n == 3 && !s.emu.IsAltScreen() {
 			s.back = nil
@@ -692,22 +703,10 @@ func (s *session) keepBack() {
 	})
 }
 
-// drain runs f, which writes to the emulator or resizes it, and moves the
-// rows it scrolled off the main screen into back, rendered: a row of vt's
-// 112-byte cells takes some 80 times the bytes. Callers hold s.mu.
+// drain runs f, which writes to the emulator or resizes it, and trims back,
+// which the rows f scrolled off grew, to scrollMax. Callers hold s.mu.
 func (s *session) drain(f func()) {
 	f()
-
-	sb := s.emu.Scrollback()
-	rows := sb.Lines()
-
-	for _, l := range rows {
-		s.back = append(s.back, l.Render())
-	}
-
-	s.pushed += len(rows)
-	clear(rows) // sb keeps the array: let the cells go
-	sb.Clear()
 
 	if n := len(s.back) - scrollMax; n > 0 {
 		s.back = slices.Delete(s.back, 0, n)
@@ -726,6 +725,25 @@ func noAltScrollback(e *vt.Emulator) {
 	}
 
 	(*vt.Screen)(unsafe.Pointer(f.Index(1).UnsafeAddr())).SetScrollback(nil)
+}
+
+// parserData is what the emulator's parser keeps of one OSC, DCS or APC
+// string. vt asks for 4 MiB per emulator, which a session's heap then counts
+// twice over for the GC target; the strings vt handles (titles, links,
+// colors, notifications) are short, and those it ignores (images, OSC 52)
+// are dropped whatever their size.
+const parserData = 64 << 10
+
+// smallParser cuts the emulator's parser buffer to parserData. vt has no
+// setter for it, so this reaches the parser by reflection, and leaves it be
+// if vt's layout changes (TestParserBuffer notices).
+func smallParser(e *vt.Emulator) {
+	f := reflect.ValueOf(e).Elem().FieldByName("parser")
+	if !f.IsValid() || f.Type() != reflect.TypeFor[*ansi.Parser]() || f.IsNil() {
+		return
+	}
+
+	(*(**ansi.Parser)(unsafe.Pointer(f.UnsafeAddr()))).SetDataSize(parserData)
 }
 
 // text renders the session as plain text: the screen, with everything the

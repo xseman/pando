@@ -142,12 +142,20 @@ and sends `sessions`. Its `scroll` counts back from the bottom;
 sends it back as `pushed` gets the page moved up by those pushed since, so a
 scrolled page stays on its text.
 
-The scrollback is pando's, not vt's: after each write or resize `drain`
-moves the rows vt scrolled off into `session.back`, rendered (~150 B a row
-against ~11 KB of vt's 112-byte cells), at most 10 000; ED 3 clears it. vt's
-alternate screen keeps a scrollback of its own that nothing shows;
-`noAltScrollback` drops it by reflection, as vt has no setter
-(`TestScrollbackMemory` fails if that stops working).
+The scrollback is pando's, not vt's: vt hands each row it scrolls off the
+main screen to `session.back` (`Scrollback.SetSink`), rendered straight from
+the screen's cells (~150 B a row against ~11 KB of vt's 112-byte cells, never
+copied), and `drain` keeps the last 10 000 after each write or resize; ED 3
+clears it. vt's alternate screen keeps a scrollback of its own that nothing
+shows; `noAltScrollback` drops it by reflection, as vt has no setter
+(`TestScrollbackMemory` fails if that stops working). `smallParser` cuts
+vt's 4 MiB OSC/DCS buffer per emulator to 64 KiB the same way
+(`TestParserBuffer`): it counted twice over toward the GC target.
+
+vt and ultraviolet come from forks (`replace` in `go.mod`, upstream PRs
+open): ultraviolet moves whole lines on a full-width scroll instead of their
+cells, vt gives the sink above and prints ASCII without an allocation per
+character. Output costs a sixth of the CPU it did.
 
 ## Status
 

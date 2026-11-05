@@ -2098,6 +2098,21 @@ func testSession(cols, rows int) *session {
 	return s
 }
 
+// TestParserBuffer keeps the parser's string buffer at parserData: vt's own
+// 4 MiB would come back without a word if its layout moved the field.
+func TestParserBuffer(t *testing.T) {
+	s := testSession(80, 24)
+
+	data := reflect.ValueOf(s.emu).Elem().FieldByName("parser").Elem().FieldByName("data")
+	if !data.IsValid() {
+		t.Fatal("vt's parser has no data buffer where smallParser looks")
+	}
+
+	if data.Cap() != parserData {
+		t.Fatalf("parser buffer of %d bytes, want %d", data.Cap(), parserData)
+	}
+}
+
 // TestScrolledPageStays keeps a page scrolled back on its text while output
 // goes on below it, a full scrollback dropping lines off its top included.
 func TestScrolledPageStays(t *testing.T) {
