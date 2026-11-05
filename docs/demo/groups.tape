@@ -20,12 +20,12 @@ Type "pando" Enter
 Wait+Screen@30s /\^.p/
 Sleep 300ms
 Ctrl+p
-Wait+Screen@5s /Go to File/
+Wait+Screen@5s /Files  Sessions  Text/
 Type "main.go"
 Enter
 Sleep 300ms
 Ctrl+p
-Wait+Screen@5s /Go to File/
+Wait+Screen@5s /Files  Sessions  Text/
 Type "store.go"
 Enter
 Sleep 500ms

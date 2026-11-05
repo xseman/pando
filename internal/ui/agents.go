@@ -2932,11 +2932,23 @@ func (a *agents) moveSession(m *Model, id, to string) {
 	}
 }
 
-// agentNavigator is a quick pick of every session and worktree, like
-// herdr-navigator: blocked sessions first, then running, done, idle and
-// exited ones. "@blocked", "@running", "@shell", "@done", "@idle", "@exited",
-// "@worktree" narrow by kind and "!claude" by agent.
+// agentNavigator is alt+t: quick open on its Sessions tab.
 func (m *Model) agentNavigator() tea.Cmd {
+	load := m.loadIndex(true)
+
+	return func() tea.Msg {
+		msg, _ := load().(indexMsg)
+		msg.tab = qoSessions
+
+		return msg
+	}
+}
+
+// navigatorItems are every session and worktree, like herdr-navigator:
+// blocked sessions first, then running, done, idle and exited ones.
+// "@blocked", "@running", "@shell", "@done", "@idle", "@exited", "@worktree"
+// narrow by kind and "!claude" by agent.
+func (m *Model) navigatorItems() []item {
 	items := m.sessionItems(m.mainSessions())
 
 	for _, w := range m.wss {
@@ -2960,9 +2972,7 @@ func (m *Model) agentNavigator() tea.Cmd {
 		})
 	}
 
-	m.modal = newPicker("Go to Agent or Worktree", items)
-
-	return nil
+	return items
 }
 
 // alarmStates are the session states that wait on the user, the most urgent

@@ -143,7 +143,7 @@ checkout.
   opened from Search or Source Control sharing Explorer's column leaves that
   view in front.
 - Each session is one tab; the sessions of a worktree share its Terminal
-  panel's shells, which outlive them. `alt+t` picks a session, `alt+a` goes to
+  panel's shells, which outlive them. `alt+t` picks a session (quick open's Sessions tab), `alt+a` goes to
   the next one waiting on you. An agent started in a shell, claude typed at its prompt,
   shows its state on the tab.
 - Drag over a terminal to select and copy; `ctrl+f` finds in its scrollback.
@@ -415,7 +415,8 @@ show a warning.
 ## Editor
 
 - Undo, find & replace, quick open (`ctrl+p`, recent files first,
-  `:` line, `@` symbol), suggestions, merge-conflict _Accept_ actions.
+  `:` line, `@` symbol; `tab` goes to Files, Sessions and the files' Text,
+  `alt+⏎` on to Search), suggestions, merge-conflict _Accept_ actions.
 - The cursor's line is lit faintly across the editor, as VS Code's.
 - `ctrl+/` comments the line or the selection out, and a second time back in,
   in the language under the cursor (a `<script>`, a code fence); HTML, CSS

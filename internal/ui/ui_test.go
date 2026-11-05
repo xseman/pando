@@ -467,7 +467,7 @@ func TestViewsModalsAndFocus(t *testing.T) {
 
 	press(m, "esc")
 
-	m.quickOpen(indexMsg{ws: m.ws, files: []string{"README.md", "src/deep/x.go"}})
+	m.quickOpen(indexMsg{ws: m.ws, files: []string{"README.md", "src/deep/x.go"}}, qoFiles)
 	press(m, "x", ".")
 
 	if len(m.modal.disp) != 1 || m.modal.disp[0].label != "src/deep/x.go" {
@@ -1731,7 +1731,7 @@ func TestDiffPreview(t *testing.T) {
 func TestQuickOpenTree(t *testing.T) {
 	m := testModel(t)
 	m.st.Settings.QuickTree = true
-	m.quickOpen(indexMsg{ws: m.ws, files: []string{"b.go", "a/y.go", "a/x.go"}})
+	m.quickOpen(indexMsg{ws: m.ws, files: []string{"b.go", "a/y.go", "a/x.go"}}, qoFiles)
 
 	if got := labels(m); !slices.Equal(got, []string{"a/", "  x.go", "  y.go", "./", "  b.go"}) {
 		t.Fatalf("tree rows = %q", got)

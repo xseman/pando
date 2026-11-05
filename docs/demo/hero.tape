@@ -42,7 +42,7 @@ Sleep 5s
 # and the session that changed it side by side.
 Ctrl+p
 Sleep 300ms
-Wait+Screen@5s /Go to File/
+Wait+Screen@5s /Files  Sessions  Text/
 Type "store.go"
 Enter
 Sleep 1s

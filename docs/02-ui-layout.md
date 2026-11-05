@@ -466,8 +466,14 @@ closing one kept last (`fitHints`), rather than cut one.
 | `group`    | heading; a query ranks within groups                     |
 | `always`   | kept after the matches                                   |
 | `inline`   | note after the label                                     |
-| `hint`     | right-aligned                                            |
+| `hint`     | right-aligned, a heading's too                           |
 | `detail`   | row under the selection only                             |
+
+Tabs (`modal.tabs`, quick open's) take the title's place: `tab`
+`shift+tab` or a click go to one through `setTab`; `note` sits dim at the
+right end. Under a query `caps` cut a group short with a `+ N more` row
+that goes to the tab named like the group (`modal.more`). A box with tabs
+keeps one width, not its items'.
 
 A picker marks the characters its query matched in each label in the
 accent, VS Code's `list.highlightForeground` (`fuzzyHits`, `marked`), and

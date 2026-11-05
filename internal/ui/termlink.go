@@ -485,7 +485,7 @@ func (m *Model) openQuery(msg indexMsg) tea.Cmd {
 		q += ":" + strconv.Itoa(msg.col)
 	}
 
-	m.quickOpen(msg)
+	m.quickOpen(msg, qoFiles)
 	m.modal.input.SetValue(q)
 	m.modal.refilter()
 

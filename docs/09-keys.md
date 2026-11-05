@@ -44,14 +44,14 @@ T: also in a terminal; the rest are the shell's there.
 | `ctrl+b` T, `ctrl+,` T                                 | hide the sidebars, the Settings tab                     |
 | `ctrl+0` T, `ctrl+1`…`ctrl+9` T                        | focus sidebar, editor group N                           |
 | `ctrl+\`                                               | split: the active tab into a new group on the right     |
-| `alt+t` T                                              | go to a session or worktree (`@idle`, `!claude` narrow) |
+| `alt+t` T                                              | quick open's Sessions (`@idle`, `!claude` narrow)       |
 | `alt+a` T                                              | the next session waiting on you: blocked, failed, done  |
 | `alt+n` T                                              | new tab: a file, a session of the space, new or resumed |
 | `alt+s` T                                              | new session in the space in view                        |
 | `ctrl+pgup` `ctrl+pgdn` T, `ctrl+shift+tab` `ctrl+tab` | previous, next editor                                   |
 | `alt+1`…`alt+9` T                                      | editor N                                                |
 | `ctrl+shift+pgup` `ctrl+shift+pgdn` T                  | move the tab: editor, session tab, shell                |
-| `ctrl+p` T                                             | quick open; `:` line, `@` symbols, `ctrl+t` tree        |
+| `ctrl+p` T                                             | quick open; `tab` Files, Sessions, Text, `:` line, `@`  |
 | `ctrl+n`, `ctrl+s`                                     | new untitled file, save                                 |
 | `ctrl+enter`                                           | commit                                                  |
 | `ctrl+g`, `ctrl+shift+o`                               | go to line, symbol                                      |
@@ -198,6 +198,8 @@ in every mode.
 - Palette, quick open, menus: `↑` `↓` (`ctrl+p` `ctrl+n`, `tab` `shift+tab`)
   move, `⏎` runs, `esc` `ctrl+c` close; without a query box `j` `k` move and
   `q` closes. In a path prompt `tab` or `→` takes the suggestion.
+- Quick open: `tab` `shift+tab` go to the next, previous tab instead,
+  `ctrl+t` lists Files as a tree, `alt+⏎` hands the query to Search.
 - A question: `←` `→` `h` `l` `tab` pick a button, `⏎` `space` run it, `esc`
   `q` cancel.
 - The folder picker: type a path (what follows its last slash filters the

@@ -143,7 +143,7 @@ func TestGoToLine(t *testing.T) {
 	}
 	// ":" in quick open is the same picker; "@" goes on to symbols, anything
 	// else back to files.
-	m.quickOpen(indexMsg{ws: m.ws, files: []string{"a.go"}})
+	m.quickOpen(indexMsg{ws: m.ws, files: []string{"a.go"}}, qoAll)
 	press(m, ":")
 
 	if m.modal == nil || m.modal.title != "Go to Line" || m.modal.input.Value() != ":" {
@@ -165,7 +165,7 @@ func TestGoToLine(t *testing.T) {
 
 	m = previewModel(t, "file", "one", "two", "three", "four", "five")
 	// Quick open takes a position after the name.
-	m.quickOpen(indexMsg{ws: m.ws, files: []string{"src/deep/x.go", "README.md"}})
+	m.quickOpen(indexMsg{ws: m.ws, files: []string{"src/deep/x.go", "README.md"}}, qoFiles)
 	press(m, "x", ".", "g", "o", ":", "1", ":", "3")
 
 	if len(m.modal.disp) != 1 {
@@ -194,7 +194,7 @@ func TestQuickOpenListsRecentFirst(t *testing.T) {
 	m := previewModel(t, "file", "one")
 	m.files = []string{filepath.Join(m.ws, "c.go"), filepath.Join(m.ws, "gone.go"), filepath.Join(m.ws, "b.go")}
 
-	m.quickOpen(indexMsg{ws: m.ws, files: []string{"a.go", "b.go", "c.go", "d.go"}})
+	m.quickOpen(indexMsg{ws: m.ws, files: []string{"a.go", "b.go", "c.go", "d.go"}}, qoFiles)
 
 	var got []string
 
@@ -219,7 +219,7 @@ func TestQuickOpenTreeListsRecentFirst(t *testing.T) {
 	m.files = []string{filepath.Join(m.ws, "z", "c.go"), filepath.Join(m.ws, "b.go")}
 	m.st.Settings.QuickTree = true
 
-	m.quickOpen(indexMsg{ws: m.ws, files: []string{"a/a.go", "b.go", "z/c.go"}})
+	m.quickOpen(indexMsg{ws: m.ws, files: []string{"a/a.go", "b.go", "z/c.go"}}, qoFiles)
 
 	var got []string
 

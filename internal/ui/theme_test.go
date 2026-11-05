@@ -25,7 +25,7 @@ func TestColorOverrides(t *testing.T) {
 
 func TestPickerKeepsItsTop(t *testing.T) {
 	m := testModelSized(t, 100, 40)
-	m.quickOpen(indexMsg{ws: m.ws, files: []string{"a.go"}})
+	m.quickOpen(indexMsg{ws: m.ws, files: []string{"a.go"}}, qoAll)
 	_, y1, _, h1, rows1 := m.modal.rect(m)
 
 	files := make([]string, 30)
@@ -33,7 +33,7 @@ func TestPickerKeepsItsTop(t *testing.T) {
 		files[i] = fmt.Sprintf("f%02d.go", i)
 	}
 
-	m.quickOpen(indexMsg{ws: m.ws, files: files})
+	m.quickOpen(indexMsg{ws: m.ws, files: files}, qoAll)
 
 	_, y2, _, h2, _ := m.modal.rect(m)
 	if y1 != y2 || rows1 != 8 || h2 <= h1 {

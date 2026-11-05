@@ -196,7 +196,8 @@ func TestCommandPalette(t *testing.T) {
 func TestAgentNavigator(t *testing.T) {
 	m := testModel(t)
 	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: m.ws, Agent: "claude"}, Status: "running", Shell: true, Title: "fix"})
-	press(m, "alt+t") // ⌃t stays free for VS Code's Go to Symbol in Workspace
+	_, cmd := m.Update(keyMsg("alt+t")) // ⌃t stays free for VS Code's Go to Symbol in Workspace
+	m.Update(cmd())                     // once the files are listed
 
 	if got := labels(m); !slices.Equal(got, []string{"◐ claude · fix", "○ shell", "⌂ main"}) {
 		t.Fatalf("navigator %q", got)
@@ -1518,9 +1519,10 @@ func TestStatusBar(t *testing.T) {
 
 	_, zones := m.statusLine(m.w)
 	bell := slices.MaxFunc(zones, func(a, b rowAction) int { return a.x - b.x })
-	click(m, bell.x, m.h-1, tea.MouseLeft)
+	_, cmd := m.Update(tea.MouseClickMsg{X: bell.x, Y: m.h - 1, Button: tea.MouseLeft})
+	m.Update(cmd()) // once the files are listed
 
-	if m.modal == nil || m.modal.title != "Go to Agent or Worktree" {
+	if m.modal == nil || m.modal.tabs == nil || m.modal.tab != qoSessions {
 		t.Fatalf("clicking the agent count opens the navigator: %+v", m.modal)
 	}
 }
@@ -2548,7 +2550,7 @@ func TestNavigatorFocusesSession(t *testing.T) {
 	m.wss = append(m.wss, proto.Workspace{Path: api, Project: api, Branch: "main", Main: true})
 	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: api, Agent: "shell"}, Status: "idle"})
 	m.focus = 0
-	m.agentNavigator()
+	m.Update(m.agentNavigator()())
 	m.modal.input.SetValue("api")
 	m.modal.refilter()
 	press(m, "enter")

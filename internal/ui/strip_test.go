@@ -568,7 +568,7 @@ func TestTabPlus(t *testing.T) {
 
 	fire(m, pick("Open File…"))
 
-	if m.modal == nil || m.modal.title != "Go to File" {
+	if m.modal == nil || m.modal.tabs == nil || m.modal.tab != qoAll {
 		t.Fatalf("Open File asks %+v", m.modal)
 	}
 

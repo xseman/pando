@@ -5,8 +5,9 @@ geometry is in [02-ui-layout.md](02-ui-layout.md).
 
 Contents: [Shape](#shape) · [Explorer](#explorer) ·
 [Source Control](#source-control) · [Sessions](#sessions) ·
-[Terminal](#terminal) · [Search](#search) · [GitHub](#github) ·
-[Databases](#databases) · [Customizations](#customizations) ·
+[Terminal](#terminal) · [Search](#search) · [Quick open](#quick-open) ·
+[GitHub](#github) · [Databases](#databases) ·
+[Customizations](#customizations) ·
 [Commands](#commands) · [Text effects](#text-effects)
 
 ## Shape
@@ -288,8 +289,9 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
   the list did not hold yet, every one on start, opens nothing; nor does one
   in the first 30 s after a reconnect, a restarted daemon's agents coming back
   (`resumeGrace`).
-- `alt+t` opens the agent navigator, a picker with `@blocked`, `@running`,
-  `@shell`, `@done`, `@idle`, `@exited`, `@worktree` and `!agent` filters.
+- `alt+t` opens quick open on its Sessions tab (`navigatorItems`), with
+  `@blocked`, `@running`, `@shell`, `@done`, `@idle`, `@exited`, `@worktree`
+  and `!agent` filters.
 - `alt+a` opens the next session waiting on you (`alarms`): blocked, then
   ended with an error, then finished unseen, the one waiting longest first in
   each. Each press walks on from the session on screen.
@@ -390,6 +392,32 @@ references peek.
 
 `r` replaces the selected line or file, `R` all after asking. A file changed
 since the search is refused; there is no undo.
+
+## Quick open
+
+`ctrl+p` (`quickopen.go`): VS Code's quick open with JetBrains' Search
+Everywhere tabs in its title row; `tab` `shift+tab` or a click go round them.
+
+| Tab      | Lists                                                        |
+| -------- | ------------------------------------------------------------ |
+| All      | files, sessions, text; a query caps them at 8, 3 and 5 rows  |
+| Files    | the worktree's files, the 5 opened last first; `ctrl+t` tree |
+| Sessions | sessions and worktrees, what `alt+t` opens                   |
+| Text     | the lines holding the query, `200+ in 31 files` at the right |
+
+- Empty, All lists the recent files, the sessions waiting on you (`alarms`)
+  and the other files. A query lists files first, so a name and `⏎` open the
+  file as before; a capped group ends in `+ N more`, which goes to its tab.
+- `:` line, `@` symbol and `path:12:5` work in All and Files only.
+- Text is `runSearch` as Search runs it: literal, any case, from 2
+  characters, 150 ms after the last key (`quickTextWait`), stopped at 200
+  matches (`quickTextLimit`): which 200 is up to rg's threads, `--sort=path`
+  costs 7× on a miss. It lands after the selection and leaves it
+  where it is. A line drops its indentation and starts `…` a little before a
+  match that would not fit (`excerpt`). `alt+⏎` in All and Text hands the
+  query to Search.
+- The box keeps one width whatever a tab lists: 2/3 of the screen, 60 to
+  120 columns.
 
 ## GitHub
 

@@ -330,6 +330,7 @@ type (
 		ws    string
 		files []string
 		open  bool   // show quick open once loaded
+		tab   int    // on this tab of it: qoAll, qoFiles…
 		query string // a terminal link's path, which quick open looks for (openQuery)
 		// line and col are the link's position, 1-based, 0 for none.
 		line, col int
@@ -2406,6 +2407,10 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resize()
 		m.fixFocus()
 
+		if md := m.modal; md != nil && md.setTab != nil { // quick open cuts its lines of text to the box anew
+			_ = md.setTab(m, md.tab) // the same query: nothing to search
+		}
+
 		return m, m.fetchScreen()
 
 	case tea.KeyboardEnhancementsMsg:
@@ -2663,6 +2668,10 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.sr.onTick(m, int(msg))
 	case searchMsg:
 		return m, m.sr.onResult(msg)
+	case quickTickMsg:
+		return m, msg.q.onTick(m, msg.gen)
+	case quickTextMsg:
+		return m, msg.q.onText(m, msg.searchMsg)
 
 	case ghMsg:
 		m.gh.onMsg(m, msg)
@@ -2778,7 +2787,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case msg.query != "":
 			return m, m.openQuery(msg)
 		case msg.open:
-			m.quickOpen(msg)
+			m.quickOpen(msg, msg.tab)
 		}
 
 		return m, nil

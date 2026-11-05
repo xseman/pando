@@ -67,7 +67,8 @@ it when none is).
   servers with hover, parameter hints and their problems underlined, listed
   (`ctrl+shift+m`) and stepped through (`F8`).
 - **Explorer and Search**: git decorations, VS Code's context menu, quick
-  open, workspace search & replace.
+  open over files, sessions and the files' text in tabs (JetBrains' Search
+  Everywhere), workspace search & replace.
 - **GitHub**: with `gh` installed, pull requests, issues and notifications as
   VS Code's GitHub Pull Requests view lists them; a pull request opens in the
   editor or checks out in a worktree of its own.

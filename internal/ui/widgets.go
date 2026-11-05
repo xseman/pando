@@ -1265,12 +1265,23 @@ type modal struct {
 	cancel   func(m *Model)                   // closed without choosing
 	complete func(v string) []string          // a prompt's suggestions for what is typed: the rest shows dimmed, tab or → takes it
 	treeable bool                             // offer the list/tree toggle
-	dialog   bool                             // a question: the title as its message, the items as a row of buttons
-	hover    int                              // a dialog's button under the pointer, -1 for none
-	pattern  string                           // the query as the labels show it matched
-	l        list
-	x, y     int     // anchor; x < 0 centers
-	form     formBox // a form the box is instead of a list: New or Edit Connection, the indentation
+	// tabs are a picker's kinds, drawn in place of the title: tab and
+	// shift+tab or a click go to another through setTab. Quick open's.
+	tabs   []string
+	tab    int
+	setTab func(m *Model, i int) tea.Cmd
+	alt    func(m *Model) tea.Cmd // alt+⏎
+	note   string                 // dim at the right end of the title row
+	// caps are the most rows a group shows under a query, in the order the
+	// items list the groups; the rest wait behind a "+ N more" row that goes
+	// to the tab named like the group.
+	caps    map[string]int
+	dialog  bool   // a question: the title as its message, the items as a row of buttons
+	hover   int    // a dialog's button under the pointer, -1 for none
+	pattern string // the query as the labels show it matched
+	l       list
+	x, y    int     // anchor; x < 0 centers
+	form    formBox // a form the box is instead of a list: New or Edit Connection, the indentation
 	// area is the screen columns [from, to) the box stays in: a table's keep
 	// to the editor area. Zero is the screen.
 	area [2]int
@@ -1659,13 +1670,20 @@ func (md *modal) refilter() {
 		}
 
 	default:
+		count := map[string]int{}
+
 		if q != "" {
-			// A query ranks within each group and orders the groups by their best match.
+			// A query ranks within each group and orders the groups by their
+			// best match, or as the items list them where groups are capped.
 			rank := map[string]int{}
+
 			for _, h := range hits {
-				if _, ok := rank[md.items[h.i].group]; !ok {
-					rank[md.items[h.i].group] = len(rank)
+				g := md.items[h.i].group
+				if r, ok := rank[g]; !ok || md.caps != nil && h.i < r {
+					rank[g] = ifElse(md.caps != nil, h.i, len(rank))
 				}
+
+				count[g]++
 			}
 
 			slices.SortStableFunc(hits, func(a, b hit) int {
@@ -1673,11 +1691,13 @@ func (md *modal) refilter() {
 			})
 		}
 
-		group := ""
+		group, shown := "", 0
 
 		for _, h := range hits {
 			it := md.items[h.i]
 			if it.group != group {
+				shown = 0
+
 				if group = it.group; group != "" {
 					if len(md.disp) > 0 {
 						md.disp = append(md.disp, item{}) // breathing room between groups
@@ -1686,6 +1706,18 @@ func (md *modal) refilter() {
 					md.disp = append(md.disp, item{label: group, sep: true})
 				}
 			}
+
+			if c := md.caps[group]; q != "" && c > 0 && shown >= c {
+				if shown == c {
+					md.disp = append(md.disp, md.more(group, count[group]-c))
+				}
+
+				shown++
+
+				continue
+			}
+
+			shown++
 
 			md.disp = append(md.disp, it)
 		}
@@ -1707,6 +1739,23 @@ func (md *modal) refilter() {
 	if md.l.sel < 0 && len(md.disp) > 0 {
 		md.l.sel = 0 // informational menus still scroll from the top
 	}
+}
+
+// more is a capped group's last row: how many rows it leaves out, and ⏎
+// shows them all in the tab named like the group, the query kept.
+func (md *modal) more(group string, n int) item {
+	it := item{label: fmt.Sprintf("+ %d more", n)}
+
+	if i := slices.IndexFunc(md.tabs, func(t string) bool { return strings.EqualFold(t, group) }); i >= 0 {
+		it.hint = md.tabs[i] + " ⇥"
+		it.run = func(m *Model) tea.Cmd {
+			m.modal = md // choosing closed it
+
+			return md.setTab(m, i)
+		}
+	}
+
+	return it
 }
 
 // focus selects row i and moves the detail row under it: only the selected
@@ -1801,14 +1850,17 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 		return max(min(md.x, x1-w), x0), max(y, 0), w, h, 0
 	}
 
-	if len(md.items) == 0 || len(md.wOf) != len(md.items) || &md.wOf[0] != &md.items[0] {
+	switch {
+	case md.tabs != nil: // one width whatever a tab lists, a line of text included
+		w = min(max(m.w*2/3, 60), 120)
+	case len(md.items) == 0 || len(md.wOf) != len(md.items) || &md.wOf[0] != &md.items[0]:
 		md.wOf, md.itemsW = md.items, 0
 		for _, it := range md.items {
 			md.itemsW = max(md.itemsW, ansi.StringWidth(it.label)+ansi.StringWidth(it.inline)+ansi.StringWidth(it.hint)+6+b2i(it.hint != "")) // two blanks before a hint
 		}
 	}
 
-	w = max(ansi.StringWidth(md.title)+6, md.itemsW)
+	w = max(w, ansi.StringWidth(md.title)+6, md.itemsW)
 
 	if md.hasInput() {
 		w = max(w, 60)
@@ -1889,10 +1941,29 @@ func (md *modal) view(m *Model) (string, int, int) {
 
 	title := ""
 	if md.title != "" {
-		title = " " + md.title + " "
+		title = bold.Render(" " + md.title + " ")
+	}
+
+	if md.tabs != nil {
+		var b strings.Builder
+
+		segs, _ := choices(md.tabs, md.tab, true)
+		for _, s := range segs {
+			b.WriteString(s.st.Render(s.s))
+		}
+
+		title = " " + b.String()
 	}
 
 	label, tw := md.toggle()
+
+	right := ""
+	if tw > 0 {
+		right = dim.Render(" ^t ") + fg(pal.headerAccent).Render(label) + " "
+	} else if md.note != "" {
+		right, tw = dim.Render(" "+md.note+" "), ansi.StringWidth(md.note)+2
+	}
+
 	title = ansi.Truncate(title, max(iw-tw, 0), "…")
 
 	// A menu at the pointer has square corners, as an editor's context menu;
@@ -1902,11 +1973,7 @@ func (md *modal) view(m *Model) (string, int, int) {
 		tl, tr, bl, br = "┌", "┐", "└", "┘"
 	}
 
-	top := dim.Render(tl) + bold.Render(title) + dim.Render(strings.Repeat("─", max(iw-tw-ansi.StringWidth(title), 0)))
-	if tw > 0 {
-		top += dim.Render(" ^t ") + fg(pal.headerAccent).Render(label) + " "
-	}
-
+	top := dim.Render(tl) + title + dim.Render(strings.Repeat("─", max(iw-tw-ansi.StringWidth(title), 0))) + right
 	lines := []string{top + dim.Render(tr)}
 	side := dim.Render("│")
 
@@ -1927,6 +1994,10 @@ func (md *modal) view(m *Model) (string, int, int) {
 		}
 
 		if it.sep {
+			if it.hint != "" {
+				return row(rw, nil, []seg{sg(" "+it.label, dim)}, sg(it.hint+" ", dim))
+			}
+
 			if it.label != "" {
 				return fit(" "+dim.Render(it.label), rw)
 			}
@@ -2083,6 +2154,13 @@ func (md *modal) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 
 			return cmd
 		}
+	}
+
+	switch s := k.String(); {
+	case md.tabs != nil && (s == "tab" || s == "shift+tab"):
+		return md.setTab(m, (md.tab+ifElse(s == "tab", 1, len(md.tabs)-1))%len(md.tabs))
+	case md.alt != nil && s == "alt+enter":
+		return md.alt(m)
 	}
 
 	switch k.String() {
@@ -2298,6 +2376,14 @@ func (md *modal) mouse(m *Model, msg tea.MouseMsg) tea.Cmd {
 
 		if _, tw := md.toggle(); tw > 0 && mo.Y == y && mo.X >= x+w-1-tw && mo.X < x+w-1 {
 			return md.toggleTree(m)
+		}
+
+		if _, xs := choices(md.tabs, md.tab, true); mo.Y == y { // a tab in the title row, after "╭ "
+			for i, t := range md.tabs {
+				if at := x + 2 + xs[i]; mo.X >= at && mo.X < at+ansi.StringWidth(t)+2 {
+					return md.setTab(m, i)
+				}
+			}
 		}
 
 		if i := md.rowAt(mo.Y-top, rows); i >= 0 {

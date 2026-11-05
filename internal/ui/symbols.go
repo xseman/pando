@@ -107,7 +107,7 @@ func (m *Model) openSymbols(msg symbolsMsg) tea.Cmd {
 		if strings.HasPrefix(v, ":") {
 			return m.gotoLineQuery(v)
 		}
-		// ponytail: back to Go to File without what was typed after the @.
+		// ponytail: back to quick open's All, not the tab it came from, without what was typed after the @.
 		return m.loadIndex(true)
 	}
 

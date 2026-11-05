@@ -201,8 +201,8 @@ func TestE2E(t *testing.T) {
 		}
 	}
 
-	send("\x10") // ctrl+p quick open, focus is on the right sidebar
-	wait("Go to File")
+	send("\x10")                  // ctrl+p quick open, focus is on the right sidebar
+	wait("Files  Sessions  Text") // quick open's tabs
 	send("a.go\r")
 	wait("package a")
 
