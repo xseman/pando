@@ -206,8 +206,9 @@ in every mode.
   folders), `tab` on the path completes it (case aside, `~` to `~/`),
   elsewhere `tab` `shift+tab` path, places, folders, buttons, `↑` `↓` move
   (`↓` off the path onto the first folder, `↑` at the top back), `←` `→`
-  places, folders, `⏎` go in (on the path or the button: pick it), `⌫` in
-  the folders up, `esc` cancel.
+  places, folders, `⏎` go in (on the path: into the folder it names, ending
+  in `/` pick it; on the button: pick it), `⌫` in the folders up, `esc`
+  cancel.
 - The Settings tab: `↑` `↓` move, `space` `⏎` flip a checkbox or open a
   dropdown, `←` `→` change the value, `tab` `]` `[` the section, `q` `esc`
   close.

@@ -102,8 +102,8 @@ func places(home string, projects []string) []dirPlace {
 // tab completes the path, elsewhere walks path, places, folders and
 // buttons; ↓ leaves the path for the first folder, ↑ from a column's top
 // goes back to it, ← →
-// cross the columns; ⏎ on a folder goes in, on the path or the primary
-// button picks it.
+// cross the columns; ⏎ on a folder, or on a path naming one past its last
+// slash, goes in; on a path ending in a slash or the primary button it picks.
 type dirForm struct {
 	title, ok string
 	in        textinput.Model
@@ -413,7 +413,20 @@ func (f *dirForm) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 }
 
 // enterKey is ⏎: a place or a folder goes in, the path or a button acts.
+// On the path it goes in while what follows the last slash names a folder,
+// the one spelled so or else the first it matches, ".." up; a path ending
+// in a slash, or naming none, is picked.
 func (f *dirForm) enterKey(m *Model) tea.Cmd {
+	switch _, base := filepath.Split(f.in.Value()); {
+	case f.at == dirPath && base == "..":
+		f.enter(0)
+		return nil
+
+	case f.at == dirPath && base != "" && len(f.dirs) > 1:
+		f.enter(max(1, slices.IndexFunc(f.dirs, func(d string) bool { return strings.EqualFold(d, base) })))
+		return nil
+	}
+
 	switch f.at {
 	case dirPlaces:
 		if f.place < len(f.places) {

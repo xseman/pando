@@ -3483,6 +3483,30 @@ func TestProjectPickerKeys(t *testing.T) {
 	if f.at != dirList || f.sel != 1 {
 		t.Fatalf("↑ below the top stays in the folders: at %d sel %d", f.at, f.sel)
 	}
+
+	// ⏎ on the path goes in while it names a folder: the one spelled so,
+	// else the first it matches; .. goes up; ending in a slash it picks.
+	press(m, "up", "up")
+	f.goTo(dir)
+	press(m, "p", "r", "o", "j", "e", "c", "t", "s", "enter")
+	value(filepath.Join(dir, "Projects") + "/")
+
+	press(m, "backspace", "backspace", "backspace", "enter")
+	value(filepath.Join(dir, "project-a") + "/")
+
+	f.in.SetValue(filepath.Join(dir, "project-a") + "/..")
+	press(m, "enter")
+	value(dir + "/")
+
+	var picked string
+
+	f.pick = func(_ *Model, d string) tea.Cmd { picked = d; return nil }
+
+	press(m, "enter")
+
+	if picked != dir || m.modal != nil {
+		t.Fatalf("⏎ on a path ending in a slash picks it: %q, modal %v", picked, m.modal)
+	}
 }
 
 // parseUserDirs reads XDG's user directories in the picker's order.
