@@ -137,13 +137,16 @@ checkout: branch → git switch NAME
           tag    → git switch --detach NAME
 rename:   git branch -m NAME                 (the branch HEAD is on)
 delete:   git branch -d NAME, "not fully merged" → a dialog, then -D
+merge:    git merge REF, CONFLICT lines on stdout → "there are merge conflicts"
 ```
 
 A branch checked out in another worktree opens that worktree instead.
 The palette has VS Code's branch commands: _Checkout to…_ (`B`) is the
 picker, _Checkout to (Detached)…_, _Create Branch…_ and _Create Branch
 From…_ go straight to its rows; _Rename Branch…_ takes a name as a new
-branch does, _Delete Branch…_ picks a local branch but the checked-out one.
+branch does, _Delete Branch…_ picks a local branch but the checked-out one,
+_Merge Branch…_ (VS Code's _Merge…_) any ref but HEAD's branch and its
+upstream.
 
 _Create new branch…_ runs `git switch -c` on `SanitizeBranch`'s name, as VS
 Code's `sanitizeBranchName`: whitespace and what git refuses become `-`,

@@ -183,6 +183,60 @@ func TestBranchPicker(t *testing.T) {
 	}
 }
 
+// TestMergeBranch: VS Code's Merge…, its picker without HEAD's branch and
+// upstream, a merge stopped on conflicts saying so.
+func TestMergeBranch(t *testing.T) {
+	m := testModel(t)
+
+	root := m.ws
+	for _, a := range [][]string{
+		{"init", "-q", "-b", "main"},
+		{"config", "user.email", "t@t"},
+		{"config", "user.name", "Ann"},
+		{"add", "-A"},
+		{"commit", "-qm", "init"},
+		{"update-ref", "refs/remotes/origin/main", "HEAD"}, // behind main: listed but for being its upstream
+		{"switch", "-q", "-c", "feat"},
+		{"commit", "-q", "--allow-empty", "-m", "feat"},
+		{"switch", "-q", "-c", "clash", "main"},
+	} {
+		mustGit(t, root, a...)
+	}
+
+	mustWrite(t, filepath.Join(root, "a.txt"), "theirs\n")
+	mustGit(t, root, "add", "-A")
+	mustGit(t, root, "commit", "-qm", "theirs")
+	mustGit(t, root, "switch", "-q", "main")
+	mustWrite(t, filepath.Join(root, "a.txt"), "ours\n")
+	mustGit(t, root, "add", "-A")
+	mustGit(t, root, "commit", "-qm", "ours")
+
+	m.scm.onGit(m, gitMsg{ws: root, repos: []string{root}, status: map[string]git.Status{root: {Branch: "main", Upstream: "origin/main"}}})
+	fireCommand(t, m, "git.mergeBranch")
+
+	got := labels(m)
+	if m.modal == nil || m.modal.title != "Select a branch or tag to merge from" ||
+		slices.ContainsFunc(got, func(l string) bool { return strings.HasSuffix(l, " main") }) ||
+		!slices.ContainsFunc(got, func(l string) bool { return strings.HasSuffix(l, " feat") }) {
+		t.Fatalf("merge picker %v", got)
+	}
+
+	press(m, "f", "e", "a", "t")
+	send(m, keyMsg("enter"))
+
+	if out, _ := git.Run(root, "log", "-1", "--format=%s"); m.msgErr || !strings.HasPrefix(out, "Merge branch 'feat'") {
+		t.Fatalf("merge feat: %q (%s)", out, m.msg)
+	}
+
+	fireCommand(t, m, "git.mergeBranch")
+	press(m, "c", "l", "a", "s", "h")
+	send(m, keyMsg("enter"))
+
+	if st, _ := git.Stat(root); !m.msgErr || !strings.Contains(m.msg, "merge conflicts") || st.Op != "merge" {
+		t.Fatalf("merge clash: %q, op %q", m.msg, st.Op)
+	}
+}
+
 // TestRenameDeleteBranch: VS Code's Rename Branch… and Delete Branch…, a
 // branch not fully merged going only after a dialog.
 func TestRenameDeleteBranch(t *testing.T) {

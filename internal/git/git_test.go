@@ -289,8 +289,8 @@ func TestMergeConflict(t *testing.T) {
 		t.Fatalf("op before merge = %q", st.Op)
 	}
 
-	if _, err := Run(root, "merge", "feat"); err == nil {
-		t.Fatal("merge should conflict")
+	if err := Merge(root, "feat"); !errors.Is(err, errConflict) {
+		t.Fatalf("merge should conflict: %v", err)
 	}
 
 	st, err := Stat(root)

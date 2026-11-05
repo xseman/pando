@@ -721,6 +721,22 @@ func DeleteBranch(root, name string, force bool) error {
 	return err
 }
 
+// errConflict is Merge's error for a merge stopped on conflicts, its files
+// then in Status.Conflicts.
+var errConflict = errors.New("there are merge conflicts: resolve them, then commit")
+
+var conflictRe = regexp.MustCompile(`(?m)^CONFLICT `)
+
+// Merge merges ref into HEAD.
+func Merge(root, ref string) error {
+	out, err := Run(root, "merge", ref)
+	if err != nil && conflictRe.MatchString(out) { // the conflicts go to stdout, stderr has nothing
+		return errConflict
+	}
+
+	return err
+}
+
 // badBranchRe is VS Code's sanitizeBranchName pattern, plus the "?", "@{" and
 // control characters git also refuses.
 var badBranchRe = regexp.MustCompile(`^\.|/\.|\.\.|~|\^|:|/$|\.lock$|\.lock/|\\|\*|\?|@\{|\s|[[:cntrl:]]|\.$|\[|\]$`)

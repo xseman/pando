@@ -2738,6 +2738,21 @@ func (s *scmView) onCheckoutRefs(m *Model, root string, refs []git.Ref) {
 	md.refilter()
 }
 
+// mergePicker loads refs for VS Code's "Merge…".
+func (s *scmView) mergePicker(_ *Model) tea.Cmd { return s.loadRefs(s.onMergeRefs) }
+
+// onMergeRefs picks what to merge into HEAD: a branch, a remote branch or a
+// tag, but HEAD's branch and its upstream.
+func (s *scmView) onMergeRefs(m *Model, root string, refs []git.Ref) {
+	up := s.status[root].Upstream
+	others := slices.DeleteFunc(slices.Clone(refs), func(r git.Ref) bool { return r.Head || r.Kind == "remote" && r.Name == up })
+	s.refPicker(m, "Select a branch or tag to merge from", others, func(_ *Model, r git.Ref) tea.Cmd {
+		return s.run(root, "merging", func(root string) scmMsg {
+			return scmMsg{text: "merged " + r.Name, err: git.Merge(root, r.Name)}
+		})
+	})
+}
+
 // onDetachRefs picks a ref to check out detached.
 func (s *scmView) onDetachRefs(m *Model, root string, refs []git.Ref) {
 	s.refPicker(m, "Select a ref to checkout detached", refs, func(_ *Model, r git.Ref) tea.Cmd {
@@ -3163,6 +3178,7 @@ func (s *scmView) items(m *Model) []item {
 		item{label: "Publish Branch", run: s.publish})
 	group(item{label: "Checkout to…", hint: "B", run: s.branchPicker},
 		item{label: "Checkout to (Detached)…", run: s.detachPicker},
+		item{label: "Merge Branch…", run: s.mergePicker},
 		item{label: "Create Branch…", run: s.newBranch},
 		item{label: "Create Branch From…", run: s.branchFromPicker},
 		item{label: "Rename Branch…", run: s.renameBranch},
