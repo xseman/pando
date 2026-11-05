@@ -370,7 +370,10 @@ F12, shift+F12 ─▶ lspGo ─▶ tea.Cmd ─▶ lspPool.get(root, path, lang, 
   Control's changed files under the workspace (`diagFiles`, 50) and forgets
   the rest. Those syncs use `lspPool.background`, which never restarts a
   server that died or would not start (a request does) and fails for a
-  workspace switched meanwhile (`reset` sets the pool's root). A server
+  workspace switched meanwhile (`reset` sets the pool's root). What a
+  closed server still reports, or reported with nobody taking it yet, is
+  the workspace left's and dropped (`gen`, `sinkFor`, `dropDiags`); a server
+  done starting after the switch closes. A server
   that would not start for a file is `diagFailed`, which the status bar
   shows while that file does. Turned off (`noteDiags`), the servers go
   (`reset("")`, so a sync still running starts none) and so does the

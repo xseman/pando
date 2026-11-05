@@ -34,6 +34,7 @@ var defaultServers = map[string][]string{
 type lspPool struct {
 	mu      sync.Mutex
 	root    string
+	gen     int // counts the closes: a closed server's late reports are dropped
 	servers map[string]*lsp.Client
 	failed  map[string]error
 	sink    lsp.Sink
@@ -70,7 +71,7 @@ func (p *lspPool) server(root, path, lang string, argv []string, asked bool) (*l
 	}
 
 	key := fmt.Sprint(lang, " ", argv[0], " ", opts) // a TypeScript of its own gets a server of its own
-	c, failed := p.servers[key], p.failed[key]
+	c, failed, gen := p.servers[key], p.failed[key], p.gen
 
 	switch {
 	case c != nil && c.Err() != nil && asked: // it died: a request starts it again
@@ -99,7 +100,7 @@ func (p *lspPool) server(root, path, lang string, argv []string, asked bool) (*l
 		logf = func(line string) { p.log(src, line) }
 	}
 
-	c, err := lsp.Start(root, argv, opts, p.sink, logf) // outside the lock: starting takes seconds
+	c, err := lsp.Start(root, argv, opts, p.sinkFor(gen), logf) // outside the lock: starting takes seconds
 	if err != nil {
 		if _, look := exec.LookPath(argv[0]); look != nil && argv[0] == "typescript-language-server" {
 			err = fmt.Errorf("%w: npm i -g typescript-language-server, or TypeScript 7 in the project", err)
@@ -118,6 +119,11 @@ func (p *lspPool) server(root, path, lang string, argv []string, asked bool) (*l
 	defer p.mu.Unlock()
 
 	delete(p.failed, key)
+
+	if p.gen != gen { // a switch while it started: the workspace left's
+		go c.Close()
+		return nil, errOtherRoot
+	}
 
 	if old := p.servers[key]; old != nil { // another jump won the race
 		go c.Close()
@@ -167,7 +173,28 @@ func (p *lspPool) reset(root string) {
 	p.root, p.failed = root, nil
 }
 
+// sinkFor is the sink for a server started in generation gen: what it
+// reports once a switch closed it, the files of the workspace left, goes
+// nowhere.
+func (p *lspPool) sinkFor(gen int) lsp.Sink {
+	if p.sink == nil {
+		return nil
+	}
+
+	return func(path string, ds []lsp.Diagnostic) {
+		p.mu.Lock()
+		cur := p.gen == gen
+		p.mu.Unlock()
+
+		if cur {
+			p.sink(path, ds)
+		}
+	}
+}
+
 func (p *lspPool) closeLocked() {
+	p.gen++
+
 	for key, c := range p.servers {
 		go c.Close()
 

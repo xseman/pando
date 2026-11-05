@@ -95,6 +95,10 @@ func (m *Model) onDiags(msg diagMsg) tea.Cmd {
 // dropDiags forgets every problem: diagnostics turned off, or another
 // workspace.
 func (m *Model) dropDiags() {
+	m.diagIn.mu.Lock()
+	clear(m.diagIn.got) // reported before the switch, not yet taken: the workspace left's
+	m.diagIn.mu.Unlock()
+
 	m.diags = map[string][]lsp.Diagnostic{}
 	m.decorateDiags()
 }

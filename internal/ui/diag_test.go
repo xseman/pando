@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/xseman/pando/internal/git"
+	"github.com/xseman/pando/internal/lsp"
 	"github.com/xseman/pando/internal/proto"
 )
 
@@ -336,6 +337,25 @@ func TestPoolBackground(t *testing.T) {
 
 	if _, err := p.background("/b", "/b/x.go", "go", []string{"gopls"}); !errors.Is(err, errOtherRoot) || p.root != "/a" {
 		t.Fatalf("a background sync of another root keeps this one's servers: %v", err)
+	}
+}
+
+// TestPoolDropsClosedReports: a switch closes the servers, and what one
+// reports after it, or reported before it with nobody taking it yet, is the
+// workspace left's and never shows.
+func TestPoolDropsClosedReports(t *testing.T) {
+	m := testModel(t)
+	sink := m.lsps.sinkFor(m.lsps.gen)
+	old := filepath.Join(m.ws, "a.go")
+
+	sink(old, []lsp.Diagnostic{{Message: "queued"}})
+	m.switchWorkspace(t.TempDir())
+	sink(old, []lsp.Diagnostic{{Message: "late"}})
+
+	m.lsps.sinkFor(m.lsps.gen)("/new/b.go", []lsp.Diagnostic{{Message: "new"}})
+
+	if got, _ := m.diagIn.waitDiags()().(diagMsg); len(got) != 1 || got["/new/b.go"] == nil {
+		t.Fatalf("only the new workspace's server reports: %v", got)
 	}
 }
 
