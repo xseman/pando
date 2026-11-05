@@ -164,7 +164,7 @@ re-roots Explorer and Source Control to its worktree.
 
 ```text
 ▾ ◐ Pinned            1   a pane over the tree (pinPane): its strip, folds, stays on top
-   ⌂ main          repo   a pinned session's worktree, its project where the branch leaves room
+▾ ◐ repo                1   a pinned session's project heading (pinnedGroup), folds as pin:…
  ⊙ └─ ◐ claude · fix   running   pinned sessions in the order pinned, copies: each stays in the tree too
 ━━━━━━━━━━━━━━━━━━━━━━━━━━  its border, heavy in tab_border
 ▾ ◐ repo +⎇ New Worktree  project: most demanding session's glyph (· none), button (hover)
@@ -201,7 +201,9 @@ re-roots Explorer and Source Control to its worktree.
   one on screen) and not folded, in the project Sort's order
   (`topProjects`). Every other project goes under _other projects_
   (`bareHead`), A–Z, a row each: folded, every session asleep, or no session
-  at all (`bare`). The three of them used last (`usedLast`: their newest
+  at all (`bare`). A switch into one of those with no session lifts it on
+  top for five minutes (`pick`, `pickFor`, `lift`): a session started there
+  keeps it, else it sinks back. The three of them used last (`usedLast`: their newest
   session's Updated) go above it under _recent_ (`recentHead`), newest
   first, when that leaves some under the caption; not while filtering. Each
   caption counts its own. Nothing moves under them.
@@ -282,8 +284,10 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
   a project on top's under Sort Projects Manually only.
 - `p`, the gutter's ⊙ (on hover) or the menu pins a session, or unpins it
   (`togglePin`, `spaces_pinned`). Pinned lists it again on top, an `agTime`
-  heading (`pinnedRows`), under its worktree so a long branch leaves the
-  name its room: Filter and search apply, reordering does not.
+  heading (`pinnedRows`), under its project's heading (`pinnedGroup`, folded
+  as `pin:…`); a worktree row sits between only when the project has several
+  pinned sessions, so a long branch leaves the name its room. Filter and
+  search apply, reordering does not.
 - `p` or the menu on a project pins it whole (its path in `spaces_pinned`):
   under Pinned it lists as the tree lists it open, every worktree and
   session, asleep too, its fold its own (`pinKey`, `pin:…`). A session it
