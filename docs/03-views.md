@@ -199,7 +199,9 @@ re-roots Explorer and Source Control to its worktree.
   twisties (`icTwistyR`, `icTwistyD`) with Nerd Font icons, `▸` `▾` without.
 - On top go the projects with a session awake (`awake`: not asleep, or the
   one on screen) and not folded, in the project Sort's order
-  (`topProjects`). Every other project goes under _other projects_
+  (`topProjects`). A pin holds a project there unfolded, asleep or not
+  (`pinHeld`): a project pinned whole, or one with a session pinned in it.
+  Its heading does not fold, and it never goes under the captions. Every other project goes under _other projects_
   (`bareHead`), A–Z, a row each: folded, every session asleep, or no session
   at all (`bare`). A switch into one of those with no session lifts it on
   top for five minutes (`pick`, `pickFor`, `lift`): a session started there
@@ -297,7 +299,8 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
   that it scrolls on its own (`ptop`), the tree under it too (`l.top`). One
   selection walks both (`snap`, `rowAt`).
 - A folded project goes under _other projects_ (`spaces_folded` keeps the
-  folds); unfolded, it goes back to its place on top. _Collapse All Groups_
+  folds); unfolded, it goes back to its place on top. A pinned one does not
+  fold, so it stays on top; unpinned, its fold counts again. _Collapse All Groups_
   leaves the caption open.
 - A session going to work (to `running`) opens its folded project
   (`unfoldRunning`); folded again while it works, it stays shut. A session

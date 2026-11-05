@@ -264,7 +264,7 @@ func (a *agents) treeRows(m *Model, sessions []proto.Session, q string) []agRow 
 		tail [][]agRow
 	)
 
-	busy, awake := m.busyProjects(), m.awake()
+	busy, awake, held := m.busyProjects(), m.awake(), m.pinHeld()
 	add := func(rows []agRow) {
 		if rows[0].tail {
 			tail = append(tail, rows)
@@ -273,9 +273,9 @@ func (a *agents) treeRows(m *Model, sessions []proto.Session, q string) []agRow 
 		}
 	}
 	head := func(p string) agRow {
-		top := awake[p] && !a.collapsed[p]
+		top := awake[p] && (!a.collapsed[p] || held[p])
 
-		return agRow{kind: agProject, project: p, bare: p != "" && !busy[p], tail: !top, closed: !top && (!busy[p] || !a.opened[p])}
+		return agRow{kind: agProject, project: p, bare: p != "" && !busy[p] && !held[p], tail: !top, closed: !top && (!busy[p] || !a.opened[p])}
 	}
 
 	known := map[string]bool{}
@@ -409,8 +409,8 @@ func (m *Model) busyProjects() map[string]bool {
 }
 
 // awake are the projects with a session that is not asleep, or with the one
-// on screen whatever it is: so the project in use stays on top. "" for one
-// outside every known worktree.
+// on screen whatever it is: so the project in use stays on top. Also the
+// pinHeld ones. "" for one outside every known worktree.
 func (m *Model) awake() map[string]bool {
 	out := map[string]bool{}
 
@@ -426,6 +426,30 @@ func (m *Model) awake() map[string]bool {
 		}
 	}
 
+	for p := range m.pinHeld() {
+		out[p] = true
+	}
+
+	return out
+}
+
+// pinHeld are the projects a pin keeps open: one pinned whole, and one with a
+// session pinned in it. They stay on top, unfolded: a fold does not shut them.
+func (m *Model) pinHeld() map[string]bool {
+	out := map[string]bool{}
+
+	for _, id := range m.st.Pinned {
+		if slices.Contains(m.st.Projects, id) {
+			out[id] = true
+		}
+	}
+
+	for _, s := range m.mainSessions() {
+		if slices.Contains(m.st.Pinned, s.ID) {
+			out[m.projectOf(s.Workspace)] = true
+		}
+	}
+
 	return out
 }
 
@@ -434,18 +458,25 @@ func (m *Model) awake() map[string]bool {
 func (a *agents) topProjects(m *Model) []string {
 	awake := m.awake()
 
-	return slices.DeleteFunc(m.projects(), func(p string) bool { return !awake[p] || a.collapsed[p] })
+	held := m.pinHeld()
+
+	return slices.DeleteFunc(m.projects(), func(p string) bool { return !awake[p] || a.collapsed[p] && !held[p] })
 }
 
 // tailProjects are the projects not on top: under recentHead or bareHead.
 func (a *agents) tailProjects(m *Model) []string {
 	awake := m.awake()
 
-	return slices.DeleteFunc(m.projects(), func(p string) bool { return awake[p] && !a.collapsed[p] })
+	held := m.pinHeld()
+
+	return slices.DeleteFunc(m.projects(), func(p string) bool { return awake[p] && (!a.collapsed[p] || held[p]) })
 }
 
-// top reports project p listed on top: a session in it awake, not folded.
-func (a *agents) top(m *Model, p string) bool { return !a.collapsed[p] && m.awake()[p] }
+// top reports project p listed on top: a session in it awake, not folded, or
+// held by a pin.
+func (a *agents) top(m *Model, p string) bool {
+	return m.awake()[p] && (!a.collapsed[p] || m.pinHeld()[p])
+}
 
 // pick puts project p on top for pickFor, a switch into it with no session.
 func (a *agents) pick(p string) {
@@ -1810,6 +1841,7 @@ func (a *agents) activate(m *Model, r *agRow) tea.Cmd {
 
 		k := foldKey(*r)
 		switch {
+		case r.kind == agProject && !r.pinned && m.pinHeld()[r.project]: // a pin keeps it open: nothing to fold
 		case r.tail && r.closed && (!a.collapsed[k] || !m.awake()[k]): // asleep under bareHead: it opens in place
 			saved = a.openInPlace(k)
 		case r.tail && !r.closed:

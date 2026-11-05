@@ -819,12 +819,12 @@ func TestSpacesPinProject(t *testing.T) {
 	if ls := labels(); !slices.Contains(ls, "Unpin Project") || slices.Contains(ls, "Move Project Up") {
 		t.Fatalf("the pinned project's menu: %q", ls)
 	}
-	// Asleep, it stays whole under Pinned and the tree's goes under bareHead.
+	// Asleep, it stays whole under Pinned, and the tree's copy stays on top: a pin holds it open.
 	for i := range m.sessions[1:] {
 		m.sessions[1+i].Status = "asleep"
 	}
 
-	if p := pinned(); !slices.Contains(p, "pin:o1") || !slices.Contains(p, "pin:o2") || slices.Contains(m.ag.topProjects(m), other) {
+	if p := pinned(); !slices.Contains(p, "pin:o1") || !slices.Contains(p, "pin:o2") || !slices.Contains(m.ag.topProjects(m), other) {
 		t.Fatalf("asleep, Pinned lists all: %q", shape())
 	}
 
@@ -927,5 +927,70 @@ func TestSpacesPinGroupsWorktrees(t *testing.T) {
 
 	if want := []string{"Pinned", "head", "ws:main", "s1", "ws:feat", "s2"}; !slices.Equal(shape(), want) {
 		t.Fatalf("two worktrees, a row each: %q want %q", shape(), want)
+	}
+}
+
+// TestSessionsPinHoldsOpen keeps a project with a session pinned in it, or
+// pinned whole, on top: not under Recent or Other Projects, and a fold does
+// not shut it. Unpinned, the fold it had counts again.
+func TestSessionsPinHoldsOpen(t *testing.T) {
+	m := testModelSized(t, 100, 40)
+
+	var ps []string
+
+	for i := range 4 {
+		p := addProject(t, m, "main")
+		ps = append(ps, p)
+		m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: fmt.Sprint("s", i), Workspace: p, Agent: "claude"}, Status: "asleep", Updated: time.Now().Add(time.Duration(i) * time.Minute)})
+	}
+
+	press(m, "3")
+
+	// tree splits the projects under Sessions' tree by the caption: on top, below it.
+	tree := func() (top, below []string) {
+		rows := m.ag.rows(m)
+		k := slices.IndexFunc(rows, agRow.caption)
+
+		for i, r := range rows {
+			if r.kind != agProject || r.pinned {
+				continue
+			}
+
+			if k < 0 || i < k {
+				top = append(top, r.project)
+			} else {
+				below = append(below, r.project)
+			}
+		}
+
+		return top, below
+	}
+
+	m.st.Pinned = []string{"s0", ps[1]} // a session in ps[0], and ps[1] whole
+	m.st.Projects = slices.Clone(ps)
+
+	if top, below := tree(); !slices.Contains(top, ps[0]) || !slices.Contains(top, ps[1]) || slices.Contains(below, ps[0]) || slices.Contains(below, ps[1]) {
+		t.Fatalf("pinned projects stay on top: top %q below %q", top, below)
+	}
+
+	m.ag.fold(ps[0], true)
+	m.ag.fold(ps[1], true)
+
+	if top, _ := tree(); !slices.Contains(top, ps[0]) || !slices.Contains(top, ps[1]) {
+		t.Fatalf("a fold does not shut a pinned project: top %q", top)
+	}
+
+	// A click on a held heading folds nothing.
+	m.ag.unfold(ps[0])
+	m.ag.activate(m, &agRow{kind: agProject, project: ps[0]})
+
+	if m.ag.collapsed[ps[0]] {
+		t.Fatal("a click on a pinned project's heading folds nothing")
+	}
+
+	m.st.Pinned = nil
+
+	if _, below := tree(); !slices.Contains(below, ps[0]) || !slices.Contains(below, ps[1]) {
+		t.Fatalf("unpinned and folded, it goes under Other Projects: %q", below)
 	}
 }
