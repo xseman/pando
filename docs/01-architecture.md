@@ -116,7 +116,9 @@ driving the API.
   ending a burst of 3 s or more.
 - Exit 0 closes a session; a failure stays listed with its code. A kill sends
   SIGHUP to the shell's and the foreground job's process groups, SIGKILL
-  after 2 s.
+  after 2 s. A job left holding the terminal (`cmd & disown`, `setsid`) is
+  waited for 2 s more, then left: its output reader ends with it, and
+  `pando stop` lets go of the lock.
 
 A TUI fetches one screen per terminal at a time, numbered (`takeoff`); a
 reply that is not the terminal's latest is dropped, and a fetch asked for in

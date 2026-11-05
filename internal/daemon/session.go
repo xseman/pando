@@ -241,7 +241,14 @@ func (s *session) kill() {
 		case <-time.After(2 * time.Second):
 			s.pty.signal(syscall.SIGKILL)
 
-			<-s.done
+			// A job left behind on purpose (`cmd & disown`, setsid) keeps
+			// the terminal open, and the output reader with it, until it
+			// ends: its process group is not the shell's. Do not wait for
+			// it, or the kill hangs and pando stop never lets go of the lock.
+			select {
+			case <-s.done:
+			case <-time.After(2 * time.Second):
+			}
 		}
 
 		if fg > 0 && fg != pid {

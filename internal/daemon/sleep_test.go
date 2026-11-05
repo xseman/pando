@@ -564,3 +564,47 @@ func TestAutoSleep(t *testing.T) {
 		}
 	}
 }
+
+// A session woken while a detached job still held its old terminal stays:
+// the old output reader ends with that job, and its exit is not the woken
+// session's (the kill gave up waiting for it).
+func TestWokenOutlivesOldReader(t *testing.T) {
+	needProc(t)
+
+	d := start(t)()
+	defer d.Close()
+
+	ws := t.TempDir()
+	jobAgent(t, d, ws)
+
+	var s proto.Session
+	call(t, "session.new", map[string]any{"workspace": ws, "cmd": []string{"sh"}}, &s)
+	call(t, "session.input", proto.InputParams{ID: s.ID, Text: "setsid sleep 4 &\r./myagent\r"}, nil)
+	waitFor(t, "the agent to start", func() bool { return strings.Contains(readScreen(t, s.ID), "MYAGENT") })
+
+	sess := d.sessions[s.ID]
+
+	var pid int
+
+	waitFor(t, "the agent in front", func() bool {
+		var prog string
+
+		pid, prog = sess.foreground()
+
+		return prog == "myagent"
+	})
+	fakeClaude(t, pid, "conv-one")
+	mustWrite(t, filepath.Join(claudeDir(), "projects", "-ws", "conv-one.jsonl"), "{}\n")
+	waitFor(t, "the conversation", func() bool { return remembered(d, sess).Conversation != nil })
+
+	call(t, "session.sleep", map[string]any{"id": s.ID}, nil)
+	call(t, "session.wake", map[string]any{"id": s.ID}, nil)
+	time.Sleep(5 * time.Second) // the job ends, and the old reader with it
+
+	var all []proto.Session
+	call(t, "session.list", nil, &all)
+
+	if len(all) != 1 {
+		t.Fatalf("the woken session went with the old reader: %d listed", len(all))
+	}
+}

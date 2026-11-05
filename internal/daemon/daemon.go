@@ -1660,6 +1660,8 @@ func (d *Daemon) startWith(spec proto.SessionSpec, cols, rows int, fallback [][]
 
 	registered := make(chan struct{}) // closed once s is listed: a shell that exits before waits for it
 
+	var self *session // set before registered closes
+
 	s, err := spawn(spec, cols, rows, func() {
 		d.mu.Lock()
 		if d.pending[id] {
@@ -1683,6 +1685,10 @@ func (d *Daemon) startWith(spec proto.SessionSpec, cols, rows int, fallback [][]
 		s, closing := d.sessions[id], d.closing
 		d.mu.Unlock()
 
+		if s != nil && s != self { // woken or fallen back under its id meanwhile: this exit is the old one's
+			return
+		}
+
 		if s != nil && s.isAsleep() { // put to sleep: it stays listed
 			d.broadcast(proto.Event{Kind: "sessions"})
 			return
@@ -1705,6 +1711,7 @@ func (d *Daemon) startWith(spec proto.SessionSpec, cols, rows int, fallback [][]
 	}
 
 	s.fallback, s.started = fallback, time.Now() // before it is registered: the exit callback reads them
+	self = s
 
 	d.add(s)
 	close(registered)
