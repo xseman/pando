@@ -2886,14 +2886,9 @@ func (m *Model) paste(msg tea.PasteMsg) tea.Cmd {
 	case m.modal != nil && m.modal.form != nil:
 		cmd = m.modal.form.paste(msg)
 	case m.modal != nil && m.modal.hasInput():
-		m.modal.input, cmd = m.modal.input.Update(msg)
-		if m.modal.filter {
-			m.modal.refilter()
-		}
-
-		if m.modal.complete != nil {
-			m.modal.input.SetSuggestions(m.modal.complete(m.modal.input.Value()))
-		}
+		md, before := m.modal, m.modal.input.Value()
+		md.input, cmd = md.input.Update(msg)
+		cmd = tea.Batch(cmd, md.typed(m, before)) // as typed: quick open searches a pasted query
 
 	case t != nil && t.find.editing: // the terminal's find, not its shell, nor a file's find left open
 		t.find.input, cmd = t.find.input.Update(msg)

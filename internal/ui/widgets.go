@@ -2137,22 +2137,36 @@ func (md *modal) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	before := md.input.Value()
 
 	md.input, cmd = md.input.Update(k)
-	if v := md.input.Value(); md.complete != nil && v != before {
+
+	return tea.Batch(cmd, md.typed(m, before))
+}
+
+// typed follows the query a key or a paste changed from before: the
+// suggestions, the picker's change, the filter.
+func (md *modal) typed(m *Model, before string) tea.Cmd {
+	v := md.input.Value()
+	if v == before {
+		return nil
+	}
+
+	if md.complete != nil {
 		md.input.SetSuggestions(md.complete(v))
 	}
 
-	if v := md.input.Value(); md.filter && v != before {
-		if md.change != nil {
-			if c := md.change(m, v); c != nil || m.modal != md {
-				return tea.Batch(cmd, c)
-			}
-		}
-
-		md.refilter()
-		md.moved(m)
+	if !md.filter {
+		return nil
 	}
 
-	return cmd
+	if md.change != nil {
+		if c := md.change(m, v); c != nil || m.modal != md {
+			return c
+		}
+	}
+
+	md.refilter()
+	md.moved(m)
+
+	return nil
 }
 
 // dismiss closes the modal without choosing anything.

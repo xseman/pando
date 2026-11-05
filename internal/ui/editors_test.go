@@ -179,6 +179,17 @@ func TestGoToLine(t *testing.T) {
 	}
 }
 
+// A pasted number goes to its line as a typed one does.
+func TestGoToLinePaste(t *testing.T) {
+	m, _ := editorModel(t, "a.go", "one\ntwo\nthree\nfour\nfive\n")
+	press(m, "ctrl+g")
+	m.Update(tea.PasteMsg{Content: "3"})
+
+	if rows := labels(m); m.pv.cur.line != 2 || len(rows) != 1 || rows[0] != "Go to line 3" {
+		t.Fatalf("pasted 3: %+v, rows %q", m.pv.cur, rows)
+	}
+}
+
 func TestQuickOpenListsRecentFirst(t *testing.T) {
 	m := previewModel(t, "file", "one")
 	m.files = []string{filepath.Join(m.ws, "c.go"), filepath.Join(m.ws, "gone.go"), filepath.Join(m.ws, "b.go")}
