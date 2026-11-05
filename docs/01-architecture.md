@@ -106,7 +106,7 @@ driving the API.
   `OOMPolicy=stop`: one OOM kill in a session ends the scope, daemon and every
   session with it. Without systemd-run or a user bus it starts as before.
 - A shell session tries `shellCandidates` in order; one failing within 2 s
-  yields to the next.
+  yields to the next. A kill is no failure: the session stays gone.
 - Sessions resolve by id, by name (unique among live sessions), or an
   unambiguous prefix. Shells given a `parent` die with that session.
 - `xtermKey` encodes modified special keys vt drops (`ctrl+←`).

@@ -50,6 +50,7 @@ type session struct {
 	active     time.Time // its last input or change of status: what Updated reports
 	touched    time.Time // its last input, or the use a restart carried over (used)
 	exited     bool
+	killed     bool // kill was called: its exit is no failure to fall back from
 	asleep     bool // put to sleep, or going to: the ticker leaves it be (sleepSession)
 	exitCode   int
 	attention  bool
@@ -219,6 +220,7 @@ func (s *session) setMode(m ansi.Mode, on bool) {
 func (s *session) kill() {
 	s.mu.Lock()
 	exited := s.exited
+	s.killed = true
 	s.mu.Unlock()
 
 	if !exited {
@@ -319,7 +321,12 @@ func (s *session) ownAgent() (int, string) {
 // started, with another shell left to try in its place.
 func (s *session) failedAtOnce() bool {
 	info := s.info()
-	return len(s.fallback) > 0 && info.ExitCode != 0 && time.Since(s.started) < quickExit
+
+	s.mu.Lock()
+	killed := s.killed
+	s.mu.Unlock()
+
+	return !killed && len(s.fallback) > 0 && info.ExitCode != 0 && time.Since(s.started) < quickExit
 }
 
 // size is the emulator's width and height.

@@ -1172,6 +1172,30 @@ func TestSessionWaitErrors(t *testing.T) {
 	}
 }
 
+// A shell session killed as soon as it started stays killed: its shell exits
+// on the kill, which is no shell failing to start for another to replace.
+func TestKillAtOnceStaysKilled(t *testing.T) {
+	d := start(t)()
+	defer d.Close()
+
+	dir := t.TempDir()
+
+	for range 3 {
+		var s proto.Session
+		call(t, "session.new", map[string]any{"workspace": dir, "agent": "shell"}, &s)
+		call(t, "session.kill", map[string]string{"id": s.ID}, nil)
+	}
+
+	time.Sleep(quickExit + time.Second) // a fallback is listed by now
+
+	var all []proto.Session
+	call(t, "session.list", nil, &all)
+
+	if len(all) > 0 {
+		t.Fatalf("killed sessions came back: %d listed", len(all))
+	}
+}
+
 func TestSessionByNameAndPrefix(t *testing.T) {
 	d := start(t)()
 	defer d.Close()
