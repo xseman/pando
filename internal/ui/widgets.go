@@ -1956,7 +1956,12 @@ func (md *modal) view(m *Model) (string, int, int) {
 			left = append(left, sg(" "+it.inline, note))
 		}
 
-		return row(rw, bg, left, sg(it.hint+" ", note))
+		hint := it.hint + " "
+		if it.hint != "" {
+			hint = " " + hint // a label cut short keeps a cell from it
+		}
+
+		return row(rw, bg, left, sg(hint, note))
 	}) {
 		lines = append(lines, side+r+side)
 	}
