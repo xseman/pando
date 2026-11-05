@@ -3331,7 +3331,7 @@ func TestProjectPicker(t *testing.T) {
 		}
 	}
 
-	press(m, "backspace", "tab", "tab", "down", "enter") // the listing: alpha, in
+	press(m, "backspace", "down", "down", "enter") // the listing: alpha, in
 
 	if got := f.in.Value(); got != filepath.Join(dir, "alpha")+"/" {
 		t.Fatalf("⏎ on alpha: %q", got)
@@ -3391,6 +3391,92 @@ func TestProjectPicker(t *testing.T) {
 
 	if m.modal != nil {
 		t.Fatal("esc closes the picker")
+	}
+}
+
+// TestProjectPickerKeys walks the folder picker by keys: tab completes the
+// path to the folders' common prefix, case aside, then the one folder left,
+// and never leaves the path, so what is typed next still lands there; ← →
+// cross the columns, ↑ from a column's top is back on the path.
+func TestProjectPickerKeys(t *testing.T) {
+	dir := t.TempDir()
+	for _, d := range []string{"project-a", "project-b", "Projects", "other"} {
+		mustMkdir(t, filepath.Join(dir, d))
+	}
+
+	m := testModelSized(t, 120, 30)
+	m.addProjectPrompt()
+
+	f, ok := m.modal.form.(*dirForm)
+	if !ok {
+		t.Fatalf("Add Project opens %+v", m.modal)
+	}
+
+	value := func(want string) {
+		t.Helper()
+
+		if got := f.in.Value(); got != want || f.at != dirPath {
+			t.Fatalf("path %q at %d, want %q on the path", got, f.at, want)
+		}
+	}
+
+	f.goTo(dir)
+	press(m, "P", "tab") // the typed P kept
+	value(filepath.Join(dir, "Project"))
+
+	f.goTo(dir)
+	press(m, "p", "r", "o", "j", "e", "c", "t", "s", "tab") // one left: its own name
+	value(filepath.Join(dir, "Projects") + "/")
+
+	f.goTo(dir)
+	press(m, "p", "tab")
+	value(filepath.Join(dir, "project"))
+
+	f.goTo(dir)
+	press(m, "O", "tab") // no folder spelled O: other's own name
+	value(filepath.Join(dir, "other") + "/")
+
+	f.goTo(dir)
+	press(m, "P", "R", "O", "J", "E", "C", "T", "-", "tab") // only lowercase ones
+	value(filepath.Join(dir, "project-"))
+
+	f.goTo(dir)
+	press(m, "p", "tab")
+
+	press(m, "-", "tab")
+	value(filepath.Join(dir, "project-"))
+
+	press(m, "tab", "b", "tab") // nothing to add: still the path
+	value(filepath.Join(dir, "project-b") + "/")
+
+	f.in.SetValue("~")
+	press(m, "tab")
+	value("~/")
+
+	f.goTo(dir)
+	press(m, "down")
+	press(m, "left")
+
+	if f.at != dirPlaces {
+		t.Fatalf("← from the folders: at %d", f.at)
+	}
+
+	press(m, "right")
+
+	if f.at != dirList {
+		t.Fatalf("→ from the places: at %d", f.at)
+	}
+
+	press(m, "up")
+
+	if f.at != dirPath || !f.in.Focused() {
+		t.Fatalf("↑ on .. goes to the path: at %d", f.at)
+	}
+
+	press(m, "down", "down", "up")
+
+	if f.at != dirList || f.sel != 0 {
+		t.Fatalf("↑ below the top stays in the folders: at %d sel %d", f.at, f.sel)
 	}
 }
 

@@ -99,8 +99,10 @@ func places(home string, projects []string) []dirPlace {
 // dirForm is the folder picker: a path to type, the places on the left and
 // the typed path's folders on the right, then Cancel and the primary button.
 // The path is the truth: what follows its last slash filters the folders.
-// tab walks path, places, folders and buttons; ⏎ on a folder goes in, on the
-// path or the primary button picks it.
+// tab completes the path, elsewhere walks path, places, folders and
+// buttons; ↓ leaves the path, ↑ from a column's top goes back to it, ← →
+// cross the columns; ⏎ on a folder goes in, on the path or the primary
+// button picks it.
 type dirForm struct {
 	title, ok string
 	in        textinput.Model
@@ -177,6 +179,55 @@ func (f *dirForm) dir() string {
 // goTo puts path in the box as a folder to list.
 func (f *dirForm) goTo(path string) {
 	f.in.SetValue(strings.TrimSuffix(path, "/") + "/")
+	f.in.CursorEnd()
+	f.list()
+}
+
+// complete is tab on the path, the only thing tab does there: what follows
+// its last slash grows to the matching folders' common prefix, case aside
+// as the listing matches, what is typed kept when a folder is spelled so,
+// to the folder's own "name/" when one is left; a bare "~" to "~/".
+func (f *dirForm) complete() {
+	dir, base := filepath.Split(f.in.Value())
+
+	names := f.dirs[1:]
+	if f.in.Value() == "~" {
+		names = []string{"~"}
+	}
+
+	if len(names) == 0 {
+		return
+	}
+
+	prefix := []rune(names[0])
+	for _, n := range names[1:] {
+		r, i := []rune(n), 0
+		for i < len(prefix) && i < len(r) && strings.EqualFold(string(prefix[i]), string(r[i])) {
+			i++
+		}
+
+		prefix = prefix[:i]
+	}
+
+	typed := []rune(base)
+	if len(prefix) < len(typed) {
+		return
+	}
+
+	if slices.ContainsFunc(names, func(n string) bool { return strings.HasPrefix(n, base) }) {
+		copy(prefix, typed) // a folder spelled so: what is typed keeps its case
+	}
+
+	p := string(prefix)
+	if len(names) == 1 {
+		p = names[0] + "/" // the folder's own name
+	}
+
+	if p == base {
+		return
+	}
+
+	f.in.SetValue(dir + p)
 	f.in.CursorEnd()
 	f.list()
 }
@@ -300,6 +351,10 @@ func (f *dirForm) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		m.modal = nil
 		return nil
 
+	case s == "tab" && f.at == dirPath:
+		f.complete()
+		return nil
+
 	case s == "tab" || s == "shift+tab":
 		f.at = (f.at + ifElse(s == "tab", 1, 3)) % 4
 		if f.at == dirPath {
@@ -333,6 +388,12 @@ func (f *dirForm) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 
 	case f.at == dirButtons && (s == "left" || s == "right" || s == "h" || s == "l"):
 		f.btn = 1 - f.btn
+	case (f.at == dirPlaces || f.at == dirList) && (s == "left" || s == "right" || s == "h" || s == "l"):
+		f.at = ifElse(s == "left" || s == "h", dirPlaces, dirList)
+	case (s == "up" || s == "k") && (f.at == dirPlaces && f.place == 0 || f.at == dirList && f.sel == 0):
+		f.at = dirPath
+		return f.in.Focus()
+
 	case s == "up" || s == "k" || s == "down" || s == "j":
 		d := ifElse(s == "up" || s == "k", -1, 1)
 

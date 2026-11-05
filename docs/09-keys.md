@@ -203,9 +203,10 @@ in every mode.
 - A question: `←` `→` `h` `l` `tab` pick a button, `⏎` `space` run it, `esc`
   `q` cancel.
 - The folder picker: type a path (what follows its last slash filters the
-  folders), `tab` `shift+tab` path, places, folders, buttons, `↑` `↓` move,
-  `⏎` go in (on the path or the button: pick it), `⌫` in the folders up,
-  `esc` cancel.
+  folders), `tab` on the path completes it (case aside, `~` to `~/`),
+  elsewhere `tab` `shift+tab` path, places, folders, buttons, `↑` `↓` move
+  (`↓` off the path, `↑` at the top back), `←` `→` places, folders, `⏎` go in (on the path or the button:
+  pick it), `⌫` in the folders up, `esc` cancel.
 - The Settings tab: `↑` `↓` move, `space` `⏎` flip a checkbox or open a
   dropdown, `←` `→` change the value, `tab` `]` `[` the section, `q` `esc`
   close.
