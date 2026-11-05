@@ -262,7 +262,7 @@ type diffRows struct {
 }
 
 func (p *preview) id() string {
-	id := fmt.Sprintf("%s|%s|%s|%s|%v|%s", p.kind, p.root, p.path, p.name, p.entry.Staged, p.rev)
+	id := p.kind + "|" + p.root + "|" + p.path + "|" + p.name + "|" + strconv.FormatBool(p.entry.Staged) + "|" + p.rev // not Sprintf: asked per tab per frame
 
 	switch c := p.cell; {
 	case p.tbl != nil: // a table is its server's: an edited connection or .env names another since
@@ -1075,12 +1075,39 @@ const minSessTab = 12
 // long session names are cut to what the files leave, and tabs on the left
 // give way until the active one fits.
 func (m *Model) editorTabs(w int) []edTab {
+	if !m.drawing { // a click asks after state that changed since the frame
+		return m.layTabs(w)
+	}
+
+	if c := &m.tabsAt; c.n == m.frameN && c.cur == m.cur && c.w == w { // the strip and the rule below it ask alike
+		return c.tabs
+	}
+
+	tabs := m.layTabs(w)
+	m.tabsAt = tabsMemo{n: m.frameN, cur: m.cur, w: w, tabs: slices.Clip(tabs)}
+
+	return tabs
+}
+
+// tabsMemo is editorTabs' answer for one group and width within one View
+// (Model.frameN): nothing a frame draws changes what the tabs are.
+type tabsMemo struct {
+	n    int
+	cur  *pane
+	w    int
+	tabs []edTab
+}
+
+// layTabs is editorTabs worked out.
+func (m *Model) layTabs(w int) []edTab {
 	sessOn := m.showsSession()
 	w -= ifElse(sessOn, m.sessBtnW(), m.stripBtnW()) + tabPlusW
 
-	var items []edTab
+	strip := m.stripSessions()
+	items := make([]edTab, 0, len(m.editors)+len(strip)) // an edTab is 768 bytes: no regrowing
 
-	for i, e := range m.editors {
+	for i := range m.editors {
+		e := &m.editors[i] // not a copy: a preview is 17 KB
 		name, _ := e.label(m.ws)
 
 		var icon seg
@@ -1113,7 +1140,7 @@ func (m *Model) editorTabs(w int) []edTab {
 		}
 	}
 
-	for _, id := range m.stripSessions() {
+	for _, id := range strip {
 		pos[id] = m.sessPos(id)
 		items = append(items, sessTab(id, w-3))
 	}
@@ -1126,7 +1153,9 @@ func (m *Model) editorTabs(w int) []edTab {
 		return 2 * pos[t.id]
 	}
 
-	slices.SortStableFunc(items, func(a, b edTab) int { return cmp.Compare(key(a), key(b)) })
+	if len(strip) > 0 { // the files alone are in order already
+		slices.SortStableFunc(items, func(a, b edTab) int { return cmp.Compare(key(a), key(b)) })
+	}
 
 	at := slices.IndexFunc(items, func(t edTab) bool { return t.active })
 
@@ -1138,8 +1167,8 @@ func (m *Model) editorTabs(w int) []edTab {
 
 	var sess []int
 
-	for k, t := range items {
-		switch {
+	for k := range items {
+		switch t := &items[k]; {
 		case t.i < 0:
 			sess = append(sess, t.w+tabGap)
 
@@ -1160,16 +1189,16 @@ func (m *Model) editorTabs(w int) []edTab {
 	if room, cut := sessRoom(sess, keep); cut {
 		room = min(max(room, minSessTab), w-3)
 
-		for k, t := range items {
-			if t.i < 0 && t.w+tabGap > room {
+		for k := range items {
+			if t := &items[k]; t.i < 0 && t.w+tabGap > room {
 				items[k] = sessTab(t.id, room)
 			}
 		}
 	}
 
 	total := 0
-	for _, t := range items {
-		total += t.w + tabGap
+	for k := range items {
+		total += items[k].w + tabGap
 	}
 
 	start := 0
@@ -1178,17 +1207,17 @@ func (m *Model) editorTabs(w int) []edTab {
 		start++
 	}
 
-	var out []edTab
+	out := items[:0] // in place: each tab moves left, never right
 
 	x := 0
-	for _, t := range items[start:] {
-		if x+t.w+tabGap > w { // a wide tab goes alone: the ones after it may fit
+	for k := start; k < len(items); k++ {
+		if t := &items[k]; x+t.w+tabGap > w { // a wide tab goes alone: the ones after it may fit
 			continue
 		}
 
-		t.x = x
-		out = append(out, t)
-		x += t.w + tabGap
+		items[k].x = x
+		out = append(out, items[k])
+		x += items[k].w + tabGap
 	}
 
 	return out

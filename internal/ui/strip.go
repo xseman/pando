@@ -138,9 +138,10 @@ func (m *Model) stripOrder(s int) []string {
 
 		key := map[string]int{}
 
-		for i, e := range m.editors {
-			out = append(out, e.id())
-			key[e.id()] = 2*i + 1
+		for i := range m.editors {
+			id := m.editors[i].id()
+			out = append(out, id)
+			key[id] = 2*i + 1
 		}
 
 		for _, id := range m.stripSessions() {
@@ -199,8 +200,8 @@ func (m *Model) sessPos(id string) int {
 
 	pos := 0
 
-	for i, e := range m.editors {
-		if slices.Contains(after, e.id()) {
+	for i := range m.editors { // by index: a preview is 17 KB to copy, per tab per frame
+		if slices.Contains(after, m.editors[i].id()) {
 			pos = i + 1
 		}
 	}

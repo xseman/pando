@@ -196,6 +196,9 @@ type Model struct {
 	events      <-chan proto.Event
 	inputs      chan proto.InputParams
 	gitBusy     bool
+	frameN      int  // counts Views: what is worked out once per frame (tabsAt)
+	drawing     bool // View is running
+	tabsAt      tabsMemo
 	flights     int       // takeoff's screens so far
 	gitNext     time.Time // when the tick may refresh git again
 	gitIdle     int       // refreshes in a row that found what the one before did: the tick backs off
@@ -3996,6 +3999,9 @@ const minEditor = 40
 // View draws the columns side by side into the panel rows, then the status
 // bar, the overlays and the cursor.
 func (m *Model) View() tea.View {
+	m.frameN, m.drawing = m.frameN+1, true
+	defer func() { m.drawing = false }()
+
 	if m.still && m.drawn != nil {
 		return *m.drawn
 	}
