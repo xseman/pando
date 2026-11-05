@@ -282,7 +282,7 @@ func TestSpacesNoSessions(t *testing.T) {
 
 	m.ag.reveal(m, b2)
 
-	if r := m.ag.selected(m); m.ag.collapsed[timeKey(bareHead)] || r == nil || !r.shows(b2) {
+	if r := m.ag.selected(m); m.ag.collapsed[timeKey(bareHead)] || r == nil || r.project != b2 {
 		t.Fatalf("a switch into one opens the heading and selects it: %+v", r)
 	}
 
@@ -779,7 +779,7 @@ func TestSpacesPinProject(t *testing.T) {
 	sel(false, agSession, "s1")
 	press(m, "p")
 
-	if want := []string{"Pinned", o, "pin:ws:main", "pin:o1", "pin:ws:feat", "pin:o2", "pin:ws:main", "pin:s1"}; !slices.Equal(pinned(), want) {
+	if want := []string{"Pinned", o, "pin:ws:main", "pin:o1", "pin:ws:feat", "pin:o2", "pin:" + filepath.Base(m.ws), "pin:s1"}; !slices.Equal(pinned(), want) {
 		t.Fatalf("o2 once, s1 after: %q want %q", shape(), want)
 	}
 	// Under its project a worktree counts its sessions, not names the project.
@@ -792,7 +792,7 @@ func TestSpacesPinProject(t *testing.T) {
 	press(m, "/")
 	typeText(m, "gamma")
 
-	if want := []string{"Pinned", "pin:ws:main", "pin:s1", filepath.Base(m.ws), "s1"}; !slices.Equal(shape(), want) {
+	if want := []string{"Pinned", "pin:" + filepath.Base(m.ws), "pin:s1", filepath.Base(m.ws), "s1"}; !slices.Equal(shape(), want) {
 		t.Fatalf("gamma under Pinned: %q want %q", shape(), want)
 	}
 
@@ -801,7 +801,7 @@ func TestSpacesPinProject(t *testing.T) {
 	sel(true, agProject, other)
 	press(m, "space")
 
-	if want := []string{"Pinned", o, "pin:ws:main", "pin:s1"}; !slices.Equal(pinned(), want) || !slices.Contains(m.ag.topProjects(m), other) {
+	if want := []string{"Pinned", o, "pin:" + filepath.Base(m.ws), "pin:s1"}; !slices.Equal(pinned(), want) || !slices.Contains(m.ag.topProjects(m), other) {
 		t.Fatalf("folded under Pinned: %q want %q, on top %q", shape(), want, m.ag.topProjects(m))
 	}
 
@@ -828,7 +828,9 @@ func TestSpacesPinProject(t *testing.T) {
 
 	press(m, "p")
 
-	if r := m.ag.selected(m); !slices.Equal(m.st.Pinned, []string{"o2", "s1"}) || r == nil || r.kind != agProject || r.project != other || r.pinned {
+	// o2 stays pinned, so its project's heading under Pinned stays too: the
+	// selection lands on that heading, not on the tree's copy.
+	if r := m.ag.selected(m); !slices.Equal(m.st.Pinned, []string{"o2", "s1"}) || r == nil || r.kind != agProject || r.project != other {
 		t.Fatalf("unpinned under Pinned, onto the tree's copy: %v %+v", m.st.Pinned, r)
 	}
 
@@ -839,4 +841,89 @@ func TestSpacesPinProject(t *testing.T) {
 	}
 
 	checkWidths(t, m)
+}
+
+// TestSessionsPickedTopExpires puts a project with no session on top after a
+// switch into it, draws it, and sinks it back under Other Projects once
+// pickFor is up.
+func TestSessionsPickedTopExpires(t *testing.T) {
+	m := testModelSized(t, 100, 40)
+	p := addProject(t, m, "main")
+	addProject(t, m, "main")
+	press(m, "3")
+
+	onTop := func() bool {
+		rows := m.ag.rows(m)
+		i := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agProject && r.project == p })
+
+		return i >= 0 && !rows[i].tail
+	}
+
+	if onTop() {
+		t.Fatal("a project with no session starts under Other Projects")
+	}
+
+	m.ag.reveal(m, p)
+
+	if !onTop() {
+		t.Fatal("a switch into a project with no session puts it on top")
+	}
+
+	if lines := m.ag.lines(m, 40, m.bodyH(viewAgents)); !strings.Contains(ansi.Strip(strings.Join(lines, "\n")), filepath.Base(p)) {
+		t.Fatalf("the picked project is drawn:\n%s", strings.Join(lines, "\n"))
+	}
+
+	m.ag.picked[p] = time.Now().Add(-pickFor) // the time is up
+
+	if onTop() {
+		t.Fatal("no session started in time: it sinks back under Other Projects")
+	}
+}
+
+// TestSpacesPinGroupsWorktrees pins a session in each of two worktrees of one
+// project: under its heading each worktree gets a row over its own sessions.
+func TestSpacesPinGroupsWorktrees(t *testing.T) {
+	m := testModel(t)
+	feat := t.TempDir()
+	project := m.projectOf(m.ws)
+	m.wss = append(m.wss, proto.Workspace{Path: feat, Project: project, Branch: "feat"})
+	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: feat, Agent: "shell"}, Status: "idle"})
+	m.Update(sessionsMsg(m.sessions))
+	press(m, "3")
+
+	shape := func() (out []string) {
+		for _, r := range m.ag.rows(m) {
+			switch {
+			case r.kind == agTime && r.when == pinnedHead:
+				out = append(out, r.when)
+			case !r.pinned:
+				return out // past Pinned
+			case r.kind == agProject:
+				out = append(out, "head")
+			case r.kind == agWorkspace:
+				out = append(out, "ws:"+r.ws.Branch)
+			case r.kind == agSession:
+				out = append(out, r.s.ID)
+			}
+		}
+
+		return out
+	}
+	pin := func(id string) {
+		t.Helper()
+
+		m.ag.l.sel = slices.IndexFunc(m.ag.rows(m), func(r agRow) bool { return !r.pinned && r.kind == agSession && r.s.ID == id })
+		if m.ag.l.sel < 0 {
+			t.Fatalf("no tree row for %s", id)
+		}
+
+		press(m, "p")
+	}
+
+	pin("s1")
+	pin("s2")
+
+	if want := []string{"Pinned", "head", "ws:main", "s1", "ws:feat", "s2"}; !slices.Equal(shape(), want) {
+		t.Fatalf("two worktrees, a row each: %q want %q", shape(), want)
+	}
 }

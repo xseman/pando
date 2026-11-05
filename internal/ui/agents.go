@@ -40,6 +40,10 @@ const pinnedHead = "Pinned"
 // projects under it A–Z.
 const bareHead = "Other Projects"
 
+// pickFor is how long a project with no session stays on top after a switch
+// into it: a session started there keeps it, one not started sinks back.
+const pickFor = 5 * time.Minute
+
 // recentHead is the caption over the three projects not on top used last,
 // above bareHead: the one just put to sleep is found where it went.
 const recentHead = "Recent"
@@ -61,9 +65,10 @@ type agRow struct {
 type agents struct {
 	l         list
 	collapsed map[string]bool
-	folded    []string        // the collapsed keys, saved; the one folded last first
-	opened    map[string]bool // projects under bareHead opened in place, until one of their sessions wakes
-	ptop      int             // the Pinned pane's first row in view; l.top is the tree's
+	folded    []string             // the collapsed keys, saved; the one folded last first
+	opened    map[string]bool      // projects under bareHead opened in place, until one of their sessions wakes
+	picked    map[string]time.Time // projects with no session switched into: on top till pickFor is up, or a session wakes
+	ptop      int                  // the Pinned pane's first row in view; l.top is the tree's
 }
 
 type newSessionMsg proto.Session
@@ -415,6 +420,12 @@ func (m *Model) awake() map[string]bool {
 		}
 	}
 
+	for p, t := range m.ag.picked {
+		if time.Since(t) < pickFor {
+			out[p] = true
+		}
+	}
+
 	return out
 }
 
@@ -435,6 +446,27 @@ func (a *agents) tailProjects(m *Model) []string {
 
 // top reports project p listed on top: a session in it awake, not folded.
 func (a *agents) top(m *Model, p string) bool { return !a.collapsed[p] && m.awake()[p] }
+
+// pick puts project p on top for pickFor, a switch into it with no session.
+func (a *agents) pick(p string) {
+	if a.picked == nil {
+		a.picked = map[string]time.Time{}
+	}
+
+	a.picked[p] = time.Now()
+}
+
+// lift shows project p where a switch into it lands: opened in place when a
+// session in it is asleep, picked on top when it has none.
+func (a *agents) lift(m *Model, p string) tea.Cmd {
+	if !m.busyProjects()[p] {
+		a.pick(p)
+
+		return nil
+	}
+
+	return a.openInPlace(p)
+}
 
 // openInPlace opens project p where it lists under bareHead: unfolded, so it
 // goes on top once a session in it wakes, and opened till then.
@@ -652,13 +684,12 @@ func (a *agents) groupRows(m *Model, sessions []proto.Session, q string) []agRow
 // pinnedRows are the Pinned heading and what is pinned under it, in the
 // order it was pinned, the Filter applied to each part: a project whole, as
 // the tree lists it open, its fold its own (foldKey); a session under its
-// worktree as in the tree, so a branch shows once and whole, the worktrees
-// in the order their first session was pinned, the sessions in the order
-// they were. A pinned project's session shows under it only. Each stays in
-// the tree too.
+// project's heading, its worktree's row only where the project has several
+// pinned, the sessions in the order they were pinned. A pinned project's
+// session shows under it only. Each stays in the tree too.
 func (a *agents) pinnedRows(m *Model, sessions []proto.Session, q string) []agRow {
 	var (
-		keys []string // a project's path or a worktree's, in the order pinned
+		keys []string // a project's id, in the order its first pin
 		by   = map[string][]agRow{}
 	)
 
@@ -690,11 +721,12 @@ func (a *agents) pinnedRows(m *Model, sessions []proto.Session, q string) []agRo
 			ws = *w
 		}
 
-		if by[ws.Path] == nil {
-			keys, by[ws.Path] = append(keys, ws.Path), []agRow{{kind: agWorkspace, project: ws.Project, ws: ws, pinned: true}}
+		p := m.projectOf(sessions[i].Workspace)
+		if by[p] == nil {
+			keys, by[p] = append(keys, p), []agRow{}
 		}
 
-		by[ws.Path] = append(by[ws.Path], agRow{kind: agSession, ws: ws, s: sessions[i], pinned: true})
+		by[p] = append(by[p], agRow{kind: agSession, project: p, ws: ws, s: sessions[i], pinned: true})
 	}
 
 	if keys == nil {
@@ -707,15 +739,53 @@ func (a *agents) pinnedRows(m *Model, sessions []proto.Session, q string) []agRo
 	}
 
 	for _, k := range keys {
+		rows := by[k]
+		if !whole(k) {
+			rows = pinnedGroup(a, k, rows, q)
+		}
+
 		if q == "" {
-			out = append(out, by[k]...)
+			out = append(out, rows...)
 		} else {
-			out = append(out, matching(q, by[k])...) // apart: a worktree after a project would pass as its
+			out = append(out, matching(q, rows)...) // apart: a worktree after a project would pass as its
 		}
 	}
 
 	if len(out) == 1 { // the Filter found none
 		return nil
+	}
+
+	return out
+}
+
+// pinnedGroup is the heading of project p over the sessions pinned in it,
+// rows; a worktree row goes before each worktree's sessions only when they
+// span several. Folded, the heading alone, unless the Filter is on.
+func pinnedGroup(a *agents, p string, rows []agRow, q string) []agRow {
+	head := agRow{kind: agProject, project: p, pinned: true, closed: a.collapsed[pinKey(p)]}
+
+	out := []agRow{head}
+	if head.closed && q == "" {
+		return out
+	}
+
+	var wts []string
+
+	byWt := map[string][]agRow{}
+	for _, r := range rows {
+		if _, ok := byWt[r.ws.Path]; !ok {
+			wts = append(wts, r.ws.Path)
+		}
+
+		byWt[r.ws.Path] = append(byWt[r.ws.Path], r)
+	}
+
+	for _, w := range wts {
+		if len(wts) > 1 {
+			out = append(out, agRow{kind: agWorkspace, project: p, ws: byWt[w][0].ws, pinned: true})
+		}
+
+		out = append(out, byWt[w]...)
 	}
 
 	return out
@@ -1510,6 +1580,7 @@ const resumeGrace = 30 * time.Second
 func (a *agents) unfoldRunning(m *Model, prev []proto.Session) tea.Cmd {
 	for p := range m.awake() {
 		delete(a.opened, p)
+		delete(a.picked, p)
 	}
 
 	if time.Since(m.reconnAt) < resumeGrace {
@@ -1544,16 +1615,13 @@ func (a *agents) reveal(m *Model, path string) tea.Cmd {
 	var saved tea.Cmd
 
 	if w := m.workspace(path); w != nil && !a.top(m, w.Project) {
-		if m.busyProjects()[w.Project] {
-			saved = a.openInPlace(w.Project)
-		}
-
 		head := bareHead
 		if slices.Contains(m.usedLast(a.tailProjects(m)), w.Project) {
 			head = recentHead
 		}
 
-		if !a.top(m, w.Project) && a.collapsed[timeKey(head)] {
+		saved = a.lift(m, w.Project)
+		if a.collapsed[timeKey(head)] {
 			saved = tea.Batch(saved, a.unfold(timeKey(head)))
 		}
 	} else if w != nil {

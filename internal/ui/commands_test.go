@@ -4552,7 +4552,7 @@ func TestSpacesPin(t *testing.T) {
 	m.ag.l.sel = 2 // s2 in the tree, under its project holding its checkout
 	press(m, "p")
 
-	if want := []string{"Pinned", "pin:ws", "pin:s2", "ws", "s1", "s2"}; !slices.Equal(m.st.Pinned, []string{"s2"}) || !slices.Equal(shape(), want) {
+	if want := []string{"Pinned", "ws", "pin:s2", "ws", "s1", "s2"}; !slices.Equal(m.st.Pinned, []string{"s2"}) || !slices.Equal(shape(), want) {
 		t.Fatalf("p pins s2: %v, rows %q want %q", m.st.Pinned, shape(), want)
 	}
 
@@ -4560,11 +4560,10 @@ func TestSpacesPin(t *testing.T) {
 		t.Fatalf("the selection stays on the tree's s2: %+v", r)
 	}
 
-	// The strip, s2's worktree with its branch and project, s2, the border,
-	// then the tree.
+	// The strip, s2's project heading, s2, the border, then the tree.
 	lines := m.ag.lines(m, 40, m.bodyH(viewAgents))
-	if l := strings.TrimRight(ansi.Strip(lines[1]), " "); !strings.HasPrefix(l, "   ⌂ main") || !strings.HasSuffix(l, filepath.Base(m.ws)) {
-		t.Fatalf("the pinned worktree: its branch, its project: %q", l)
+	if l := strings.TrimRight(ansi.Strip(lines[1]), " "); !strings.HasPrefix(l, " ▾ ○ "+filepath.Base(m.ws)) || strings.Contains(l, "main") {
+		t.Fatalf("the pinned project, no worktree row for one worktree: %q", l)
 	}
 
 	if l := strings.TrimRight(ansi.Strip(lines[2]), " "); !strings.HasPrefix(l, " ⊙ └─ ") || strings.Contains(l, "main") {
@@ -4688,7 +4687,7 @@ func TestSpacesPin(t *testing.T) {
 	m.st.Settings.SpHide = nil
 	m.st.Settings.SpGroup = "time"
 
-	if rows := shape(); len(rows) < 5 || !slices.Equal(rows[:4], []string{"Pinned", "pin:ws", "pin:s1", "pin:s2"}) || !slices.Contains(timeBuckets, rows[4]) {
+	if rows := shape(); len(rows) < 5 || !slices.Equal(rows[:4], []string{"Pinned", "ws", "pin:s1", "pin:s2"}) || !slices.Contains(timeBuckets, rows[4]) {
 		t.Fatalf("Group by Time keeps Pinned on top: %q", rows)
 	}
 
@@ -4850,8 +4849,8 @@ func TestSpacesPinnedPane(t *testing.T) {
 	}
 	border := func(l string) bool { return l != "" && strings.Trim(l, "━") == "" }
 
-	p := m.ag.pane(m.ag.rows(m), h) // the strip, the worktree and its three sessions, the border
-	if l := lines(); p.h != 4 || !strings.HasPrefix(l[0], " ▾ ○ Pinned ") || !strings.HasSuffix(l[0], " 3") || !strings.HasPrefix(l[1], "   ⌂ main") || !border(l[5]) || !strings.HasPrefix(l[6], " ▾ ○ "+filepath.Base(m.ws)) {
+	p := m.ag.pane(m.ag.rows(m), h) // the strip, the project and its three sessions, the border
+	if l := lines(); p.h != 4 || !strings.HasPrefix(l[0], " ▾ ○ Pinned ") || !strings.HasSuffix(l[0], " 3") || !strings.HasPrefix(l[1], " ▾ ○ "+filepath.Base(m.ws)) || !strings.HasPrefix(l[2], " ⊙ ├─ ○ s1") || !border(l[5]) || !strings.HasPrefix(l[6], " ▾ ○ "+filepath.Base(m.ws)) {
 		t.Fatalf("the pane, %+v in %d lines: %q", p, h, l)
 	}
 	// Seven pinned outgrow a third of the view: the pane scrolls to the
