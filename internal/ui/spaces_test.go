@@ -447,6 +447,52 @@ func TestSpacesUnfoldRunning(t *testing.T) {
 	}
 }
 
+// TestSessionsTailRecentFirst lists the three projects under Other Projects
+// used last first, newest on top, a blank row under them, then the rest
+// A–Z; the filter lists them all A–Z.
+func TestSessionsTailRecentFirst(t *testing.T) {
+	m := testModelSized(t, 100, 40)
+
+	var ps []string
+
+	for i := range 5 {
+		p := addProject(t, m, "main")
+		ps = append(ps, p)
+		m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: fmt.Sprint("s", i), Workspace: p, Agent: "claude"}, Status: "asleep", Updated: time.Now().Add(time.Duration(i) * time.Minute)})
+	}
+
+	ps = append(ps, addProject(t, m, "main")) // no session: never recent
+	press(m, "3")
+
+	tail := func() []string {
+		rows := m.ag.rows(m)
+
+		var got []string
+
+		for _, r := range rows[slices.IndexFunc(rows, func(r agRow) bool { return r.when == bareHead })+1:] {
+			got = append(got, r.project)
+		}
+
+		return got
+	}
+
+	if got, want := tail(), []string{ps[4], ps[3], ps[2], "", ps[0], ps[1], ps[5]}; !slices.Equal(got, want) { // TempDirs sort by their number
+		t.Fatalf("tail %q want %q", got, want)
+	}
+
+	rows, lines := m.ag.rows(m), m.ag.lines(m, 40, m.bodyH(viewAgents))
+	if gap := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agGap && r.tail }); strings.TrimSpace(ansi.Strip(lines[gap])) != "" {
+		t.Fatalf("a blank under the recent, no rule: %q", ansi.Strip(lines[gap]))
+	}
+
+	press(m, "/")
+	typeText(m, "main") // every project's branch
+
+	if got := tail(); slices.Contains(got, "") {
+		t.Fatalf("the filter lists no recent: %q", got)
+	}
+}
+
 // TestSessionsSwitchIntoTail clicks into a project asleep under Other
 // Projects: its session goes on screen, the project on top, and the
 // selection on its row there; a click on an asleep session opened in place

@@ -179,6 +179,8 @@ re-roots Explorer and Source Control to its worktree.
    └─ ○ shell           12m
                           a blank, no rule; blanks sink what follows to the bottom edge (pinFolded)
 ▾ other projects     24   a dim caption over every project not on top (bareHead), folds as a heading
+▸ ◌ verba             1   the three used last first, newest on top (recentFirst)
+                          a blank, then the rest
 ▸ ◌ beratung          1   A–Z, a tight list: every session asleep, or folded: not bold, no button, a session count
      dotfiles  + ⎇       no session (bare): dimmed, no glyph, no fold, buttons as a heading holding its checkout
 ▾ ◌ super.dental  ⌂ main  asleep and opened in place (opened): its sessions under it, still A–Z
@@ -198,7 +200,9 @@ re-roots Explorer and Source Control to its worktree.
   one on screen) and not folded, in the project Sort's order
   (`topProjects`). Every other project goes under _other projects_
   (`bareHead`), A–Z, a row each: folded, every session asleep, or no session
-  at all (`bare`). Nothing moves under the caption.
+  at all (`bare`). Above the A–Z go the three used last (`recentFirst`: their
+  newest session's Updated), a blank row under them; not while filtering.
+  Nothing moves under the caption.
 - One asleep opens in place on its chevron (`openInPlace`, `opened`) and goes
   on top once a session in it wakes, at its place in the order; asleep
   again, it is shut. A switch into one opens it so (`reveal`). The project

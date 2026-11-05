@@ -308,12 +308,47 @@ func (a *agents) treeRows(m *Model, sessions []proto.Session, q string) []agRow 
 		return cmp.Compare(strings.ToLower(agLabel(x[0])), strings.ToLower(agLabel(y[0])))
 	})
 
+	if q == "" {
+		tail = m.recentFirst(tail)
+	}
+
 	open = append(open, agRow{kind: agTime, when: bareHead})
 	if a.collapsed[timeKey(bareHead)] && q == "" {
 		return open
 	}
 
 	return append(open, slices.Concat(tail...)...)
+}
+
+// recentFirst lifts the three projects of tail used last (their newest
+// session's Updated) above the A–Z rest, a blank row between: the one just
+// put to sleep is found where it went.
+func (m *Model) recentFirst(tail [][]agRow) [][]agRow {
+	used := map[string]time.Time{}
+	for _, s := range m.mainSessions() {
+		if p := m.projectOf(s.Workspace); s.Updated.After(used[p]) {
+			used[p] = s.Updated
+		}
+	}
+
+	byUse := slices.Clone(tail)
+	slices.SortStableFunc(byUse, func(x, y []agRow) int { return used[y[0].project].Compare(used[x[0].project]) })
+
+	n := 0
+	for n < min(3, len(byUse)) && !used[byUse[n][0].project].IsZero() {
+		n++
+	}
+
+	if n == 0 || n == len(tail) {
+		return tail
+	}
+
+	recent := byUse[:n]
+	rest := slices.DeleteFunc(tail, func(rows []agRow) bool {
+		return slices.ContainsFunc(recent, func(r []agRow) bool { return &r[0] == &rows[0] })
+	})
+
+	return slices.Concat(recent, [][]agRow{{{kind: agGap, tail: true}}}, rest)
 }
 
 // projectRows are project heading head, holding its checkout when that is
@@ -1189,7 +1224,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 	draw := func(i, y, rw int) string { // row i on line y
 		r := rows[i]
 		if r.kind == agGap { // the rule over an open heading, or a blank: before bareHead too
-			if h := i + 1; h < len(rows) && (rows[h].kind == agProject || rows[h].kind == agTime) && rows[h].when != bareHead && (!a.collapsed[foldKey(rows[h])] || m.query(viewAgents) != "") {
+			if h := i + 1; h < len(rows) && (rows[h].kind == agProject || rows[h].kind == agTime) && rows[h].when != bareHead && !rows[h].tail && (!a.collapsed[foldKey(rows[h])] || m.query(viewAgents) != "") {
 				return ruleRow(rw, nil)
 			}
 
