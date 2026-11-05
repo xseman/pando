@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/xseman/pando/internal/git"
+	"github.com/xseman/pando/internal/proto"
 )
 
 // TestReloadSkipsUnchanged leaves an open file be while neither it nor git
@@ -130,5 +131,37 @@ func TestFetchSizeZero(t *testing.T) {
 	s, err := p.fetch(false)
 	if err != nil || !strings.Contains(s, "Name:") {
 		t.Fatalf("read %q, %v", s, err)
+	}
+}
+
+// TestDrawersTickOnChange loads the open drawers on the tick only after a git
+// refresh found a change, or on the 30 s tick: a log per tick for nothing.
+func TestDrawersTickOnChange(t *testing.T) {
+	m := testModel(t)
+	mustGit(t, m.ws, "init", "-q")
+	press(m, "2")
+
+	m.st.Settings.GitPanes = map[string]proto.Pane{"Graph": {Open: true, H: 4}}
+	fire(m, m.refreshGit())
+	m.ticks = 1
+
+	if m.scm.tickDrawers(m) == nil {
+		t.Fatal("the first tick after a change loads no drawer")
+	}
+
+	if m.scm.tickDrawers(m) != nil {
+		t.Fatal("a tick with nothing changed loads the drawers again")
+	}
+
+	m.gitGen++
+
+	if m.scm.tickDrawers(m) == nil {
+		t.Fatal("a change loads no drawer")
+	}
+
+	m.ticks = 15
+
+	if m.scm.tickDrawers(m) == nil {
+		t.Fatal("the 30 s tick loads no drawer")
 	}
 }

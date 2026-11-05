@@ -65,6 +65,7 @@ func (r scmRow) level() int {
 // action button and the changes, all as list rows; history drawers sit at
 // the bottom and act on the active repository.
 type scmView struct {
+	drawnGen int // the gitGen the tick last loaded the drawers at (tickDrawers)
 	repos    []string
 	status   map[string]git.Status
 	repo     int // active repository: the message box input and drawers belong to it
@@ -1242,6 +1243,20 @@ func (s *scmView) onSelect(m *Model) tea.Cmd {
 	}
 
 	return tea.Batch(cmd, s.loadDrawers(m))
+}
+
+// tickDrawers is the tick's load of the open drawers: only after a refresh
+// found a change since the last one, or every 30 s for what no status shows
+// (a branch made in a shell). `git log --graph --all` each 2 s was most of
+// what an idle Source Control with its drawers open cost.
+func (s *scmView) tickDrawers(m *Model) tea.Cmd {
+	if s.drawnGen == m.gitGen && m.ticks%15 != 0 {
+		return nil
+	}
+
+	s.drawnGen = m.gitGen
+
+	return s.loadDrawers(m)
 }
 
 func (s *scmView) loadDrawers(m *Model) tea.Cmd {

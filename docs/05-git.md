@@ -60,7 +60,9 @@ output of a session in the workspace, or an index that moved (a stat per
 repository each tick: a stage or commit in a shell elsewhere) brings it back
 to every tick (`gitAwake`). `Discover` runs at most every 30 s, and a root's git dir is
 asked once. An open file or diff reads again only when a refresh found a
-change (`gitGen`) or its file's time or size moved (`readStamp`):
+change (`gitGen`) or its file's time or size moved (`readStamp`), and the
+open Source Control drawers load on the tick only after such a change or
+every 30 s (`tickDrawers`):
 
 ```text
  refreshGit (skipped while the last one runs; the tick's tickGit also

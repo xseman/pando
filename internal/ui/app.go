@@ -2540,7 +2540,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		m.ex.rebuild(m)
 		m.scm.fit(m) // the box learns its width when drawn: a resize rewraps it
-		cmds := []tea.Cmd{tick(), m.blink(), m.tickGit(), m.scm.saveDraft(m), m.scm.loadDrawers(m), m.gh.shown(m), m.db.shown(m), m.cu.shown(m), m.saveWorkspace(), m.saveEditors(), m.saveTerm(), m.saveDrafts()}
+		cmds := []tea.Cmd{tick(), m.blink(), m.tickGit(), m.scm.saveDraft(m), m.scm.tickDrawers(m), m.gh.shown(m), m.db.shown(m), m.cu.shown(m), m.saveWorkspace(), m.saveEditors(), m.saveTerm(), m.saveDrafts()}
 		m.eachGroup(func() { cmds = append(cmds, m.pv.reloadIfLive(m)) }) // what every group shows
 		// ponytail: other projects' branches come back every 30 s, one git call
 		// per project; watch their HEADs if that lags.
