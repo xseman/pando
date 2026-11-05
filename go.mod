@@ -33,3 +33,11 @@ require (
 	github.com/xo/terminfo v1.0.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 )
+
+// Forks until upstream takes them: ultraviolet moves whole lines on a scroll,
+// vt hands scrolled-off lines to a sink (docs/01-architecture.md). Pinned to
+// the version required above, so a go.work using local clones still wins.
+replace (
+	github.com/charmbracelet/ultraviolet v0.0.0-20261008173134-6b8d4baf91b4 => github.com/xseman/ultraviolet v0.0.0-20261105130557-446999fe9388
+	github.com/charmbracelet/x/vt v0.0.0-20260906004030-3986e9119cf9 => github.com/xseman/x/vt v0.0.0-20261105131241-f3d3f4450cfd
+)
