@@ -3198,9 +3198,10 @@ func TestStatusProjects(t *testing.T) {
 	if m.ws != other || m.modal != nil {
 		t.Fatalf("switched to %s", m.ws)
 	}
-	// Agents selects the project's worktree, unfolded, as a click on it does:
-	// its heading, which holds its only checkout, under No Sessions.
-	if r := m.ag.selected(m); r == nil || !r.shows(other) || m.ag.collapsed[timeKey(bareHead)] {
+	// Agents selects the project's worktree, as a click on it does: its
+	// heading, which holds its only checkout, lifted on top, and No Sessions
+	// it came from shut.
+	if r := m.ag.selected(m); r == nil || !r.shows(other) || !m.ag.collapsed[timeKey(bareHead)] {
 		t.Fatalf("agents selection after the switch: %+v", r)
 	}
 
