@@ -143,6 +143,9 @@ pando session wait reviewer --match 'All tests passed' --timeout 60000
   give one for an agent turn.
 - A timeout exits 1 with `timeout waiting for session …`. It does **not**
   prove the work failed; read the session before deciding anything.
+- A session that goes away under the wait (killed, or closed by a clean
+  exit) ends it: with the session when `exited` is in `--until`, else exit 1
+  with `session … is gone`.
 
 ## Give an agent work
 

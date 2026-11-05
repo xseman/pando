@@ -81,7 +81,11 @@ Events are notifications; the client re-reads what changed: `sessions` →
 - `session.wait` is the one call that blocks: it returns when the status is in
   `until` (default `idle`, `blocked`, `asleep`, `exited`: `proto.Settled`;
   dropped when only `match` is given), the screen matches `match`, or fails
-  when `timeout_ms` passes. Every other method answers at once.
+  when `timeout_ms` passes. It also ends when its session is gone (killed,
+  or closed by a clean exit: `exited` in `until` returns it, else
+  `session … is gone`) and when its caller hangs up (its socket reads an
+  error: a client that half-closes after the request counts as gone). Every
+  other method answers at once.
 
 [SKILL.md](../skills/pando/SKILL.md) is the contract an agent reads before
 driving the API.

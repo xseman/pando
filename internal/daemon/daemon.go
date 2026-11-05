@@ -506,7 +506,31 @@ func (d *Daemon) handle(conn net.Conn) {
 		return
 	}
 
-	result, err := d.dispatch(req.Method, req.Params)
+	var (
+		result any
+		err    error
+	)
+
+	if req.Method == "session.wait" { // a wait ends when its caller hangs up
+		gone := make(chan struct{})
+
+		go func() {
+			for b := make([]byte, 64); ; { // a byte after the request is no hang-up; an error is
+				if _, err := conn.Read(b); err != nil {
+					close(gone)
+
+					return
+				}
+			}
+		}()
+
+		var p proto.WaitParams
+		if p, err = parse[proto.WaitParams](req.Params); err == nil {
+			result, err = d.waitSession(p, gone)
+		}
+	} else {
+		result, err = d.dispatch(req.Method, req.Params)
+	}
 
 	var resp proto.Response
 	if err != nil {
@@ -837,7 +861,7 @@ func (d *Daemon) dispatch(method string, raw json.RawMessage) (any, error) {
 			return nil, err
 		}
 
-		return d.waitSession(p)
+		return d.waitSession(p, nil)
 	}
 
 	return nil, fmt.Errorf("unknown method %q", method)
@@ -1508,7 +1532,7 @@ var statuses = []string{"idle", "blocked", "running", "asleep", "exited"}
 // its screen matches Match, or the timeout passes. It polls at half the rate
 // the daemon recomputes status, so a caller pays one goroutine, not a call
 // per frame.
-func (d *Daemon) waitSession(p proto.WaitParams) (proto.Session, error) {
+func (d *Daemon) waitSession(p proto.WaitParams, gone <-chan struct{}) (proto.Session, error) {
 	s, err := d.session(p.ID)
 	if err != nil {
 		return proto.Session{}, err
@@ -1545,9 +1569,17 @@ func (d *Daemon) waitSession(p proto.WaitParams) (proto.Session, error) {
 	defer poll.Stop()
 
 	for {
-		if ns, err := d.session(s.spec.ID); err == nil { // a woken session is a new one under its id
-			s = ns
+		ns, err := d.session(s.spec.ID) // a woken session is a new one under its id
+		if err != nil {                 // killed, or closed by a clean exit: how it ended is final
+			info := s.info()
+			if slices.Contains(until, info.Status) {
+				return info, nil
+			}
+
+			return info, fmt.Errorf("session %q is gone, last %s", info.ID, info.Status)
 		}
+
+		s = ns
 
 		info := s.info()
 		if slices.Contains(until, info.Status) || (re != nil && re.MatchString(s.text(false, 0))) {
@@ -1559,6 +1591,8 @@ func (d *Daemon) waitSession(p proto.WaitParams) (proto.Session, error) {
 			return info, fmt.Errorf("timeout waiting for session %q, status %s", info.ID, info.Status)
 		case <-d.ctx.Done():
 			return info, errors.New("the daemon is shutting down")
+		case <-gone:
+			return info, errors.New("the caller hung up")
 		case <-poll.C:
 		}
 	}

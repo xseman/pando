@@ -1173,6 +1173,84 @@ func TestSessionWaitErrors(t *testing.T) {
 	}
 }
 
+// A wait ends with what it waits on: a session killed under a wait that only
+// a match would end, and a caller that hangs up, leave no wait behind.
+func TestSessionWaitEnds(t *testing.T) {
+	d := start(t)()
+	defer d.Close()
+
+	var s proto.Session
+	call(t, "session.new", map[string]any{"workspace": t.TempDir(), "cmd": []string{"sh", "-c", "sleep 30"}}, &s)
+
+	errc := make(chan error, 1)
+
+	go func() { errc <- proto.Call("session.wait", proto.WaitParams{ID: s.ID, Match: "never printed"}, nil) }()
+
+	time.Sleep(300 * time.Millisecond) // the wait is polling
+	call(t, "session.kill", map[string]string{"id": s.ID}, nil)
+
+	select {
+	case err := <-errc:
+		if err == nil || !strings.Contains(err.Error(), "gone") {
+			t.Fatalf("wait on a killed session: %v, want it gone", err)
+		}
+
+	case <-time.After(10 * time.Second):
+		t.Fatal("a wait on a killed session never returned")
+	}
+
+	call(t, "session.new", map[string]any{"workspace": t.TempDir(), "cmd": []string{"sh", "-c", "sleep 30"}}, &s)
+
+	before := runtime.NumGoroutine()
+
+	conn, err := net.Dial("unix", proto.SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := json.NewEncoder(conn).Encode(map[string]any{"method": "session.wait", "params": proto.WaitParams{ID: s.ID, Match: "never printed"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	waitFor(t, "the wait to start", func() bool { return runtime.NumGoroutine() > before })
+
+	_ = conn.Close()
+
+	waitFor(t, "the wait to end with its caller", func() bool { return runtime.NumGoroutine() <= before })
+}
+
+// A client writing a byte after its wait request has not hung up: the wait
+// runs on to its timeout.
+func TestSessionWaitTrailingByte(t *testing.T) {
+	d := start(t)()
+	defer d.Close()
+
+	var s proto.Session
+	call(t, "session.new", map[string]any{"workspace": t.TempDir(), "cmd": []string{"sh", "-c", "sleep 30"}}, &s)
+
+	conn, err := net.Dial("unix", proto.SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	b, err := json.Marshal(map[string]any{"method": "session.wait", "params": proto.WaitParams{ID: s.ID, Match: "never printed", Timeout: 3000}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, _ = conn.Write(b)
+
+	time.Sleep(200 * time.Millisecond)
+
+	_, _ = conn.Write([]byte("\n")) // the line's end, in a write of its own
+	_ = conn.SetReadDeadline(time.Now().Add(time.Second))
+
+	if n, _ := conn.Read(make([]byte, 1)); n > 0 {
+		t.Fatal("the wait answered on a trailing newline, before its timeout")
+	}
+}
+
 // A shell session killed as soon as it started stays killed: its shell exits
 // on the kill, which is no shell failing to start for another to replace.
 func TestKillAtOnceStaysKilled(t *testing.T) {
