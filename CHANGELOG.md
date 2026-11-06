@@ -1,5 +1,86 @@
 # Changelog
 
+## [0.10.0](https://github.com/xseman/pando/compare/v0.9.0...v0.10.0) (2026-11-06)
+
+
+### Features
+
+* **ui:** ↓ from the folder picker's path lands on the first folder, past .. ([a5ea2e2](https://github.com/xseman/pando/commit/a5ea2e2ace4784c8f6d88001ef0a5c8edb30264d))
+* **ui:** ⏎ on the folder picker's path goes into the folder it names ([e9ae381](https://github.com/xseman/pando/commit/e9ae38117d2577df9f0977eb3d33034ed00d58b6))
+* **ui:** a binary file's card opens it in the default app ([71fb238](https://github.com/xseman/pando/commit/71fb2384033bdb1b45c4209d1c3a39ee08b3b112))
+* **ui:** a quiet tail under the Sessions tree ([abeafad](https://github.com/xseman/pando/commit/abeafad55124db16926c391db26dfdf0c835f9cb))
+* **ui:** a session going to work opens its folded project ([2cae493](https://github.com/xseman/pando/commit/2cae49386c23f9fd7549475ff00be721fa986924))
+* **ui:** Abort Merge while a merge is in progress ([3c6393e](https://github.com/xseman/pando/commit/3c6393ebe1af087fd4e31b649e8954fcff495528))
+* **ui:** Checkout to… and VS Code's branch commands in the palette ([52d4de2](https://github.com/xseman/pando/commit/52d4de2696de965afb68b0f14afa12ad8e386bcc))
+* **ui:** each worktree keeps its panel's tab ([c80fab5](https://github.com/xseman/pando/commit/c80fab5f8b5ed021b61af43371d12c08efc3024a))
+* **ui:** folder picker completes the path on tab, ↑ back to it, ← → across columns ([a5bf087](https://github.com/xseman/pando/commit/a5bf087d19eed6e4e2fbbeb9cf5cf20e375d317d))
+* **ui:** Merge Branch…, as VS Code's Merge… ([479ccd8](https://github.com/xseman/pando/commit/479ccd89d8805f9f14f9e7d3cce8b4fe30f01e87))
+* **ui:** Other Projects lists the three used last first ([a5222e8](https://github.com/xseman/pando/commit/a5222e8a922ea784747f7661a8661172c4dd15f9))
+* **ui:** pinned sessions grouped under their project ([244856c](https://github.com/xseman/pando/commit/244856c29a95b5536dd9d48eb54ece89833f0751))
+* **ui:** quick open's All, Files, Sessions and Text tabs ([d0ec511](https://github.com/xseman/pando/commit/d0ec511adf56ddcc85fe67da6ba8564a5a385768))
+* **ui:** quick open's Sessions tab is the Sessions tree ([38dd3e6](https://github.com/xseman/pando/commit/38dd3e65a00076a46b7643c1fefb600f6c12c4dd))
+* **ui:** Rename Branch… and Delete Branch…, as VS Code's ([38d755d](https://github.com/xseman/pando/commit/38d755dbb3f83dec69d00e391514c8fb65147f07))
+* **ui:** Sessions lists what is awake on top, the rest A–Z ([e430347](https://github.com/xseman/pando/commit/e43034715b6bdc6cbe6cf5e1fd555910743f4c57))
+* **ui:** Sessions pins a whole project under Pinned ([3bfd5c6](https://github.com/xseman/pando/commit/3bfd5c64e718ab2084b4a5c7e4b4b48ac952b8d7))
+* **ui:** Sessions' filter finds words, without accents, by folder ([16c321d](https://github.com/xseman/pando/commit/16c321dfbf3c7e78c5204af5af12e3b9e8b94cd6))
+* **ui:** the three projects used last under their own Recent caption ([07f4c1d](https://github.com/xseman/pando/commit/07f4c1dcd35ce687fa3ed1adedb44ba08d953df2))
+
+
+### Bug Fixes
+
+* **daemon:** a claude scrolled back to the bottom no longer stays running ([72e5edf](https://github.com/xseman/pando/commit/72e5edf5348a82dc4f7a377fda0f481df362d8e6))
+* **daemon:** a session killed right after it started stays killed ([a1e0adf](https://github.com/xseman/pando/commit/a1e0adfca3073d2bd8e02bbd6ebd944d097e496a))
+* **daemon:** claude's quoted phrases no longer set a session's status ([711dffa](https://github.com/xseman/pando/commit/711dffa2bee790aabf9e7809f81be351a1885b89))
+* **daemon:** kill and stop no longer hang on a job holding the terminal ([af99d8e](https://github.com/xseman/pando/commit/af99d8e7a55cac8b1fb0b092530fd63eb4ad3aae))
+* **daemon:** session.wait ends with its caller and with its session ([7ea03bd](https://github.com/xseman/pando/commit/7ea03bdcf6c0957c15150cb4b3a73e6d063f8f83))
+* **daemon:** shell only while a command alone keeps a session running ([c0f413c](https://github.com/xseman/pando/commit/c0f413c97a38785cd23c6836bf917f93f460983a))
+* **daemon:** the detached-job kill test builds on Windows ([55f5d17](https://github.com/xseman/pando/commit/55f5d17a70acb1aac1b7d04754da204026293dbc))
+* **git:** git speaks English in any locale ([7f99c9f](https://github.com/xseman/pando/commit/7f99c9f64a5467c1835d46b421791e60654f0d1e))
+* **ui:** a closed language server's late reports are dropped ([48de916](https://github.com/xseman/pando/commit/48de916787a799985705bf20107f60877f0dd76d))
+* **ui:** a folded project with no session goes on top when switched into ([86ae9f3](https://github.com/xseman/pando/commit/86ae9f3569440cf548e53682d15ac2d06acb32e2))
+* **ui:** a paste into a picker runs its change as typing does ([363db52](https://github.com/xseman/pando/commit/363db52dd0c8b4881f2b154fdfd726141ea57b54))
+* **ui:** a picked project stays on top until its pick expires ([6931c2c](https://github.com/xseman/pando/commit/6931c2cfbfbdba62aac7224db416947b41752a92))
+* **ui:** a picker row cut short keeps a blank before its hint ([9c0aea7](https://github.com/xseman/pando/commit/9c0aea762cf48ef866da03ad111bff79abf48054))
+* **ui:** a project picked on top draws as active ([eb6c255](https://github.com/xseman/pando/commit/eb6c255cb576d41c782eda6ac3f5e88e981f110e))
+* **ui:** a project whose last session closes stays on top ([ae2a3e8](https://github.com/xseman/pando/commit/ae2a3e87bea72ee8bf0b191bbde48511b969e5bb))
+* **ui:** a switch into Recent or Other Projects shuts that caption ([f52d927](https://github.com/xseman/pando/commit/f52d927970c8d87927d40d574bbee66ec51df316))
+* **ui:** focusing the empty main area keeps the welcome text in place ([38b9def](https://github.com/xseman/pando/commit/38b9def088985d553f1c33714ee84f5f86ef4ebd))
+* **ui:** Go Back brings no discarded edits back and keeps no clean files ([94c6db3](https://github.com/xseman/pando/commit/94c6db38efdcd017c61db319bccf44c78d91e4f4))
+* **ui:** keep pinned projects on top of the Sessions tree ([f06827a](https://github.com/xseman/pando/commit/f06827a0a1e22ce05748c5be105da50e466e3155))
+* **ui:** no blank row between folded Recent and Other Projects ([7984c10](https://github.com/xseman/pando/commit/7984c107dd89db7514286059d648f7c84ac28958))
+* **ui:** no zombie left per sound, opened link or crashed server ([ce7b245](https://github.com/xseman/pando/commit/ce7b245e4e58907ca756654b1580ce480ed0d12a))
+
+
+### Performance Improvements
+
+* **daemon:** an asleep session keeps a screen for its notice alone ([6e8e6ee](https://github.com/xseman/pando/commit/6e8e6ee7df9ff3381ba7d7e980f9e71f5454fd6c))
+* **daemon:** scrollback rendered from the screen, parser buffer 64 KiB ([554a7a1](https://github.com/xseman/pando/commit/554a7a18f598d67de89280038af937996b805a87))
+* **ui:** editor tabs laid out once a frame, no copy of every editor ([c5dbf73](https://github.com/xseman/pando/commit/c5dbf73d8ba9ddb7bc6211d97762c8f761591be3))
+* **ui:** git refreshes back off while idle, files read on a change ([3c46d9b](https://github.com/xseman/pando/commit/3c46d9b22576422355a4c51e706082756c0c2caa))
+* **ui:** Source Control drawers reload on a git change, not every tick ([25cd31f](https://github.com/xseman/pando/commit/25cd31f82353bd9ca1f39cafc9a3735376d8704b))
+
+
+### Documentation
+
+* **views:** describe pinned sessions under their project ([1ed0ae9](https://github.com/xseman/pando/commit/1ed0ae9d6b452bfda1cadcbdfd0a93c4992ee068))
+* **views:** wrap the Other Projects paragraph ([1ebc1ab](https://github.com/xseman/pando/commit/1ebc1ab132ffc218b9818302ccecebe3c79303a1))
+
+
+### Build System
+
+* **deps:** ultraviolet and vt from forks until upstream takes them ([7ececfd](https://github.com/xseman/pando/commit/7ececfd56165d2c415a2603445f849cb8e398b2f))
+
+
+### Maintenance
+
+* **ui:** Search's background run and a match's column, for reuse ([e366ee0](https://github.com/xseman/pando/commit/e366ee0ba66029153329b4bb631302905bebb436))
+* **ui:** Sessions builds a project's rows in one place ([4b1147a](https://github.com/xseman/pando/commit/4b1147aacf70f4bfd5ce711f1677586fc55aff45))
+
+
+### Testing
+
+* **ui:** the status bar's project switch shuts No Sessions it came from ([65569e8](https://github.com/xseman/pando/commit/65569e8be3d151fdb80ff7afb2b5079f98a1aeeb))
+
 ## [0.9.0](https://github.com/xseman/pando/compare/v0.8.0...v0.9.0) (2026-11-01)
 
 
