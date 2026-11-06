@@ -488,12 +488,13 @@ func (a *agents) pick(p string) {
 }
 
 // lift shows project p where a switch into it lands: opened in place when a
-// session in it is asleep, picked on top when it has none.
+// session in it is asleep, picked on top when it has none. Either way it
+// unfolds: a fold left from before keeps a project under bareHead.
 func (a *agents) lift(m *Model, p string) tea.Cmd {
 	if !m.busyProjects()[p] {
 		a.pick(p)
 
-		return nil
+		return a.unfold(p)
 	}
 
 	return a.openInPlace(p)

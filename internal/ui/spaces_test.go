@@ -297,7 +297,7 @@ func TestSpacesNoSessions(t *testing.T) {
 
 	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: b2, Agent: "shell"}, Status: "idle"})
 
-	if got := m.ag.topProjects(m); !slices.Equal(got, []string{b2}) { // the folded and the bare stay under the caption
+	if got := m.ag.topProjects(m); !slices.Equal(got, []string{b1, b2}) { // the folded stays under the caption; b1, switched into, is picked unfolded
 		t.Fatalf("a session takes its project up on top: %v", got)
 	}
 }
@@ -865,6 +865,7 @@ func TestSessionsPickedTopExpires(t *testing.T) {
 		t.Fatal("a project with no session starts under Other Projects")
 	}
 
+	m.ag.fold(p, true) // folded once, back when it had a session
 	m.ag.reveal(m, p)
 
 	if !onTop() {
