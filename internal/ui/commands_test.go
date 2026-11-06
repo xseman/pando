@@ -414,19 +414,20 @@ func TestAgentNavigator(t *testing.T) {
 	_, cmd := m.Update(keyMsg("alt+t")) // ⌃t stays free for VS Code's Go to Symbol in Workspace
 	m.Update(cmd())                     // once the files are listed
 
-	if got := labels(m); !slices.Equal(got, []string{"◐ claude · fix", "○ shell", "⌂ main"}) {
+	head := "◐ " + filepath.Base(m.ws) + "  ⌂ main" // its most urgent session's glyph, its only checkout
+	if got := labels(m); !slices.Equal(got, []string{head, "├─ ○ shell", "└─ ◐ claude · fix"}) {
 		t.Fatalf("navigator %q", got)
 	}
 
 	press(m, "@", "i", "d", "l", "e")
 
-	if got := labels(m); !slices.Equal(got, []string{"○ shell"}) {
+	if got := labels(m); !slices.Equal(got, []string{head, "└─ ○ shell"}) {
 		t.Fatalf("@idle %q", got)
 	}
 
 	press(m, "backspace", "backspace", "backspace", "backspace", "s", "h", "e", "l", "l")
 
-	if got := labels(m); !slices.Equal(got, []string{"◐ claude · fix"}) {
+	if got := labels(m); !slices.Equal(got, []string{head, "└─ ◐ claude · fix"}) {
 		t.Fatalf("@shell %q", got)
 	}
 
@@ -2756,18 +2757,18 @@ func TestDragChipDownSideBar(t *testing.T) {
 	checkWidths(t, m)
 }
 
-// Going to a worktree from the navigator shows its session and focuses it,
-// the way picking the session itself does.
+// A project found in the navigator selects its first session, and ⏎ shows
+// and focuses it.
 func TestNavigatorFocusesSession(t *testing.T) {
 	m := testModelSized(t, 130, 30)
 	api := filepath.Join(t.TempDir(), "api")
 	mustMkdir(t, api)
+	m.st.Projects = append(m.st.Projects, api)
 	m.wss = append(m.wss, proto.Workspace{Path: api, Project: api, Branch: "main", Main: true})
 	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: api, Agent: "shell"}, Status: "idle"})
 	m.focus = 0
 	m.Update(m.agentNavigator()())
-	m.modal.input.SetValue("api")
-	m.modal.refilter()
+	typeText(m, "api")
 	press(m, "enter")
 
 	if m.sess != "s2" || m.ws != api || m.focus != onMain {

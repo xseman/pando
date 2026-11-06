@@ -1183,6 +1183,11 @@ type item struct {
 	group  string // the heading it is filed under; a prefixed picker's only after ":"
 	cont   bool   // the detail row of the selected item above it, placed by focus
 	sep    bool   // a rule between groups, or with a label a group's muted heading; run stays nil so it is skipped
+	lead   bool   // the row a fresh list selects, over its first
+	sess   bool   // a session's row in quick open's Sessions tree, which All counts
+	// segs and right draw the row in their own colors in place of label and
+	// hint, which stay its plain text: quick open's Sessions tree.
+	segs, right []seg
 }
 
 // cancelItem is the last entry of a menu or a confirmation: it closes the
@@ -1280,6 +1285,7 @@ type modal struct {
 	dialog  bool   // a question: the title as its message, the items as a row of buttons
 	hover   int    // a dialog's button under the pointer, -1 for none
 	pattern string // the query as the labels show it matched
+	reveal  bool   // the selection scrolls into view at the next draw: refilter knows no height
 	l       list
 	x, y    int     // anchor; x < 0 centers
 	form    formBox // a form the box is instead of a list: New or Edit Connection, the indentation
@@ -1740,6 +1746,11 @@ func (md *modal) refilter() {
 	if md.l.sel < 0 && len(md.disp) > 0 {
 		md.l.sel = 0 // informational menus still scroll from the top
 	}
+
+	if i := slices.IndexFunc(md.disp, func(it item) bool { return it.lead }); i >= 0 && !last { // a match ranked above it stays the one ⏎ runs
+		md.focus(i)
+		md.reveal = true
+	}
 }
 
 // more is a capped group's last row: how many rows it leaves out, and ⏎
@@ -1932,6 +1943,11 @@ func (md *modal) view(m *Model) (string, int, int) {
 	x, y, w, _, rows := md.rect(m)
 	iw := w - 2
 
+	if md.reveal {
+		md.l.snap(rows)
+		md.reveal = false
+	}
+
 	if md.form != nil {
 		return strings.Join(md.form.lines(w), "\n"), x, y
 	}
@@ -2016,6 +2032,15 @@ func (md *modal) view(m *Model) (string, int, int) {
 
 		if it.styled {
 			return fit(" "+it.label, rw)
+		}
+
+		if it.segs != nil {
+			var bg color.Color
+			if i == md.l.sel && it.run != nil {
+				bg = pal.selBg
+			}
+
+			return row(rw, bg, append([]seg{sg(" ", plain)}, it.segs...), append(append([]seg{sg(" ", plain)}, it.right...), sg(" ", plain))...)
 		}
 
 		st, note := plain, dim

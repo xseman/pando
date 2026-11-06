@@ -79,7 +79,7 @@ func (a *agents) rows(m *Model) []agRow {
 	var out []agRow
 
 	if m.byWorkspace() {
-		out = a.treeRows(m, sessions, q)
+		out = a.treeRows(m, sessions, q, false)
 	} else {
 		out = a.groupRows(m, sessions, q)
 	}
@@ -257,8 +257,9 @@ func (a *agents) openHit(m *Model) tea.Cmd {
 // session awake (awake) and not folded, in the project Sort's order. Every
 // other project goes under bareHead, A–Z, a row each: folded, all its
 // sessions asleep, or none at all. One asleep opens there in place (opened)
-// and goes on top once a session in it wakes.
-func (a *agents) treeRows(m *Model, sessions []proto.Session, q string) []agRow {
+// and goes on top once a session in it wakes. With all every project is
+// unfolded, as quick open's Sessions tab lists them.
+func (a *agents) treeRows(m *Model, sessions []proto.Session, q string, all bool) []agRow {
 	var (
 		open []agRow
 		tail [][]agRow
@@ -275,7 +276,7 @@ func (a *agents) treeRows(m *Model, sessions []proto.Session, q string) []agRow 
 	head := func(p string) agRow {
 		top := awake[p] && (!a.collapsed[p] || held[p])
 
-		return agRow{kind: agProject, project: p, bare: p != "" && !busy[p] && !held[p] && !top, tail: !top, closed: !top && (!busy[p] || !a.opened[p])}
+		return agRow{kind: agProject, project: p, bare: p != "" && !busy[p] && !held[p] && !top, tail: !top, closed: !all && !top && (!busy[p] || !a.opened[p])}
 	}
 
 	known := map[string]bool{}
@@ -322,7 +323,7 @@ func (a *agents) treeRows(m *Model, sessions []proto.Session, q string) []agRow 
 
 	if recent := m.usedLast(a.tailProjects(m)); q == "" && recent != nil {
 		open = append(open, agRow{kind: agTime, when: recentHead})
-		if !a.collapsed[timeKey(recentHead)] {
+		if !a.collapsed[timeKey(recentHead)] || all {
 			for _, p := range recent {
 				open = append(open, tail[slices.IndexFunc(tail, func(rows []agRow) bool { return rows[0].project == p })]...)
 			}
@@ -332,7 +333,7 @@ func (a *agents) treeRows(m *Model, sessions []proto.Session, q string) []agRow 
 	}
 
 	open = append(open, agRow{kind: agTime, when: bareHead})
-	if a.collapsed[timeKey(bareHead)] && q == "" {
+	if a.collapsed[timeKey(bareHead)] && q == "" && !all {
 		return open
 	}
 
@@ -575,21 +576,16 @@ func (a *agents) pinFolded(m *Model, rows []agRow, above int) []agRow {
 // in the Sort's order. Created keeps the order they were made in; Updated,
 // and grouping by Time or State, puts the newest first.
 func (m *Model) listedSessions() []proto.Session {
-	st := m.st.Settings
+	return m.sorted(slices.DeleteFunc(m.mainSessions(), func(s proto.Session) bool { return slices.Contains(m.st.Settings.SpHide, sessionState(s)) }))
+}
 
-	var out []proto.Session
-
-	for _, s := range m.mainSessions() {
-		if !slices.Contains(st.SpHide, sessionState(s)) {
-			out = append(out, s)
-		}
+// sorted are sessions ss in the Sort's order, as listedSessions has them.
+func (m *Model) sorted(ss []proto.Session) []proto.Session {
+	if m.st.Settings.SpSort == "updated" || !m.byWorkspace() {
+		slices.SortStableFunc(ss, func(a, b proto.Session) int { return m.sessionTime(b).Compare(m.sessionTime(a)) })
 	}
 
-	if st.SpSort == "updated" || !m.byWorkspace() {
-		slices.SortStableFunc(out, func(a, b proto.Session) int { return m.sessionTime(b).Compare(m.sessionTime(a)) })
-	}
-
-	return out
+	return ss
 }
 
 // byWorkspace reports Sessions grouped by Workspace, the project tree, not by
@@ -3174,37 +3170,6 @@ func (m *Model) agentNavigator() tea.Cmd {
 
 		return msg
 	}
-}
-
-// navigatorItems are every session and worktree, like herdr-navigator:
-// blocked sessions first, then running, done, idle and exited ones.
-// "@blocked", "@running", "@shell", "@done", "@idle", "@exited", "@worktree"
-// narrow by kind and "!claude" by agent.
-func (m *Model) navigatorItems() []item {
-	items := m.sessionItems(m.mainSessions())
-
-	for _, w := range m.wss {
-		name, n := w.Branch, m.sessionCount(w.Path)
-		if name == "" {
-			name = filepath.Base(w.Path)
-		}
-
-		path := w.Path
-		items = append(items, item{
-			label: wtGlyph(w).s() + " " + name, hint: filepath.Base(w.Project) + " · " + plural(n, "session"),
-			search: name + " " + filepath.Base(w.Project) + " @worktree",
-			run: func(m *Model) tea.Cmd {
-				switched := m.switchWorkspace(path)
-				if m.sess != "" { // a session of that worktree is on screen now: talk to it
-					m.focus = onMain
-				}
-
-				return tea.Batch(switched, m.refreshGit(), m.fetchScreen())
-			},
-		})
-	}
-
-	return items
 }
 
 // alarmStates are the session states that wait on the user, the most urgent

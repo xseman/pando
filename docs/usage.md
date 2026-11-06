@@ -144,7 +144,7 @@ checkout.
   opened from Search or Source Control sharing Explorer's column leaves that
   view in front.
 - Each session is one tab; the sessions of a worktree share its Terminal
-  panel's shells, which outlive them. `alt+t` picks a session (quick open's Sessions tab), `alt+a` goes to
+  panel's shells, which outlive them. `alt+t` picks a session (quick open's Sessions tab, the Sessions tree with every project open), `alt+a` goes to
   the next one waiting on you. An agent started in a shell, claude typed at its prompt,
   shows its state on the tab.
 - Drag over a terminal to select and copy; `ctrl+f` finds in its scrollback.

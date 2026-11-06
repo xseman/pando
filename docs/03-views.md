@@ -307,8 +307,8 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
   the list did not hold yet, every one on start, opens nothing; nor does one
   in the first 30 s after a reconnect, a restarted daemon's agents coming back
   (`resumeGrace`).
-- `alt+t` opens quick open on its Sessions tab (`navigatorItems`), with
-  `@blocked`, `@running`, `@shell`, `@done`, `@idle`, `@exited`, `@worktree`
+- `alt+t` opens quick open on its Sessions tab (`sessionTree`), with
+  `@blocked`, `@running`, `@shell`, `@done`, `@idle`, `@exited`, `@asleep`
   and `!agent` filters.
 - `alt+a` opens the next session waiting on you (`alarms`): blocked, then
   ended with an error, then finished unseen, the one waiting longest first in
@@ -420,13 +420,24 @@ Everywhere tabs in its title row; `tab` `shift+tab` or a click go round them.
 | -------- | ------------------------------------------------------------ |
 | All      | files, sessions, text; a query caps them at 8, 3 and 5 rows  |
 | Files    | the worktree's files, the 5 opened last first; `ctrl+t` tree |
-| Sessions | sessions and worktrees, what `alt+t` opens                   |
+| Sessions | the Sessions tree, what `alt+t` opens                        |
 | Text     | the lines holding the query, `200+ in 31 files` at the right |
 
 - Empty, All lists the recent files, the sessions waiting on you (`alarms`)
   and the other files. A query lists files first, so a name and `⏎` open the
   file as before; a capped group ends in `+ N more`, which goes to its tab.
 - `:` line, `@` symbol and `path:12:5` work in All and Files only.
+- Sessions is the Sessions tree (`treeRows` with every project open), with
+  no chevrons, rules, captions, Pinned pane or subagents: the projects with a
+  session awake in their order, the 3 used last, the rest A–Z, one with no
+  session dimmed. A query finds as the tree's filter does (`hits`, `matching`)
+  and lights the words found (`wordRuns`); `@state` and `!agent` narrow the
+  sessions, a project staying with those left. A session awake says its
+  state in its glyph's color, an asleep one since when. `⏎` on a project
+  goes to its checkout (on top, `lift`), on a worktree to it. Selected: the
+  session on screen, under a query the first session found. All shows the
+  first 3 sessions found the same way, under their projects, selected when
+  no file is found.
 - Text is `runSearch` as Search runs it: literal, any case, from 2
   characters, 150 ms after the last key (`quickTextWait`), stopped at 200
   matches (`quickTextLimit`): which 200 is up to rg's threads, `--sort=path`

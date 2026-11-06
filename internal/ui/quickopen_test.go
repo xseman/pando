@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
@@ -58,8 +59,8 @@ func TestQuickOpenTabs(t *testing.T) {
 
 	press(m, "tab")
 
-	if got := labels(m); m.modal.tab != qoSessions || !slices.Contains(got, "○ shell") || !slices.Contains(got, "⌂ main") {
-		t.Fatalf("Sessions lists alt+t's rows: %q", got)
+	if got := labels(m); m.modal.tab != qoSessions || !slices.Equal(got, []string{"○ " + filepath.Base(m.ws) + "  ⌂ main", "└─ ○ shell"}) {
+		t.Fatalf("Sessions lists the Sessions tree: %q", got)
 	}
 
 	press(m, "tab")
@@ -94,6 +95,7 @@ func TestQuickOpenTabs(t *testing.T) {
 // and the cap's row goes on to the group's tab with the query.
 func TestQuickOpenAll(t *testing.T) {
 	m := testModelSized(t, 120, 40)
+	m.sessions[0].Name = "shell" // what the tree's filter finds it by
 	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: m.ws, Agent: "claude"}, Status: "blocked"})
 	m.files = []string{filepath.Join(m.ws, "f03.go")}
 
@@ -110,8 +112,8 @@ func TestQuickOpenAll(t *testing.T) {
 
 	press(m, "s", "h", "e", "l", "l")
 
-	if got := labels(m); !slices.Equal(got, []string{"files", "shell.txt", "", "sessions", "○ shell", "", "text"}) { // the text still searching
-		t.Fatalf("files before sessions: %q", got)
+	if got := labels(m); !slices.Equal(got, []string{"files", "shell.txt", "", "sessions", "× " + filepath.Base(m.ws) + "  ⌂ main", "└─ ○ shell", "", "text"}) { // the text still searching
+		t.Fatalf("files before sessions, those under their project: %q", got)
 	}
 
 	if m.modal.l.sel != 1 {
@@ -189,7 +191,7 @@ func TestQuickOpenPaste(t *testing.T) {
 
 	m.Update(tea.PasteMsg{Content: "main"})
 
-	if got := labels(m); !slices.Contains(got, "⌂ main") {
+	if got := labels(m); !slices.ContainsFunc(got, func(l string) bool { return strings.HasSuffix(l, "⌂ main") }) {
 		t.Fatalf("pasted into All: %q", got)
 	}
 
@@ -315,4 +317,137 @@ func TestExcerpt(t *testing.T) {
 	if got := excerpt(searchLine{text: wide, ranges: [][2]int{{60, 66}}}, 20); !utf8.ValidString(got) || !strings.HasSuffix(got, "needle") {
 		t.Errorf("a cut inside a rune: %q", got)
 	}
+}
+
+// The Sessions tab is the Sessions tree, every project open: those with a
+// session awake on top, then the rest A–Z, one with no session too; the
+// session on screen is selected, an asleep one says since when. A query
+// finds whole words in any case and without accents, shows them, and
+// selects the first session found; a project found brings all it holds, and
+// ⏎ on one with no session switches into it, on top of the tree. "@asleep"
+// narrows to the sessions asleep.
+func TestQuickOpenSessionTree(t *testing.T) {
+	m := testModelSized(t, 120, 40)
+	bare, c := addProject(t, m, "dev"), addProject(t, m, "main")
+	m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: "c1", Workspace: c, Agent: "claude", Name: "Zmazané pravidlá"}, Status: "asleep", Updated: time.Now().Add(-3 * time.Hour)})
+	m.sess = "s1"
+	m.quickOpen(indexMsg{ws: m.ws}, qoSessions)
+
+	headA, headC := "○ "+filepath.Base(m.ws)+"  ⌂ main", "◌ "+filepath.Base(c)+"  ⌂ main"
+	want := []string{headA, "└─ ○ shell", "· " + filepath.Base(bare) + "  ⌂ dev", headC, "└─ ◌ Zmazané pravidlá"}
+
+	if got := labels(m); !slices.Equal(got, want) || m.modal.disp[m.modal.l.sel].label != "└─ ○ shell" {
+		t.Fatalf("the tree, the session on screen selected: %q, sel %d", got, m.modal.l.sel)
+	}
+
+	if h := m.modal.disp[4].hint; h != "3h" {
+		t.Fatalf("an asleep session says since when: %q", h)
+	}
+
+	checkWidths(t, m)
+	typeText(m, "zmazane PRAV")
+
+	if got := labels(m); !slices.Equal(got, want[3:]) || m.modal.l.sel != 1 {
+		t.Fatalf("found without accents, its session selected: %q, sel %d", got, m.modal.l.sel)
+	}
+
+	var lit []string
+
+	for _, s := range m.modal.disp[1].segs {
+		if s.st.GetBold() {
+			lit = append(lit, s.s)
+		}
+	}
+
+	if !slices.Equal(lit, []string{"Zmazané", "prav"}) {
+		t.Fatalf("the words found are lit whole: %q", lit)
+	}
+
+	press(m, "ctrl+u")
+
+	m.st.Settings.SpHide = []string{"asleep"} // the panel's Filter: a search still finds them
+	typeText(m, "@asleep")
+
+	if got := labels(m); !slices.Equal(got, want[3:]) {
+		t.Fatalf("@asleep, hidden in the panel: %q", got)
+	}
+
+	press(m, "ctrl+u")
+	typeText(m, filepath.Base(bare))
+
+	if got := labels(m); !slices.Equal(got, want[2:3]) {
+		t.Fatalf("a project with no session found by its name: %q", got)
+	}
+
+	press(m, "enter")
+
+	if m.ws != bare || !m.ag.top(m, bare) {
+		t.Fatalf("⏎ switches into it, on top of the tree: ws %q", m.ws)
+	}
+}
+
+// All shows the first sessions found under their projects, and a row that
+// goes on to the Sessions tab with the query.
+func TestQuickOpenAllSessions(t *testing.T) {
+	m := testModelSized(t, 120, 40)
+	for i := range 5 {
+		m.sessions = append(m.sessions, proto.Session{SessionSpec: proto.SessionSpec{ID: fmt.Sprint("f", i), Workspace: m.ws, Agent: "claude", Name: fmt.Sprint("fix ", i)}, Status: "idle"})
+	}
+
+	m.quickOpen(indexMsg{ws: m.ws}, qoAll)
+	typeText(m, "fix")
+
+	got := labels(m)
+	if want := []string{"sessions", "○ " + filepath.Base(m.ws) + "  ⌂ main", "├─ ○ fix 0", "├─ ○ fix 1", "├─ ○ fix 2", "+ 2 more"}; len(got) < len(want) || !slices.Equal(got[:len(want)], want) {
+		t.Fatalf("three sessions under their project: %q", got)
+	}
+
+	if m.modal.l.sel != 2 {
+		t.Fatalf("no file found: the first session is selected, sel %d", m.modal.l.sel)
+	}
+
+	if m.modal.disp[5].hint != "Sessions ⇥" {
+		t.Fatalf("the rest behind a row: %q", m.modal.disp[5].hint)
+	}
+
+	m.modal.l.sel = 5
+	press(m, "enter")
+
+	if m.modal == nil || m.modal.tab != qoSessions || m.modal.input.Value() != "fix" || len(labels(m)) != 6 {
+		t.Fatalf("+ 2 more goes to Sessions with the query: %q", labels(m))
+	}
+}
+
+// FuzzWordRuns checks that what a row lights up is whole characters of the
+// label, in order, apart, and each one a word of the query as hits finds it.
+func FuzzWordRuns(f *testing.F) {
+	for _, s := range [][2]string{{"zmazane prav", "Zmazané pravidlá"}, {"a", "aaa"}, {"ss", "Less CSS"}, {"i", "İstanbul"}, {"x", "\xff\xfe"}, {"", "abc"}} {
+		f.Add(s[0], s[1])
+	}
+
+	f.Fuzz(func(t *testing.T, q, s string) {
+		edge := map[int]bool{len(s): true} // where a character starts, a broken byte being one
+		for i := 0; i < len(s); {
+			_, n := utf8.DecodeRuneInString(s[i:])
+			edge[i], i = true, i+n
+		}
+
+		last := 0
+
+		for _, r := range wordRuns(q, s) {
+			if r[0] < last || r[1] <= r[0] || r[1] > len(s) {
+				t.Fatalf("%q in %q: run %v after %d", q, s, r, last)
+			}
+
+			if !edge[r[0]] || !edge[r[1]] {
+				t.Fatalf("%q in %q: run %v cuts a character", q, s, r)
+			}
+
+			if !slices.ContainsFunc(strings.Fields(unaccented(q)), func(w string) bool { return strings.Contains(unaccented(s[r[0]:r[1]]), w) }) {
+				t.Fatalf("%q in %q: run %q is no word of the query", q, s, s[r[0]:r[1]])
+			}
+
+			last = r[1]
+		}
+	})
 }
