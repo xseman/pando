@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.1](https://github.com/xseman/pando/compare/v0.10.0...v0.10.1) (2026-11-06)
+
+
+### Documentation
+
+* rename CLAUDE.md to AGENTS.md ([983c802](https://github.com/xseman/pando/commit/983c8022acd8989e631741ccabb940a3f3a3437d))
+
 ## [0.10.0](https://github.com/xseman/pando/compare/v0.9.0...v0.10.0) (2026-11-06)
 
 
