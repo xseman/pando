@@ -530,10 +530,17 @@ func (a *agents) fold(k string, shut bool) {
 // rule over it, VS Code's border over a pane; and a blank one before the
 // folded that follow an open one, so a run of them stays a tight list. The
 // projects under bareHead are one tight list; the row before bareHead is a
-// blank: a caption, not a pane.
+// blank: a caption, not a pane. Under recentHead folded it follows tight,
+// the two captions one list.
 func (a *agents) withGaps(rows []agRow) []agRow {
 	out := make([]agRow, 0, len(rows)+4)
 	for i, r := range rows {
+		if r.when == bareHead && i > 0 && rows[i-1].when == recentHead {
+			out = append(out, r)
+
+			continue
+		}
+
 		if (r.kind == agProject || r.kind == agTime) && i > 0 && !r.tail && (!a.collapsed[foldKey(r)] || rows[i-1].kind != r.kind) {
 			out = append(out, agRow{kind: agGap})
 		}

@@ -452,9 +452,9 @@ func TestSpacesUnfoldRunning(t *testing.T) {
 
 // TestSessionsTailRecentFirst lists the three projects not on top used
 // last under their own caption, newest first, over Other Projects' rest
-// A–Z, each caption counting its own and a blank over it; a switch into one
-// shuts Recent it came from; the filter lists them all A–Z under
-// Other Projects.
+// A–Z, each caption counting its own and a blank over it, none under Recent
+// folded; a switch into one shuts Recent it came from; the filter lists them
+// all A–Z under Other Projects.
 func TestSessionsTailRecentFirst(t *testing.T) {
 	m := testModelSized(t, 100, 40)
 
@@ -500,8 +500,8 @@ func TestSessionsTailRecentFirst(t *testing.T) {
 
 	m.ag.fold(timeKey(recentHead), true)
 
-	if got, want := shape(), []string{recentHead, "", bareHead, ps[0], ps[1], ps[5]}; !slices.Equal(got, want) {
-		t.Fatalf("Recent folded hides its own, Other Projects keeps the rest: %q want %q", got, want)
+	if got, want := shape(), []string{recentHead, bareHead, ps[0], ps[1], ps[5]}; !slices.Equal(got, want) {
+		t.Fatalf("Recent folded hides its own, Other Projects keeps the rest right under it: %q want %q", got, want)
 	}
 
 	m.ag.reveal(m, ps[3])
