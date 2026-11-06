@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/xseman/pando/internal/proto"
 )
 
@@ -609,6 +610,32 @@ func TestWelcomeSaysWhereKeysWork(t *testing.T) {
 
 	if out := checkWidths(t, m); strings.Contains(out, "click it or ^] first") {
 		t.Fatalf("the area has the keyboard, the text still asks for it:\n%s", out)
+	}
+}
+
+// TestWelcomeStaysPutOnFocus: focusing the empty area shortens one line of the
+// text, and the block keeps its column rather than recentring on the rest.
+func TestWelcomeStaysPutOnFocus(t *testing.T) {
+	m := testModelSized(t, 100, 30)
+	m.sess, m.focus = "", 0
+
+	col := func() int {
+		for _, l := range strings.Split(ansi.Strip(checkWidths(t, m)), "\n") {
+			if i := strings.Index(l, "Anywhere:"); i >= 0 {
+				return ansi.StringWidth(l[:i])
+			}
+		}
+
+		t.Fatal("no welcome text")
+
+		return 0
+	}
+
+	before := col()
+	m.focus = onMain
+
+	if after := col(); after != before {
+		t.Fatalf("focus moved the welcome text from column %d to %d", before, after)
 	}
 }
 

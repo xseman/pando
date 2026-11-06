@@ -5516,6 +5516,9 @@ func (m *Model) editorLines(w int) []string {
 	return out[:m.mainH()]
 }
 
+// unfocusedHint heads welcome's second key group until the main area has focus.
+const unfocusedHint = "In this area, click it or ^] first:"
+
 // welcome fills the empty main area. With a session behind its tab the first
 // line names what is missing here — an editor — rather than claiming the
 // workspace has no session; with files behind their tabs it points at those.
@@ -5540,7 +5543,7 @@ func welcome(w, h int, sess, files, focused bool) []string {
 		"^p     quick open",
 		"^]     next panel",
 		"",
-		ifElse(focused, "In this area:", "In this area, click it or ^] first:"),
+		ifElse(focused, "In this area:", unfocusedHint),
 		"n      new session",
 		"w      new worktree",
 		"a      add project",
@@ -5549,7 +5552,7 @@ func welcome(w, h int, sess, files, focused bool) []string {
 	}
 	out := make([]string, max(h, 0))
 
-	wide := 0
+	wide := lipgloss.Width(unfocusedHint) // measured either way, so focus does not shift the block
 	for _, t := range text {
 		wide = max(wide, lipgloss.Width(t))
 	}
