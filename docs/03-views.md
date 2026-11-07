@@ -220,7 +220,9 @@ re-roots Explorer and Source Control to its worktree.
   not its agent, a worktree's branch, a project's name, its folder's and the
   branch of the checkout it holds (`searchText`). A project found brings all it holds; one under the caption
   shows there, under it. The first session found is selected (`firstHit`),
-  `⏎` opens it, as a click on its name, and clears the filter (`openHit`).
+  `⏎` opens it, as a click on its name, and clears the filter (`openHit`);
+  a session opened from the list, a project or worktree clicked or switched
+  to, clears it too (`unfilter`); a fold keeps it.
 - A session row says its name, then its title where the name does not say
   it (`titleAfter`). A title starting with the issue key a set name ends in
   (`DEV-43739 …` for `jira-dev-43739`) takes the name's place (`keyedBy`).

@@ -606,7 +606,7 @@ func TestSessionsSinkScrolls(t *testing.T) {
 // CSS": a project found brings all it holds, a project is found by its
 // folder's name too, and one under Other Projects stays there, under the
 // caption. ⏎ opens the first one found, a session before a heading, and
-// clears the filter.
+// clears the filter; so does a click on a session or a project found.
 func TestSessionsFilter(t *testing.T) {
 	for _, c := range []struct {
 		q, s string
@@ -711,6 +711,28 @@ func TestSessionsFilter(t *testing.T) {
 
 	if r := m.ag.selected(m); r == nil || r.s.ID != "cf" || r.tail {
 		t.Fatalf("the session opened stays selected, its project on top now: %+v", r)
+	}
+
+	click(m, 2, 2, tea.MouseLeft) // back on Sessions from the session opened
+	search("ssd")
+
+	x, y := screenAt(t, m, "orches")
+	click(m, x, y, tea.MouseLeft)
+
+	if r := m.ag.selected(m); m.filters[viewAgents].on || m.sess != "map" || r == nil || r.s.ID != "map" {
+		t.Fatalf("a click on a session found opens it and clears the filter: on %v, sess %q, %+v", m.filters[viewAgents].on, m.sess, r)
+	}
+
+	for _, c := range []struct{ q, project string }{{"ssd", "ssd.stengl.sk"}, {"super", "super.dental"}} { // the project in view, then another
+		click(m, 2, 2, tea.MouseLeft)
+		search(c.q)
+
+		x, y := screenAt(t, m, "○ "+c.project)
+		click(m, x+2, y, tea.MouseLeft)
+
+		if m.filters[viewAgents].on || filepath.Base(m.projectOf(m.ws)) != c.project {
+			t.Fatalf("a click on project %s found switches to it and clears the filter: on %v, ws %q", c.project, m.filters[viewAgents].on, m.ws)
+		}
 	}
 }
 

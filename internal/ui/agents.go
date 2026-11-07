@@ -1874,8 +1874,11 @@ func (a *agents) activate(m *Model, r *agRow) tea.Cmd {
 		return saved
 
 	case agWorkspace:
+		a.unfilter(m)
 		return tea.Batch(m.switchWorkspace(r.ws.Path), m.refreshGit(), m.fetchScreen())
+
 	case agSession: // the one on screen too: it keeps its tab and takes the keyboard, as VS Code's open file does
+		a.unfilter(m)
 		opened := m.openSession(r.s.ID)
 		a.follow(m, r) // on screen, an asleep one's project goes on top
 
@@ -1897,7 +1900,17 @@ func (a *agents) click(m *Model, r *agRow, x int) tea.Cmd {
 		return a.activate(m, &agRow{kind: agWorkspace, project: r.project, ws: *m.workspace(wts[0])})
 	}
 
+	a.unfilter(m) // the project in view, found
+
 	return nil
+}
+
+// unfilter clears the filter once a row it found is opened or switched to:
+// what it looked for is found, and the whole tree is back on that row.
+func (a *agents) unfilter(m *Model) {
+	if m.filters[viewAgents].on {
+		m.clearFilter(viewAgents)
+	}
 }
 
 // workspaceFor picks the workspace a new session from row r goes into: a
