@@ -1708,7 +1708,7 @@ func (p *preview) load(m *Model) tea.Cmd {
 				strings.Count(raw, "\n") >= maxPreviewLines
 		}
 
-		if err == nil && raw != cp.raw {
+		if err == nil && (raw != cp.raw || !cp.ready) { // an empty file is "" before its first load too
 			msg.lines, msg.plain, msg.meta, msg.numW = render(cp.kind, cp.path, raw, dark)
 
 			if cp.kind == pvFile {

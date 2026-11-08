@@ -915,3 +915,20 @@ func TestBreadcrumbsOffDropsTheHeaderRow(t *testing.T) {
 		t.Fatalf("the tab and the buttons share the first row: %q", strip)
 	}
 }
+
+// An empty file opens as a buffer to type into. Its "" matched a fresh
+// preview's raw, so the first load counted as unchanged and the file never
+// became editable: New File and New Prompt opened a dead tab.
+func TestEmptyFileEditable(t *testing.T) {
+	m := testModel(t)
+	m.focus = onMain
+	path := filepath.Join(m.ws, "empty.txt")
+	mustWrite(t, path, "")
+
+	fire(m, m.openFile(path, false))
+	press(m, "x")
+
+	if got := m.pv.buf; got == nil || got.text() != "x" {
+		t.Fatalf("typed into the empty file: %v", got)
+	}
+}
