@@ -46,6 +46,7 @@ T: also in a terminal; the rest are the shell's there.
 | `ctrl+\`                                               | split: the active tab into a new group on the right     |
 | `alt+t` T                                              | quick open's Sessions (`@idle`, `!claude` narrow)       |
 | `alt+a` T                                              | the next session waiting on you: blocked, failed, done  |
+| `alt+i` T                                              | saved prompts: `⏎` inserts, `alt+⏎` also submits        |
 | `alt+n` T                                              | new tab: a file, a session of the space, new or resumed |
 | `alt+s` T                                              | new session in the space in view                        |
 | `ctrl+pgup` `ctrl+pgdn` T, `ctrl+shift+tab` `ctrl+tab` | previous, next editor                                   |

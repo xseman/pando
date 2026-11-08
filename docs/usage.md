@@ -159,6 +159,12 @@ checkout.
   Sessions while they work: their kind (codex: the name it gave the agent)
   and what they do. They live inside the session; a
   click on one opens the session.
+- `alt+i` picks a saved prompt, a file in `~/.config/pando/prompts/`, by
+  words of its name or text (a name match first): `⏎` types it into the
+  session in view, or the panel's shell when it has the keyboard, as one
+  paste and leaves Enter to you, `alt+⏎` submits it too. The one used last
+  comes first; `+ New Prompt…` names a new one and opens it in the editor,
+  `ctrl+e` edits, `shift+del` deletes.
 - `p` in Sessions, the `⊙` left of a session's row or its right-click menu
   pins it: Sessions lists it in the Pinned pane on top, and in its tree as
   before. `p` or the menu on a project pins it whole: its worktrees and
@@ -563,6 +569,7 @@ what `--instance work` does, except inside a session, whose
 | `$XDG_RUNTIME_DIR/pando/`                  | `pando.sock`, `daemon.log`                |
 | `~/.config/pando/config.toml`              | settings, agent presets                   |
 | `~/.config/pando/state.json`               | projects, open editors, session specs     |
+| `~/.config/pando/prompts/*.md`             | saved prompts, `alt+i`                    |
 | `~/.local/share/pando/worktrees/`          | worktrees created by pando                |
 | `~/.local/share/pando/drafts/`             | unsaved editor text                       |
 | `$XDG_RUNTIME_DIR/pando/instances/NAME/`   | instance NAME's socket and log            |

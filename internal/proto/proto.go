@@ -486,8 +486,8 @@ func Instance() string {
 	return ""
 }
 
-// ConfigDir is where config.toml and state.json live: PANDO_CONFIG_DIR,
-// else the user's config directory.
+// ConfigDir is where config.toml, state.json and the saved prompts live:
+// PANDO_CONFIG_DIR, else the user's config directory.
 func ConfigDir() string {
 	if d := os.Getenv("PANDO_CONFIG_DIR"); d != "" {
 		return d

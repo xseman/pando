@@ -670,6 +670,21 @@ mnemonics are the shell's.
 bindings ([06-config.md](06-config.md#keys), [09-keys.md](09-keys.md)):
 `renamedCommands` maps the old id to the new one (`git.switchBranch`).
 
+## Prompts
+
+`alt+i` (the palette's _Prompts: Insert…_) reads
+`ConfigDir()/prompts/*.md` in a `tea.Cmd` on every open (`readPrompts`):
+no daemon, no watcher, the files are the state. Rows are `always` items the
+picker's `change` rebuilds with `hits`, words in the name or the text, as
+quick open's Sessions tab does, a name match before a text-only one;
+`lastPrompt` (memory only) goes first, the rest A–Z by `unaccented` name.
+The target (`promptTarget`) is the panel's shell when it has the keyboard
+(`termFocused`: not Problems or Output over it), else the session the active
+group shows. `⏎` sends one `Paste` with `Wake`, the
+file's trailing whitespace cut so it cannot submit itself; `alt+⏎` adds a
+`"\r"` 50 ms later, as `pando session send --enter` does. `ctrl+e` and
+`shift+del` are `modal.keys`, acting on the selection.
+
 ## Text effects
 
 `fx.go`: `noteFx` compares shown text after every `Update` and starts an

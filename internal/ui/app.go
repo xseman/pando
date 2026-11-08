@@ -276,6 +276,7 @@ type Model struct {
 	sr  searchView
 
 	lastCommand string // the command palette entry run last, listed first next time
+	lastPrompt  string // the saved prompt inserted last, listed first next time
 	vimReg      string // vim_mode: the unnamed register, shared by every editor
 	vimRegLine  bool   // what it holds was yanked line-wise, so p pastes it as lines
 	pv          preview
@@ -2896,6 +2897,16 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case focusSessionMsg:
 		m.focus = onMain
 		return m, m.switchSession(string(msg))
+
+	case promptsMsg:
+		if msg.err != nil {
+			m.flash("prompts: "+msg.err.Error(), true)
+			return m, nil
+		}
+
+		m.showPrompts(msg.prompts)
+
+		return m, nil
 
 	case flashMsg:
 		m.flash(msg.text, msg.err)
@@ -5577,7 +5588,7 @@ var hotkeys = map[view][][2]string{
 	viewCustom: {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"a", "agent"}, {"c y", "copy name/path"}, {"r", "refresh"}, {"C", "collapse"}, {"^f", "filter"}},
 }
 
-var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4 6 7", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"alt+t", "agents"}, {"alt+a", "next alarm"}, {"alt+n", "new tab"}, {"alt+s", "new session"}, {"^tab", "editors"}, {"^⇧pgup ^⇧pgdn", "move tab"}, {"^f", "find"}, {"^⇧m", "problems"}, {"^⇧u", "output"}, {"alt+, alt+.", "back/forward"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"F10", "manage"}, {"esc q", "quit"}}
+var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4 6 7", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"alt+t", "agents"}, {"alt+i", "prompts"}, {"alt+a", "next alarm"}, {"alt+n", "new tab"}, {"alt+s", "new session"}, {"^tab", "editors"}, {"^⇧pgup ^⇧pgdn", "move tab"}, {"^f", "find"}, {"^⇧m", "problems"}, {"^⇧u", "output"}, {"alt+, alt+.", "back/forward"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"F10", "manage"}, {"esc q", "quit"}}
 
 var previewKeys = [][2]string{{"↑↓", "move"}, {"⇧↑↓", "select"}, {"^a", "all"}, {"y", "copy"}, {"s", "split diff"}, {"m", "stage/revert lines"}, {"] [", "next, prev change"}, {"} {", "next, prev file"}, {"F8 ⇧F8", "next, prev problem"}, {"^⇧[ ^⇧]", "fold, unfold"}, {"w", "wrap"}, {"^f", "find"}, {"^h", "replace"}, {"^g", "go to line"}, {"f12", "definition"}, {"⇧f12", "references"}, {"^k", "hover"}, {"^.", "code action"}, {"e", "edit"}, {"q", "close"}}
 
@@ -5755,6 +5766,8 @@ func (m *Model) categories() []category {
 	if m.showsPreview() {
 		cs = append(cs, category{"Editor", append(m.pv.items(m), m.pv.keyItems(m)...)})
 	}
+
+	cs = append(cs, category{"Prompts", []item{{label: "Insert…", hint: "alt+i", run: func(*Model) tea.Cmd { return readPrompts }}}})
 
 	return append(cs, category{"Preferences", settingsItems(m)}, category{"Pando", m.updateItems()})
 }

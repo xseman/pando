@@ -14,6 +14,7 @@ what `state.json` remembers. Keys: [09-keys.md](09-keys.md).
 config   $PANDO_CONFIG_DIR | os.UserConfigDir()/pando (~/.config/pando)
 ├ config.toml   what you configure, every instance
 ├ state.json    what pando remembers
+├ prompts/<name>.md   saved prompts (alt+i), every instance; the TUI reads them
 └ instances/<name>/state.json   what instance <name> remembers
 data     $PANDO_DATA_DIR | $XDG_DATA_HOME/pando | ~/.local/share/pando
 ├ drafts/       unsaved editor text

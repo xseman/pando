@@ -54,7 +54,8 @@ it when none is).
 - **Agent sessions**: projects → worktrees → sessions, each with its own shells,
   marked when they need you, the subagents claude, codex, agy or grok run
   listed under them, resumed after a daemon restart, put to sleep when unused
-  to free memory; ctrl+click a `path:line` or a URL in their output to open it.
+  to free memory; ctrl+click a `path:line` or a URL in their output to open it;
+  saved prompts typed into any of them with `alt+i`.
 - **Source Control**: VS Code's view — line-level staging, Commit & Sync,
   Publish, AI commit messages, history drawers, GitLens-style commit and pull
   request comparisons.

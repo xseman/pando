@@ -1277,7 +1277,10 @@ type modal struct {
 	tab    int
 	setTab func(m *Model, i int) tea.Cmd
 	alt    func(m *Model) tea.Cmd // alt+⏎
-	note   string                 // dim at the right end of the title row
+	// keys are a picker's own keys, which act on its selection: the
+	// prompts' ctrl+e and shift+del.
+	keys map[string]func(m *Model) tea.Cmd
+	note string // dim at the right end of the title row
 	// caps are the most rows a group shows under a query, in the order the
 	// items list the groups; the rest wait behind a "+ N more" row that goes
 	// to the tab named like the group.
@@ -2195,6 +2198,8 @@ func (md *modal) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		return md.setTab(m, (md.tab+ifElse(s == "tab", 1, len(md.tabs)-1))%len(md.tabs))
 	case md.alt != nil && s == "alt+enter":
 		return md.alt(m)
+	case md.keys[s] != nil:
+		return md.keys[s](m)
 	}
 
 	switch k.String() {

@@ -120,6 +120,7 @@ var keybindings = []keybinding{
 	// VS Code's Split Editor; a terminal keeps ⌃\, its quit signal.
 	{keys: []string{`ctrl+\`}, when: ctxNotTerm, run: func(m *Model, _ string) tea.Cmd { return m.splitEditor(sideRight) }},
 	{keys: []string{"alt+t"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.agentNavigator() }},
+	{keys: []string{"alt+i"}, when: ctxAny, run: func(*Model, string) tea.Cmd { return readPrompts }},
 	{keys: []string{"alt+n"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.newTabMenu() }},
 	{keys: []string{"alt+s"}, when: ctxAny, cond: func(m *Model) bool { return m.ws != "" }, run: func(m *Model, _ string) tea.Cmd { return m.harnessPicker(m.ws) }},
 	{keys: []string{"alt+a"}, when: ctxAny, run: func(m *Model, _ string) tea.Cmd { return m.nextAlarm() }},
