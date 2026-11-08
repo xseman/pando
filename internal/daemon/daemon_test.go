@@ -611,7 +611,7 @@ func TestInstanceState(t *testing.T) {
 	t.Setenv("PANDO_CONFIG_DIR", cfg)
 	t.Setenv("PANDO_INSTANCE", "nike")
 
-	d, err := New(ConfigDir(), StateDir(), t.TempDir())
+	d, err := New(proto.ConfigDir(), StateDir(), t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -486,6 +486,18 @@ func Instance() string {
 	return ""
 }
 
+// ConfigDir is where config.toml and state.json live: PANDO_CONFIG_DIR,
+// else the user's config directory.
+func ConfigDir() string {
+	if d := os.Getenv("PANDO_CONFIG_DIR"); d != "" {
+		return d
+	}
+
+	d, _ := os.UserConfigDir()
+
+	return filepath.Join(d, "pando")
+}
+
 // Dir is pando's runtime directory, holding the socket, the lock and the
 // daemon log: PANDO_RUNTIME_DIR, which a session's own pando commands
 // inherit, else the instance's.

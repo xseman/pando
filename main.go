@@ -123,7 +123,7 @@ func run(args []string) error {
 		return nil
 
 	case "doctor":
-		fmt.Printf("pando %s\nconfig: %s\n\n", update.Version, filepath.Join(daemon.ConfigDir(), "config.toml"))
+		fmt.Printf("pando %s\nconfig: %s\n\n", update.Version, filepath.Join(proto.ConfigDir(), "config.toml"))
 		ui.Doctor(os.Stdout)
 
 		cwd, _ := os.Getwd()
@@ -343,7 +343,7 @@ func instances(w io.Writer, rest []string) error {
 
 	names := []string{""} // the default
 
-	entries, _ := os.ReadDir(filepath.Join(daemon.ConfigDir(), "instances")) // none yet: the default alone
+	entries, _ := os.ReadDir(filepath.Join(proto.ConfigDir(), "instances")) // none yet: the default alone
 	for _, e := range entries {
 		if e.IsDir() {
 			names = append(names, e.Name())
@@ -652,7 +652,7 @@ func serve() error {
 		return err
 	}
 
-	d, err := daemon.New(daemon.ConfigDir(), daemon.StateDir(), daemon.DataDir())
+	d, err := daemon.New(proto.ConfigDir(), daemon.StateDir(), daemon.DataDir())
 	if err != nil {
 		_ = ln.Close()
 		return err

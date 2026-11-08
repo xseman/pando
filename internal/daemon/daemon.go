@@ -56,25 +56,14 @@ type Daemon struct {
 	cancel context.CancelFunc
 }
 
-// ConfigDir is where config.toml and state.json live.
-func ConfigDir() string {
-	if d := os.Getenv("PANDO_CONFIG_DIR"); d != "" {
-		return d
-	}
-
-	d, _ := os.UserConfigDir()
-
-	return filepath.Join(d, "pando")
-}
-
 // StateDir is where state.json lives: the config directory, or for a named
 // instance a directory of its own inside it.
 func StateDir() string {
 	if n := proto.Instance(); n != "" {
-		return filepath.Join(ConfigDir(), "instances", n)
+		return filepath.Join(proto.ConfigDir(), "instances", n)
 	}
 
-	return ConfigDir()
+	return proto.ConfigDir()
 }
 
 // DataDir is where drafts and other per-workspace data live.
