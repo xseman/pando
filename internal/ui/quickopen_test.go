@@ -416,6 +416,14 @@ func TestQuickOpenAllSessions(t *testing.T) {
 	if m.modal == nil || m.modal.tab != qoSessions || m.modal.input.Value() != "fix" || len(labels(m)) != 6 {
 		t.Fatalf("+ 2 more goes to Sessions with the query: %q", labels(m))
 	}
+
+	bare := addProject(t, m, "dev")
+	m.quickOpen(indexMsg{ws: m.ws}, qoAll)
+	typeText(m, filepath.Base(bare))
+
+	if got, want := labels(m), []string{"sessions", "· " + filepath.Base(bare) + "  ⌂ dev"}; len(got) < len(want) || !slices.Equal(got[:len(want)], want) || m.modal.l.sel != 1 {
+		t.Fatalf("a project with no session found by its name, selected: %q, sel %d", got, m.modal.l.sel)
+	}
 }
 
 // FuzzWordRuns checks that what a row lights up is whole characters of the

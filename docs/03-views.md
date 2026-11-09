@@ -439,7 +439,7 @@ Everywhere tabs in its title row; `tab` `shift+tab` or a click go round them.
   goes to its checkout (on top, `lift`), on a worktree to it. Selected: the
   session on screen, under a query the first session found. All shows the
   first 3 sessions found the same way, under their projects, selected when
-  no file is found.
+  no file is found; a project with no session counts as one.
 - Text is `runSearch` as Search runs it: literal, any case, from 2
   characters, 150 ms after the last key (`quickTextWait`), stopped at 200
   matches (`quickTextLimit`): which 200 is up to rg's threads, `--sort=path`

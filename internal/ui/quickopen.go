@@ -458,7 +458,8 @@ func (q *quickOpenState) toSearch(m *Model) tea.Cmd {
 }
 
 // allSessions are All's part of the Sessions tree for the query: the first
-// quickSessionsAll sessions found under their projects, and a "+ N more" row
+// quickSessionsAll sessions found under their projects, a project with none
+// counting as one, and a "+ N more" row
 // that goes to the Sessions tab; a blank after them when text follows. The
 // first session is selected when no file is found.
 func (q *quickOpenState) allSessions(m *Model, text bool) []item {
@@ -582,6 +583,7 @@ func (m *Model) sessionTree(v string) []item {
 			if r.project != "" { // "other" is no place to go
 				p := r.project
 				it.run = func(m *Model) tea.Cmd { return m.enterWorkspace(m.projectPath(p)) }
+				it.sess = i+1 == len(rows) || rows[i+1].kind == agProject // nothing under it: All counts it as a session
 			}
 
 		case agWorkspace:

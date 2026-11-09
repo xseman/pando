@@ -1184,7 +1184,7 @@ type item struct {
 	cont   bool   // the detail row of the selected item above it, placed by focus
 	sep    bool   // a rule between groups, or with a label a group's muted heading; run stays nil so it is skipped
 	lead   bool   // the row a fresh list selects, over its first
-	sess   bool   // a session's row in quick open's Sessions tree, which All counts
+	sess   bool   // a session's row in quick open's Sessions tree, or a project's with none: what All counts
 	// segs and right draw the row in their own colors in place of label and
 	// hint, which stay its plain text: quick open's Sessions tree.
 	segs, right []seg
