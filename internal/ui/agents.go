@@ -719,8 +719,8 @@ func (a *agents) groupRows(m *Model, sessions []proto.Session, q string) []agRow
 // pinnedRows are the Pinned heading and what is pinned under it, in the
 // order it was pinned, the Filter applied to each part: a project whole, as
 // the tree lists it open, its fold its own (foldKey); a session under its
-// project's heading, its worktree's row only where the project has several
-// pinned, the sessions in the order they were pinned. A pinned project's
+// project's heading over its worktree's row, or holding the checkout (as
+// pinnedGroup has it), the sessions in the order they were pinned. A pinned project's
 // session shows under it only. Each stays in the tree too.
 func (a *agents) pinnedRows(m *Model, sessions []proto.Session, q string) []agRow {
 	var (
@@ -794,14 +794,13 @@ func (a *agents) pinnedRows(m *Model, sessions []proto.Session, q string) []agRo
 }
 
 // pinnedGroup is the heading of project p over the sessions pinned in it,
-// rows; a worktree row goes before each worktree's sessions only when they
-// span several. Folded, the heading alone, unless the Filter is on.
+// rows; a worktree row goes before each worktree's sessions, unless they
+// all run in its checkout: the heading holds it then, as the tree's does.
+// Folded, the heading alone, unless the Filter is on.
 func pinnedGroup(a *agents, p string, rows []agRow, q string) []agRow {
 	head := agRow{kind: agProject, project: p, pinned: true, closed: a.collapsed[pinKey(p)]}
-
-	out := []agRow{head}
 	if head.closed && q == "" {
-		return out
+		return []agRow{head}
 	}
 
 	var wts []string
@@ -815,8 +814,13 @@ func pinnedGroup(a *agents, p string, rows []agRow, q string) []agRow {
 		byWt[r.ws.Path] = append(byWt[r.ws.Path], r)
 	}
 
+	if len(wts) == 1 && rows[0].ws.Main {
+		head.ws = rows[0].ws
+	}
+
+	out := []agRow{head}
 	for _, w := range wts {
-		if len(wts) > 1 {
+		if !head.merged() {
 			out = append(out, agRow{kind: agWorkspace, project: p, ws: byWt[w][0].ws, pinned: true})
 		}
 

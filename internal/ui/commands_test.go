@@ -4564,8 +4564,8 @@ func TestSpacesPin(t *testing.T) {
 
 	// The strip, s2's project heading, s2, the border, then the tree.
 	lines := m.ag.lines(m, 40, m.bodyH(viewAgents))
-	if l := strings.TrimRight(ansi.Strip(lines[1]), " "); !strings.HasPrefix(l, " ▾ ○ "+filepath.Base(m.ws)) || strings.Contains(l, "main") {
-		t.Fatalf("the pinned project, no worktree row for one worktree: %q", l)
+	if l := strings.TrimRight(ansi.Strip(lines[1]), " "); !strings.HasPrefix(l, " ▾ ○ "+filepath.Base(m.ws)+"  ⌂ main") {
+		t.Fatalf("the pinned project holds its checkout, its branch, as the tree's: %q", l)
 	}
 
 	if l := strings.TrimRight(ansi.Strip(lines[2]), " "); !strings.HasPrefix(l, " ⊙ └─ ") || strings.Contains(l, "main") {

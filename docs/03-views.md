@@ -164,7 +164,7 @@ re-roots Explorer and Source Control to its worktree.
 
 ```text
 ▾ ◐ Pinned            1   a pane over the tree (pinPane): its strip, folds, stays on top
-▾ ◐ repo                1   a pinned session's project heading (pinnedGroup), folds as pin:…
+▾ ◐ repo  ⌂ main       1   a pinned session's project heading (pinnedGroup), folds as pin:…, holds the checkout as the tree's
  ⊙ └─ ◐ claude · fix   running   pinned sessions in the order pinned, copies: each stays in the tree too
 ━━━━━━━━━━━━━━━━━━━━━━━━━━  its border, heavy in tab_border
 ▾ ◐ repo +⎇ New Worktree  project: most demanding session's glyph (· none), button (hover)
@@ -289,9 +289,9 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
 - `p`, the gutter's ⊙ (on hover) or the menu pins a session, or unpins it
   (`togglePin`, `spaces_pinned`). Pinned lists it again on top, an `agTime`
   heading (`pinnedRows`), under its project's heading (`pinnedGroup`, folded
-  as `pin:…`); a worktree row sits between only when the project has several
-  pinned sessions, so a long branch leaves the name its room. Filter and
-  search apply, reordering does not.
+  as `pin:…`); a worktree row sits between, or the heading holds the
+  checkout and its branch when every pinned session runs there, as the
+  tree's does. Filter and search apply, reordering does not.
 - `p` or the menu on a project pins it whole (its path in `spaces_pinned`):
   under Pinned it lists as the tree lists it open, every worktree and
   session, asleep too, its fold its own (`pinKey`, `pin:…`). A session it

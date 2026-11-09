@@ -910,8 +910,9 @@ func TestSessionsPickedTopExpires(t *testing.T) {
 	}
 }
 
-// TestSpacesPinGroupsWorktrees pins a session in each of two worktrees of one
-// project: under its heading each worktree gets a row over its own sessions.
+// TestSpacesPinGroupsWorktrees pins a session in a linked worktree, then one
+// in the checkout of the same project: under its heading each worktree gets a
+// row over its own sessions, the one linked worktree too, for its branch.
 func TestSpacesPinGroupsWorktrees(t *testing.T) {
 	m := testModel(t)
 	feat := t.TempDir()
@@ -950,10 +951,15 @@ func TestSpacesPinGroupsWorktrees(t *testing.T) {
 		press(m, "p")
 	}
 
-	pin("s1")
 	pin("s2")
 
-	if want := []string{"Pinned", "head", "ws:main", "s1", "ws:feat", "s2"}; !slices.Equal(shape(), want) {
+	if want := []string{"Pinned", "head", "ws:feat", "s2"}; !slices.Equal(shape(), want) {
+		t.Fatalf("one linked worktree, its row for the branch: %q want %q", shape(), want)
+	}
+
+	pin("s1")
+
+	if want := []string{"Pinned", "head", "ws:feat", "s2", "ws:main", "s1"}; !slices.Equal(shape(), want) {
 		t.Fatalf("two worktrees, a row each: %q want %q", shape(), want)
 	}
 }
