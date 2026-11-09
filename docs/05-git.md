@@ -175,9 +175,13 @@ leading dashes go, so "fix the login?" makes `fix-the-login-`.
 - `Sync`: `pull --rebase --autostash`, then `push`.
 - `Publish`: `remote add` when given a URL, then `push -u REMOTE HEAD`.
   Commit & Sync publishes instead while the branch has no upstream.
-- `Suggest`: `claude -p --model haiku` over the staged diff (else the
-  unstaged, cut at 16 KiB); `SuggestOpts` adds a body, the recent subjects as
-  a style, a message to rewrite or one to avoid. `parseSuggestion` is fuzzed.
+- `Suggest`: one agent (`suggestArgs`: `claude -p --model haiku`, `codex
+  exec`, `gemini -p`, `opencode run`), run in the temp directory so no
+  repository instructions apply, claude and codex without the user's either,
+  over the staged diff (else the unstaged, cut at 16 KiB)
+  and the last 20 subjects. `SuggestOpts` picks the agent and the style
+  (`commit_agent`, `commit_style`), adds a body, a message to rewrite or one
+  to avoid. `parseSuggestion` is fuzzed.
 
 ## GitHub
 

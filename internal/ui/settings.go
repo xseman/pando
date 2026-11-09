@@ -9,6 +9,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/xseman/pando/internal/git"
 )
 
 // pvSettings is the Settings editor: a tab of its own, VS Code's settings
@@ -25,6 +27,7 @@ type setting struct {
 	opts                  []string
 	get                   func(m *Model) string
 	set                   func(m *Model, v string) tea.Cmd
+	note                  func(v string) string // what a value stands for, after it; nil or "" nothing
 }
 
 // checkbox is a setting that is on or off, written as key.
@@ -112,6 +115,17 @@ func settingsTable() []setting {
 				return m.toggleDiffFull()
 			},
 		},
+		{
+			section: "Source Control", group: "Commit messages", label: "Message agent", opts: append([]string{"auto"}, git.SuggestAgents...),
+			get:  func(m *Model) string { return cmp.Or(m.st.Settings.MsgAgent, "auto") },
+			set:  func(m *Model, v string) tea.Cmd { return m.setSettings(map[string]any{"commit_agent": v}) },
+			note: agentNote,
+		},
+		{
+			section: "Source Control", group: "Commit messages", label: "Message style", opts: []string{"conventional", "repository", "plain"},
+			get: func(m *Model) string { return cmp.Or(m.st.Settings.MsgStyle, "conventional") },
+			set: func(m *Model, v string) tea.Cmd { return m.setSettings(map[string]any{"commit_style": v}) },
+		},
 
 		checkbox("Editor", "Code", "Format on save", "format_on_save", func(m *Model) bool { return m.st.Settings.FmtSave }),
 		checkbox("Editor", "Code", "Diagnostics", "lsp_diagnostics", func(m *Model) bool { return m.st.Settings.Diags }),
@@ -156,6 +170,19 @@ func settingsTable() []setting {
 			},
 		},
 	}
+}
+
+// agentNote is what a Message agent value stands for: the agent "auto"
+// picks, or that the one named is not installed.
+func agentNote(v string) string {
+	switch {
+	case v == "auto":
+		return cmp.Or(git.SuggestAgent(v), "none")
+	case !git.Installed(v):
+		return "missing"
+	}
+
+	return ""
 }
 
 // sleepAfters are the minutes Settings cycles sleep_after through; 0 never.
@@ -248,6 +275,20 @@ func (m *Model) openSettings() tea.Cmd {
 type settingsRow struct {
 	group string
 	i     int
+}
+
+// openSetting shows the Settings tab with the keyboard on the setting
+// labelled label.
+func (m *Model) openSetting(label string) tea.Cmd {
+	cmd := m.openSettings()
+	table := settingsTable()
+	i := slices.IndexFunc(table, func(s setting) bool { return s.label == label })
+	sp := m.pv.set
+	sp.sec, sp.top = slices.Index(settingsSections(), table[i].section), 0
+	k := slices.IndexFunc(sp.rows(), func(r settingsRow) bool { return r.i == i })
+	sp.at = slices.Index(sp.settings(), k)
+
+	return cmd
 }
 
 // rows are the section's body rows: each group's heading, then its settings,
@@ -403,7 +444,12 @@ func (sp *settingsPage) body(m *Model, w, h int) []string {
 			if s.opts == nil {
 				segs = append(segs, sg("[", dim), sg(ifElse(s.get(m) == "on", "x", " "), plain), sg("]", dim))
 			} else {
-				v := ansi.Truncate(s.get(m), settingsDropW-4, "…")
+				v := s.get(m)
+				if s.note != nil && s.note(v) != "" {
+					v += " · " + s.note(v)
+				}
+
+				v = ansi.Truncate(v, settingsDropW-4, "…")
 				segs = append(segs, sg("❱ ", dim), sg(v, plain), sg(blank(max(settingsDropW-2-ansi.StringWidth(v), 1)), plain), sg("▼", dim))
 			}
 
@@ -438,6 +484,9 @@ func (sp *settingsPage) act(m *Model, s setting) tea.Cmd {
 	items := make([]item, len(s.opts))
 	for i, v := range s.opts {
 		items[i] = item{label: v, hint: ifElse(v == s.get(m), "✓", ""), run: func(m *Model) tea.Cmd { return s.set(m, v) }}
+		if s.note != nil {
+			items[i].inline = s.note(v)
+		}
 	}
 
 	k := sp.settings()[sp.at] - sp.top

@@ -51,54 +51,56 @@ config.toml edited ───────────┘  └─ "state" event �
 
 ## Settings
 
-| Key                    | Default     | Meaning                                                                        |
-| ---------------------- | ----------- | ------------------------------------------------------------------------------ |
-| `color_theme`          | `vscode`    | `vscode` (by background), `vscode-dark`, `vscode-light`, `terminal` (ANSI)     |
-| `icons`                | `ascii`     | `ascii`, `nerd` (needs a Nerd Font, first run picks it if installed), `emoji`  |
-| `activity_bar`         | `side`      | `side` (down the sidebar edge), `top` (above the view)                         |
-| `panel_borders`        | `true`      | titled border around each panel                                                |
-| `animations`           | `true`      | names morph, counts roll, busy labels shimmer                                  |
-| `tooltips`             | `true`      | an icon button's name and key, or a cut session name, in a box by the pointer  |
-| `width`                | `40`        | default column width                                                           |
-| `width_right`          | `32`        | right                                                                          |
-| `left`, `right`        | `[]`        | sidebar columns: [Columns](#columns); `right` starts with Sessions             |
-| `hidden`               | `true`      | Explorer shows dotfiles                                                        |
-| `explorer_sort`        | `name`      | Explorer files by `name` or `type` (extension, then name), folders first       |
-| `auto_reveal`          | `true`      | Explorer selects the editor's file or diff, in front unless Search/Git in use  |
-| `git_deco`             | `true`      | Explorer colors entries by git status                                          |
-| `git_tree`             | `true`      | Source Control changes as a tree                                               |
-| `git_drawers`          | 5 drawers   | Commits, Graph, Branches, Stashes, Remotes; top to bottom, any drawer's title  |
-| `git_drawers_folded`   | `false`     | the drawers folded into one Tools row                                          |
-| `git_panes`            | none        | per drawer: `open`, `h` rows; the TUI writes it                                |
-| `diff_view`            | `inline`    | `inline`, `split` (from 90 columns)                                            |
-| `diff_full`            | `false`     | a file's diff shows the whole file, not only the changes (`z`)                 |
-| `quick_open_tree`      | `false`     | quick open groups by directory                                                 |
-| `breadcrumbs`          | `true`      | a file's path under its tab; click a folder to browse it                       |
-| `terminal_position`    | `bottom`    | `bottom`, `left`, `right`                                                      |
-| `terminal_height`      | `12`        | bottom panel rows                                                              |
-| `terminal_open`        | `false`     | panel state for a worktree without its own: the last set                       |
-| `shell`                | `""`        | command every terminal opens: [Shell](#shell)                                  |
-| `session_highlight`    | `tint`      | waiting, done or failed session: `tint` (pulsing), `steady`, `off`             |
-| `spaces_sort`          | `created`   | `created`, `updated` (last input or change of state)                           |
-| `spaces_group`         | `workspace` | `workspace`, `time` (Today, Yesterday, …), `state` (Blocked, Working, …)       |
-| `spaces_project_sort`  | `manual`    | `manual` (drag, `alt+↑↓`), `updated` (sessions' last input or change)          |
-| `spaces_hide`          | `[]`        | states left out: `blocked` `running` `done` `idle` `asleep` `exited`           |
-| `sleep_after`          | `60`        | minutes idle and unused before a session sleeps; `0` never                     |
-| `sounds`               | `true`      | sound for a session out of view                                                |
-| `sound_done`           | desktop     | file on finish; `""`: bell                                                     |
-| `sound_request`        | desktop     | file on a question; `""`: bell                                                 |
-| `update_check`         | `true`      | ask GitHub daily for a newer pando                                             |
-| `nerd_font_offer`      | `true`      | status bar offers Symbols Nerd Font Mono while no Nerd Font is installed       |
-| `claude_background`    | `true`      | resume claude in the background (`pando claude`)                               |
-| `vim_mode`             | `false`     | editors open in vim normal mode                                                |
-| `word_wrap`            | `false`     | wrap long lines; off, a horizontal scrollbar                                   |
-| `tab_size`             | `4`         | cells a tab draws, spaces per indent, unless the file says its own (below)     |
-| `insert_spaces`        | `false`     | `tab` inserts `tab_size` spaces, unless the file says its own                  |
-| `render_whitespace`    | `selection` | `·` `→` for blanks: `none`, `boundary`, `selection`, `trailing`, `all`         |
-| `markdown_width`       | `80`        | rendered Markdown width, margins included; `0` fills the panel                 |
-| `editor_limit`         | `0`         | most editor tabs, least recent closing; `0` none                               |
-| `format_on_save`       | `true`      | `ctrl+s` runs the `[format]` tool, else the file's language server             |
-| `lsp_diagnostics`      | `true`      | a file's `[lsp]` server starts as it opens; its errors and warnings show       |
+| Key                    | Default        | Meaning                                                                        |
+| ---------------------- | -------------- | ------------------------------------------------------------------------------ |
+| `color_theme`          | `vscode`       | `vscode` (by background), `vscode-dark`, `vscode-light`, `terminal` (ANSI)     |
+| `icons`                | `ascii`        | `ascii`, `nerd` (needs a Nerd Font, first run picks it if installed), `emoji`  |
+| `activity_bar`         | `side`         | `side` (down the sidebar edge), `top` (above the view)                         |
+| `panel_borders`        | `true`         | titled border around each panel                                                |
+| `animations`           | `true`         | names morph, counts roll, busy labels shimmer                                  |
+| `tooltips`             | `true`         | an icon button's name and key, or a cut session name, in a box by the pointer  |
+| `width`                | `40`           | default column width                                                           |
+| `width_right`          | `32`           | right                                                                          |
+| `left`, `right`        | `[]`           | sidebar columns: [Columns](#columns); `right` starts with Sessions             |
+| `hidden`               | `true`         | Explorer shows dotfiles                                                        |
+| `explorer_sort`        | `name`         | Explorer files by `name` or `type` (extension, then name), folders first       |
+| `auto_reveal`          | `true`         | Explorer selects the editor's file or diff, in front unless Search/Git in use  |
+| `git_deco`             | `true`         | Explorer colors entries by git status                                          |
+| `git_tree`             | `true`         | Source Control changes as a tree                                               |
+| `git_drawers`          | 5 drawers      | Commits, Graph, Branches, Stashes, Remotes; top to bottom, any drawer's title  |
+| `git_drawers_folded`   | `false`        | the drawers folded into one Tools row                                          |
+| `git_panes`            | none           | per drawer: `open`, `h` rows; the TUI writes it                                |
+| `commit_agent`         | `auto`         | writes commit messages: `auto` (first of claude, codex, gemini, opencode)      |
+| `commit_style`         | `conventional` | `conventional` (worded as recent subjects), `repository`, `plain`              |
+| `diff_view`            | `inline`       | `inline`, `split` (from 90 columns)                                            |
+| `diff_full`            | `false`        | a file's diff shows the whole file, not only the changes (`z`)                 |
+| `quick_open_tree`      | `false`        | quick open groups by directory                                                 |
+| `breadcrumbs`          | `true`         | a file's path under its tab; click a folder to browse it                       |
+| `terminal_position`    | `bottom`       | `bottom`, `left`, `right`                                                      |
+| `terminal_height`      | `12`           | bottom panel rows                                                              |
+| `terminal_open`        | `false`        | panel state for a worktree without its own: the last set                       |
+| `shell`                | `""`           | command every terminal opens: [Shell](#shell)                                  |
+| `session_highlight`    | `tint`         | waiting, done or failed session: `tint` (pulsing), `steady`, `off`             |
+| `spaces_sort`          | `created`      | `created`, `updated` (last input or change of state)                           |
+| `spaces_group`         | `workspace`    | `workspace`, `time` (Today, Yesterday, …), `state` (Blocked, Working, …)       |
+| `spaces_project_sort`  | `manual`       | `manual` (drag, `alt+↑↓`), `updated` (sessions' last input or change)          |
+| `spaces_hide`          | `[]`           | states left out: `blocked` `running` `done` `idle` `asleep` `exited`           |
+| `sleep_after`          | `60`           | minutes idle and unused before a session sleeps; `0` never                     |
+| `sounds`               | `true`         | sound for a session out of view                                                |
+| `sound_done`           | desktop        | file on finish; `""`: bell                                                     |
+| `sound_request`        | desktop        | file on a question; `""`: bell                                                 |
+| `update_check`         | `true`         | ask GitHub daily for a newer pando                                             |
+| `nerd_font_offer`      | `true`         | status bar offers Symbols Nerd Font Mono while no Nerd Font is installed       |
+| `claude_background`    | `true`         | resume claude in the background (`pando claude`)                               |
+| `vim_mode`             | `false`        | editors open in vim normal mode                                                |
+| `word_wrap`            | `false`        | wrap long lines; off, a horizontal scrollbar                                   |
+| `tab_size`             | `4`            | cells a tab draws, spaces per indent, unless the file says its own (below)     |
+| `insert_spaces`        | `false`        | `tab` inserts `tab_size` spaces, unless the file says its own                  |
+| `render_whitespace`    | `selection`    | `·` `→` for blanks: `none`, `boundary`, `selection`, `trailing`, `all`         |
+| `markdown_width`       | `80`           | rendered Markdown width, margins included; `0` fills the panel                 |
+| `editor_limit`         | `0`            | most editor tabs, least recent closing; `0` none                               |
+| `format_on_save`       | `true`         | `ctrl+s` runs the `[format]` tool, else the file's language server             |
+| `lsp_diagnostics`      | `true`         | a file's `[lsp]` server starts as it opens; its errors and warnings show       |
 
 Desktop: freedesktop `complete.oga`, `dialog-information.oga`.
 

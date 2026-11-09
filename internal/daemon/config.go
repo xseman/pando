@@ -46,7 +46,7 @@ func defaultConfig() config {
 	return config{
 		Settings: proto.Settings{
 			Hidden: true, Icons: "ascii", Width: 40, WidthR: 32, GitDeco: true, GitTree: true, Crumbs: true, Reveal: true,
-			Theme: "vscode", DiffView: "inline", Borders: true, FmtSave: true, Diags: true,
+			Theme: "vscode", DiffView: "inline", Borders: true, FmtSave: true, Diags: true, MsgAgent: "auto", MsgStyle: "conventional",
 			ActBar: "side", TermPos: "bottom", TermH: 12, SessHi: "tint",
 			SpSort: "created", SpGroup: "workspace", SpProj: "manual", ExSort: "name",
 			Sounds: true, SoundDone: done, SoundReq: req, Updates: true, FontOffer: true, Anim: true, Tips: true, Blanks: "selection", ClaudeBg: true, TabSize: 4, MDWidth: 80, Sleep: 60,
@@ -197,6 +197,10 @@ func (c *config) encode() []byte {
 	kv("Group quick open (ctrl+p) results by directory.", "quick_open_tree", s.QuickTree)
 	kv("Source Control history drawers to show: Graph, Commits, File History, Branches,\nWorktrees, Remotes, Stashes, Tags.", "git_drawers", list(s.Drawers))
 	kv("Fold those drawers into one Tools row.", "git_drawers_folded", s.GitFold)
+	kv("The agent that writes a commit message (A, or the message box's menu): \"auto\", the first\n"+
+		"installed of \"claude\", \"codex\", \"gemini\" and \"opencode\", or one of them.", "commit_agent", s.MsgAgent)
+	kv("Its style: \"conventional\" (Conventional Commits, worded as the repository's recent\n"+
+		"subjects), \"repository\" (whatever convention those follow) or \"plain\" (an imperative subject).", "commit_style", s.MsgStyle)
 	kv("Frame each panel with a titled border.", "panel_borders", s.Borders)
 	kv("Default widths of left and right sidebar columns without their own width.", "width", s.Width)
 	kv("", "width_right", s.WidthR)

@@ -2112,17 +2112,17 @@ func (s *scmView) commitWith(amend, sync bool) tea.Cmd {
 	})
 }
 
-// suggestMenu is the message box's ∨: ways to have claude write the message.
-// Rewrite needs text in the box, Regenerate a suggestion to redo.
+// suggestMenu is the message box's ∨: ways to have an agent write the
+// message. Rewrite needs text in the box, Regenerate a suggestion to redo;
+// the last row names the agent and the style Settings pick, and opens them.
 func (s *scmView) suggestMenu(m *Model, x, y int) {
 	with := func(o git.SuggestOpts) func(*Model) tea.Cmd {
-		return func(*Model) tea.Cmd { return s.suggestWith(o) }
+		return func(m *Model) tea.Cmd { return s.suggestWith(m, o) }
 	}
 
 	items := []item{
 		{label: "Generate Commit Message", hint: "A", run: s.suggest},
 		{label: "Generate with Description", run: with(git.SuggestOpts{Body: true})},
-		{label: "Match Repository Style", run: with(git.SuggestOpts{Style: true})},
 	}
 
 	if cur := strings.TrimSpace(s.input.Value()); cur != "" {
@@ -2135,6 +2135,10 @@ func (s *scmView) suggestMenu(m *Model, x, y int) {
 		items = append(items, item{label: "Regenerate", run: with(o)})
 	}
 
+	agent := cmp.Or(git.SuggestAgent(m.st.Settings.MsgAgent), "no agent")
+	style := cmp.Or(m.st.Settings.MsgStyle, "conventional")
+	items = append(items, item{sep: true}, item{label: agent + " · " + style, hint: "›", run: func(m *Model) tea.Cmd { return m.openSetting("Message agent") }})
+
 	m.modal = newMenu("", x, y, items...)
 }
 
@@ -2146,12 +2150,14 @@ func (s *scmView) commitMenu(m *Model, x, y int) {
 		item{label: "Commit (Amend)", run: func(*Model) tea.Cmd { return s.commitWith(true, false) }})
 }
 
-// suggest asks claude for a subject line.
-func (s *scmView) suggest(_ *Model) tea.Cmd { return s.suggestWith(git.SuggestOpts{}) }
+// suggest asks the agent for a subject line.
+func (s *scmView) suggest(m *Model) tea.Cmd { return s.suggestWith(m, git.SuggestOpts{}) }
 
-// suggestWith asks claude for a message shaped by o; the box scrambles until
-// it lands.
-func (s *scmView) suggestWith(o git.SuggestOpts) tea.Cmd {
+// suggestWith asks the agent commit_agent picks for a message shaped by o in
+// the commit_style; the box scrambles until it lands.
+func (s *scmView) suggestWith(m *Model, o git.SuggestOpts) tea.Cmd {
+	o.Agent, o.Style = m.st.Settings.MsgAgent, m.st.Settings.MsgStyle
+
 	cmd := s.run(s.root(), "suggesting", func(root string) scmMsg {
 		msg, err := git.Suggest(root, o)
 		return scmMsg{message: msg, err: err}

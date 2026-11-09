@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -1219,16 +1220,69 @@ func TestSuggestPrompt(t *testing.T) {
 		t.Errorf("subject prompt: %q", p)
 	}
 
-	p := suggestPrompt(SuggestOpts{Body: true, Style: true, Current: "wip", Avoid: "fix: x"})
+	p := suggestPrompt(SuggestOpts{Body: true, Style: "repository", Current: "wip", Avoid: "fix: x"})
 	for _, want := range []string{"Rewrite", "blank line and a body", "Recent commits", "Previous suggestion", "ONLY the message."} {
 		if !strings.Contains(p, want) {
 			t.Errorf("prompt lacks %q: %q", want, p)
 		}
 	}
 
+	for style, conventional := range map[string]bool{"": true, "conventional": true, "repository": false, "plain": false} {
+		if p := suggestPrompt(SuggestOpts{Style: style}); strings.Contains(p, "Conventional Commits") != conventional {
+			t.Errorf("style %q asks for Conventional Commits: %v", style, !conventional)
+		}
+	}
+
+	if p := suggestPrompt(SuggestOpts{Style: "plain"}); strings.Contains(p, "Recent commits") {
+		t.Errorf("a plain message looks at recent commits: %q", p)
+	}
+
 	in := suggestInput(SuggestOpts{Current: "wip\n"}, " \n", "+x\n")
 	if in != "Current message:\nwip\n\nDiff:\n+x\n" {
 		t.Errorf("input = %q", in)
+	}
+}
+
+// TestSuggestAgent runs a stand-in codex: the prompt its last argument, the
+// diff on stdin, its stdout the message. A repository with no commits has no
+// style to follow, so "repository" falls back on Conventional Commits.
+func TestSuggestAgent(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("a shell script stands in for the agent")
+	}
+
+	bin := t.TempDir()
+	codex := filepath.Join(bin, "codex")
+	mustWrite(t, codex, "#!/bin/sh\nfor a; do last=$a; done\nprintf '%s' \"$last\" > \"$0.prompt\"\ncat > \"$0.stdin\"\necho '\"feat(b): add b\"'\n")
+	must(t, "chmod", os.Chmod(codex, 0o755))
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	saved := installed
+	installed = func() map[string]bool { return map[string]bool{"codex": true} }
+
+	t.Cleanup(func() { installed = saved })
+
+	root := repo(t)
+	mustWrite(t, filepath.Join(root, "b.txt"), "b\n")
+	mustGit(t, root, "add", "b.txt")
+
+	msg, err := Suggest(root, SuggestOpts{Style: "repository"})
+	if err != nil || msg != "feat(b): add b" {
+		t.Fatalf("Suggest = %q, %v", msg, err)
+	}
+
+	if p := mustRead(t, codex+".prompt"); !strings.Contains(p, "Conventional Commits") {
+		t.Errorf("no history, no Conventional Commits: %q", p)
+	}
+
+	if in := mustRead(t, codex+".stdin"); !strings.Contains(in, "Diff:\n") || !strings.Contains(in, "+b") {
+		t.Errorf("stdin = %q", in)
+	}
+
+	for agent, want := range map[string]string{"gemini": "gemini is not installed", "vim": `commit_agent "vim"`} {
+		if _, err := Suggest(root, SuggestOpts{Agent: agent}); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("Suggest with %s: %v", agent, err)
+		}
 	}
 }
 

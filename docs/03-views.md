@@ -111,8 +111,9 @@ A Commit with nothing staged is muted too, and a click on it does nothing.
   offers _Publish to GitHub_ via `gh`.
 - During a merge or cherry-pick an empty box commits `MERGE_MSG`.
 - The box grows to `maxMsgLines` (10). The `∨` opens `suggestMenu`
-  (`git.SuggestOpts`): Generate Commit Message (`A`) and variants; while
-  `claude` writes, the box draws `scramble`.
+  (`git.SuggestOpts`): Generate Commit Message (`A`) and variants, then a row
+  naming `commit_agent` and `commit_style` that opens them in Settings; while
+  the agent writes, the box draws `scramble`.
 - `↑` on the box's top line walks back through `git.Messages`, the draft
   first in `scmView.past`; `↓` on the bottom line walks forward to it.
 - Drawers (`Graph`, `Commits`, `File History`, `Compare`, `Branches`,

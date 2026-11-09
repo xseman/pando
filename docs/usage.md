@@ -271,7 +271,7 @@ in the same cell.
 | `⏎`       | stage or unstage the file; `o` opens its diff              |
 | `a` / `u` | stage / unstage all; `U` stages the untracked              |
 | `d`       | discard the file, folder or section, after asking          |
-| `c`       | focus the message box; `A` has `claude` write the message  |
+| `c`       | focus the message box; `A` has an agent write the message  |
 | `↑` / `↓` | in the message box: older / newer commit messages          |
 | `C`       | commit                                                     |
 | `S`       | sync, or publish a branch with no upstream                 |

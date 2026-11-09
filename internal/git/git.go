@@ -19,7 +19,8 @@ import (
 	"time"
 )
 
-// Error is a command that failed: a git call, or a gh one (github.go).
+// Error is a command that failed: a git call, a gh one (github.go) or an
+// agent's (Suggest).
 // Stderr is what it printed; Code is its exit status, or -1 when it never
 // ran or a signal killed it.
 type Error struct {
@@ -78,7 +79,7 @@ func ExitCode(err error) int {
 // still returned.
 func Run(dir string, args ...string) (string, error) { return run(dir, nil, args...) }
 
-// timeout bounds one git or claude invocation.
+// timeout bounds one git, gh or agent invocation.
 const timeout = 60 * time.Second
 
 func run(dir string, stdin io.Reader, args ...string) (string, error) {
@@ -1347,12 +1348,64 @@ func ListFiles(dir string, limit int) []string {
 	return files
 }
 
-// SuggestOpts shapes what Suggest asks for; the zero value is a subject line.
+// SuggestOpts shapes what Suggest asks for; the zero value is a subject line
+// in the Conventional Commits format from the first agent installed.
 type SuggestOpts struct {
+	Agent   string // commit_agent: one of SuggestAgents; "auto" or "" the first installed
+	Style   string // commit_style: "conventional" (also ""), "repository" or "plain"
 	Body    bool   // a subject, a blank line, then a wrapped body on why
-	Style   bool   // follow the repository's recent subjects
 	Current string // rewrite this message instead of writing one
 	Avoid   string // a previous suggestion to come up with something else than
+}
+
+// SuggestAgents are the agents Suggest can ask, in the order "auto" tries them.
+var SuggestAgents = []string{"claude", "codex", "gemini", "opencode"}
+
+// suggestArgs is each agent's command for one answer, run outside the
+// repository with the prompt as the last argument and the material on stdin.
+// claude and codex also leave out tools, the saved session and the user's
+// instructions (a CLAUDE.md asking for Slovak would write the message in
+// Slovak). ponytail: gemini and opencode still read their global instruction
+// files (~/.gemini/GEMINI.md, opencode's AGENTS.md); claude's empty
+// --setting-sources also drops a login through settings (apiKeyHelper, env),
+// OAuth and ANTHROPIC_API_KEY work. Add flags when either bites.
+var suggestArgs = map[string][]string{
+	"claude":   {"claude", "-p", "--model", "haiku", "--setting-sources", "", "--tools", "", "--strict-mcp-config", "--no-session-persistence"},
+	"codex":    {"codex", "exec", "--skip-git-repo-check", "--ephemeral", "-s", "read-only", "-c", "project_doc_max_bytes=0", "-c", `model_reasoning_effort="low"`},
+	"gemini":   {"gemini", "-p"},
+	"opencode": {"opencode", "run"},
+}
+
+// installed is which of SuggestAgents are on PATH. ponytail: looked up once
+// per process, so an agent installed while pando runs shows after a restart.
+var installed = sync.OnceValue(func() map[string]bool {
+	out := map[string]bool{}
+
+	for _, name := range SuggestAgents {
+		_, err := exec.LookPath(name)
+		out[name] = err == nil
+	}
+
+	return out
+})
+
+// Installed reports whether agent, one of SuggestAgents, is on PATH.
+func Installed(agent string) bool { return installed()[agent] }
+
+// SuggestAgent is the agent commit_agent names: "auto" or "" is the first of
+// SuggestAgents installed, "" when there is none.
+func SuggestAgent(name string) string {
+	if name != "auto" && name != "" {
+		return name
+	}
+
+	for _, agent := range SuggestAgents {
+		if Installed(agent) {
+			return agent
+		}
+	}
+
+	return ""
 }
 
 // suggestPrompt is the instruction for o; the material goes on stdin.
@@ -1366,14 +1419,19 @@ func suggestPrompt(o SuggestOpts) string {
 		b.WriteString("Write a git commit message for the diff on stdin. ")
 	}
 
+	switch o.Style {
+	case "repository":
+		b.WriteString("Follow the convention of the subjects under \"Recent commits\" (prefixes, scopes, casing, tense). ")
+	case "plain":
+	default:
+		b.WriteString("Use the Conventional Commits format, \"type(scope): subject\": the type one of feat, fix, docs, style, refactor, perf, test, build, ci, chore or revert, the scope optional. " +
+			"Take the scopes, wording, casing and length from the subjects under \"Recent commits\" when there are any, but keep this format even where they do not. ")
+	}
+
 	b.WriteString("The subject line is imperative, under 72 characters, no quotes, no trailing period. ")
 
 	if o.Body {
 		b.WriteString("After it, one blank line and a body wrapped at 72 characters saying what changed and why, in a few sentences or short \"- \" bullets. ")
-	}
-
-	if o.Style {
-		b.WriteString("Follow the convention of the subjects under \"Recent commits\" (prefixes, scopes, casing, tense). ")
 	}
 
 	if o.Avoid != "" {
@@ -1433,9 +1491,23 @@ func parseSuggestion(out string, body bool) string {
 	return strings.TrimSpace(strings.Join(lines, "\n"))
 }
 
-// Suggest asks the local `claude` CLI for a commit message for the staged
-// diff (or the unstaged one when nothing is staged), shaped by o.
+// Suggest asks an agent's CLI for a commit message for the staged diff (or
+// the unstaged one when nothing is staged), shaped by o.
 func Suggest(root string, o SuggestOpts) (string, error) {
+	agent := SuggestAgent(o.Agent)
+	if agent == "" {
+		return "", errors.New("no agent for commit messages: install claude, codex, gemini or opencode")
+	}
+
+	args, ok := suggestArgs[agent]
+	if !ok {
+		return "", fmt.Errorf("commit_agent %q: not one of auto, %s", agent, strings.Join(SuggestAgents, ", "))
+	}
+
+	if !Installed(agent) {
+		return "", errors.New(agent + " is not installed")
+	}
+
 	diff, _ := Run(root, "diff", "--cached", "--stat", "--patch")
 	if strings.TrimSpace(diff) == "" {
 		diff, _ = Run(root, "diff", "--stat", "--patch")
@@ -1450,20 +1522,34 @@ func Suggest(root string, o SuggestOpts) (string, error) {
 	}
 
 	var recent string
-	if o.Style {
+	if o.Style != "plain" {
 		recent, _ = Run(root, "log", "-20", "--no-merges", "--format=%s") // none yet: no examples
+	}
+
+	if o.Style == "repository" && strings.TrimSpace(recent) == "" {
+		o.Style = "conventional" // no convention to follow yet
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "claude", "-p", "--model", "haiku", "--strict-mcp-config", suggestPrompt(o))
-	cmd.Dir = root
+	cmd := exec.CommandContext(ctx, args[0], append(args[1:len(args):len(args)], suggestPrompt(o))...)
+	cmd.Dir = os.TempDir() // the diff comes on stdin: none of the repository's AGENTS.md, CLAUDE.md or GEMINI.md
 	cmd.Stdin = strings.NewReader(suggestInput(o, recent, diff))
 
 	out, err := cmd.Output()
 	if err != nil {
-		return "", err
+		var (
+			exit   *exec.ExitError
+			stderr string
+		)
+
+		if errors.As(err, &exit) { // its last line: codex logs the whole session above the error
+			lines := strings.Split(strings.TrimSpace(string(exit.Stderr)), "\n")
+			stderr = lines[len(lines)-1]
+		}
+
+		return "", fmt.Errorf("%s: %w", agent, newError(args, stderr, ctx.Err(), err))
 	}
 
 	msg := parseSuggestion(string(out), o.Body)

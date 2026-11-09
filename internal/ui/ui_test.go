@@ -1142,6 +1142,7 @@ func TestSuggestHover(t *testing.T) {
 	}
 
 	checkWidths(t, m)
+	m.st.Settings.MsgAgent = "codex"
 	click(m, rc.x+rc.w-4, top, tea.MouseLeft)
 
 	labels := func() []string {
@@ -1153,7 +1154,7 @@ func TestSuggestHover(t *testing.T) {
 		return out
 	}
 
-	if m.modal == nil || !slices.Equal(labels(), []string{"Generate Commit Message", "Generate with Description", "Match Repository Style"}) {
+	if m.modal == nil || !slices.Equal(labels(), []string{"Generate Commit Message", "Generate with Description", "", "codex · conventional"}) {
 		t.Fatalf("the ∨ opens its menu: %v", labels())
 	}
 	// Rewrite shows with text in the box, Regenerate once a suggestion landed.
@@ -1163,8 +1164,25 @@ func TestSuggestHover(t *testing.T) {
 	m.Update(scmMsg{root: m.ws, message: "feat: add x"})
 	click(m, rc.x+rc.w-4, top, tea.MouseLeft)
 
-	if got := labels(); len(got) != 5 || got[3] != "Rewrite Current Message" || got[4] != "Regenerate" {
+	if got := labels(); len(got) != 6 || got[2] != "Rewrite Current Message" || got[3] != "Regenerate" {
 		t.Fatalf("with a message and a suggestion: %v", got)
+	}
+
+	// The last row opens Settings on Message agent; → under it changes the style.
+	choose(t, m, "codex · conventional")
+
+	if s, ok := m.pv.set.selected(); m.pv.kind != pvSettings || !ok || s.label != "Message agent" {
+		t.Fatalf("the agent row opens %q on %+v", m.pv.kind, s)
+	}
+
+	if out := checkWidths(t, m); !strings.Contains(out, "Commit messages ─") || !strings.Contains(out, "❱ codex") {
+		t.Fatalf("no commit messages group:\n%s", out)
+	}
+
+	press(m, "down", "right")
+
+	if m.st.Settings.MsgStyle != "repository" {
+		t.Fatalf("→ on Message style: %q", m.st.Settings.MsgStyle)
 	}
 }
 
