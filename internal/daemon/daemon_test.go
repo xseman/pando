@@ -555,6 +555,26 @@ func TestSessionClosesOnCleanExit(t *testing.T) {
 	}
 }
 
+// TestSessionClosesOnCancelledPicker: claude --resume, left with Esc, exits 1
+// without a conversation open; the session closes as a clean exit does.
+func TestSessionClosesOnCancelledPicker(t *testing.T) {
+	d := start(t)()
+	defer d.Close()
+
+	d.mu.Lock()
+	d.state.ResumeID = map[string][]string{"picker": {"sh", "-c", "sleep 0.3; exit 1", "{id}"}}
+	d.mu.Unlock()
+
+	var s proto.Session
+	call(t, "session.new", map[string]any{"workspace": t.TempDir(), "agent": "picker", "cmd": []string{"sh", "-c", "sleep 0.3; exit 1"}}, &s)
+	waitFor(t, "a cancelled picker to close the session", func() bool {
+		var ss []proto.Session
+		call(t, "session.list", nil, &ss)
+
+		return len(ss) == 0
+	})
+}
+
 // TestConcurrentState guards a fatal bug: state.get marshalled proto.State
 // after dropping d.mu, so the encoder walked Drafts, Editors and the settings
 // maps while another connection's state.set wrote them — "concurrent map

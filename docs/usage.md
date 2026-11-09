@@ -205,7 +205,8 @@ aider = ["aider", "--restore-chat-history"]
   resumed claude comes back that way.
 - By hand: _Resume_ in Sessions (a worktree's row under the pointer, its menu,
   or `↺` in the header) lists that worktree's claude conversations
-  (`claude --resume`); an agent without such a list continues its last.
+  (`claude --resume`); an agent without such a list continues its last. Esc
+  in the list closes the session.
 
 ![a claude conversation, pando closed and its daemon stopped; the next pando brings the session back and claude continues the same conversation](demo/resume.gif)
 

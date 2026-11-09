@@ -1722,7 +1722,7 @@ func (d *Daemon) startWith(spec proto.SessionSpec, cols, rows int, fallback [][]
 			return
 		}
 
-		if !closing && s != nil && s.info().ExitCode == 0 {
+		if !closing && s != nil && (s.info().ExitCode == 0 || d.leftPicker(s.info())) {
 			_ = d.killSession(id) // only fails if it is already gone
 			return
 		}
@@ -1740,6 +1740,23 @@ func (d *Daemon) startWith(spec proto.SessionSpec, cols, rows int, fallback [][]
 	close(registered)
 
 	return s, nil
+}
+
+// leftPicker reports a session that ran its agent's conversation picker,
+// [resume_id] without the id, and exited without one open that has anything
+// saved: the picker was cancelled, which claude answers with exit 1.
+func (d *Daemon) leftPicker(info proto.Session) bool {
+	d.mu.Lock()
+	picker := slices.DeleteFunc(slices.Clone(d.state.ResumeID[info.Agent]), func(a string) bool { return a == "{id}" })
+	d.mu.Unlock()
+
+	if len(picker) == 0 || !slices.Equal(info.Cmd, picker) {
+		return false
+	}
+
+	c := info.Conversation
+
+	return c == nil || conversations[c.Agent] == nil || !conversations[c.Agent].saved(*c)
 }
 
 // stopJob stops the background job conversation c runs in, [stop_job], and
