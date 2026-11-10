@@ -114,19 +114,23 @@ times the message rate (mouse motion with `MouseModeAllMotion`, held to
 keys. Tests set `motionGap` to 0, so every motion draws. The daemon's cost
 is per session: its scrollback, and every byte of output through vt.
 
-| Benchmark                 | Measures                                                 |
-| ------------------------- | -------------------------------------------------------- |
-| `BenchmarkViewSession`    | a frame with a busy session over the editor, 220x55      |
-| `BenchmarkViewFile`       | the same with `app.go` open, highlighted                 |
-| `BenchmarkStreaming`      | a busy session's turn: its screen event, then its screen |
-| `BenchmarkTypeLargeFile`  | a letter typed and deleted in a 4900-line file           |
-| `BenchmarkTypeMarkdown`   | the same in a Markdown file beside its rendering         |
-| `BenchmarkViewLongLine`   | a minified bundle's long lines, scrolled into            |
-| `BenchmarkHoverSession`   | the link lookup each mouse motion over a session         |
-| `BenchmarkDragTab`        | a frame of a tab dragged over its group, the drop box    |
-| `BenchmarkDragFile`       | a frame of a file dragged from Explorer                  |
-| `BenchmarkScreenScrolled` | `session.screen` scrolled into a full scrollback         |
-| `BenchmarkOutput`         | 100 lines of output through vt into the scrollback       |
+| Benchmark                 | Measures                                                       |
+| ------------------------- | -------------------------------------------------------------- |
+| `BenchmarkViewSession`    | a frame with a busy session over the editor, 220x55            |
+| `BenchmarkViewFile`       | the same with `app.go` open, highlighted                       |
+| `BenchmarkStreaming`      | a busy session's turn: its screen event, then its screen       |
+| `BenchmarkTypeLargeFile`  | a letter typed and deleted in a 4900-line file                 |
+| `BenchmarkTypeMarkdown`   | the same in a Markdown file beside its rendering               |
+| `BenchmarkViewLongLine`   | a minified bundle's long lines, scrolled into                  |
+| `BenchmarkHoverSession`   | the link lookup each mouse motion over a session               |
+| `BenchmarkDragTab`        | a frame of a tab dragged over its group, the drop box          |
+| `BenchmarkDragFile`       | a frame of a file dragged from Explorer                        |
+| `BenchmarkScreenScrolled` | `session.screen` scrolled into a full scrollback               |
+| `BenchmarkOutput`         | 100 lines of output through vt into the scrollback             |
+| `BenchmarkQuickOpen*`     | `ctrl+p` over 20 000 files: open, type, browse, Text, the heap |
+| `BenchmarkPaletteType*`   | typing in the commands, back and forth and a name on           |
+| `BenchmarkModalStreaming` | a busy session under quick open, the frame dimmed anew         |
+| `BenchmarkDialogOpen`     | a question opened over the screen                              |
 
 | Command                      | Does                                                           |
 | ---------------------------- | -------------------------------------------------------------- |
@@ -138,7 +142,8 @@ Time is compared, not gated: it moves with the machine. What does not move
 is gated in `go test`, so CI catches a regression:
 
 - `TestAllocBudgets`: allocations per `View`, hover, streaming turn, a
-  dragged tab's frame and keystroke in a large file, the same on every
+  dragged tab's frame, keystroke in a large file, in the palette and in
+  quick open, and a session streaming under it, the same on every
   machine for a Go version; a budget sits ~15% over the count. `-race`
   drops `sync.Pool` items at random, so it skips there and `make test`
   runs it once more without.

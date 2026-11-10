@@ -243,21 +243,22 @@ type Model struct {
 	sashAt    sash      // the divider under the mouse, noSash for none
 	sashSince time.Time // when the mouse came onto it
 	mouseAt   time.Time
-	tip       string              // the name and key of the button under the mouse in the frame being drawn
-	sessTabs  map[string][]string // each workspace's sessions opened over the editor area, their tabs in its strip: roots, in the order opened
-	sessAfter map[string][]string // a session tab moved among the files: the files' ids before it then (sessPos)
-	tipDue    time.Time           // when the tipWakeMsg on its way comes, zero for none
-	tipSeen   time.Time           // when a tip was last drawn: moving on, the next one shows at once
-	tipOff    time.Time           // a key or a click puts the tip away until the pointer moves
-	frame     *frame              // the columns while View draws, which asks for them row by row; nil otherwise
-	drawn     *tea.View           // the last frame View drew, which a still message gets again
-	drawnAt   time.Time           // when View drew it
-	base      *base               // the frame under a drag's overlays (baseKey)
-	safeIn    []string            // the last frame's lines (wcSafeLines)
-	safeOut   []string            // and each made wcSafe
-	still     bool                // the last message changed nothing on screen (stillEvent), or a motion waits for the next frame
-	redrawDue bool                // a redrawMsg is on its way for the motion View skipped
-	index     struct {            // workspace file list for quick open and the Files filter
+	tip       string               // the name and key of the button under the mouse in the frame being drawn
+	sessTabs  map[string][]string  // each workspace's sessions opened over the editor area, their tabs in its strip: roots, in the order opened
+	sessAfter map[string][]string  // a session tab moved among the files: the files' ids before it then (sessPos)
+	tipDue    time.Time            // when the tipWakeMsg on its way comes, zero for none
+	tipSeen   time.Time            // when a tip was last drawn: moving on, the next one shows at once
+	tipOff    time.Time            // a key or a click puts the tip away until the pointer moves
+	frame     *frame               // the columns while View draws, which asks for them row by row; nil otherwise
+	drawn     *tea.View            // the last frame View drew, which a still message gets again
+	drawnAt   time.Time            // when View drew it
+	base      *base                // the frame under a drag's overlays (baseKey)
+	safeIn    []string             // the last frame's lines (wcSafeLines)
+	safes     memo[string, string] // the rows of the frame kept under a modal, made wcSafe
+	safeOut   []string             // and each made wcSafe
+	still     bool                 // the last message changed nothing on screen (stillEvent), or a motion waits for the next frame
+	redrawDue bool                 // a redrawMsg is on its way for the motion View skipped
+	index     struct {             // workspace file list for quick open and the Files filter
 		ws    string
 		files []string
 		at    time.Time
@@ -268,7 +269,14 @@ type Model struct {
 	// drawn.
 	fits memo[fitKey, string]
 	cuts memo[cutKey, [2]string]
-	dims memo[[3]string, string] // rows under a centered modal by the terminal's colors, dimmed (dimmed)
+	dims memo[[3]string, string] // pieces of rows under a centered modal by the terminal's colors, dimmed: this dimmed frame's and the last's (dimmer)
+	// halves are dimmed's colors halfway to the background, for the
+	// terminal's colors they were blended with.
+	halves struct {
+		to   [2]string
+		dark bool
+		of   map[color.Color]string
+	}
 	bars map[int]barDrawn
 
 	ex  explorer
@@ -4032,7 +4040,6 @@ func (m *Model) View() tea.View {
 	m.tip = "" // the frame notes the button under the mouse again
 	m.fits.frame()
 	m.cuts.frame()
-	m.dims.frame()
 
 	cs, c := m.layout()
 	m.frame = &frame{m.cols(), cs, c}
@@ -4042,12 +4049,24 @@ func (m *Model) View() tea.View {
 	b := m.bord()
 
 	if k := m.baseKey(); k == (baseKey{}) || m.base == nil || m.base.key != k {
-		ls, top, bot := m.baseFrame(cs, c, b)
+		var soften func(string) string
 		if m.modal != nil && m.modal.dims() {
-			ls = m.dimmed(ls)
-			if b == 1 {
-				rules := m.dimmed([]string{top, bot})
-				top, bot = rules[0], rules[1]
+			soften = m.dimmer()
+		}
+
+		ls, top, bot := m.baseFrame(cs, c, b, soften)
+		if m.modal != nil { // the box has the keyboard: the panels' caret goes, once for the frame kept
+			takeCaret(ls)
+
+			if !m.graphemes { // made safe here and in the box, not in the rows the box covers for each key
+				m.safes.frame()
+
+				safe := func(l string) string { return m.safes.get(l, func() string { return wcSafe(l) }) }
+				for i := range ls {
+					ls[i] = safe(ls[i])
+				}
+
+				top, bot = safe(top), safe(bot)
 			}
 		}
 
@@ -4103,15 +4122,27 @@ func (m *Model) View() tea.View {
 		m.tipSeen = time.Now()
 	}
 
-	cx, cy, caret := takeCaret(lines)
+	var (
+		cx, cy int
+		caret  bool
+		over   *boxOver // the modal's box, joined into the rows at the end
+	)
+
+	if m.modal == nil { // under a modal the frame kept has none
+		cx, cy, caret = takeCaret(lines)
+	}
 
 	switch {
 	case m.modal != nil:
-		box, x, y := m.modal.view(m)
-		m.overlayBox(lines, strings.Split(box, "\n"), x, y)
+		d, x, y, w := m.modal.box(m)
+		if x+w <= m.w { // joined into the frame's rows as the frame is written: no row built twice
+			over = &boxOver{d.lines, x, y, w}
+		} else { // a screen too narrow for it cuts it at the edge
+			m.overlayBox(lines, d.lines, x, y)
+		}
 
-		if x, y, ok := takeCaret(lines); ok {
-			v.Cursor = tea.NewCursor(x, b+y)
+		if d.caret {
+			v.Cursor = tea.NewCursor(x+d.cx, b+y+d.cy)
 		}
 
 	case caret: // a text box has the keyboard
@@ -4140,13 +4171,17 @@ func (m *Model) View() tea.View {
 	if b == 1 { // the status bar sits under the frame, as VS Code's sits under the workbench
 		status, panels := lines[len(lines)-1], lines[:len(lines)-1]
 		lines = append(append(append([]string{top}, panels...), bot), status)
+
+		if over != nil {
+			over.y++
+		}
 	}
 
-	if !m.graphemes {
+	if !m.graphemes && m.modal == nil { // under a modal the frame and the box are safe already
 		lines = m.wcSafeLines(lines)
 	}
 
-	v.SetContent(strings.Join(lines, "\n"))
+	v.SetContent(m.joinRows(lines, over))
 	m.drawn, m.drawnAt = &v, time.Now()
 
 	return v
@@ -4864,7 +4899,11 @@ func (m *Model) baseKey() baseKey {
 // baseFrame draws the columns side by side into the panel rows, then the
 // rule and the status bar, and with borders on (b) the frame's top and
 // bottom rules.
-func (m *Model) baseFrame(cs []rect, c rect, b int) (lines []string, top, bot string) {
+func (m *Model) baseFrame(cs []rect, c rect, b int, soften func(string) string) (lines []string, top, bot string) {
+	if soften == nil { // no modal dims the frame
+		soften = func(s string) string { return s }
+	}
+
 	type panel struct {
 		rc    rect
 		lines []string
@@ -4926,6 +4965,8 @@ func (m *Model) baseFrame(cs []rect, c rect, b int) (lines []string, top, bot st
 		case j > 0:
 			ls[j] = m.divider(owner(j))
 		}
+
+		ls[j], rs[j] = soften(ls[j]), soften(rs[j])
 	}
 
 	// The edges of the editor area beside a group's frame, unless they light
@@ -4944,7 +4985,7 @@ func (m *Model) baseFrame(cs []rect, c rect, b int) (lines []string, top, bot st
 		}
 
 		if at := frameAt(fs, x, i); at >= 0 {
-			return renderText(fs[at].st, fs[at].glyph(x, i))
+			return soften(renderText(fs[at].st, fs[at].glyph(x, i)))
 		}
 
 		return ""
@@ -4966,16 +5007,20 @@ func (m *Model) baseFrame(cs []rect, c rect, b int) (lines []string, top, bot st
 			l, r = "┌", "┐"
 		}
 
-		return renderText(st, l), renderText(st, r)
+		return soften(renderText(st, l)), soften(renderText(st, r))
 	}
 
 	lines = make([]string, m.panelH()+m.ruled()+1) // the panel rows, the rule, then the status bar
+	pls := make([]string, len(ps))                 // the panels' pieces of a row
+
 	for i := range m.panelH() {
 		var sb strings.Builder
 
 		n := 0
-		for j, p := range ps {
-			n += len(ls[j]) + len(p.lines[i]) + len(rs[j])
+
+		for j := range ps {
+			pls[j] = soften(ps[j].lines[i]) // a panel's piece on its own: what a session under a modal moves, the rest stays
+			n += len(ls[j]) + len(pls[j]) + len(rs[j])
 		}
 
 		sb.Grow(n)
@@ -4991,7 +5036,7 @@ func (m *Model) baseFrame(cs []rect, c rect, b int) (lines []string, top, bot st
 			er = br
 		}
 
-		for j, p := range ps {
+		for j := range ps {
 			l, r := ls[j], rs[j]
 
 			switch {
@@ -5006,7 +5051,7 @@ func (m *Model) baseFrame(cs []rect, c rect, b int) (lines []string, top, bot st
 			}
 
 			sb.WriteString(l)
-			sb.WriteString(p.lines[i])
+			sb.WriteString(pls[j])
 			sb.WriteString(r)
 		}
 
@@ -5014,10 +5059,10 @@ func (m *Model) baseFrame(cs []rect, c rect, b int) (lines []string, top, bot st
 	}
 
 	if m.ruled() == 1 {
-		lines[len(lines)-2] = m.statusRule(cs, fs)
+		lines[len(lines)-2] = soften(m.statusRule(cs, fs))
 	}
 
-	lines[len(lines)-1] = status
+	lines[len(lines)-1] = soften(status)
 
 	if b == 0 {
 		return lines, "", ""
@@ -5045,7 +5090,7 @@ func (m *Model) baseFrame(cs []rect, c rect, b int) (lines []string, top, bot st
 			frameRun(fs, p.rc.x+p.rc.w, m.panelH(), 1, "┘", st))
 	}
 
-	return lines, tb.String(), bb.String()
+	return lines, soften(tb.String()), soften(bb.String())
 }
 
 // frameStyle is the edge of the frame focus lights.
@@ -5844,6 +5889,57 @@ func (m *Model) manageSub(name string, x, y int) tea.Cmd {
 	m.modal.focus(min(2, len(m.modal.disp)-1)) // the first of its own, past the way back
 
 	return nil
+}
+
+// boxOver is a modal's box over the frame: its rows at x, y, w cells wide.
+type boxOver struct {
+	box     []string
+	x, y, w int
+}
+
+// joinRows is the frame's content: its rows, the box's over those it covers,
+// written once into one string.
+func (m *Model) joinRows(lines []string, over *boxOver) string {
+	if over == nil {
+		return strings.Join(lines, "\n")
+	}
+
+	var cuts [][2]string
+
+	n := len(lines)
+	for i, l := range lines {
+		n += len(l)
+		if j := i - over.y; j >= 0 && j < len(over.box) {
+			c := m.cutAround(l, over.x, over.w)
+			cuts = append(cuts, c)
+			n += len(c[0]) + len(c[1]) + len(over.box[j]) + 16 - len(l)
+		}
+	}
+
+	var b strings.Builder
+
+	b.Grow(n)
+
+	for i, l := range lines {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+
+		j := i - over.y
+		if j < 0 || j >= len(over.box) {
+			b.WriteString(l)
+			continue
+		}
+
+		c := cuts[j]
+		b.WriteString(c[0])
+		b.WriteString("\x1b[m" + ansi.ResetHyperlink()) // a link the box covers stops at it
+		b.WriteString(over.box[j])
+		b.WriteString("\x1b[m")
+		b.WriteString(c[1])
+	}
+
+	return b.String()
 }
 
 // overlayBox draws a box over the screen's lines at x, y.

@@ -60,22 +60,22 @@ const (
 
 	quickChanged    = 5 // the changed files All lists while browsing
 	quickActionsAll = 3 // the commands All shows under a query
+	quickFilesAll   = 8 // the files All shows, the rest behind a row that goes to Files
 )
 
 // quickOpenState is one quick open's lists and its search through the
 // files' text.
 type quickOpenState struct {
-	md           *modal
-	ws           string
-	files        []item // the recent ones first
-	recent       int
-	changed      []item // what git status lists, the recent files left out: All's while browsing
-	waiting      []item // the sessions waiting on you, All's while browsing
-	actions      []item // the Command Palette's, the one run last first
-	allActions   []item // the same under All's heading
-	base         []item // All's files, grouped for browsing or a query, and the sessions waiting while browsing
-	baseBrowsing bool
-	asked        bool // "@" went on to the symbols
+	md         *modal
+	ws         string
+	files      []item // the recent ones first
+	recent     int
+	grouped    string // what the files' groups are set for: "all", "browse" or "query"
+	changed    []item // what git status lists, the recent files left out: All's while browsing
+	waiting    []item // the sessions waiting on you, All's while browsing
+	actions    []item // the Command Palette's, the one run last first
+	allActions []item // the same under All's heading
+	asked      bool   // "@" went on to the symbols
 
 	query           string // the one the text belongs to
 	text            []searchFile
@@ -124,19 +124,21 @@ func (m *Model) quickOpen(msg indexMsg, tab int) {
 		q.allActions[i].group = "actions"
 	}
 
-	open := func(f string) item {
-		p := filepath.Join(msg.ws, f)
+	// Every file row runs the one func, which opens the row chosen: no
+	// closure and no joined path for each of a worktree's files.
+	openChosen := func(m *Model) tea.Cmd {
+		p := filepath.Join(msg.ws, md.disp[md.l.sel].file)
+		m.ex.reveal(m, p)
 
-		return item{label: f, file: f, run: func(m *Model) tea.Cmd {
-			m.ex.reveal(m, p)
+		line, col := parseLineCol(lineSuffix(md.input.Value()))
 
-			line, col := parseLineCol(lineSuffix(md.input.Value()))
-
-			return m.openLine(p, line, col)
-		}}
+		return m.openLine(p, line, col)
 	}
+	open := func(f string) item { return item{label: f, file: f, run: openChosen} }
 
-	q.files = make([]item, len(files))
+	// All's commands, sessions and lines go after the files in the room
+	// left: the files are not copied for each key.
+	q.files = make([]item, len(files), len(files)+len(q.actions)+quickTextAll+2+quickSessionsRoom)
 	for i, f := range files {
 		q.files[i] = open(f)
 	}
@@ -171,7 +173,7 @@ func (q *quickOpenState) setTab(m *Model, i int) tea.Cmd {
 
 	md.caps = nil
 	if i == qoAll {
-		md.caps = map[string]int{"files": 8, "actions": quickActionsAll}
+		md.caps = map[string]int{"files": quickFilesAll, "actions": quickActionsAll}
 	}
 
 	cmd := q.search()
@@ -314,30 +316,21 @@ func (q *quickOpenState) fill(m *Model) {
 
 	switch md.tab {
 	case qoAll:
-		if q.base == nil || q.baseBrowsing != browsing {
-			q.base, q.baseBrowsing = q.allBase(browsing), browsing
+		if browsing {
+			md.items = q.browseAll()
+			break
 		}
 
-		// The sessions and the text go into the room allBase left: the files
-		// are not copied for each key.
+		q.group("all")
+
 		text := q.textItems(m, quickTextAll)
-
-		md.items = q.base
-		if !browsing {
-			md.items = append(md.items, q.actionsFor(md.input.Value())...)
-		}
-
+		md.items = q.files // the rest goes into the room it was made with
+		md.items = append(md.items, q.actionsFor(md.input.Value())...)
 		md.items = append(md.items, q.allSessions(m, text != nil)...)
 		md.items = append(md.items, text...)
 
 	case qoFiles:
-		for i := range q.files {
-			q.files[i].group = ""
-			if browsing && q.recent > 0 {
-				q.files[i].group = ifElse(i < q.recent, recentGroup, "files")
-			}
-		}
-
+		q.group(ifElse(browsing, "browse", "query"))
 		md.items = q.files
 
 	case qoSessions:
@@ -376,34 +369,50 @@ func (q *quickOpenState) actionsFor(v string) []item {
 	return out
 }
 
-// allBase is All's files under their headings: while browsing the recent
-// files, the sessions waiting on you and the other files; under a query all
-// files. It leaves room for the sessions and the text.
-func (q *quickOpenState) allBase(browsing bool) []item {
-	type part struct {
-		items []item
-		group string
+// group files the files for how a tab lists them: "all" under All's one
+// heading, "browse" in Files with the recent ones under their own, "query"
+// in Files under none. They are set in place, once for each change.
+func (q *quickOpenState) group(how string) {
+	if q.grouped == how {
+		return
 	}
 
-	parts := []part{{q.files, "files"}}
-	if browsing {
-		parts = []part{{q.files[:q.recent], recentGroup}, {q.changed, "changed"}, {q.waiting, "waiting on you"}, {q.files[q.recent:], "files"}}
+	q.grouped = how
+	for i := range q.files {
+		switch {
+		case how == "all":
+			q.files[i].group = "files"
+		case how == "browse" && q.recent > 0:
+			q.files[i].group = ifElse(i < q.recent, recentGroup, "files")
+		default:
+			q.files[i].group = ""
+		}
 	}
+}
 
-	one := browsing && q.recent == 0 && len(q.changed) == 0 && len(q.waiting) == 0 // nothing to set apart: no headings
-	n := len(q.actions)
+// browseAll is All with no query: the recent files, what git status lists,
+// the sessions waiting on you, and the first quickFilesAll of the other
+// files with a row that goes to Files for the rest.
+func (q *quickOpenState) browseAll() []item {
+	rest := q.files[q.recent:]
+	one := q.recent == 0 && len(q.changed) == 0 && len(q.waiting) == 0 // nothing to set apart: no headings
 
-	for _, p := range parts {
-		n += len(p.items)
-	}
+	var out []item
 
-	out := make([]item, 0, n+quickTextAll+2+quickSessionsRoom) // the commands, a heading, the lines, a "+ N more"
-
-	for _, p := range parts {
-		for _, it := range p.items {
-			it.group = ifElse(one, "", p.group)
+	add := func(items []item, group string) {
+		for _, it := range items {
+			it.group = ifElse(one, "", group)
 			out = append(out, it)
 		}
+	}
+
+	add(q.files[:q.recent], recentGroup)
+	add(q.changed, "changed")
+	add(q.waiting, "waiting on you")
+	add(rest[:min(len(rest), quickFilesAll)], "files")
+
+	if len(rest) > quickFilesAll {
+		add([]item{q.md.more("files", len(rest)-quickFilesAll)}, "files")
 	}
 
 	return out
@@ -469,7 +478,12 @@ func (q *quickOpenState) byFile(m *Model) []item {
 		}
 	}
 
-	var out []item
+	n := len(q.text)
+	for _, f := range q.text {
+		n += len(f.lines)
+	}
+
+	out := make([]item, 0, n+1) // the rows, an "all in Search" after them
 
 	for _, f := range q.text {
 		if len(f.lines) == 0 {
@@ -480,8 +494,7 @@ func (q *quickOpenState) byFile(m *Model) []item {
 
 		for _, ln := range f.lines {
 			num := fmt.Sprintf("  %*d  ", digits, ln.line)
-			text := excerpt(ln, w-len(num)-4)
-			out = append(out, item{label: num + text, always: true, run: q.openAt(f.path, ln), segs: append([]seg{sg(num, dim)}, markRuns(text, wordRuns(q.query, text), plain)...)})
+			out = append(out, item{label: num + excerpt(ln, w-len(num)-4), always: true, run: q.openAt(f.path, ln), words: true, dimTo: uint8(len(num))}) //nolint:gosec // a line number's digits and four blanks
 		}
 	}
 
@@ -535,11 +548,7 @@ func (q *quickOpenState) lines(m *Model) []item {
 				hint = ansi.TruncateLeft(hint, over+1, "…")
 			}
 
-			text := excerpt(ln, w-ansi.StringWidth(hint)-5)
-			out = append(out, item{
-				label: text, hint: hint, always: true, run: q.openAt(f.path, ln),
-				segs: markRuns(text, wordRuns(q.query, text), plain), right: []seg{sg(hint, dim)},
-			})
+			out = append(out, item{label: excerpt(ln, w-ansi.StringWidth(hint)-5), hint: hint, always: true, run: q.openAt(f.path, ln), words: true})
 		}
 	}
 
@@ -840,10 +849,34 @@ func (m *Model) enterWorkspace(path string) tea.Cmd {
 
 // wordRuns are the byte ranges of s the words of q take, compared as hits
 // compares them: case and accents ignored. What a row shows matched.
-func wordRuns(q, s string) [][2]int {
-	words := strings.Fields(unaccented(q))
+func wordRuns(q, s string) [][2]int { return runsOf(strings.Fields(unaccented(q)), s) }
+
+// runsOf is wordRuns for the words of a query, folded: a list of rows folds
+// its query once.
+func runsOf(words []string, s string) [][2]int {
 	if len(words) == 0 {
 		return nil
+	}
+
+	var runs [][2]int
+
+	if isASCII(s) { // folded, it is only lowered: its bytes stay where they are
+		ls := strings.ToLower(s)
+
+		for _, w := range words {
+			for k := 0; ; {
+				j := strings.Index(ls[k:], w)
+				if j < 0 {
+					break
+				}
+
+				j += k
+				k = j + len(w)
+				runs = append(runs, [2]int{j, k})
+			}
+		}
+
+		return mergeRuns(runs)
 	}
 
 	var b strings.Builder
@@ -863,8 +896,6 @@ func wordRuns(q, s string) [][2]int {
 
 	folded := b.String()
 
-	var runs [][2]int
-
 	for _, w := range words {
 		for k := 0; ; {
 			j := strings.Index(folded[k:], w)
@@ -878,6 +909,11 @@ func wordRuns(q, s string) [][2]int {
 		}
 	}
 
+	return mergeRuns(runs)
+}
+
+// mergeRuns sorts runs and joins those that touch or overlap.
+func mergeRuns(runs [][2]int) [][2]int {
 	slices.SortFunc(runs, func(a, b [2]int) int { return a[0] - b[0] })
 
 	var out [][2]int
@@ -898,10 +934,12 @@ func wordRuns(q, s string) [][2]int {
 // markRuns is label in st with the byte ranges runs in the accent, bold:
 // VS Code's list.highlightForeground over whole words found.
 func markRuns(label string, runs [][2]int, st lipgloss.Style) []seg {
+	return appendRuns(nil, label, runs, st)
+}
+
+// appendRuns is markRuns' segments after out's: a row grows one slice.
+func appendRuns(out []seg, label string, runs [][2]int, st lipgloss.Style) []seg {
 	hi := st.Foreground(pal.headerAccent).Bold(true)
-
-	var out []seg
-
 	last := 0
 
 	for _, r := range runs {

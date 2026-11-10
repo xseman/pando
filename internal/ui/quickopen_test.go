@@ -182,6 +182,10 @@ func TestQuickOpenText(t *testing.T) {
 		t.Fatalf("Text counts before its view switch:\n%s", out)
 	}
 
+	if lit := renderText(plain.Foreground(pal.headerAccent).Bold(true), "needle"); !strings.Contains(m.View().Content, lit) {
+		t.Fatal("Text does not light the query in the lines found")
+	}
+
 	byFile := []string{"b.txt", "  1  needle needle", "notes/a.txt", "  2  the needle is here"}
 	if got := labels(m); m.modal.tab != qoText || !slices.Equal(got, byFile) || m.modal.note != "3 in 2 files" || m.modal.disp[0].hint != "2" {
 		t.Fatalf("Text, by file: %q, %q\n%s", got, m.modal.note, out)

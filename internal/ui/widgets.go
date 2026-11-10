@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -372,12 +373,24 @@ func blank(w int) string { return strings.Repeat(" ", max(w, 0)) }
 func wcSafe(frame string) string {
 	var b strings.Builder
 
-	b.Grow(len(frame))
+	whole, safe := frame, true // safe: nothing replaced yet, nothing copied: most rows come back as they are
+	keep := func(s string) {
+		if !safe {
+			b.WriteString(s)
+		}
+	}
 
 	for state := ansi.NormalState; frame != ""; {
 		// A plain run is one cell a character either way.
 		if n, _ := plainRun(frame); n > 0 && state == ansi.NormalState {
-			b.WriteString(frame[:n])
+			keep(frame[:n])
+			frame = frame[n:]
+
+			continue
+		}
+
+		if n := escLen(frame); state == ansi.NormalState && len(frame) > 1 && frame[0] == ansi.ESC && strings.IndexByte("[]_P^X", frame[1]) >= 0 && n < len(frame) { // a whole escape, a row's SGRs most of all: no width to either
+			keep(frame[:n])
 			frame = frame[n:]
 
 			continue
@@ -385,7 +398,7 @@ func wcSafe(frame string) string {
 
 		seq, w, n, next := ansi.DecodeSequence(frame, state, nil)
 		if w == 0 && frame[0] == ansi.ESC { // an escape: no width to either
-			b.WriteString(seq)
+			keep(seq)
 
 			frame, state = frame[n:], next
 
@@ -397,11 +410,19 @@ func wcSafe(frame string) string {
 			n = len(seq)
 		}
 
+		at := len(whole) - len(frame) // where seq starts
 		frame, state = frame[n:], next
 
 		if ansi.WcWidth.StringWidth(seq) == w { // escapes too: 0 either way
-			b.WriteString(seq)
+			keep(seq)
 			continue
+		}
+
+		if safe { // the first cluster to replace: what came before it as it was
+			safe = false
+
+			b.Grow(len(whole))
+			b.WriteString(whole[:at])
 		}
 
 		r, _ := utf8.DecodeRuneInString(seq)
@@ -415,6 +436,10 @@ func wcSafe(frame string) string {
 		}
 
 		b.WriteString(base + blank(w-bw))
+	}
+
+	if safe {
+		return whole
 	}
 
 	return b.String()
@@ -1175,20 +1200,24 @@ type item struct {
 	label  string
 	hint   string
 	run    func(m *Model) tea.Cmd
-	styled bool   // label carries its own styles (keycaps, headings)
 	inline string // dimmed text right after the label
 	detail string // a muted second row under the label, shown while it is selected
 	search string // what the filter matches instead of the label
-	always bool   // listed whatever the filter: on top while browsing, after a query's matches
 	group  string // the heading it is filed under; a prefixed picker's only after ":"
-	cont   bool   // the detail row of the selected item above it, placed by focus
-	sep    bool   // a rule between groups, or with a label a group's muted heading; run stays nil so it is skipped
-	lead   bool   // the row a fresh list selects, over its first
-	sess   bool   // a session's row in quick open's Sessions tree, or a project's with none: what All counts
 	// segs and right draw the row in their own colors in place of label and
 	// hint, which stay its plain text: quick open's Sessions tree.
 	segs, right []seg
 	file        string // a file's path: the row draws its icon, and in the name view its name before its folder
+
+	// The flags last, in one word: quick open copies a worktree's files.
+	styled bool  // label carries its own styles (keycaps, headings)
+	always bool  // listed whatever the filter: on top while browsing, after a query's matches
+	cont   bool  // the detail row of the selected item above it, placed by focus
+	sep    bool  // a rule between groups, or with a label a group's muted heading; run stays nil so it is skipped
+	lead   bool  // the row a fresh list selects, over its first
+	sess   bool  // a session's row in quick open's Sessions tree, or a project's with none: what All counts
+	words  bool  // the label lights the query's words, as text found does, not its letters
+	dimTo  uint8 // the label's first bytes drawn dim: a line's number
 }
 
 // cancelItem is the last entry of a menu or a confirmation: it closes the
@@ -1222,7 +1251,7 @@ func menuGroups(groups ...[]item) []item {
 
 // matchItem scores an item for a picker query: words starting with @ or !
 // must appear verbatim in its search text, the rest match fuzzily.
-func matchItem(q string, it item) int {
+func matchItem(q string, it *item) int {
 	if it.search == "" {
 		return fuzzy(q, it.label)
 	}
@@ -1301,6 +1330,19 @@ type modal struct {
 	area [2]int
 	w    int // the widest the box has been: it does not narrow while open
 	rows int // a picker's list rows: it does not shrink while open either
+	// hits and groups are refilter's, kept for the next key.
+	hits      []match
+	groups    []matchGroup
+	gen       int                     // counts the lists refilter and focus made: what drawn hangs on with the rest of boxKey
+	drawn     drawnBox                // a list box as last drawn
+	rowsDrawn memo[boxRowKey, string] // its item rows, this draw's and the last's: a move redraws two
+	caret     [2]string               // the input line as drawn and with the terminal's caret
+	roles     map[roleKey]*roles      // the escapes its rows' styles are drawn with
+	icons     map[iconKey]part        // and its files' icons
+	tabsDrawn struct {                // the tabs as drawn
+		tab, look int
+		s         string
+	}
 	// itemsW is the widest of wOf's rows: items, measured once per slice
 	// (a rebuild makes a new one), not on every frame.
 	wOf    []item
@@ -1412,12 +1454,16 @@ func takeCaret(lines []string) (x, y int, ok bool) {
 	return x, y, ok
 }
 
-// dimmed is lines halfway to the terminal's background, the frame a centered
-// modal shows under it: every color, a palette one at its usual shade, and
-// the terminal's own text color. Where the terminal did not tell its colors
-// (tmux without a client) black or white and a grey stand in. A row is
-// dimmed once while it stays as it was: quick open draws the frame for every key.
-func (m *Model) dimmed(lines []string) []string {
+// dimmer is the frame a centered modal shows under it, one piece of a row
+// at a time: halfway to the terminal's background, every color, a palette
+// one at its usual shade, and the terminal's own text color. Where the
+// terminal did not tell its colors (tmux without a client) black or white
+// and a grey stand in. A piece is dimmed once while it stays as it was, kept
+// until the next dimmed frame: a session's rows under quick open move a row
+// for each of its screens, the panels beside them stay.
+func (m *Model) dimmer() func(string) string {
+	m.dims.frame()
+
 	fg, bg := lipgloss.Color(ifElse(m.dark, "#cccccc", "#333333")), lipgloss.Color(ifElse(m.dark, "#000000", "#ffffff"))
 	if m.fg != "" {
 		fg = lipgloss.Color(m.fg)
@@ -1427,49 +1473,257 @@ func (m *Model) dimmed(lines []string) []string {
 		bg = lipgloss.Color(m.bg)
 	}
 
-	half := map[color.Color]color.Color{}
-	blend := func(c color.Color) color.Color {
+	// The colors halfway, kept while the terminal's stay and they are few: a
+	// session can paint in thousands.
+	if m.halves.to != [2]string{m.fg, m.bg} || m.halves.dark != m.dark || len(m.halves.of) > 4096 {
+		m.halves.to, m.halves.dark, m.halves.of = [2]string{m.fg, m.bg}, m.dark, map[color.Color]string{}
+	}
+
+	half := m.halves.of
+	blend := func(c color.Color) string {
 		h, ok := half[c]
 		if !ok {
-			h = color.RGBAModel.Convert(lipgloss.Blend1D(3, c, bg)[1])
+			r, g, b, _ := lipgloss.Blend1D(3, c, bg)[1].RGBA() // 16 bits a channel, as color.RGBAModel reads them
+			h = strconv.Itoa(int(r>>8)) + ";" + strconv.Itoa(int(g>>8)) + ";" + strconv.Itoa(int(b>>8))
 			half[c] = h
 		}
 
 		return h
 	}
 
-	out := make([]string, len(lines))
+	text := blend(fg)
 
-	for i, ln := range lines {
-		out[i] = m.dims.get([3]string{ln, m.fg, m.bg}, func() string { return dimRow(ln, fg, blend) })
+	return func(s string) string {
+		if s == "" {
+			return s
+		}
+
+		return m.dims.get([3]string{s, m.fg, m.bg}, func() string { return dimLine(s, text, blend) })
 	}
-
-	return out
 }
 
-// dimRow is dimmed's row: each cell's text, the terminal's own as fg, and
-// its background where it has one, through blend.
-func dimRow(ln string, fg color.Color, blend func(color.Color) color.Color) string {
-	w := strWidth(ln)
-	if w == 0 {
-		return ln
+// dimLine is ln with each color through blend, which gives a color's "r;g;b",
+// and the terminal's own text color as text: every SGR is rewritten where it
+// stands, the text and every other escape copied.
+func dimLine(ln, text string, blend func(color.Color) string) string {
+	var b strings.Builder
+
+	b.Grow(len(ln) + len(ln)/2)              // colors grow into "38;2;r;g;b"
+	b.WriteString("\x1b[38;2;" + text + "m") // a row starts in the default colors
+
+	for i := 0; i < len(ln); {
+		j := strings.IndexByte(ln[i:], ansi.ESC)
+		if j < 0 {
+			b.WriteString(ln[i:])
+			break
+		}
+
+		b.WriteString(ln[i : i+j])
+		i += j
+
+		n := escLen(ln[i:])
+		seq := ln[i : i+n]
+		i += n
+
+		if n < 3 || seq[1] != '[' || seq[n-1] != 'm' || strings.ContainsAny(seq[2:3], "<=>?") {
+			b.WriteString(seq)
+			continue
+		}
+
+		dimSGR(&b, seq[2:n-1], text, blend)
 	}
 
-	buf := uv.NewScreenBuffer(w, 1)
-	buf.Method = ansi.GraphemeWidth
-	uv.NewStyledString(ln).Draw(buf, buf.Bounds())
+	return b.String()
+}
 
-	line := buf.Line(0)
-	for x := range line {
-		st := &line[x].Style
-		st.Fg = blend(cmp.Or[color.Color](st.Fg, fg))
+// escLen is how long the escape s starts with is: a CSI to its final byte,
+// an OSC, DCS, APC, PM or SOS to its terminator, any other two bytes.
+func escLen(s string) int {
+	if len(s) < 2 {
+		return len(s)
+	}
 
-		if st.Bg != nil {
-			st.Bg = blend(st.Bg)
+	switch s[1] {
+	case '[':
+		for i := 2; i < len(s); i++ {
+			switch {
+			case s[i] >= 0x40 && s[i] <= 0x7e:
+				return i + 1
+			case s[i] < 0x20 || s[i] > 0x7e: // no CSI: what is left is not one
+				return len(s)
+			}
+		}
+
+	case ']', 'P', '_', '^', 'X':
+		for i := 2; i < len(s); i++ {
+			switch {
+			case s[i] == ansi.BEL && s[1] == ']':
+				return i + 1
+			case s[i] == ansi.ESC && i+1 < len(s) && s[i+1] == '\\':
+				return i + 2
+			}
+		}
+
+	default:
+		return 2
+	}
+
+	return len(s)
+}
+
+// dimSGR writes the SGR whose parameters are params with its colors through
+// blend, and text for the default text color wherever it resets to it. It
+// reads params in place: a row has an SGR every few cells.
+func dimSGR(b *strings.Builder, params, text string, blend func(color.Color) string) {
+	b.WriteString("\x1b[")
+
+	first, reset := true, false // reset: the default text color is the last one set
+	put := func(a, z string) {  // a parameter, in two parts: no slice for each
+		if !first {
+			b.WriteByte(';')
+		}
+
+		first = false
+
+		b.WriteString(a)
+		b.WriteString(z)
+	}
+
+	for i := 0; i <= len(params); {
+		p, next := sgrParam(params, i)
+		code, sub, colon := strings.Cut(p, ":")
+		n := sgrNum(code)
+
+		switch {
+		case n == 0:
+			put("0", "")
+
+			reset = true
+
+		case n == 39:
+			put("38;2;", text)
+
+			reset = false
+
+		case n >= 30 && n <= 37, n >= 90 && n <= 97:
+			put("38;2;", blend(ansi.BasicColor(ifElse(n >= 90, n-90+8, n-30))))
+
+			reset = false
+
+		case n >= 40 && n <= 47, n >= 100 && n <= 107:
+			put("48;2;", blend(ansi.BasicColor(ifElse(n >= 100, n-100+8, n-40))))
+
+		case n == 38 || n == 48 || n == 58:
+			var (
+				ps [5]string
+				k  int
+			)
+
+			to := next // past the color's parameters
+
+			if colon { // 38:5:n, 38:2:r:g:b or 38:2::r:g:b
+				for f := range strings.SplitSeq(sub, ":") {
+					if k < len(ps) {
+						ps[k] = f
+					}
+
+					k++
+				}
+			} else {
+				for j := next; k < 4 && j <= len(params); k++ {
+					ps[k], j = sgrParam(params, j)
+				}
+			}
+
+			c, used := sgrColor(ps[:min(k, len(ps))])
+			if !colon && c != nil {
+				for range used {
+					_, to = sgrParam(params, to)
+				}
+			}
+
+			switch {
+			case c == nil || n == 58: // the underline's color is not dimmed
+				put(params[i:min(to-1, len(params))], "")
+			case n == 38:
+				put("38;2;", blend(c))
+
+				reset = false
+
+			default:
+				put("48;2;", blend(c))
+			}
+
+			next = to
+
+		default:
+			put(p, "")
+		}
+
+		i = next
+	}
+
+	if reset {
+		put("38;2;", text)
+	}
+
+	b.WriteByte('m')
+}
+
+// sgrParam is the parameter of an SGR's params that starts at i, and where
+// the one after it starts: past the end for the last.
+func sgrParam(params string, i int) (p string, next int) {
+	if j := strings.IndexByte(params[i:], ';'); j >= 0 {
+		return params[i : i+j], i + j + 1
+	}
+
+	return params[i:], len(params) + 1
+}
+
+// sgrNum is an SGR parameter's number, 0 for none, -1 for one that is not.
+func sgrNum(s string) int {
+	if s == "" {
+		return 0
+	}
+
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return -1
+	}
+
+	return n
+}
+
+// sgrColor is the color an SGR's 38 or 48 sets with the parameters after it,
+// and how many of them it takes: 5;n or 2;r;g;b, a colon form's 2 with an
+// empty color space first. Nil for any other.
+func sgrColor(ps []string) (color.Color, int) {
+	num := func(s string) (uint8, bool) {
+		v, err := strconv.Atoi(s)
+		return uint8(v), err == nil && v >= 0 //nolint:gosec // over 255 wraps, as Ultraviolet reads it
+	}
+
+	switch {
+	case len(ps) >= 2 && ps[0] == "5":
+		if v, ok := num(ps[1]); ok {
+			return ansi.IndexedColor(v), 2
+		}
+
+	case len(ps) >= 5 && ps[0] == "2" && ps[1] == "": // 2::r:g:b
+		ps = ps[1:]
+		fallthrough
+
+	case len(ps) >= 4 && ps[0] == "2":
+		r, ok1 := num(ps[1])
+		g, ok2 := num(ps[2])
+		bl, ok3 := num(ps[3])
+
+		if ok1 && ok2 && ok3 {
+			return color.RGBA{r, g, bl, 0xff}, 4
 		}
 	}
 
-	return line.Render()
+	return nil, 0
 }
 
 // newMessageArea is the commit message box: VS Code's grows with its text up
@@ -1644,22 +1898,74 @@ func (md *modal) refilter() {
 		return len(w) > 1 && (w[0] == '@' || w[0] == '!')
 	}), " ")
 
-	type hit struct{ i, score int }
+	// The hits and the groups they fall in are kept for the next key: quick
+	// open matches every file of a worktree on each.
+	hits, groups := md.hits[:0], md.groups[:0]
+	gi := -1 // the group of the last hit: items come a group at a time
 
-	var hits []hit
-
-	for i, it := range md.items {
-		if s := matchItem(q, it); s >= 0 && !it.always {
-			hits = append(hits, hit{i, s})
+	for i := range md.items {
+		it := &md.items[i]
+		if it.always {
+			continue
 		}
+
+		sc := 0
+		if q != "" {
+			if sc = matchItem(q, it); sc < 0 {
+				continue
+			}
+		}
+
+		if gi < 0 || groups[gi].name != it.group {
+			gi = slices.IndexFunc(groups, func(g matchGroup) bool { return g.name == it.group })
+			if gi < 0 {
+				gi = len(groups)
+				groups = append(groups, matchGroup{name: it.group, best: -1, cap: md.caps[it.group]})
+			}
+		}
+
+		g := &groups[gi]
+
+		g.count++
+		if sc > g.best {
+			g.best, g.bestAt = sc, i
+		}
+
+		hits = append(hits, match{i: i, score: sc, g: gi})
+	}
+
+	md.hits, md.groups = hits, groups
+
+	byScore := func(a, b match) int { // the best first, a tie as the items list them
+		return cmp.Or(cmp.Compare(b.score, a.score), cmp.Compare(a.i, b.i))
 	}
 
 	switch {
+	case q != "" && (md.prefix != "" || md.tree):
+		slices.SortFunc(hits, byScore)
 	case q != "":
-		slices.SortStableFunc(hits, func(a, b hit) int { return cmp.Compare(b.score, a.score) })
+		// A query ranks within each group and orders the groups by their best
+		// match, or as the items list them where groups are capped.
+		order := make([]int, len(groups))
+		for k := range order {
+			order[k] = k
+		}
+
+		if md.caps == nil {
+			slices.SortFunc(order, func(a, b int) int {
+				return cmp.Or(cmp.Compare(groups[b].best, groups[a].best), cmp.Compare(groups[a].bestAt, groups[b].bestAt))
+			})
+		}
+
+		for r, k := range order {
+			groups[k].rank = r
+		}
+
+		slices.SortFunc(hits, func(a, b match) int { return cmp.Or(cmp.Compare(groups[a.g].rank, groups[b.g].rank), byScore(a, b)) })
+
 	case md.tree: // browsing: alphabetical, like a file tree; a group first, in its own order
-		slices.SortStableFunc(hits, func(a, b hit) int {
-			ia, ib := md.items[a.i], md.items[b.i]
+		slices.SortStableFunc(hits, func(a, b match) int {
+			ia, ib := &md.items[a.i], &md.items[b.i]
 			switch {
 			case ia.group != ib.group:
 				return cmp.Compare(ib.group, ia.group) // "recently opened" before "files"
@@ -1667,22 +1973,27 @@ func (md *modal) refilter() {
 				return 0
 			}
 
-			return strings.Compare(strings.ToLower(ia.label), strings.ToLower(ib.label))
+			return compareFold(ia.label, ib.label)
 		})
 	}
 
 	var always []item
 
-	for _, it := range md.items {
-		if it.always {
-			always = append(always, it)
+	for i := range md.items {
+		if md.items[i].always {
+			always = append(always, md.items[i])
 		}
 	}
 
 	// A query's matches come first: what ⏎ runs is the best of them.
 	last := q != "" && len(hits) > 0
 
-	md.disp = md.disp[:0]
+	rows := len(always) + 2*len(groups) + 2 // what the list takes: the rows shown of each group, its heading and gap
+	for _, g := range groups {
+		rows += ifElse(q != "" && g.cap > 0, min(g.count, g.cap+1), g.count)
+	}
+
+	md.disp = slices.Grow(md.disp[:0], rows)
 	if !last {
 		md.disp = append(md.disp, always...)
 	}
@@ -1690,19 +2001,14 @@ func (md *modal) refilter() {
 	switch {
 	case md.prefix != "":
 		if grouped {
-			slices.SortStableFunc(hits, func(a, b hit) int { return strings.Compare(md.items[a.i].group, md.items[b.i].group) })
-		}
-
-		count := map[string]int{}
-		for _, h := range hits {
-			count[md.items[h.i].group]++
+			slices.SortStableFunc(hits, func(a, b match) int { return strings.Compare(md.items[a.i].group, md.items[b.i].group) })
 		}
 
 		for i, h := range hits {
 			it := md.items[h.i]
 			switch {
 			case grouped && (i == 0 || md.items[hits[i-1].i].group != it.group):
-				md.disp = append(md.disp, heading(fmt.Sprintf("%s (%d)", it.group, count[it.group])))
+				md.disp = append(md.disp, heading(fmt.Sprintf("%s (%d)", it.group, groups[h.g].count)))
 			case !grouped && i == 0:
 				md.disp = append(md.disp, heading(fmt.Sprintf("symbols (%d)", len(hits))))
 			}
@@ -1745,46 +2051,25 @@ func (md *modal) refilter() {
 		}
 
 	default:
-		count := map[string]int{}
-
-		if q != "" {
-			// A query ranks within each group and orders the groups by their
-			// best match, or as the items list them where groups are capped.
-			rank := map[string]int{}
-
-			for _, h := range hits {
-				g := md.items[h.i].group
-				if r, ok := rank[g]; !ok || md.caps != nil && h.i < r {
-					rank[g] = ifElse(md.caps != nil, h.i, len(rank))
-				}
-
-				count[g]++
-			}
-
-			slices.SortStableFunc(hits, func(a, b hit) int {
-				return cmp.Compare(rank[md.items[a.i].group], rank[md.items[b.i].group])
-			})
-		}
-
-		group, shown := "", 0
+		group, shown := -1, 0
 
 		for _, h := range hits {
-			it := md.items[h.i]
-			if it.group != group {
-				shown = 0
+			g := &groups[h.g]
+			if h.g != group {
+				shown, group = 0, h.g
 
-				if group = it.group; group != "" {
+				if g.name != "" {
 					if len(md.disp) > 0 {
 						md.disp = append(md.disp, item{}) // breathing room between groups
 					}
 
-					md.disp = append(md.disp, item{label: group, sep: true})
+					md.disp = append(md.disp, item{label: g.name, sep: true})
 				}
 			}
 
-			if c := md.caps[group]; q != "" && c > 0 && shown >= c {
-				if shown == c {
-					md.disp = append(md.disp, md.more(group, count[group]-c))
+			if q != "" && g.cap > 0 && shown >= g.cap {
+				if shown == g.cap {
+					md.disp = append(md.disp, md.more(g.name, g.count-g.cap))
 				}
 
 				shown++
@@ -1794,7 +2079,7 @@ func (md *modal) refilter() {
 
 			shown++
 
-			md.disp = append(md.disp, it)
+			md.disp = append(md.disp, md.items[h.i])
 		}
 	}
 
@@ -1807,6 +2092,7 @@ func (md *modal) refilter() {
 		md.disp = append(md.disp, item{label: "No matching results", sep: true})
 	}
 
+	md.gen++
 	md.l = list{sel: -1}
 	md.step(1, 0)
 
@@ -1819,6 +2105,32 @@ func (md *modal) refilter() {
 		md.focus(i)
 		md.reveal = true
 	}
+}
+
+// match is an item a query matched: its index, its score, its matchGroup.
+type match struct{ i, score, g int }
+
+// matchGroup is a group the matches fall in: how many, the best score and the
+// first item with it, where the group goes, and its cap under a query.
+type matchGroup struct {
+	name                           string
+	count, best, bestAt, rank, cap int
+}
+
+// compareFold is strings.Compare of a and b lowered, without lowering a
+// copy of either where both are ASCII.
+func compareFold(a, b string) int {
+	if !isASCII(a) || !isASCII(b) {
+		return strings.Compare(strings.ToLower(a), strings.ToLower(b))
+	}
+
+	for i := range min(len(a), len(b)) {
+		if c := cmp.Compare(lowerASCII(a[i]), lowerASCII(b[i])); c != 0 {
+			return c
+		}
+	}
+
+	return cmp.Compare(len(a), len(b))
 }
 
 // more is a capped group's last row: how many rows it leaves out, and ⏎
@@ -1841,6 +2153,8 @@ func (md *modal) more(group string, n int) item {
 // focus selects row i and moves the detail row under it: only the selected
 // item shows its detail, so a list of refs or remotes stays one row each.
 func (md *modal) focus(i int) {
+	md.gen++
+
 	if j := slices.IndexFunc(md.disp, func(it item) bool { return it.cont }); j >= 0 {
 		md.disp = slices.Delete(md.disp, j, j+1)
 		if i > j {
@@ -2085,14 +2399,21 @@ func (md *modal) cycleView(m *Model) tea.Cmd {
 
 // label is a row's label, marked where the query matched it; a file's has
 // its icon after any indent, and in the name view its name before its folder.
-func (md *modal) label(it item, st, note lipgloss.Style) []seg {
+func (md *modal) label(dst []seg, it *item, st, note lipgloss.Style) []seg {
+	if it.words { // a line found: its number dim, the query's words lit in the text
+		n := int(it.dimTo)
+		dst = append(dst, sg(it.label[:n], note))
+
+		return appendRuns(dst, it.label[n:], wordRuns(md.input.Value(), it.label[n:]), st)
+	}
+
 	var hits []int
 	if !it.always { // a row listed whatever the query matched nothing
 		hits = fuzzyHits(md.pattern, it.label)
 	}
 
 	if it.file == "" {
-		return marked(it.label, hits, st)
+		return appendMarked(dst, it.label, hits, st)
 	}
 
 	icon := iconSeg(it.file, false, false)
@@ -2109,7 +2430,7 @@ func (md *modal) label(it item, st, note lipgloss.Style) []seg {
 			}
 		}
 
-		return append([]seg{sg(it.label[:in], st), icon}, marked(it.label[in:], after, st)...)
+		return appendMarked(append(dst, sg(it.label[:in], st), icon), it.label[in:], after, st)
 	}
 
 	var inDir, inName []int
@@ -2122,10 +2443,63 @@ func (md *modal) label(it item, st, note lipgloss.Style) []seg {
 		}
 	}
 
-	return slices.Concat([]seg{icon}, marked(it.label[slash+1:], inName, st), []seg{sg("  ", note)}, marked(it.label[:slash], inDir, note))
+	dst = appendMarked(append(dst, icon), it.label[slash+1:], inName, st)
+
+	return appendMarked(append(dst, sg("  ", note)), it.label[:slash], inDir, note)
 }
 
-func (md *modal) view(m *Model) (string, int, int) {
+// boxKey is what a list box's rows hang on.
+type boxKey struct {
+	gen, sel, top, pos, x, y, w, rows, tab, view, look int
+	in, title, note, hints                             string
+	selected, views, treeable                          bool
+}
+
+// drawnBox is a box's rows as drawn, its caret taken out and where it was.
+type drawnBox struct {
+	key    boxKey
+	lines  []string
+	cx, cy int
+	caret  bool
+}
+
+// box is the box drawn at x, y, w cells wide: a list box once while nothing
+// it shows changes, as under a session that streams while quick open waits
+// for a key.
+func (md *modal) box(m *Model) (d *drawnBox, x, y, w int) {
+	keyOf := func() boxKey {
+		x, y, w, _, rows := md.rect(m)
+
+		return boxKey{
+			md.gen, md.l.sel, md.l.top, md.input.Position(), x, y, w, rows, md.tab, md.fileView, lookGen,
+			md.input.Value(), md.title, md.note, md.hints, md.selected, md.views, md.treeable,
+		}
+	}
+
+	list := md.form == nil && !md.dialog && !md.reveal
+	if list && md.drawn.lines != nil && md.drawn.key == keyOf() {
+		return &md.drawn, md.drawn.key.x, md.drawn.key.y, md.drawn.key.w
+	}
+
+	lines, x, y := md.lines(m)
+	cx, cy, caret := takeCaret(lines)
+
+	if !m.graphemes { // made safe once while it stays, as the frame under it is
+		for i, l := range lines {
+			lines[i] = wcSafe(l)
+		}
+	}
+
+	md.drawn = drawnBox{keyOf(), lines, cx, cy, caret}
+	if !list { // a form or a dialog is drawn anew
+		md.drawn.key.gen = -1
+	}
+
+	return &md.drawn, x, y, md.drawn.key.w
+}
+
+// lines are the box's rows at x, y.
+func (md *modal) lines(m *Model) ([]string, int, int) {
 	x, y, w, _, rows := md.rect(m)
 	iw := w - 2
 
@@ -2135,11 +2509,11 @@ func (md *modal) view(m *Model) (string, int, int) {
 	}
 
 	if md.form != nil {
-		return strings.Join(md.form.lines(w), "\n"), x, y
+		return md.form.lines(w), x, y
 	}
 
 	if md.dialog {
-		return md.dialogView(iw), x, y
+		return strings.Split(md.dialogView(iw), "\n"), x, y
 	}
 
 	title := ""
@@ -2148,14 +2522,18 @@ func (md *modal) view(m *Model) (string, int, int) {
 	}
 
 	if md.tabs != nil {
-		var b strings.Builder
+		if md.tabsDrawn.tab != md.tab || md.tabsDrawn.look != lookGen || md.tabsDrawn.s == "" {
+			var b strings.Builder
 
-		segs, _ := choices(md.tabs, md.tab, true)
-		for _, s := range segs {
-			b.WriteString(s.st.Render(s.s))
+			segs, _ := choices(md.tabs, md.tab, true)
+			for _, s := range segs {
+				b.WriteString(s.st.Render(s.s))
+			}
+
+			md.tabsDrawn.tab, md.tabsDrawn.look, md.tabsDrawn.s = md.tab, lookGen, " "+b.String()
 		}
 
-		title = " " + b.String()
+		title = md.tabsDrawn.s
 	}
 
 	var rb strings.Builder
@@ -2193,8 +2571,14 @@ func (md *modal) view(m *Model) (string, int, int) {
 			in.SetStyles(st)
 		}
 
-		lines = append(lines, side+fit(realCaret(in.View()), iw)+side)
+		if v := in.View(); md.caret[0] != v { // the caret found once while the line stays
+			md.caret = [2]string{v, realCaret(v)}
+		}
+
+		lines = append(lines, side+fit(md.caret[1], iw)+side)
 	}
+
+	md.rowsDrawn.frame()
 
 	for _, r := range md.l.render(iw, rows, len(md.disp), func(i, rw int) string {
 		it := md.disp[i]
@@ -2232,30 +2616,9 @@ func (md *modal) view(m *Model) (string, int, int) {
 			return row(rw, bg, append([]seg{sg(" ", plain)}, it.segs...), append(append([]seg{sg(" ", plain)}, it.right...), sg(" ", plain))...)
 		}
 
-		st, note := plain, dim
-		if it.run == nil {
-			st = dim
-		}
+		k := boxRowKey{it.label, it.hint, it.inline, it.file, ifElse(it.words, md.input.Value(), md.pattern), rw, md.shownView(), lookGen, i == md.l.sel, it.run != nil, it.always, it.words}
 
-		var bg color.Color
-		if i == md.l.sel && it.run != nil {
-			bg, note = pal.selBg, dim // the grey can be the selection's own color (the terminal theme's 8)
-			if pal.selFg != nil {
-				st = st.Foreground(pal.selFg)
-			}
-		}
-
-		left := append([]seg{sg(" ", st)}, md.label(it, st, note)...)
-		if it.inline != "" {
-			left = append(left, sg(" "+it.inline, note))
-		}
-
-		hint := it.hint + " "
-		if it.hint != "" {
-			hint = " " + hint // a label cut short keeps a cell from it
-		}
-
-		return row(rw, bg, left, sg(hint, note))
+		return md.rowsDrawn.get(k, func() string { return md.itemRow(&it, k.sel, rw) })
 	}) {
 		lines = append(lines, side+r+side)
 	}
@@ -2268,7 +2631,308 @@ func (md *modal) view(m *Model) (string, int, int) {
 
 	lines = append(lines, dim.Render(bl+edge+br))
 
-	return strings.Join(lines, "\n"), x, y
+	return lines, x, y
+}
+
+// boxRowKey is what an item's row in a box hangs on.
+type boxRowKey struct {
+	label, hint, inline, file, pattern string
+	rw, view, look                     int
+	sel, runs, always, words           bool
+}
+
+// itemRow is an item's row in the box, rw cells wide: its label marked where
+// the query matched it, its hint at the right, lit when sel. Its pieces take
+// their styles' escapes from roleSides, worked out once for the box, not for
+// each piece: a box draws a few dozen rows for each key.
+func (md *modal) itemRow(it *item, sel bool, rw int) string {
+	r := md.roleSides(sel && it.run != nil, it.run != nil)
+	if !r.ok || strings.ContainsAny(it.label+it.hint+it.inline, "\t\n") { // a piece row draws through Render
+		return md.itemRowSegs(it, sel, rw)
+	}
+
+	left := md.labelParts(append(make([]part, 0, 8), part{" ", r.st}), it, r, sel && it.run != nil)
+	if left == nil {
+		return md.itemRowSegs(it, sel, rw)
+	}
+
+	if it.inline != "" {
+		left = append(left, part{" " + it.inline, r.note})
+	}
+
+	hint := it.hint + " "
+	if it.hint != "" {
+		hint = " " + hint // a label cut short keeps a cell from it
+	}
+
+	return rowParts(rw, left, r.gap, part{hint, r.note})
+}
+
+// part is a piece of a row and its style's escapes either side of it.
+type part struct {
+	s     string
+	sides [2]string
+}
+
+// roles are the escapes of the styles a box's rows are drawn in, on a row
+// lit or not: its text, the text lit where the query matched, the notes and
+// their lit matches, the blanks. ok is false where one has no plain sides.
+type roles struct {
+	st, hi, note, noteHi, gap [2]string
+	lit                       bool
+	ok                        bool
+}
+
+// roleSides are the roles for a row lit or not, and of an item that runs or
+// is dimmed, worked out once while the palette stays.
+func (md *modal) roleSides(lit, runs bool) *roles {
+	k := roleKey{lit, runs, lookGen}
+	if r, ok := md.roles[k]; ok {
+		return r
+	}
+
+	st, note := plain, dim
+	if !runs {
+		st = dim
+	}
+
+	var bg color.Color
+	if lit {
+		bg = pal.selBg
+		if pal.selFg != nil {
+			st = st.Foreground(pal.selFg)
+		}
+	}
+
+	r := &roles{lit: lit, ok: true}
+	for _, x := range []struct {
+		to *[2]string
+		st lipgloss.Style
+	}{
+		{&r.st, st},
+		{&r.hi, st.Foreground(pal.headerAccent).Bold(true)},
+		{&r.note, note},
+		{&r.noteHi, note.Foreground(pal.headerAccent).Bold(true)},
+		{&r.gap, plain},
+	} {
+		if bg != nil {
+			x.st = x.st.Background(bg)
+		}
+
+		pre, suf, ok := textSides(x.st, "x")
+		*x.to, r.ok = [2]string{pre, suf}, r.ok && ok
+	}
+
+	if md.roles == nil {
+		md.roles = map[roleKey]*roles{}
+	}
+
+	md.roles[k] = r
+
+	return r
+}
+
+// roleKey is what a box's roles hang on.
+type roleKey struct {
+	lit, runs bool
+	look      int
+}
+
+// labelParts is label in parts: nil where a piece has no plain sides, for
+// itemRowSegs to draw the row instead.
+func (md *modal) labelParts(dst []part, it *item, r *roles, lit bool) []part {
+	if it.words { // a line found: its number dim, the query's words lit in the text
+		n := int(it.dimTo)
+		dst = append(dst, part{it.label[:n], r.note})
+
+		return appendRunParts(dst, it.label[n:], wordRuns(md.input.Value(), it.label[n:]), r.st, r.hi)
+	}
+
+	var hits []int
+	if !it.always { // a row listed whatever the query matched nothing
+		hits = fuzzyHits(md.pattern, it.label)
+	}
+
+	if it.file == "" {
+		return appendHitParts(dst, it.label, hits, r.st, r.hi)
+	}
+
+	icon, ok := md.iconPart(it.file, lit)
+	if !ok {
+		return nil
+	}
+
+	slash := strings.LastIndexByte(it.label, '/')
+	if md.shownView() != qvName || slash < 0 {
+		in := len(it.label) - len(strings.TrimLeft(it.label, " ")) // a tree's file sits under its folder
+
+		var after []int
+
+		for _, h := range hits {
+			if h >= in {
+				after = append(after, h-in)
+			}
+		}
+
+		return appendHitParts(append(dst, part{it.label[:in], r.st}, icon), it.label[in:], after, r.st, r.hi)
+	}
+
+	var inDir, inName []int
+
+	for _, h := range hits {
+		if h < slash {
+			inDir = append(inDir, h)
+		} else if h > slash {
+			inName = append(inName, h-slash-1)
+		}
+	}
+
+	dst = appendHitParts(append(dst, icon), it.label[slash+1:], inName, r.st, r.hi)
+
+	return appendHitParts(append(dst, part{"  ", r.note}), it.label[:slash], inDir, r.note, r.noteHi)
+}
+
+// iconPart is file's icon as a part, its sides worked out once for each kind
+// of file while the palette stays.
+func (md *modal) iconPart(file string, lit bool) (part, bool) {
+	k := iconKey{kindOf(file, false, false), lit, lookGen}
+
+	p, ok := md.icons[k]
+	if !ok {
+		x := iconSeg(file, false, false)
+		if lit {
+			x.st = x.st.Background(pal.selBg)
+		}
+
+		pre, suf, sides := textSides(x.st, "x")
+		if !sides {
+			return part{}, false
+		}
+
+		p = part{x.s, [2]string{pre, suf}}
+
+		if md.icons == nil {
+			md.icons = map[iconKey]part{}
+		}
+
+		md.icons[k] = p
+	}
+
+	return p, true
+}
+
+// iconKey is what an icon's part hangs on.
+type iconKey struct {
+	kind string
+	lit  bool
+	look int
+}
+
+// appendHitParts is appendMarked in parts: the bytes at, a run of them a
+// part, in hi.
+func appendHitParts(out []part, label string, at []int, st, hi [2]string) []part {
+	last := 0
+
+	for k := 0; k < len(at); {
+		i, j := at[k], at[k]+1
+		for k++; k < len(at) && at[k] == j; k++ {
+			j++
+		}
+
+		if i > last {
+			out = append(out, part{label[last:i], st})
+		}
+
+		out, last = append(out, part{label[i:j], hi}), j
+	}
+
+	return append(out, part{label[last:], st})
+}
+
+// appendRunParts is appendRuns in parts: the byte ranges runs in hi.
+func appendRunParts(out []part, label string, runs [][2]int, st, hi [2]string) []part {
+	last := 0
+
+	for _, r := range runs {
+		if r[0] > last {
+			out = append(out, part{label[last:r[0]], st})
+		}
+
+		out, last = append(out, part{label[r[0]:r[1]], hi}), r[1]
+	}
+
+	return append(out, part{label[last:], st})
+}
+
+// rowParts is row for parts: the same bytes, the styles' escapes taken as
+// they are.
+func rowParts(w int, left []part, gap [2]string, right part) string {
+	rw := strWidth(right.s)
+	if rw > w {
+		right, rw = part{}, 0
+	}
+
+	var b strings.Builder
+
+	paint := func(x part) {
+		b.WriteString(x.sides[0])
+		b.WriteString(x.s)
+		b.WriteString(x.sides[1])
+	}
+
+	used := 0
+	for i, x := range left {
+		rem := w - rw - used
+		if rem <= 0 {
+			break
+		}
+
+		if sw := strWidth(x.s); sw > rem || sw == rem && slices.ContainsFunc(left[i+1:], func(p part) bool { return strings.TrimSpace(p.s) != "" }) {
+			x.s = ansi.Truncate(x.s, rem-1, "") + "…"
+		}
+
+		paint(x)
+		used += strWidth(x.s)
+	}
+
+	if g := w - rw - used; g > 0 {
+		paint(part{strings.Repeat(" ", g), gap})
+	}
+
+	if right.s != "" {
+		paint(right)
+	}
+
+	return b.String()
+}
+
+// itemRowSegs is itemRow through row, a style looked at for each piece: what
+// draws a row whose style has no plain sides.
+func (md *modal) itemRowSegs(it *item, sel bool, rw int) string {
+	st, note := plain, dim
+	if it.run == nil {
+		st = dim
+	}
+
+	var bg color.Color
+	if sel && it.run != nil {
+		bg, note = pal.selBg, dim // the grey can be the selection's own color (the terminal theme's 8)
+		if pal.selFg != nil {
+			st = st.Foreground(pal.selFg)
+		}
+	}
+
+	left := md.label(append(make([]seg, 0, 8), sg(" ", st)), it, st, note) // room for the usual row: no slice grown
+	if it.inline != "" {
+		left = append(left, sg(" "+it.inline, note))
+	}
+
+	hint := it.hint + " "
+	if it.hint != "" {
+		hint = " " + hint // a label cut short keeps a cell from it
+	}
+
+	return row(rw, bg, left, sg(hint, note))
 }
 
 // dialogView draws the message, the focused button's hint and the buttons,
@@ -2530,6 +3194,7 @@ func (md *modal) choose(m *Model, i int) tea.Cmd {
 		return nil
 	}
 
+	md.l.sel = i // what a run shared by many rows reads, quick open's files
 	if !md.keep {
 		m.modal = nil
 	}
@@ -2647,13 +3312,39 @@ func fuzzyFrom(pattern, s string) (best, from int) {
 		return 0, -1
 	}
 
-	p, ls := strings.ToLower(pattern), strings.ToLower(s)
+	// An ASCII s is lowered a byte at a time as it is read, not copied: quick
+	// open matches every path of a worktree on every key.
+	p, ls := strings.ToLower(pattern), s
+	if !isASCII(s) {
+		ls = strings.ToLower(s)
+	}
+
+	upper := p[0] // p[0] as a capital too: IndexByte looks for each a word at a time
+	if 'a' <= upper && upper <= 'z' {
+		upper -= 'a' - 'A'
+	}
+
+	index := func(from int) int { // the next byte from from that is p[0], any case
+		i := strings.IndexByte(ls[from:], p[0])
+		if upper != p[0] {
+			if j := strings.IndexByte(ls[from:], upper); j >= 0 && (i < 0 || j < i) {
+				i = j
+			}
+		}
+
+		if i < 0 {
+			return -1
+		}
+
+		return from + i
+	}
+
 	best, from = -1, -1
 	// ponytail: greedy match from every occurrence of the first rune, O(n·m); fine for paths.
-	for start := strings.IndexByte(ls, p[0]); start >= 0; {
+	for start := index(0); start >= 0; {
 		score, pi, prev := 0, 0, -2
 		for i := start; i < len(ls) && pi < len(p); i++ {
-			if ls[i] != p[pi] {
+			if lowerASCII(ls[i]) != p[pi] {
 				continue
 			}
 
@@ -2678,15 +3369,40 @@ func fuzzyFrom(pattern, s string) (best, from int) {
 			best, from = sc, start
 		}
 
-		next := strings.IndexByte(ls[start+1:], p[0])
-		if next < 0 {
-			break
-		}
-
-		start += next + 1
+		start = index(start + 1)
 	}
 
 	return best, from
+}
+
+// isASCII reports whether s is all ASCII, eight bytes at a time: quick open
+// asks it of every path for each key.
+func isASCII(s string) bool {
+	i := 0
+	for ; i+8 <= len(s); i += 8 { // the compiler loads these as one word
+		w := uint64(s[i]) | uint64(s[i+1])<<8 | uint64(s[i+2])<<16 | uint64(s[i+3])<<24 |
+			uint64(s[i+4])<<32 | uint64(s[i+5])<<40 | uint64(s[i+6])<<48 | uint64(s[i+7])<<56
+		if w&0x8080808080808080 != 0 {
+			return false
+		}
+	}
+
+	for ; i < len(s); i++ {
+		if s[i] >= utf8.RuneSelf {
+			return false
+		}
+	}
+
+	return true
+}
+
+// lowerASCII is c in lower case where it is an ASCII capital.
+func lowerASCII(c byte) byte {
+	if 'A' <= c && c <= 'Z' {
+		return c + 'a' - 'A'
+	}
+
+	return c
 }
 
 // fuzzyHits are the bytes of s that pattern's best match takes, for a row to
@@ -2713,21 +3429,24 @@ func fuzzyHits(pattern, s string) []int {
 	return out
 }
 
-// marked is label in st with the bytes at, a fuzzy match, in the accent:
-// VS Code's list.highlightForeground.
-func marked(label string, at []int, st lipgloss.Style) []seg {
+// appendMarked is label in st after out's segments, with the bytes at, a
+// fuzzy match, in the accent: VS Code's list.highlightForeground. A row grows
+// one slice.
+func appendMarked(out []seg, label string, at []int, st lipgloss.Style) []seg {
 	hi := st.Foreground(pal.headerAccent).Bold(true)
-
-	var out []seg
-
 	last := 0
 
-	for _, i := range at {
+	for k := 0; k < len(at); {
+		i, j := at[k], at[k]+1 // a run of hits is one segment: each costs the row a style
+		for k++; k < len(at) && at[k] == j; k++ {
+			j++
+		}
+
 		if i > last {
 			out = append(out, sg(label[last:i], st))
 		}
 
-		out, last = append(out, sg(label[i:i+1], hi)), i+1
+		out, last = append(out, sg(label[i:j], hi)), j
 	}
 
 	return append(out, sg(label[last:], st))

@@ -430,7 +430,8 @@ The tab's keys sit in the bottom edge (`qoHints`).
 
 - Empty, All lists the recent files, up to 5 files git status lists
   (`changed`, its letter at the right, the recent and deleted ones left
-  out), the sessions waiting on you (`alarms`) and the other files. A query
+  out), the sessions waiting on you (`alarms`) and the first 8 other files,
+  `+ N more` going to Files for the rest (`browseAll`). A query
   lists files first, so a name and `⏎` open the file as before; a capped
   group ends in `+ N more`, which goes to its tab. All's commands hold every
   word of the query (`actionsFor`): the letters alone would match most.

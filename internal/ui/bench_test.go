@@ -262,7 +262,12 @@ func TestAllocBudgets(t *testing.T) {
 	session, file, large, md, held, pal := benchModel(t), benchModel(t), largeFile(t), largeMarkdown(t), tabHeld(t), benchModel(t)
 	openApp(t, file)
 	openApp(t, pal)
-	press(pal, "ctrl+shift+p")
+	pressFire(pal, "ctrl+shift+p") // quick open's Actions, once the files are listed
+
+	quick, streamed := quickModel(t, qoAll), quickModel(t, qoAll)
+	press(quick, "w", "i", "d")
+
+	scr := streamed.term.scr
 
 	a, x := held.area(), 0
 
@@ -292,11 +297,24 @@ func TestAllocBudgets(t *testing.T) {
 			session.Update(screenMsg{"s1", session.term.scr, nil, 0})
 			_ = session.View()
 		}},
-		{"typing in the palette", 2020, func() {
+		{"typing in the palette", 935, func() {
 			pal.Update(keyMsg("g"))
 			_ = pal.View()
 			pal.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 			_ = pal.View()
+		}},
+		{"typing in quick open over 20 000 files", 1130, func() {
+			quick.Update(keyMsg("g"))
+			_ = quick.View()
+			quick.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+			_ = quick.View()
+		}},
+		{"a session streaming under quick open", 290, func() {
+			scr.Lines = append(scr.Lines[1:], scr.Lines[0])
+
+			streamed.Update(eventMsg{Kind: "screen", ID: "s1"})
+			streamed.Update(screenMsg{"s1", scr, nil, 0})
+			_ = streamed.View()
 		}},
 		{"a tab dragged", 118, func() {
 			x = (x + 7) % (a.w - 10)

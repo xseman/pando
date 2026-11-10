@@ -1913,11 +1913,11 @@ func TestPickerMatches(t *testing.T) {
 	}
 
 	var parts []string
-	for _, s := range marked("README.md", fuzzyHits("rdm", "README.md"), plain) {
+	for _, s := range appendMarked(nil, "README.md", fuzzyHits("rdm", "README.md"), plain) {
 		parts = append(parts, s.s)
 	}
 
-	if !slices.Equal(parts, []string{"R", "EA", "D", "M", "E.md"}) {
+	if !slices.Equal(parts, []string{"R", "EA", "DM", "E.md"}) { // a run of hits is one segment
 		t.Fatalf("marked %q", parts)
 	}
 
