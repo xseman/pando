@@ -1296,6 +1296,7 @@ type modal struct {
 	// to the editor area. Zero is the screen.
 	area [2]int
 	w    int // the widest the box has been: it does not narrow while open
+	rows int // a picker's list rows: it does not shrink while open either
 	// itemsW is the widest of wOf's rows: items, measured once per slice
 	// (a rebuild makes a new one), not on every frame.
 	wOf    []item
@@ -1405,6 +1406,66 @@ func takeCaret(lines []string) (x, y int, ok bool) {
 	}
 
 	return x, y, ok
+}
+
+// dimmed is lines halfway to the terminal's background, the frame a centered
+// modal shows under it: every color, a palette one at its usual shade, and
+// the terminal's own text color. Where the terminal did not tell its colors
+// (tmux without a client) black or white and a grey stand in. A row is
+// dimmed once while it stays as it was: quick open draws the frame for every key.
+func (m *Model) dimmed(lines []string) []string {
+	fg, bg := lipgloss.Color(ifElse(m.dark, "#cccccc", "#333333")), lipgloss.Color(ifElse(m.dark, "#000000", "#ffffff"))
+	if m.fg != "" {
+		fg = lipgloss.Color(m.fg)
+	}
+
+	if m.bg != "" {
+		bg = lipgloss.Color(m.bg)
+	}
+
+	half := map[color.Color]color.Color{}
+	blend := func(c color.Color) color.Color {
+		h, ok := half[c]
+		if !ok {
+			h = color.RGBAModel.Convert(lipgloss.Blend1D(3, c, bg)[1])
+			half[c] = h
+		}
+
+		return h
+	}
+
+	out := make([]string, len(lines))
+
+	for i, ln := range lines {
+		out[i] = m.dims.get([3]string{ln, m.fg, m.bg}, func() string { return dimRow(ln, fg, blend) })
+	}
+
+	return out
+}
+
+// dimRow is dimmed's row: each cell's text, the terminal's own as fg, and
+// its background where it has one, through blend.
+func dimRow(ln string, fg color.Color, blend func(color.Color) color.Color) string {
+	w := strWidth(ln)
+	if w == 0 {
+		return ln
+	}
+
+	buf := uv.NewScreenBuffer(w, 1)
+	buf.Method = ansi.GraphemeWidth
+	uv.NewStyledString(ln).Draw(buf, buf.Bounds())
+
+	line := buf.Line(0)
+	for x := range line {
+		st := &line[x].Style
+		st.Fg = blend(cmp.Or[color.Color](st.Fg, fg))
+
+		if st.Bg != nil {
+			st.Bg = blend(st.Bg)
+		}
+	}
+
+	return line.Render()
 }
 
 // newMessageArea is the commit message box: VS Code's grows with its text up
@@ -1841,6 +1902,21 @@ func (md *modal) jump(s string, rows int) {
 
 func (md *modal) hasInput() bool { return md.filter || md.submit != nil }
 
+// dims reports whether the frame under the box goes dim: a box in the middle
+// of the screen, not one at the thing it acts on or atop an area's body, nor
+// one that previews in that frame (Go to Line, a theme).
+func (md *modal) dims() bool {
+	return md.x < 0 && md.form == nil && (md.dialog || md.area[1] == 0) && md.still()
+}
+
+// still reports whether a key leaves the frame under the box as it was: no
+// move or change hook (a theme's preview, Go to Line's) and no item run with
+// the box kept open. Quick open's change hook only ever swaps it for
+// another box.
+func (md *modal) still() bool {
+	return md.move == nil && (md.change == nil || md.tabs != nil) && !md.keep
+}
+
 // rect returns the box position and size, and how many item rows fit.
 func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 	x0, x1 := 0, m.w
@@ -1882,7 +1958,7 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 		h = len(msg) + hintH + 4
 		// ponytail: taller than the terminal clips the bottom, buttons and all; scroll the message if one ever does.
 		if md.x < 0 {
-			return max(x0+(x1-x0-w)/2, x0), max((m.h-h)/3, 0), w, h, 0
+			return max(x0+(x1-x0-w)/2, x0), max((m.h-h)/2, 0), w, h, 0
 		}
 
 		y = md.y // anchored as a menu: under its line, else above it
@@ -1917,8 +1993,10 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 	maxRows := max(m.h-6, 1)
 
 	rows = min(len(md.disp), maxRows)
-	if md.filter {
-		rows = max(rows, min(8, maxRows)) // a picker keeps a minimum height
+	if md.filter { // at least 8 rows, at most half the screen; it does not shrink while typing, so it stays put
+		half := min(max(m.h/2-3, 8), maxRows)
+		md.rows = min(max(md.rows, rows, 8, ifElse(md.tabs != nil, half, 0)), half)
+		rows = md.rows
 	}
 
 	if md.submit != nil {
@@ -1937,13 +2015,7 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 		x, y = x0+(x1-x0-w)/2, m.mainY()+m.headH()+m.stripH()
 
 	case md.x < 0:
-		// A picker's top edge stays put while results change: it is placed as if full.
-		top := h
-		if md.filter {
-			top = maxRows + 3
-		}
-
-		x, y = x0+(x1-x0-w)/2, max((m.h-top)/3, 0)
+		x, y = x0+(x1-x0-w)/2, max((m.h-h)/2, 0)
 
 	case md.y+h <= m.h:
 		y = md.y

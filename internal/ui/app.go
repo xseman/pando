@@ -268,6 +268,7 @@ type Model struct {
 	// drawn.
 	fits memo[fitKey, string]
 	cuts memo[cutKey, [2]string]
+	dims memo[[3]string, string] // rows under a centered modal by the terminal's colors, dimmed (dimmed)
 	bars map[int]barDrawn
 
 	ex  explorer
@@ -4028,6 +4029,7 @@ func (m *Model) View() tea.View {
 	m.tip = "" // the frame notes the button under the mouse again
 	m.fits.frame()
 	m.cuts.frame()
+	m.dims.frame()
 
 	cs, c := m.layout()
 	m.frame = &frame{m.cols(), cs, c}
@@ -4038,6 +4040,14 @@ func (m *Model) View() tea.View {
 
 	if k := m.baseKey(); k == (baseKey{}) || m.base == nil || m.base.key != k {
 		ls, top, bot := m.baseFrame(cs, c, b)
+		if m.modal != nil && m.modal.dims() {
+			ls = m.dimmed(ls)
+			if b == 1 {
+				rules := m.dimmed([]string{top, bot})
+				top, bot = rules[0], rules[1]
+			}
+		}
+
 		m.base = &base{key: k, lines: ls, top: top, bot: bot}
 	}
 
@@ -4825,8 +4835,7 @@ type base struct {
 // baseKey is what the frame under a drag's overlays hangs on while only its
 // motions arrive: the drag, the slot it marks on its strip, the Sessions row
 // it would take. Under a modal it is the modal while it takes keys, unless
-// a key may change what is under it: a move or change hook (a theme's
-// preview), an item run with the modal kept open. Zero for anything else,
+// a key may change what is under it (modal.still). Zero for anything else,
 // whose every frame draws it anew. Update drops the base on any other
 // message.
 type baseKey struct {
@@ -4837,7 +4846,7 @@ type baseKey struct {
 }
 
 func (m *Model) baseKey() baseKey {
-	if md := m.modal; m.drag == nil && md != nil && md.move == nil && md.change == nil && !md.keep {
+	if md := m.modal; m.drag == nil && md != nil && md.still() {
 		return baseKey{md: md}
 	}
 

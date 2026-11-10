@@ -1,12 +1,14 @@
 package ui
 
 import (
+	"fmt"
 	"image/color"
 	"strings"
 	"testing"
 	"unicode"
 	"unicode/utf8"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
@@ -300,4 +302,56 @@ func FuzzHeadCells(f *testing.F) {
 			t.Fatalf("headCells(%q, %d) = %q: %d cells, the next %q", s, n, got, strWidth(got), next)
 		}
 	})
+}
+
+// TestCenteredModalDims draws the frame under quick open halfway to the
+// background, and leaves it as it was under a menu at the pointer.
+func TestCenteredModalDims(t *testing.T) {
+	m := testModel(t)
+	m.fg, m.bg = "#cccccc", "#1e1e1e"
+
+	corner := func() uv.Style { // the frame's top left, which no box covers
+		t.Helper()
+
+		checkWidths(t, m)
+
+		line, _, _ := strings.Cut(m.View().Content, "\n")
+		buf := uv.NewScreenBuffer(ansi.StringWidth(line), 1)
+		uv.NewStyledString(line).Draw(buf, buf.Bounds())
+
+		return buf.CellAt(0, 0).Style
+	}
+
+	before := corner()
+
+	m.quickOpen(indexMsg{ws: m.ws, files: []string{"a.go"}}, qoAll)
+
+	fg := before.Fg
+	if fg == nil {
+		fg = lipgloss.Color(m.fg)
+	}
+
+	want := color.RGBAModel.Convert(lipgloss.Blend1D(3, fg, lipgloss.Color(m.bg))[1])
+	if got := corner(); got.Fg == nil || color.RGBAModel.Convert(got.Fg) != want {
+		t.Fatalf("under quick open the corner is %v, want %v (from %v)", got.Fg, want, before.Fg)
+	}
+
+	m.modal = newMenu("", 5, 5, item{label: "Copy", run: func(*Model) tea.Cmd { return nil }})
+
+	if got := corner(); fmt.Sprint(got.Fg) != fmt.Sprint(before.Fg) || got.Attrs != before.Attrs {
+		t.Fatalf("under a menu at the pointer the corner is %v, want %v", got, before)
+	}
+
+	m.fg, m.bg, m.dark = "", "", true // tmux with no client to ask: black stands in
+	m.quickOpen(indexMsg{ws: m.ws, files: []string{"a.go"}}, qoAll)
+
+	fg = before.Fg
+	if fg == nil {
+		fg = lipgloss.Color("#cccccc")
+	}
+
+	want = color.RGBAModel.Convert(lipgloss.Blend1D(3, fg, lipgloss.Color("#000000"))[1])
+	if got := corner(); got.Fg == nil || color.RGBAModel.Convert(got.Fg) != want {
+		t.Fatalf("with the terminal's colors unknown the corner is %v, want %v", got.Fg, want)
+	}
 }

@@ -3,9 +3,11 @@ package ui
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
 
@@ -23,6 +25,8 @@ func TestColorOverrides(t *testing.T) {
 	}
 }
 
+// TestPickerKeepsItsTop centers a picker at half the screen at most, 8 rows
+// at least, and keeps it where it opened while typing narrows the list.
 func TestPickerKeepsItsTop(t *testing.T) {
 	m := testModelSized(t, 100, 40)
 	m.quickOpen(indexMsg{ws: m.ws, files: []string{"a.go"}}, qoAll)
@@ -35,9 +39,23 @@ func TestPickerKeepsItsTop(t *testing.T) {
 
 	m.quickOpen(indexMsg{ws: m.ws, files: files}, qoAll)
 
-	_, y2, _, h2, _ := m.modal.rect(m)
-	if y1 != y2 || rows1 != 8 || h2 <= h1 {
+	_, y2, _, h2, _ := m.modal.rect(m) // quick open is half the screen, whatever it lists
+	if y1 != y2 || h1 != h2 || rows1 != 17 || y1 != (m.h-h1)/2 {
 		t.Fatalf("one result: y=%d h=%d rows=%d; thirty: y=%d h=%d", y1, h1, rows1, y2, h2)
+	}
+
+	m.modal = newPicker("Pick", []item{{label: "one", run: func(*Model) tea.Cmd { return nil }}, {label: "two", run: func(*Model) tea.Cmd { return nil }}})
+	if _, y, _, h, rows := m.modal.rect(m); rows != 8 || y != (m.h-h)/2 {
+		t.Fatalf("two items: y=%d h=%d rows=%d", y, h, rows)
+	}
+
+	m.modal = newPicker("Pick", slices.Repeat([]item{{label: "one", run: func(*Model) tea.Cmd { return nil }}}, 30))
+	_, y3, _, h3, rows3 := m.modal.rect(m)
+
+	press(m, "x") // nothing left
+
+	if _, y, _, h, _ := m.modal.rect(m); rows3 != 17 || y != y3 || h != h3 {
+		t.Fatalf("thirty: y=%d h=%d rows=%d; typed: y=%d h=%d", y3, h3, rows3, y, h)
 	}
 
 	checkWidths(t, m)

@@ -433,15 +433,19 @@ group has one strip, the files' tabs then the sessions'.
 
 One at a time (`Model.modal`): menu, picker (fuzzy), prompt, dialog
 (`newDialog`), or a form (`modal.form`, a `formBox`: the Databases view's
-connection form, the indentation, the folder picker). Centered on the
-screen, or anchored (`x`, `y`) where the thing it acts on is, as rename over
+connection form, the indentation, the folder picker). In the middle of the
+screen over the frame dimmed halfway to the background (`dims`, not under
+a box that previews there, as Go to Line; `dimmed`, drawn once with
+`base`), or anchored (`x`, `y`) where the thing it acts on is, as rename over
 a symbol, a table's prompt over its cell and an editor's menu by key (`m`,
 `⇧F10`) under the cursor's row (`menuAt`), and the revert question it leads
 to; the form, and a menu centred in an area, sit at the top of the area's
 body. `area` keeps a box to some columns, a table's to its editor group,
 and covers them whole when less than two cells a
 side would show. An anchored menu that does not fit below its line opens
-above it; a box never narrows while it is open (`modal.w`). A menu at the
+above it; a box never narrows while it is open (`modal.w`), nor does a
+picker shrink (`modal.rows`): 8 rows at least, half the screen at most,
+quick open half the screen whatever it lists. A menu at the
 pointer has square corners, a centered box round ones. A context menu's
 groups are `menuGroups`, a rule between them; the editor's go as VS Code's:
 the code (definition, references, symbol, rename, quick fix, hover),
