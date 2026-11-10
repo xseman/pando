@@ -197,7 +197,7 @@ in every mode.
 ## Pickers, menus, questions
 
 - Palette, quick open, menus: `↑` `↓` (`ctrl+p` `ctrl+n`, `tab` `shift+tab`)
-  move, `⏎` runs, `esc` `ctrl+c` close; without a query box `j` `k` move and
+  move, `home` `end` first, last row, `pgup` `pgdn` a page, `⏎` runs, `esc` `ctrl+c` close; without a query box `j` `k` move and
   `q` closes. In a path prompt `tab` or `→` takes the suggestion.
 - Quick open: `tab` `shift+tab` go to the next, previous tab instead,
   `ctrl+t` lists Files as a tree, `alt+⏎` hands the query to Search.

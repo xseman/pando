@@ -3248,6 +3248,50 @@ func TestStatusProjects(t *testing.T) {
 	}
 }
 
+// TestPickerPage moves a picker's selection a page and to either end.
+func TestPickerPage(t *testing.T) {
+	m := testModelSized(t, 120, 30)
+
+	var items []item
+	for i := range 100 {
+		items = append(items, item{label: fmt.Sprint("row", i), run: func(*Model) tea.Cmd { return nil }})
+	}
+
+	m.modal = newPicker("Rows", append([]item{heading("rows")}, items...))
+
+	_, _, _, _, rows := m.modal.rect(m)
+	for _, c := range []struct {
+		key  string
+		want int
+	}{{"pgdown", rows}, {"pgdown", 2*rows - 1}, {"pgup", rows}, {"end", 100}, {"pgdown", 100}, {"home", 1}, {"pgup", 1}} {
+		press(m, c.key)
+
+		if m.modal.l.sel != c.want {
+			t.Fatalf("%s: row %d, want %d", c.key, m.modal.l.sel, c.want)
+		}
+	}
+
+	if m.modal.l.top != 0 {
+		t.Fatalf("home leaves the heading scrolled away: top %d", m.modal.l.top)
+	}
+	// A list with no row to pick scrolls: Keys help.
+	m.modal = helpModal(false, false, false)
+
+	_, _, _, _, rows = m.modal.rect(m)
+	n := len(m.modal.disp)
+
+	for _, c := range []struct {
+		key  string
+		want int
+	}{{"pgdown", rows - 1}, {"end", n - rows}, {"pgup", n - rows - (rows - 1)}, {"home", 0}} {
+		press(m, c.key)
+
+		if m.modal.l.top != c.want {
+			t.Fatalf("help %s: top %d, want %d", c.key, m.modal.l.top, c.want)
+		}
+	}
+}
+
 // TestDragByTitle picks a view up by its header title, not only its tab.
 func TestDragByTitle(t *testing.T) {
 	m := testModelSized(t, 120, 30)

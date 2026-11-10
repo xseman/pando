@@ -1811,6 +1811,34 @@ func (md *modal) step(d, rows int) {
 	md.l.wheel(d, len(md.disp), rows)
 }
 
+// jump moves to the first or last actionable row, or a page of rows up or
+// down: the furthest actionable one at most a page away. A list with none
+// to land on scrolls instead.
+func (md *modal) jump(s string, rows int) {
+	from, top, d := md.l.sel, md.l.top, ifElse(s == "home" || s == "pgup", -1, 1)
+	page := ifElse(s == "pgup" || s == "pgdown", max(rows-1, 1), len(md.disp))
+
+	target := min(max(from+d*page, 0), len(md.disp)-1) + d
+	md.l.sel = target
+	md.step(-d, rows)
+
+	if md.l.sel == target { // nothing to land on
+		md.l.sel, md.l.top = from, top
+		md.l.wheel(d*page, len(md.disp), rows)
+
+		return
+	}
+
+	// On the first or last actionable row the headings and notes past it come into view.
+	runs := func(it item) bool { return it.run != nil }
+	switch i := md.l.sel; {
+	case d < 0 && !slices.ContainsFunc(md.disp[:i], runs):
+		md.l.top = min(md.l.top, max(0, i-rows+1))
+	case d > 0 && !slices.ContainsFunc(md.disp[i+1:], runs):
+		md.l.top = max(md.l.top, min(i, len(md.disp)-rows))
+	}
+}
+
 func (md *modal) hasInput() bool { return md.filter || md.submit != nil }
 
 // rect returns the box position and size, and how many item rows fit.
@@ -2200,6 +2228,11 @@ func (md *modal) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		return md.alt(m)
 	case md.keys[s] != nil:
 		return md.keys[s](m)
+	case md.submit == nil && (s == "home" || s == "end" || s == "pgup" || s == "pgdown"):
+		md.jump(s, rows)
+		md.moved(m)
+
+		return nil
 	}
 
 	switch k.String() {
