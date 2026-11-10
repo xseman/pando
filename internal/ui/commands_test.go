@@ -3190,7 +3190,7 @@ func TestStatusProjects(t *testing.T) {
 	}
 
 	rows := labels(m)
-	if len(rows) != 3 || rows[2] != "+ Add Project…" || !slices.Contains(rows, filepath.Base(other)) {
+	if len(rows) != 3 || rows[0] != "+ Add Project…" || !slices.Contains(rows, filepath.Base(other)) {
 		t.Fatalf("rows %q", rows)
 	}
 
@@ -3237,7 +3237,14 @@ func TestStatusProjects(t *testing.T) {
 	}
 
 	m.projectPicker()
-	m.modal.choose(m, len(m.modal.disp)-1)
+	press(m, "end")
+
+	if last := len(m.modal.disp) - 1; m.modal.l.sel != last {
+		t.Fatalf("end selects %d, want %d", m.modal.l.sel, last)
+	}
+
+	press(m, "home")
+	press(m, "enter")
 
 	if m.modal == nil {
 		t.Fatal("+ Add Project… opens nothing")

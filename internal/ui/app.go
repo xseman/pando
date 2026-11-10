@@ -5308,8 +5308,8 @@ func (m *Model) statusRule(cs []rect, fs []groupFrame) string {
 func statusBg() color.Color { return cmp.Or[color.Color](pal.barBg, pal.sectionBg) }
 
 // projectPicker is the status bar's project switcher: every project, the one
-// on screen marked, choosing one opens its main worktree; the last row adds
-// another, and stays out of the way of a typed name.
+// on screen marked, choosing one opens its main worktree; the first row adds
+// another, and moves below the matches of a typed name.
 func (m *Model) projectPicker() tea.Cmd {
 	var items []item
 
@@ -5347,7 +5347,7 @@ func (m *Model) projectPicker() tea.Cmd {
 		}})
 	}
 
-	items = append(items, item{label: "+ Add Project…", search: "add new project", run: func(m *Model) tea.Cmd { return m.addProjectPrompt() }})
+	items = append(items, item{label: "+ Add Project…", always: true, run: func(m *Model) tea.Cmd { return m.addProjectPrompt() }})
 	m.modal = newPicker("Open Project", items)
 
 	return nil
