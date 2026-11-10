@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/xseman/pando/internal/proto"
 )
 
@@ -68,4 +69,19 @@ func TestKillLeavesDetachedJob(t *testing.T) {
 	case <-time.After(15 * time.Second):
 		t.Fatal("kill hung on a job holding the terminal")
 	}
+}
+
+// An agent that is the session's own process and suspends itself on ctrl+z
+// (claude) has no shell to run fg in: the daemon continues it.
+func TestSuspendedSessionContinues(t *testing.T) {
+	d := start(t)()
+	defer d.Close()
+
+	var s proto.Session
+	call(t, "session.new", map[string]any{"workspace": t.TempDir(), "cmd": []string{"sh", "-c", "trap 'echo BACK' CONT; echo READY; while :; do sleep 0.1; done"}}, &s)
+	call(t, "session.wait", proto.WaitParams{ID: s.ID, Match: "READY", Timeout: 15000}, &s)
+
+	call(t, "session.input", proto.InputParams{ID: s.ID, Keys: []proto.Key{{Code: 'z', Mod: int(uv.ModCtrl)}}}, nil)
+
+	call(t, "session.wait", proto.WaitParams{ID: s.ID, Match: "BACK", Timeout: 15000}, &s)
 }

@@ -123,6 +123,10 @@ driving the API.
   after 2 s. A job left holding the terminal (`cmd & disown`, `setsid`) is
   waited for 2 s more, then left: its output reader ends with it, and
   `pando stop` lets go of the lock.
+- ctrl+z sent to a session whose own process is in front is followed by a
+  SIGCONT 300 ms and 2 s later: its process group is orphaned, so nothing
+  stops it, yet an agent that suspends itself (claude) waits for one, with
+  no shell to run `fg`. A job in front of a shell is left to the shell.
 
 A TUI fetches one screen per terminal at a time, numbered (`takeoff`); a
 reply that is not the terminal's latest is dropped, and a fetch asked for in

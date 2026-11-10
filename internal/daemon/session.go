@@ -838,6 +838,10 @@ func (s *session) input(p proto.InputParams) error {
 		if _, err := io.WriteString(s.emu.InputPipe(), p.Text); err != nil {
 			return err
 		}
+
+		if strings.ContainsRune(p.Text, 0x1a) { // ctrl+z as a script sends it
+			s.unsuspend()
+		}
 	}
 
 	s.mu.Lock()
@@ -855,6 +859,10 @@ func (s *session) input(p proto.InputParams) error {
 	}
 
 	for _, k := range p.Keys {
+		if k.Code == 'z' && uv.KeyMod(k.Mod) == uv.ModCtrl {
+			s.unsuspend()
+		}
+
 		// vt's SendKey only emits printable keys without modifiers, which
 		// drops shifted letters; plain text goes through the same pipe instead.
 		seq, special := xtermKey(k.Code, uv.KeyMod(k.Mod))

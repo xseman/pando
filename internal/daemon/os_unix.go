@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/creack/pty"
 	"golang.org/x/sys/unix"
@@ -28,6 +29,12 @@ var fallbackShells = []string{"bash", "/bin/sh"}
 func execLine(argv []string) []string {
 	return []string{"/bin/sh", "-c", "exec env " + strings.Join(argv, " ")}
 }
+
+// suspendTimes are when a SIGCONT follows a ctrl+z: once the agent has had
+// time to suspend itself, and again for one that read the key late (claude
+// takes half a second while it starts). A program that did not suspend
+// redraws at most.
+var suspendTimes = []time.Duration{300 * time.Millisecond, 2 * time.Second}
 
 // kill is kill(2): a negative pid is a process group.
 var kill = syscall.Kill
@@ -49,6 +56,29 @@ func startTerm(cmd *exec.Cmd, cols, rows int) (*term, error) {
 
 // signal sends sig to the session's process group.
 func (t *term) signal(sig syscall.Signal) { _ = syscall.Kill(-t.cmd.Process.Pid, sig) }
+
+// unsuspend continues the session's own process after a ctrl+z it took in
+// front. Nothing stops it: it leads the terminal's session, its process group
+// is orphaned, and the kernel drops SIGTSTP for one. An agent that suspends
+// itself all the same (claude) then waits for a SIGCONT no shell is there to
+// send. A job in front of a shell is the shell's.
+func (s *session) unsuspend() {
+	if s.fgGroup() != s.cmd.Process.Pid {
+		return
+	}
+
+	for _, after := range suspendTimes {
+		time.AfterFunc(after, func() {
+			s.mu.Lock()
+			exited := s.exited
+			s.mu.Unlock()
+
+			if !exited {
+				s.pty.signal(syscall.SIGCONT)
+			}
+		})
+	}
+}
 
 func (t *term) resize(cols, rows int) error {
 	return pty.Setsize(t.File, &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)})

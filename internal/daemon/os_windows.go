@@ -240,6 +240,9 @@ func (t *term) wait() int {
 // ponytail: no process tree walk; the screen and output timing decide, as on macOS.
 func (s *session) foreground() (int, string) { return 0, "" }
 
+// unsuspend does nothing: ctrl+z suspends no Windows process.
+func (s *session) unsuspend() {}
+
 // cwd is "": Windows has no /proc to say where the program in front is.
 func (s *session) cwd() string { return "" }
 
