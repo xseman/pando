@@ -1188,6 +1188,7 @@ type item struct {
 	// segs and right draw the row in their own colors in place of label and
 	// hint, which stay its plain text: quick open's Sessions tree.
 	segs, right []seg
+	file        string // a file's path: the row draws its icon, and in the name view its name before its folder
 }
 
 // cancelItem is the last entry of a menu or a confirmation: it closes the
@@ -1270,7 +1271,9 @@ type modal struct {
 	move     func(m *Model)                   // after the selection moved
 	cancel   func(m *Model)                   // closed without choosing
 	complete func(v string) []string          // a prompt's suggestions for what is typed: the rest shows dimmed, tab or → takes it
-	treeable bool                             // offer the list/tree toggle
+	views    bool                             // offer ^t through quickViews, quick open's
+	treeable bool                             // the tree among them
+	fileView int                              // the quickViews one shown
 	// tabs are a picker's kinds, drawn in place of the title: tab and
 	// shift+tab or a click go to another through setTab. Quick open's.
 	tabs   []string
@@ -1279,8 +1282,9 @@ type modal struct {
 	alt    func(m *Model) tea.Cmd // alt+⏎
 	// keys are a picker's own keys, which act on its selection: the
 	// prompts' ctrl+e and shift+del.
-	keys map[string]func(m *Model) tea.Cmd
-	note string // dim at the right end of the title row
+	keys  map[string]func(m *Model) tea.Cmd
+	note  string // dim at the right end of the title row
+	hints string // keys in the bottom edge, the last dropped where they do not fit
 	// caps are the most rows a group shows under a query, in the order the
 	// items list the groups; the rest wait behind a "+ N more" row that goes
 	// to the tab named like the group.
@@ -1728,7 +1732,7 @@ func (md *modal) refilter() {
 				order = append(order, dir)
 			}
 
-			groups[dir] = append(groups[dir], item{label: "  " + filepath.Base(it.label), hint: it.hint, run: it.run})
+			groups[dir] = append(groups[dir], item{label: "  " + filepath.Base(it.label), hint: it.hint, run: it.run, file: it.label})
 		}
 
 		if len(md.disp) > 0 && len(order) > 0 { // after the recent files
@@ -2028,18 +2032,97 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 	return max(x, x0), max(y, 0), w, h, rows
 }
 
-// toggle is the list/tree switch drawn at the right end of the title row.
-func (md *modal) toggle() (label string, width int) {
-	if !md.treeable {
-		return "", 0
+// toggle is the view switch at the right end of the title row: ^t and the
+// views the tab offers, the one shown lit.
+func (md *modal) toggle() (segs []seg, width int) {
+	if !md.views {
+		return nil, 0
 	}
 
-	label = "[tree]"
-	if md.tree {
-		label = "[list]"
+	segs = []seg{sg(" ^t ", dim)}
+
+	for i, v := range quickViews {
+		switch {
+		case i == qvTree && !md.treeable:
+			continue
+		case i > 0:
+			segs = append(segs, sg("·", dim))
+		}
+
+		segs = append(segs, sg(v, ifElse(i == md.shownView(), fg(pal.headerAccent), dim)))
 	}
 
-	return label, ansi.StringWidth(" ^t "+label) + 1
+	segs = append(segs, sg(" ", dim))
+	for _, s := range segs {
+		width += ansi.StringWidth(s.s)
+	}
+
+	return segs, width
+}
+
+// shownView is the view the rows are in: the tree where the tab has none is
+// the name view.
+func (md *modal) shownView() int {
+	if md.fileView == qvTree && !md.treeable {
+		return qvName
+	}
+
+	return md.fileView
+}
+
+// cycleView is ^t: the next view the tab offers, kept in the settings.
+func (md *modal) cycleView(m *Model) tea.Cmd {
+	md.fileView = (md.shownView() + 1) % len(quickViews)
+	if md.fileView == qvTree && !md.treeable {
+		md.fileView = 0
+	}
+
+	md.tree = md.fileView == qvTree
+	md.refilter()
+
+	return m.setSettings(map[string]any{"quick_open_view": quickViews[md.fileView]})
+}
+
+// label is a row's label, marked where the query matched it; a file's has
+// its icon after any indent, and in the name view its name before its folder.
+func (md *modal) label(it item, st, note lipgloss.Style) []seg {
+	var hits []int
+	if !it.always { // a row listed whatever the query matched nothing
+		hits = fuzzyHits(md.pattern, it.label)
+	}
+
+	if it.file == "" {
+		return marked(it.label, hits, st)
+	}
+
+	icon := iconSeg(it.file, false, false)
+
+	slash := strings.LastIndexByte(it.label, '/')
+	if md.shownView() != qvName || slash < 0 {
+		in := len(it.label) - len(strings.TrimLeft(it.label, " ")) // a tree's file sits under its folder
+
+		var after []int
+
+		for _, h := range hits {
+			if h >= in {
+				after = append(after, h-in)
+			}
+		}
+
+		return append([]seg{sg(it.label[:in], st), icon}, marked(it.label[in:], after, st)...)
+	}
+
+	var inDir, inName []int
+
+	for _, h := range hits {
+		if h < slash {
+			inDir = append(inDir, h)
+		} else if h > slash {
+			inName = append(inName, h-slash-1)
+		}
+	}
+
+	return slices.Concat([]seg{icon}, marked(it.label[slash+1:], inName, st), []seg{sg("  ", note)}, marked(it.label[:slash], inDir, note))
 }
 
 func (md *modal) view(m *Model) (string, int, int) {
@@ -2075,13 +2158,16 @@ func (md *modal) view(m *Model) (string, int, int) {
 		title = " " + b.String()
 	}
 
-	label, tw := md.toggle()
+	var rb strings.Builder
 
-	right := ""
-	if tw > 0 {
-		right = dim.Render(" ^t ") + fg(pal.headerAccent).Render(label) + " "
-	} else if md.note != "" {
-		right, tw = dim.Render(" "+md.note+" "), ansi.StringWidth(md.note)+2
+	segs, tw := md.toggle()
+	for _, s := range segs {
+		rb.WriteString(s.st.Render(s.s))
+	}
+
+	right := rb.String()
+	if md.note != "" { // before the view switch: Text's count
+		right, tw = dim.Render(" "+md.note+" ")+right, tw+ansi.StringWidth(md.note)+2
 	}
 
 	title = ansi.Truncate(title, max(iw-tw, 0), "…")
@@ -2159,7 +2245,7 @@ func (md *modal) view(m *Model) (string, int, int) {
 			}
 		}
 
-		left := append([]seg{sg(" ", st)}, marked(it.label, fuzzyHits(md.pattern, it.label), st)...)
+		left := append([]seg{sg(" ", st)}, md.label(it, st, note)...)
 		if it.inline != "" {
 			left = append(left, sg(" "+it.inline, note))
 		}
@@ -2174,7 +2260,13 @@ func (md *modal) view(m *Model) (string, int, int) {
 		lines = append(lines, side+r+side)
 	}
 
-	lines = append(lines, dim.Render(bl+strings.Repeat("─", iw)+br))
+	edge := strings.Repeat("─", iw)
+	if md.hints != "" && iw > 6 { // the keys in the bottom edge, as the preview's footer drops them
+		h := ansi.Truncate(fitHints(md.hints, iw-4), iw-4, "…")
+		edge = "─ " + h + " " + strings.Repeat("─", iw-3-ansi.StringWidth(h))
+	}
+
+	lines = append(lines, dim.Render(bl+edge+br))
 
 	return strings.Join(lines, "\n"), x, y
 }
@@ -2249,13 +2341,6 @@ func (md *modal) dialogKey(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-func (md *modal) toggleTree(m *Model) tea.Cmd {
-	md.tree = !md.tree
-	md.refilter()
-
-	return m.setSettings(map[string]any{"quick_open_tree": md.tree})
-}
-
 func (md *modal) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	switch {
 	case md.form != nil:
@@ -2325,8 +2410,8 @@ func (md *modal) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		return nil
 
 	case "ctrl+t":
-		if md.treeable {
-			return md.toggleTree(m)
+		if md.views {
+			return md.cycleView(m)
 		}
 
 	case "enter":
@@ -2530,7 +2615,7 @@ func (md *modal) mouse(m *Model, msg tea.MouseMsg) tea.Cmd {
 		}
 
 		if _, tw := md.toggle(); tw > 0 && mo.Y == y && mo.X >= x+w-1-tw && mo.X < x+w-1 {
-			return md.toggleTree(m)
+			return md.cycleView(m)
 		}
 
 		if _, xs := choices(md.tabs, md.tab, true); mo.Y == y { // a tab in the title row, after "╭ "

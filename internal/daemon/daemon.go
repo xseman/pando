@@ -898,7 +898,7 @@ func (d *Daemon) saveConfig() error {
 		return fmt.Errorf("not saved, fix it first: %w", d.cfgErr)
 	}
 
-	c := config{d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID, d.state.ResumeJob, d.state.StopJob, d.state.ResumeEnv, d.state.Databases}
+	c := config{d.state.Settings, d.state.Agents, d.state.Resume, d.state.ResumeID, d.state.ResumeJob, d.state.StopJob, d.state.ResumeEnv, d.state.Databases, false}
 	if err := writeFile(d.cfgPath, c.encode()); err != nil {
 		return err
 	}

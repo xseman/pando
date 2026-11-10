@@ -217,7 +217,7 @@ func TestQuickOpenListsRecentFirst(t *testing.T) {
 func TestQuickOpenTreeListsRecentFirst(t *testing.T) {
 	m := previewModel(t, "file", "one")
 	m.files = []string{filepath.Join(m.ws, "z", "c.go"), filepath.Join(m.ws, "b.go")}
-	m.st.Settings.QuickTree = true
+	m.st.Settings.QuickView = "tree"
 
 	m.quickOpen(indexMsg{ws: m.ws, files: []string{"a/a.go", "b.go", "z/c.go"}}, qoFiles)
 

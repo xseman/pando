@@ -418,18 +418,28 @@ since the search is refused; there is no undo.
 
 `ctrl+p` (`quickopen.go`): VS Code's quick open with JetBrains' Search
 Everywhere tabs in its title row; `tab` `shift+tab` or a click go round them.
+The tab's keys sit in the bottom edge (`qoHints`).
 
-| Tab      | Lists                                                        |
-| -------- | ------------------------------------------------------------ |
-| All      | files, sessions, text; a query caps them at 8, 3 and 5 rows  |
-| Files    | the worktree's files, the 5 opened last first; `ctrl+t` tree |
-| Sessions | the Sessions tree, what `alt+t` opens                        |
-| Text     | the lines holding the query, `200+ in 31 files` at the right |
+| Tab      | Lists                                                                    |
+| -------- | ------------------------------------------------------------------------ |
+| All      | files, commands, sessions, text; a query caps them at 8, 3, 3 and 5 rows |
+| Files    | the worktree's files, the 5 opened last first                            |
+| Sessions | the Sessions tree, what `alt+t` opens                                    |
+| Text     | the lines holding the query under their files, the count at the right    |
+| Actions  | the Command Palette, the command run last first; `ctrl+shift+p` opens it |
 
-- Empty, All lists the recent files, the sessions waiting on you (`alarms`)
-  and the other files. A query lists files first, so a name and `⏎` open the
-  file as before; a capped group ends in `+ N more`, which goes to its tab.
-- `:` line, `@` symbol and `path:12:5` work in All and Files only.
+- Empty, All lists the recent files, up to 5 files git status lists
+  (`changed`, its letter at the right, the recent and deleted ones left
+  out), the sessions waiting on you (`alarms`) and the other files. A query
+  lists files first, so a name and `⏎` open the file as before; a capped
+  group ends in `+ N more`, which goes to its tab. All's commands hold every
+  word of the query (`actionsFor`): the letters alone would match most.
+- `:` line, `@` symbol and `path:12:5` work in All and Files only; `>` goes
+  to Actions from any tab but Sessions and Text, and leaves the query.
+- `ctrl+t` or a click on its switch at the right of the title row cycles
+  the views of a file (`quick_open_view`): `path`, `name` (its icon and name,
+  its folder dim after) and `tree`, Files' only; the tree shows as `name`
+  elsewhere. All, Files and Text offer it.
 - Sessions is the Sessions tree (`treeRows` with every project open), with
   no chevrons, rules, captions, Pinned pane or subagents: the projects with a
   session awake in their order, the 3 used last, the rest A–Z, one with no
@@ -446,7 +456,9 @@ Everywhere tabs in its title row; `tab` `shift+tab` or a click go round them.
   matches (`quickTextLimit`): which 200 is up to rg's threads, `--sort=path`
   costs 7× on a miss. It lands after the selection and leaves it
   where it is. A line drops its indentation and starts `…` a little before a
-  match that would not fit (`excerpt`). `alt+⏎` in All and Text hands the
+  match that would not fit (`excerpt`). Text lists each file's row, its
+  matches counted, and its lines under it, numbered (`byFile`); All the
+  lines alone, `path:line` at the right. `alt+⏎` in All and Text hands the
   query to Search.
 - The box keeps one width whatever a tab lists: 2/3 of the screen, 60 to
   120 columns.

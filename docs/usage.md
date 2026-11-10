@@ -423,8 +423,9 @@ show a warning.
 
 ## Editor
 
-- Undo, find & replace, quick open (`ctrl+p`, recent files first,
-  `:` line, `@` symbol; `tab` goes to Files, Sessions and the files' Text,
+- Undo, find & replace, quick open (`ctrl+p`, recent and changed files
+  first, `:` line, `@` symbol, `>` commands; `tab` goes to Files, Sessions,
+  the files' Text and Actions, `ctrl+t` a file's path, name or tree,
   `alt+⏎` on to Search), suggestions, merge-conflict _Accept_ actions.
 - The cursor's line is lit faintly across the editor, as VS Code's.
 - `ctrl+/` comments the line or the selection out, and a second time back in,

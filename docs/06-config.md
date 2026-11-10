@@ -74,7 +74,7 @@ config.toml edited ───────────┘  └─ "state" event �
 | `commit_style`         | `conventional` | `conventional` (worded as recent subjects), `repository`, `plain`              |
 | `diff_view`            | `inline`       | `inline`, `split` (from 90 columns)                                            |
 | `diff_full`            | `false`        | a file's diff shows the whole file, not only the changes (`z`)                 |
-| `quick_open_tree`      | `false`        | quick open groups by directory                                                 |
+| `quick_open_view`      | `name`         | a file in quick open: `path`, `name` (its folder after), `tree`; `ctrl+t`      |
 | `breadcrumbs`          | `true`         | a file's path under its tab; click a folder to browse it                       |
 | `terminal_position`    | `bottom`       | `bottom`, `left`, `right`                                                      |
 | `terminal_height`      | `12`           | bottom panel rows                                                              |

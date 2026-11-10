@@ -367,28 +367,28 @@ func TestRenameDeleteBranch(t *testing.T) {
 
 func TestCommandPalette(t *testing.T) {
 	m := testModel(t)
-	press(m, "ctrl+shift+p")
+	pressFire(m, "ctrl+shift+p") // quick open on Actions, once the files are listed
 
-	if m.modal == nil || m.modal.title != "Command Palette" || !slices.Contains(labels(m), "View: Quick Open…") ||
+	if m.modal == nil || m.modal.tab != qoActions || !slices.Contains(labels(m), "View: Quick Open…") ||
 		!slices.Contains(labels(m), "Preferences: Color theme") || slices.Contains(labels(m), "Editor: Stage Selected Ranges") {
 		t.Fatalf("palette %v", labels(m))
 	}
 	// ⌃p is ↑ in a list; over a prompt both chords reach the palettes.
 	press(m, "ctrl+p")
 
-	if m.modal == nil || m.modal.title != "Command Palette" {
+	if m.modal == nil || m.modal.tab != qoActions {
 		t.Fatal("ctrl+p left the palette")
 	}
 
 	m.modal = newPrompt("Rename", "x", nil)
 	press(m, "ctrl+shift+p")
 
-	if m.modal == nil || m.modal.title != "Command Palette" {
+	if m.modal == nil || m.modal.tab != qoActions {
 		t.Fatal("ctrl+shift+p does not reach the palette from a prompt")
 	}
 
 	m = diffModel(t, 100, 20)
-	m.Update(tea.KeyPressMsg{Code: tea.KeyF1})
+	pressFire(m, "f1")
 
 	if !slices.Contains(labels(m), "Editor: Stage Selected Ranges") {
 		t.Fatalf("a diff adds its line commands: %v", labels(m))

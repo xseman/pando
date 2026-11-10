@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/xseman/pando/internal/git"
 	"github.com/xseman/pando/internal/proto"
 )
 
@@ -47,14 +48,14 @@ func TestQuickOpenTabs(t *testing.T) {
 		t.Fatalf("ctrl+p: %+v", m.modal)
 	}
 
-	if out := checkWidths(t, m); !strings.Contains(out, "╭  All  Files  Sessions  Text ──") {
+	if out := checkWidths(t, m); !strings.Contains(out, "╭  All  Files  Sessions  Text  Actions ──") {
 		t.Fatalf("tabs in the title row:\n%s", out)
 	}
 
 	press(m, "tab")
 
-	if out := checkWidths(t, m); m.modal.tab != qoFiles || !strings.Contains(out, "^t [tree]") {
-		t.Fatalf("tab to Files, with its tree toggle: tab %d\n%s", m.modal.tab, out)
+	if out := checkWidths(t, m); m.modal.tab != qoFiles || !strings.Contains(out, "^t path·name·tree") {
+		t.Fatalf("tab to Files, with its view switch: tab %d\n%s", m.modal.tab, out)
 	}
 
 	press(m, "tab")
@@ -72,7 +73,7 @@ func TestQuickOpenTabs(t *testing.T) {
 	press(m, "tab", "shift+tab")
 
 	if m.modal.tab != qoText {
-		t.Fatalf("tab round to All, shift+tab back to Text: %d", m.modal.tab)
+		t.Fatalf("tab on to Actions, shift+tab back to Text: %d", m.modal.tab)
 	}
 
 	x, y, _, _, _ := m.modal.rect(m)
@@ -85,7 +86,7 @@ func TestQuickOpenTabs(t *testing.T) {
 
 	m.Update(tea.WindowSizeMsg{Width: 36, Height: 20})
 
-	if out := checkWidths(t, m); !strings.Contains(out, "Sessio… ^t [tree]") {
+	if out := checkWidths(t, m); !strings.Contains(out, "Files… ^t path·name·tree") {
 		t.Fatalf("tabs cut short on the right in a narrow box:\n%s", out)
 	}
 }
@@ -127,6 +128,13 @@ func TestQuickOpenAll(t *testing.T) {
 		t.Fatalf("eight files and the rest behind a row: %q", got)
 	}
 
+	press(m, "ctrl+u", "s", "p", "l", "i", "t") // the commands with the word, not every one with its letters
+
+	if got := labels(m); !slices.Contains(got, "actions") || !slices.Contains(got, "View: Split Editor Right") || slices.Contains(got, "View: Show Explorer") {
+		t.Fatalf("commands under a query: %q", got)
+	}
+
+	press(m, "ctrl+u", "f", "0")
 	m.modal.l.sel = 9
 	press(m, "enter")
 
@@ -168,13 +176,18 @@ func TestQuickOpenText(t *testing.T) {
 
 	out := checkWidths(t, m)
 
-	press(m, "shift+tab")
+	press(m, "shift+tab", "shift+tab")
 
-	if got := labels(m); m.modal.tab != qoText || !slices.Equal(got, want[4:]) || m.modal.note != "3 in 2 files" {
-		t.Fatalf("Text: %q, %q\n%s", got, m.modal.note, out)
+	if out := checkWidths(t, m); !strings.Contains(out, "3 in 2 files  ^t path·name ") {
+		t.Fatalf("Text counts before its view switch:\n%s", out)
 	}
 
-	m.modal.l.sel = 1
+	byFile := []string{"b.txt", "  1  needle needle", "notes/a.txt", "  2  the needle is here"}
+	if got := labels(m); m.modal.tab != qoText || !slices.Equal(got, byFile) || m.modal.note != "3 in 2 files" || m.modal.disp[0].hint != "2" {
+		t.Fatalf("Text, by file: %q, %q\n%s", got, m.modal.note, out)
+	}
+
+	m.modal.l.sel = 3
 	send(m, keyMsg("enter"))
 
 	if !strings.HasSuffix(m.pv.path, filepath.Join("notes", "a.txt")) || m.pv.cur != (pos{1, 18}) {
@@ -195,12 +208,12 @@ func TestQuickOpenPaste(t *testing.T) {
 		t.Fatalf("pasted into All: %q", got)
 	}
 
-	press(m, "ctrl+u", "shift+tab")
+	press(m, "ctrl+u", "shift+tab", "shift+tab")
 
 	_, cmd := m.Update(tea.PasteMsg{Content: "needle"})
 	runQuick(m, cmd)
 
-	if got := labels(m); !slices.Equal(got, []string{"needle needle"}) {
+	if got := labels(m); !slices.Equal(got, []string{"b.txt", "  1  needle needle"}) {
 		t.Fatalf("pasted into Text: %q", got)
 	}
 }
@@ -224,7 +237,7 @@ func TestQuickOpenNarrow(t *testing.T) {
 	deep := filepath.Join("src", "some", "really", "deeply", "nested", "directory", "structure", "file_with_long_name.txt")
 	mustWrite(t, filepath.Join(m.ws, "long.txt"), strings.Repeat("x", 300)+" needle end\n")
 	mustWrite(t, filepath.Join(m.ws, deep), "needle deep\n")
-	m.quickOpen(indexMsg{ws: m.ws, files: []string{"long.txt", deep}}, qoText)
+	m.quickOpen(indexMsg{ws: m.ws, files: []string{"long.txt", deep}}, qoAll)
 	typeQuick(m, "needle")
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
 
@@ -233,8 +246,8 @@ func TestQuickOpenNarrow(t *testing.T) {
 		t.Fatalf("the match and the file's name on screen:\n%s", out)
 	}
 
-	if it := m.modal.disp[1]; !strings.HasPrefix(it.hint, "…") {
-		t.Fatalf("a long path is cut on the left: %q", it.hint)
+	if i := slices.IndexFunc(m.modal.disp, func(it item) bool { return strings.Contains(it.hint, "long_name") }); i < 0 || !strings.HasPrefix(m.modal.disp[i].hint, "…") {
+		t.Fatalf("a long path is cut on the left: %q", labels(m))
 	}
 }
 
@@ -260,11 +273,11 @@ func TestQuickOpenTextStates(t *testing.T) {
 	typeQuick(m, "needle")
 
 	got := labels(m)
-	if len(got) != quickTextLimit+1 || got[quickTextLimit] != "all in Search" || m.modal.note != "200+ in 1 file" {
+	if len(got) != quickTextLimit+2 || got[quickTextLimit+1] != "all in Search" || m.modal.note != "200+ in 1 file" {
 		t.Fatalf("capped: %d rows, last %q, note %q", len(got), got[len(got)-1], m.modal.note)
 	}
 
-	press(m, "tab")
+	press(m, "tab", "tab")
 
 	if got := labels(m); got[len(got)-1] != fmt.Sprintf("+ %d+ more", quickTextLimit-quickTextAll) {
 		t.Fatalf("All shows %d lines: %q", quickTextAll, got)
@@ -458,4 +471,58 @@ func FuzzWordRuns(f *testing.F) {
 			last = r[1]
 		}
 	})
+}
+
+// Browsing All lists what git status has changed after the recent files,
+// those and deleted ones left out, each with its letter.
+func TestQuickOpenChanged(t *testing.T) {
+	m := testModelSized(t, 120, 40)
+	m.files = []string{filepath.Join(m.ws, "a.go")}
+	m.scm.status = map[string]git.Status{m.ws: {
+		Staged:  []git.Entry{{Path: "b.go", Letter: 'A', Staged: true}},
+		Changes: []git.Entry{{Path: "a.go", Letter: 'M'}, {Path: "gone.go", Letter: 'D'}, {Path: "b.go", Letter: 'M'}, {Path: "new.txt", Letter: 'U'}},
+	}}
+
+	m.quickOpen(indexMsg{ws: m.ws, files: []string{"a.go", "b.go", "new.txt", "z.go"}}, qoAll)
+
+	if got := labels(m); !slices.Equal(got[:7], []string{"recently opened", "a.go", "", "changed", "b.go", "new.txt", ""}) || m.modal.disp[4].hint != "A" {
+		t.Fatalf("browsing All: %q", got)
+	}
+}
+
+// ^t walks the views: the name before its folder, the path, the tree where
+// the tab has one; ">" goes to the commands, and ^⇧p too.
+func TestQuickOpenViews(t *testing.T) {
+	m := testModelSized(t, 120, 30)
+	m.st.Settings.QuickView = "name"
+	m.quickOpen(indexMsg{ws: m.ws, files: []string{"src/deep/x.go"}}, qoAll)
+	press(m, "x")
+
+	if out := checkWidths(t, m); !strings.Contains(out, "x.go  src/deep") || !strings.Contains(out, "^t path·name ") || !strings.Contains(out, "╰─ ⏎ open  ⇥ tab  alt+⏎ Search") {
+		t.Fatalf("the name view, its switch and the keys:\n%s", out)
+	}
+
+	press(m, "ctrl+t")
+
+	if out := checkWidths(t, m); m.modal.fileView != qvPath || !strings.Contains(out, "src/deep/x.go") {
+		t.Fatalf("on to the path: %d\n%s", m.modal.fileView, out)
+	}
+
+	press(m, "ctrl+t") // All has no tree: back to the name
+
+	if m.modal.fileView != qvName {
+		t.Fatalf("All skips the tree: %d", m.modal.fileView)
+	}
+
+	press(m, "ctrl+u", ">", "s", "p")
+
+	if m.modal.tab != qoActions || m.modal.input.Value() != "sp" || !slices.Contains(labels(m), "View: Split Editor Right") {
+		t.Fatalf("> goes to the commands: tab %d, %q", m.modal.tab, m.modal.input.Value())
+	}
+
+	press(m, "shift+tab", "ctrl+shift+p")
+
+	if m.modal.tab != qoActions || m.modal.input.Value() != "sp" {
+		t.Fatalf("^⇧p in quick open goes to its Actions: tab %d", m.modal.tab)
+	}
 }

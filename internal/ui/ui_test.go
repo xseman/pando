@@ -1748,7 +1748,7 @@ func TestDiffPreview(t *testing.T) {
 
 func TestQuickOpenTree(t *testing.T) {
 	m := testModel(t)
-	m.st.Settings.QuickTree = true
+	m.st.Settings.QuickView = "tree"
 	m.quickOpen(indexMsg{ws: m.ws, files: []string{"b.go", "a/y.go", "a/x.go"}}, qoFiles)
 
 	if got := labels(m); !slices.Equal(got, []string{"a/", "  x.go", "  y.go", "./", "  b.go"}) {
@@ -1765,21 +1765,23 @@ func TestQuickOpenTree(t *testing.T) {
 		t.Fatalf("down skips directory rows, sel = %d", m.modal.l.sel)
 	}
 
-	if out := checkWidths(t, m); !strings.Contains(out, "[list]") {
-		t.Fatalf("toggle button missing:\n%s", out)
+	if out := checkWidths(t, m); !strings.Contains(out, "^t path·name·tree") {
+		t.Fatalf("view switch missing:\n%s", out)
 	}
 
 	press(m, "ctrl+t")
 
-	if m.modal.tree || m.st.Settings.QuickTree || len(m.modal.disp) != 3 {
-		t.Fatalf("ctrl+t back to list: tree=%v rows=%d", m.modal.tree, len(m.modal.disp))
+	if m.modal.tree || m.modal.fileView != qvPath || len(m.modal.disp) != 3 {
+		t.Fatalf("ctrl+t on to the paths: tree=%v view=%d rows=%d", m.modal.tree, m.modal.fileView, len(m.modal.disp))
 	}
 
 	x, y, w, _, _ := m.modal.rect(m)
-	m.Update(tea.MouseClickMsg{X: x + w - 4, Y: y, Button: tea.MouseLeft})
+	for range 2 {
+		m.Update(tea.MouseClickMsg{X: x + w - 4, Y: y, Button: tea.MouseLeft})
+	}
 
 	if !m.modal.tree {
-		t.Fatal("clicking the title toggle switches to tree")
+		t.Fatal("two clicks on the view switch, by name, then the tree")
 	}
 }
 

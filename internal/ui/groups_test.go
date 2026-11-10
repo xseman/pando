@@ -421,7 +421,7 @@ func TestDragBase(t *testing.T) {
 func TestModalBase(t *testing.T) {
 	m := groupsModel(t)
 
-	press(m, "ctrl+shift+p")
+	pressFire(m, "ctrl+shift+p")
 	checkWidths(t, m)
 
 	b := m.base

@@ -310,7 +310,7 @@ func fullSettings() Settings {
 		GitTree:   true,
 		Drawers:   []string{"Changes", "Graph"},
 		GitPanes:  map[string]Pane{"Changes": {Open: true, H: 7}},
-		QuickTree: true,
+		QuickView: "tree",
 		Theme:     "vscode-dark",
 		DiffView:  "split",
 		Borders:   true,

@@ -3171,7 +3171,10 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 	if m.modal != nil {
 		// The palette and Quick Open replace any modal; a list keeps ⌃p as ↑.
 		switch s := k.String(); {
-		case s == "ctrl+shift+p" && m.modal.title != "Command Palette":
+		case s == "ctrl+shift+p" && m.modal.setTab != nil: // quick open: its Actions tab
+			return m.modal.setTab(m, qoActions)
+
+		case s == "ctrl+shift+p":
 			m.modal.dismiss(m)
 			return m.commandPalette()
 
@@ -5994,15 +5997,32 @@ func (m *Model) confirmQuit() tea.Cmd {
 	return nil
 }
 
+// commandPalette is quick open on its Actions tab: at once over the files
+// listed last, else once they are.
 func (m *Model) commandPalette() tea.Cmd {
+	if m.index.ws == m.ws {
+		m.quickOpen(indexMsg{ws: m.ws, files: m.index.files}, qoActions)
+		return nil
+	}
+
+	load := m.loadIndex(true)
+
+	return func() tea.Msg {
+		msg, _ := load().(indexMsg)
+		msg.tab = qoActions
+
+		return msg
+	}
+}
+
+// paletteItems are the commands, the one run last first.
+func (m *Model) paletteItems() []item {
 	items := m.commands()
 	if i := slices.IndexFunc(items, func(it item) bool { return it.label == m.lastCommand }); i > 0 {
 		items = append([]item{items[i]}, slices.Delete(slices.Clone(items), i, i+1)...)
 	}
 
-	m.modal = newPicker("Command Palette", items)
-
-	return nil
+	return items
 }
 
 // toggleDiffView switches diffs between inline and side by side.

@@ -33,6 +33,8 @@ type config struct {
 	// worktree's, by name: postgres://user@host/db, mariadb://user@host/db,
 	// sqlite:///path.
 	Databases map[string]string `toml:"databases"`
+	// QuickTree is the bool before quick_open_view: read as "tree", never written.
+	QuickTree bool `toml:"quick_open_tree"`
 }
 
 func defaultConfig() config {
@@ -46,7 +48,7 @@ func defaultConfig() config {
 	return config{
 		Settings: proto.Settings{
 			Hidden: true, Icons: "ascii", Width: 40, WidthR: 32, GitDeco: true, GitTree: true, Crumbs: true, Reveal: true,
-			Theme: "vscode", DiffView: "inline", Borders: true, FmtSave: true, Diags: true, MsgAgent: "auto", MsgStyle: "conventional",
+			Theme: "vscode", DiffView: "inline", Borders: true, FmtSave: true, Diags: true, MsgAgent: "auto", MsgStyle: "conventional", QuickView: "name",
 			ActBar: "side", TermPos: "bottom", TermH: 12, SessHi: "tint",
 			SpSort: "created", SpGroup: "workspace", SpProj: "manual", ExSort: "name",
 			Sounds: true, SoundDone: done, SoundReq: req, Updates: true, FontOffer: true, Anim: true, Tips: true, Blanks: "selection", ClaudeBg: true, TabSize: 4, MDWidth: 80, Sleep: 60,
@@ -116,6 +118,12 @@ func loadConfig(path string) (config, error) {
 	if c.Icons == "" {
 		c.Icons = "ascii"
 	}
+
+	if c.QuickTree && !md.IsDefined("quick_open_view") { // a config from before quick_open_view
+		c.QuickView = "tree"
+	}
+
+	c.QuickTree = false
 
 	return c, nil
 }
@@ -194,7 +202,7 @@ func (c *config) encode() []byte {
 	kv("Files selects the file the editor shows, unfolding its folders, as VS Code's\nexplorer.autoReveal, and comes to the front of its column: a file or a change opened,\nits tab picked or a session switched to. Opened from Search or Source Control in Files'\nown column, that view stays.", "auto_reveal", s.Reveal)
 	kv("Color Files entries by their git status.", "git_deco", s.GitDeco)
 	kv("Show Source Control changes as a tree instead of a flat list.", "git_tree", s.GitTree)
-	kv("Group quick open (ctrl+p) results by directory.", "quick_open_tree", s.QuickTree)
+	kv("Quick open (ctrl+p) lists a file by its \"path\", its \"name\" before its folder, or in a \"tree\"\nof folders (in its Files tab). ctrl+t in it switches.", "quick_open_view", s.QuickView)
 	kv("Source Control history drawers to show: Graph, Commits, File History, Branches,\nWorktrees, Remotes, Stashes, Tags.", "git_drawers", list(s.Drawers))
 	kv("Fold those drawers into one Tools row.", "git_drawers_folded", s.GitFold)
 	kv("The agent that writes a commit message (A, or the message box's menu): \"auto\", the first\n"+

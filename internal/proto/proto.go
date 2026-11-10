@@ -56,15 +56,15 @@ type Settings struct {
 	GitFold   bool            `json:"git_drawers_folded" toml:"git_drawers_folded"` // the drawers folded into one Tools row
 	MsgAgent  string          `json:"commit_agent" toml:"commit_agent"`             // the agent that writes a commit message: "auto" (the first installed) | "claude" | "codex" | "gemini" | "opencode"
 	MsgStyle  string          `json:"commit_style" toml:"commit_style"`             // "conventional" (Conventional Commits, worded as recent subjects) | "repository" (their convention) | "plain"
-	QuickTree bool            `json:"quick_open_tree" toml:"quick_open_tree"`
-	Theme     string          `json:"color_theme" toml:"color_theme"`             // "vscode" (dark or light by background) | "vscode-dark" | "vscode-light" | "terminal"
-	DiffView  string          `json:"diff_view" toml:"diff_view"`                 // "inline" | "split"
-	DiffFull  bool            `json:"diff_full" toml:"diff_full"`                 // a file's diff shows the whole file, not only the changes and three lines around them
-	Borders   bool            `json:"panel_borders" toml:"panel_borders"`         // frame each panel with a titled border
-	ActBar    string          `json:"activity_bar" toml:"activity_bar"`           // "top" (a row of chips) | "side" (icons down the outer edge)
-	TermPos   string          `json:"terminal_position" toml:"terminal_position"` // "bottom" (a panel under the editor) | "left" | "right"
-	TermH     int             `json:"terminal_height" toml:"terminal_height"`     // rows of the bottom panel
-	TermOpen  bool            `json:"terminal_open" toml:"terminal_open"`         // the panel's state for a workspace without one in State.Terminals: the last one set
+	QuickView string          `json:"quick_open_view" toml:"quick_open_view"`       // quick open's files: "path" | "name" (before its folder) | "tree" (in Files)
+	Theme     string          `json:"color_theme" toml:"color_theme"`               // "vscode" (dark or light by background) | "vscode-dark" | "vscode-light" | "terminal"
+	DiffView  string          `json:"diff_view" toml:"diff_view"`                   // "inline" | "split"
+	DiffFull  bool            `json:"diff_full" toml:"diff_full"`                   // a file's diff shows the whole file, not only the changes and three lines around them
+	Borders   bool            `json:"panel_borders" toml:"panel_borders"`           // frame each panel with a titled border
+	ActBar    string          `json:"activity_bar" toml:"activity_bar"`             // "top" (a row of chips) | "side" (icons down the outer edge)
+	TermPos   string          `json:"terminal_position" toml:"terminal_position"`   // "bottom" (a panel under the editor) | "left" | "right"
+	TermH     int             `json:"terminal_height" toml:"terminal_height"`       // rows of the bottom panel
+	TermOpen  bool            `json:"terminal_open" toml:"terminal_open"`           // the panel's state for a workspace without one in State.Terminals: the last one set
 
 	SessHi    string              `json:"session_highlight" toml:"session_highlight"` // a session waiting, done unseen or failed: "tint" its row and tab, pulsing until clicked | "steady" | "off"
 	LSP       map[string][]string `json:"lsp" toml:"lsp"`                             // language to server command

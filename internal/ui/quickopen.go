@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -24,9 +25,29 @@ const (
 	qoFiles
 	qoSessions
 	qoText
+	qoActions
 )
 
-var qoTabs = []string{"All", "Files", "Sessions", "Text"}
+var qoTabs = []string{"All", "Files", "Sessions", "Text", "Actions"}
+
+// qoHints are each tab's keys, in the box's bottom edge.
+var qoHints = []string{
+	"⏎ open  ⇥ tab  alt+⏎ Search  : line  @ symbol  > command",
+	"⏎ open  ⇥ tab  : line  @ symbol  > command",
+	"⏎ go  ⇥ tab  @state  !agent",
+	"⏎ open  ⇥ tab  alt+⏎ Search",
+	"⏎ run  ⇥ tab",
+}
+
+// Quick open's views of a file, ^t: its path, its name before its folder,
+// or its folders as a tree (in Files).
+const (
+	qvPath = iota
+	qvName
+	qvTree
+)
+
+var quickViews = []string{"path", "name", "tree"}
 
 const (
 	quickTextMin   = 2                      // the shortest query searched for in the files
@@ -36,6 +57,9 @@ const (
 
 	quickSessionsAll  = 3                      // the sessions All shows
 	quickSessionsRoom = 3 + 3*quickSessionsAll // their rows: a heading, a blank, a "+ N more", each with a project and a worktree over it
+
+	quickChanged    = 5 // the changed files All lists while browsing
+	quickActionsAll = 3 // the commands All shows under a query
 )
 
 // quickOpenState is one quick open's lists and its search through the
@@ -45,7 +69,10 @@ type quickOpenState struct {
 	ws           string
 	files        []item // the recent ones first
 	recent       int
+	changed      []item // what git status lists, the recent files left out: All's while browsing
 	waiting      []item // the sessions waiting on you, All's while browsing
+	actions      []item // the Command Palette's, the one run last first
+	allActions   []item // the same under All's heading
 	base         []item // All's files, grouped for browsing or a query, and the sessions waiting while browsing
 	baseBrowsing bool
 	asked        bool // "@" went on to the symbols
@@ -88,20 +115,45 @@ func (m *Model) quickOpen(msg indexMsg, tab int) {
 
 	files := slices.Concat(recent, slices.DeleteFunc(slices.Clone(msg.files), func(f string) bool { return slices.Contains(recent, f) }))
 
-	md := &modal{filter: true, x: -1, input: modalInput(), tabs: qoTabs}
-	q := &quickOpenState{md: md, ws: msg.ws, recent: len(recent), waiting: m.sessionItems(m.alarms())}
+	view := slices.Index(quickViews, m.st.Settings.QuickView)
+	md := &modal{filter: true, x: -1, input: modalInput(), tabs: qoTabs, fileView: max(view, 0)}
+	q := &quickOpenState{md: md, ws: msg.ws, recent: len(recent), waiting: m.sessionItems(m.alarms()), actions: m.paletteItems()}
 
-	q.files = make([]item, len(files))
-	for i, f := range files {
+	q.allActions = slices.Clone(q.actions)
+	for i := range q.allActions {
+		q.allActions[i].group = "actions"
+	}
+
+	open := func(f string) item {
 		p := filepath.Join(msg.ws, f)
 
-		q.files[i] = item{label: f, run: func(m *Model) tea.Cmd {
+		return item{label: f, file: f, run: func(m *Model) tea.Cmd {
 			m.ex.reveal(m, p)
 
 			line, col := parseLineCol(lineSuffix(md.input.Value()))
 
 			return m.openLine(p, line, col)
 		}}
+	}
+
+	q.files = make([]item, len(files))
+	for i, f := range files {
+		q.files[i] = open(f)
+	}
+
+	st := m.scm.status[msg.ws]
+	for _, e := range slices.Concat(st.Conflicts, st.Staged, st.Changes) {
+		if len(q.changed) == quickChanged {
+			break
+		}
+
+		if e.Letter == 'D' || slices.Contains(recent, e.Path) || slices.ContainsFunc(q.changed, func(it item) bool { return it.file == e.Path }) {
+			continue // a deleted file has nothing to open
+		}
+
+		it := open(e.Path)
+		it.hint = string(e.Letter)
+		q.changed = append(q.changed, it)
 	}
 
 	md.setTab, md.change, md.alt = q.setTab, q.change, q.toSearch
@@ -113,12 +165,13 @@ func (m *Model) quickOpen(msg indexMsg, tab int) {
 // setTab shows tab i for the query as typed.
 func (q *quickOpenState) setTab(m *Model, i int) tea.Cmd {
 	md := q.md
-	md.tab, md.lineQuery, md.treeable = i, i == qoAll || i == qoFiles, i == qoFiles
-	md.tree = md.treeable && m.st.Settings.QuickTree
+	md.tab, md.lineQuery, md.hints = i, i == qoAll || i == qoFiles, qoHints[i]
+	md.views, md.treeable = i == qoAll || i == qoFiles || i == qoText, i == qoFiles
+	md.tree = md.treeable && md.fileView == qvTree
 
 	md.caps = nil
 	if i == qoAll {
-		md.caps = map[string]int{"files": 8}
+		md.caps = map[string]int{"files": 8, "actions": quickActionsAll}
 	}
 
 	cmd := q.search()
@@ -129,8 +182,15 @@ func (q *quickOpenState) setTab(m *Model, i int) tea.Cmd {
 }
 
 // change follows the query. In All and Files "@" goes to a symbol in the
-// open file and ":" to a line, as in VS Code.
+// open file and ":" to a line, as in VS Code; ">" to the commands.
 func (q *quickOpenState) change(m *Model, v string) tea.Cmd {
+	if rest, ok := strings.CutPrefix(v, ">"); ok && q.md.tab != qoSessions && q.md.tab != qoText {
+		q.md.input.SetValue(strings.TrimLeft(rest, " "))
+		q.md.input.CursorEnd()
+
+		return q.setTab(m, qoActions)
+	}
+
 	if q.md.tab == qoAll || q.md.tab == qoFiles {
 		if strings.HasPrefix(v, ":") && m.showsPreview() && m.pv.ready {
 			m.modal = nil
@@ -261,7 +321,12 @@ func (q *quickOpenState) fill(m *Model) {
 		// The sessions and the text go into the room allBase left: the files
 		// are not copied for each key.
 		text := q.textItems(m, quickTextAll)
+
 		md.items = q.base
+		if !browsing {
+			md.items = append(md.items, q.actionsFor(md.input.Value())...)
+		}
+
 		md.items = append(md.items, q.allSessions(m, text != nil)...)
 		md.items = append(md.items, text...)
 
@@ -283,11 +348,32 @@ func (q *quickOpenState) fill(m *Model) {
 		if q.long() && (q.busy || len(q.text) > 0) {
 			md.note = q.status()
 		}
+
+	case qoActions:
+		md.items = q.actions
 	}
 
 	if md.items == nil { // a picker with no items is no picker: ctrl+p over it opens quick open
 		md.items = []item{}
 	}
+}
+
+// actionsFor are All's commands for query v: each of its words in the
+// label, as the Sessions tree finds; scattered letters would match most.
+func (q *quickOpenState) actionsFor(v string) []item {
+	v, _, _ = strings.Cut(v, ":")
+	words := strings.Fields(strings.ToLower(v))
+
+	var out []item
+
+	for _, it := range q.allActions {
+		l := strings.ToLower(it.label)
+		if !slices.ContainsFunc(words, func(w string) bool { return !strings.Contains(l, w) }) {
+			out = append(out, it)
+		}
+	}
+
+	return out
 }
 
 // allBase is All's files under their headings: while browsing the recent
@@ -301,17 +387,17 @@ func (q *quickOpenState) allBase(browsing bool) []item {
 
 	parts := []part{{q.files, "files"}}
 	if browsing {
-		parts = []part{{q.files[:q.recent], recentGroup}, {q.waiting, "waiting on you"}, {q.files[q.recent:], "files"}}
+		parts = []part{{q.files[:q.recent], recentGroup}, {q.changed, "changed"}, {q.waiting, "waiting on you"}, {q.files[q.recent:], "files"}}
 	}
 
-	one := browsing && q.recent == 0 && len(q.waiting) == 0 // nothing to set apart: no headings
-	n := 0
+	one := browsing && q.recent == 0 && len(q.changed) == 0 && len(q.waiting) == 0 // nothing to set apart: no headings
+	n := len(q.actions)
 
 	for _, p := range parts {
 		n += len(p.items)
 	}
 
-	out := make([]item, 0, n+quickTextAll+2+quickSessionsRoom) // a heading, the lines, a "+ N more"
+	out := make([]item, 0, n+quickTextAll+2+quickSessionsRoom) // the commands, a heading, the lines, a "+ N more"
 
 	for _, p := range parts {
 		for _, it := range p.items {
@@ -361,12 +447,58 @@ func (q *quickOpenState) textItems(m *Model, n int) []item {
 		return note("no results for “"+q.query+"”", "alt+⏎ Search")
 	}
 
-	rows := q.lines(m)
+	rows := q.byFile(m)
 	if q.truncated {
 		rows = append(rows, item{label: "all in Search", hint: "alt+⏎", always: true, run: q.toSearch})
 	}
 
 	return rows
+}
+
+// byFile are the lines found under their files, as the Search view lists
+// them: a file's row counts its matches and opens the first, each line under
+// it shows its number and text.
+func (q *quickOpenState) byFile(m *Model) []item {
+	_, _, w, _, _ := q.md.rect(m)
+
+	digits := 1
+
+	for _, f := range q.text {
+		for _, ln := range f.lines {
+			digits = max(digits, len(strconv.Itoa(ln.line)))
+		}
+	}
+
+	var out []item
+
+	for _, f := range q.text {
+		if len(f.lines) == 0 {
+			continue
+		}
+
+		out = append(out, item{label: f.path, file: f.path, hint: strconv.Itoa(f.count), always: true, run: q.openAt(f.path, f.lines[0])})
+
+		for _, ln := range f.lines {
+			num := fmt.Sprintf("  %*d  ", digits, ln.line)
+			text := excerpt(ln, w-len(num)-4)
+			out = append(out, item{label: num + text, always: true, run: q.openAt(f.path, ln), segs: append([]seg{sg(num, dim)}, markRuns(text, wordRuns(q.query, text), plain)...)})
+		}
+	}
+
+	return out
+}
+
+// openAt opens the file at path with ln's match selected.
+func (q *quickOpenState) openAt(path string, ln searchLine) func(m *Model) tea.Cmd {
+	p := filepath.Join(q.ws, path)
+
+	return func(m *Model) tea.Cmd {
+		m.ex.reveal(m, p)
+
+		col, n := ln.span()
+
+		return m.openFileAt(p, ln.line-1, col, n, false)
+	}
 }
 
 // status counts the matches as the Search view does, "200+" where the
@@ -397,21 +529,17 @@ func (q *quickOpenState) lines(m *Model) []item {
 	var out []item
 
 	for _, f := range q.text {
-		p := filepath.Join(q.ws, f.path)
-
 		for _, ln := range f.lines {
 			hint := fmt.Sprintf("%s:%d", f.path, ln.line)
 			if over := ansi.StringWidth(hint) - (w-2)/2; over > 0 { // a long path keeps its end: the name and the line
 				hint = ansi.TruncateLeft(hint, over+1, "…")
 			}
 
-			out = append(out, item{label: excerpt(ln, w-ansi.StringWidth(hint)-5), hint: hint, always: true, run: func(m *Model) tea.Cmd {
-				m.ex.reveal(m, p)
-
-				col, n := ln.span()
-
-				return m.openFileAt(p, ln.line-1, col, n, false)
-			}})
+			text := excerpt(ln, w-ansi.StringWidth(hint)-5)
+			out = append(out, item{
+				label: text, hint: hint, always: true, run: q.openAt(f.path, ln),
+				segs: markRuns(text, wordRuns(q.query, text), plain), right: []seg{sg(hint, dim)},
+			})
 		}
 	}
 

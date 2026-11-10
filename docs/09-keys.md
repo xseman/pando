@@ -33,7 +33,7 @@ T: also in a terminal; the rest are the shell's there.
 | Key                                                    | Action                                                  |
 | ------------------------------------------------------ | ------------------------------------------------------- |
 | `ctrl+]` T                                             | cycle focus: left sidebar, each editor group, panel, …  |
-| `ctrl+shift+p` T, `F1`                                 | command palette; `ctrl+shift+p` over any modal too      |
+| `ctrl+shift+p` T, `F1`                                 | quick open's Actions; `ctrl+shift+p` over any modal too |
 | `F10`                                                  | Manage menu (⚙): palette, settings, keys, categories    |
 | `ctrl+shift+e` `ctrl+shift+g` `ctrl+shift+f` T         | Explorer, Source Control, Search                        |
 | `ctrl+shift+h` T                                       | Search with replace                                     |
@@ -52,7 +52,7 @@ T: also in a terminal; the rest are the shell's there.
 | `ctrl+pgup` `ctrl+pgdn` T, `ctrl+shift+tab` `ctrl+tab` | previous, next editor                                   |
 | `alt+1`…`alt+9` T                                      | editor N                                                |
 | `ctrl+shift+pgup` `ctrl+shift+pgdn` T                  | move the tab: editor, session tab, shell                |
-| `ctrl+p` T                                             | quick open; `tab` Files, Sessions, Text, `:` line, `@`  |
+| `ctrl+p` T                                             | quick open; `tab` next tab, `:` line, `@`, `>` commands |
 | `ctrl+n`, `ctrl+s`                                     | new untitled file, save                                 |
 | `ctrl+enter`                                           | commit                                                  |
 | `ctrl+g`, `ctrl+shift+o`                               | go to line, symbol                                      |
@@ -200,7 +200,8 @@ in every mode.
   move, `home` `end` first, last row, `pgup` `pgdn` a page, `⏎` runs, `esc` `ctrl+c` close; without a query box `j` `k` move and
   `q` closes. In a path prompt `tab` or `→` takes the suggestion.
 - Quick open: `tab` `shift+tab` go to the next, previous tab instead,
-  `ctrl+t` lists Files as a tree, `alt+⏎` hands the query to Search.
+  `ctrl+t` shows a file by its path, its name or in a tree (Files), `>`
+  goes to Actions, `alt+⏎` hands the query to Search.
 - A question: `←` `→` `h` `l` `tab` pick a button, `⏎` `space` run it, `esc`
   `q` cancel.
 - The folder picker: type a path (what follows its last slash filters the
