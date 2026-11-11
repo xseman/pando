@@ -432,7 +432,7 @@ The tab's keys sit in the bottom edge (`qoHints`).
 | All      | files, commands, sessions, text; a query caps them at 8, 3, 3 and 5 rows |
 | Files    | the worktree's files, the 5 opened last first                            |
 | Sessions | the Sessions tree, what `alt+t` opens                                    |
-| Text     | the lines holding the query under their files, the count at the right    |
+| Text     | the lines holding the query under their files, counted if the tabs fit   |
 | Actions  | the Command Palette, the command run last first; `ctrl+shift+p` opens it |
 
 - Empty, All lists the recent files, up to 5 files git status lists

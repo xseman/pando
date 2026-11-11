@@ -2544,8 +2544,9 @@ func (md *modal) lines(m *Model) ([]string, int, int) {
 	}
 
 	right := rb.String()
-	if md.note != "" { // before the view switch: Text's count
-		right, tw = dim.Render(" "+md.note+" ")+right, tw+ansi.StringWidth(md.note)+2
+	// Before the view switch: Text's count, left out where it would cut the tabs.
+	if nw := ansi.StringWidth(md.note) + 2; md.note != "" && (md.tabs == nil || ansi.StringWidth(title)+tw+nw <= iw) {
+		right, tw = dim.Render(" "+md.note+" ")+right, tw+nw
 	}
 
 	title = ansi.Truncate(title, max(iw-tw, 0), "…")

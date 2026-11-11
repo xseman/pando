@@ -145,6 +145,18 @@ func TestQuickOpenAll(t *testing.T) {
 	checkWidths(t, m)
 }
 
+// A narrow box keeps its tabs whole: Text's count is what gives way.
+func TestQuickOpenNarrowCount(t *testing.T) {
+	m := testModelSized(t, 90, 30)
+	mustWrite(t, filepath.Join(m.ws, "b.txt"), "needle needle\n")
+	m.quickOpen(indexMsg{ws: m.ws, files: []string{"b.txt"}}, qoText)
+	typeQuick(m, "needle")
+
+	if out := checkWidths(t, m); m.modal.note == "" || !strings.Contains(out, " Actions ") || strings.Contains(out, m.modal.note) {
+		t.Fatalf("tabs cut for the count %q:\n%s", m.modal.note, out)
+	}
+}
+
 // The text of the files: under the files in All, all of it in Text, which
 // counts it; ⏎ opens the line with the match selected.
 func TestQuickOpenText(t *testing.T) {
