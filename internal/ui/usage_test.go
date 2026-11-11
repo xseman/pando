@@ -68,7 +68,7 @@ func TestUsageView(t *testing.T) {
 		t.Fatalf("rows %v, want %v", kinds, want)
 	}
 
-	if !slices.Equal(rows[3].ticks, []float64{18}) || !rows[7].solo || rows[0].solo {
+	if len(rows[3].ticks) != 1 || rows[3].ticks[0].Percent != 18 || !rows[7].solo || rows[0].solo {
 		t.Fatalf("7d row %+v, codex %+v", rows[3], rows[7])
 	}
 
@@ -304,8 +304,13 @@ func TestUntil(t *testing.T) {
 
 func TestLimitMeter(t *testing.T) {
 	text := func(pct float64, ticks ...float64) string {
+		var lims []proto.Limit
+		for _, t := range ticks {
+			lims = append(lims, proto.Limit{Percent: t})
+		}
+
 		var b strings.Builder
-		for _, s := range limitMeter(8, pct, ticks, plain) {
+		for _, s := range limitMeter(8, pct, lims, plain) {
 			b.WriteString(s.s)
 		}
 
@@ -390,7 +395,7 @@ func TestHeadTabHover(t *testing.T) {
 }
 
 // TestUsageUseTip is the mouse on an account's "use": it says what a click
-// does, and nothing beside it does.
+// does, and nothing beside it does; on a meter with a model's mark, it names it.
 func TestUsageUseTip(t *testing.T) {
 	m := usageModel(t)
 	press(m, "9")
@@ -418,6 +423,13 @@ func TestUsageUseTip(t *testing.T) {
 
 	if m.tip != "" {
 		t.Fatalf("the active account says %q", m.tip)
+	}
+
+	m.Update(tea.MouseMotionMsg{X: rc.x + 6, Y: bodyY(t, m, " 96% ")})
+	m.View()
+
+	if want := "┃ Fable's Own 7d Limit  18%"; m.tip != want {
+		t.Fatalf("the weekly meter says %q, want %q", m.tip, want)
 	}
 }
 

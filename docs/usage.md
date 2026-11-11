@@ -428,8 +428,8 @@ show a warning.
 A tab beside Sessions (`9`) while `usage` is on and `claude` or `codex` is
 installed: each sign-in's plan and a row per limit window, how much of it is
 used and when it resets. A `┃` on a meter is a model's own allowance on that
-window. An agent has a sign-in per config: _default_, each of its
-`[profiles]` that sets its config directory (`CLAUDE_CONFIG_DIR`,
+window, named in the row's tip. An agent has a sign-in per config: _default_,
+each of its `[profiles]` that sets its config directory (`CLAUDE_CONFIG_DIR`,
 `CODEX_HOME`), and every config pando saw it run in. A profile that sets
 anything else runs on the default's sign-in and is not listed.
 

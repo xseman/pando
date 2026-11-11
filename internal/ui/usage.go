@@ -257,7 +257,7 @@ type usRow struct {
 	acct  proto.Account
 	solo  bool
 	lim   proto.Limit
-	ticks []float64
+	ticks []proto.Limit
 }
 
 // agentNames are the agents as their makers call them.
@@ -290,7 +290,7 @@ func (v *usageView) rows(m *Model) []usRow {
 		for _, l := range a.Limits {
 			shared := slices.IndexFunc(out[first:], func(r usRow) bool { return r.lim.Window == l.Window && r.lim.Model == "" })
 			if l.Model != "" && shared >= 0 {
-				out[first+shared].ticks = append(out[first+shared].ticks, l.Percent)
+				out[first+shared].ticks = append(out[first+shared].ticks, l)
 				continue
 			}
 
@@ -367,13 +367,23 @@ func (v *usageView) lines(m *Model, w, h int) []string {
 			return row(rw, bg, []seg{sg(lead, dim)}, right...)
 		}
 
-		return row(rw, bg, append([]seg{sg(lead, dim)}, limitMeter(cells, r.lim.Percent, ifElse(stale, nil, r.ticks), tone)...), right...)
+		ticks := ifElse(stale, nil, r.ticks)
+		if len(ticks) > 0 && i-v.l.top == hover {
+			tips := make([]string, len(ticks))
+			for j, t := range ticks {
+				tips[j] = fmt.Sprintf("┃ %s's Own %s Limit  %.0f%%", t.Model, r.lim.Window, t.Percent)
+			}
+
+			m.tip = strings.Join(tips, "   ")
+		}
+
+		return row(rw, bg, append([]seg{sg(lead, dim)}, limitMeter(cells, r.lim.Percent, ticks, tone)...), right...)
 	})
 }
 
 // limitMeter draws pct of w cells in half-cell steps, tone over a faint
 // track, with a mark at each of ticks.
-func limitMeter(w int, pct float64, ticks []float64, tone lipgloss.Style) []seg {
+func limitMeter(w int, pct float64, ticks []proto.Limit, tone lipgloss.Style) []seg {
 	halves := int(math.Round(pct / 100 * float64(w) * 2))
 	full := min(halves/2, w)
 	track := fg(pal.indentGuide)
@@ -391,7 +401,7 @@ func limitMeter(w int, pct float64, ticks []float64, tone lipgloss.Style) []seg 
 	}
 
 	for _, t := range ticks {
-		cells[min(int(t/100*float64(w)), w-1)] = sg("┃", plain)
+		cells[min(int(t.Percent/100*float64(w)), w-1)] = sg("┃", plain)
 	}
 
 	return cells
