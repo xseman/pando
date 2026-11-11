@@ -911,9 +911,13 @@ func (m *Model) newSession(ws, agent string, cmd []string) tea.Cmd {
 
 // spawn starts a session. typed, when set, is a line typed into it once its
 // shell settles at the prompt; env is KEY=VALUE its process gets over the
-// daemon's environment.
+// daemon's environment. It always goes as a list, an empty one for none: a
+// call that names no env at all gets the agent's active profile, which the
+// profile picker has asked about already.
 func (m *Model) spawn(ws, agent string, cmd []string, typed string, env []string) tea.Cmd {
 	fg, bg := m.sessionColors()
+
+	env = append([]string{}, env...)
 	p := map[string]any{"workspace": ws, "agent": agent, "cmd": cmd, "env": env, "cols": max(m.mainW()-1, 1), "rows": m.sessH(), "fg": fg, "bg": bg}
 
 	return func() tea.Msg {

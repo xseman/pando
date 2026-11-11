@@ -75,7 +75,7 @@ worktree, `a` add project, `3` Sessions, `ctrl+n` new file; in a split `ctrl+w`
 - `m`, right click: context menu
 - `ctrl+f`: filter (`⏎` keeps it, `esc` clears); in Sessions `/` too, and
   `⏎` opens the row found
-- `1` `2` `3` `4` `6` `7` `8`: Explorer, Source Control, Sessions, Search, GitHub, Databases, Customizations
+- `1` `2` `3` `4` `6` `7` `8` `9`: Explorer, Source Control, Sessions, Search, GitHub, Databases, Customizations, Usage
 - `tab`: focus main
 - `b`, `<` `>`: hide this column, narrow or widen it
 - `,`, `?`: settings, help
@@ -94,6 +94,7 @@ worktree, `a` add project, `3` Sessions, `ctrl+n` new file; in a split `ctrl+w`
 | GitHub         | `⏎` open, `d` pull request diff, `w` worktree (issue: start one), `o` github.com, `y` copy link, `x` mark done, `ctrl+r` refresh, `C` collapse; on an opened page `c` comment, `x` close, `M` merge, `R` ready                                                                                              |
 | Databases      | `⏎` `l` open a table, unfold a source, `t` console, `n` new connection, `e` `D` edit, remove one, `c` `y` copy name, path, `r` `ctrl+r` refresh, `C` collapse; in its form `tab` `↑` `↓` move, `←` `→` change Type and Save, `ctrl+t` test, `⏎` save                                                        |
 | Customizations | `⏎` `l` open a file, unfold a section, `←` `h` fold or go to the section, `a` agent, `c` `y` copy name, path, `r` `ctrl+r` refresh, `C` collapse                                                                                                                                                            |
+| Usage          | `⏎` new sessions start with the profile, `a` switch automatically, `r` `ctrl+r` ask again                                                                                                                                                                                                                   |
 
 Commit message: `⏎` commits, `shift+⏎` `alt+⏎` new line, `esc` `tab` leave,
 `ctrl+a` all, `home` line start, `ctrl+c` `ctrl+x` copy, cut, `↑` on the top

@@ -42,14 +42,19 @@ const (
 	viewGitHub // pull requests, issues and notifications through gh, where it is installed
 	viewDB     // the worktree's SQLite files and the servers it names, through their clients, where one is installed
 	viewCustom // what one agent loads in the worktree, where an agent it knows is installed: a tab in Sessions' header, in no column
+	viewUsage  // the agents' plan limits by sign-in, while usage is on and an account is known: a tab in Sessions' header too
 )
 
+// headed reports a tab of Sessions' header: it is in no column, and shows
+// in Sessions' place.
+func headed(v view) bool { return v == viewCustom || v == viewUsage }
+
 var (
-	viewTitles = []string{"Explorer", "Source Control", "Sessions", "Search", "Terminal", "GitHub", "Databases", "Customizations"}
-	viewKeys   = []string{"files", "git", "agents", "search", "terminal", "github", "databases", "customizations"} // values of settings.left and settings.right
+	viewTitles = []string{"Explorer", "Source Control", "Sessions", "Search", "Terminal", "GitHub", "Databases", "Customizations", "Usage"}
+	viewKeys   = []string{"files", "git", "agents", "search", "terminal", "github", "databases", "customizations", "usage"} // values of settings.left and settings.right
 	// showKeys show each view from anywhere where there is such a key, else
 	// from a sidebar: the Terminal's toggles the panel.
-	showKeys = []string{"^⇧e", "^⇧g", "3", "^⇧f", "^`", "6", "7", "8"}
+	showKeys = []string{"^⇧e", "^⇧g", "3", "^⇧f", "^`", "6", "7", "8", "9"}
 )
 
 // hasGH reports gh on the PATH, which the GitHub view needs; tests turn it off.
@@ -224,7 +229,7 @@ type Model struct {
 	cur       *pane     // the group with the keyboard, its state in Model; a leaf of grid
 	maxed     bool      // the active group fills the editor area, the others waiting
 
-	filters   [viewCustom + 1]filter // per view
+	filters   [viewUsage + 1]filter // per view
 	gh        ghView
 	ghPages   map[string]ghCached        // the pages of pull requests and issues seen, shown again while they are fetched
 	ghDrafts  map[string]*textarea.Model // each page's comment box, kept with what was typed in it when the page closes
@@ -234,8 +239,10 @@ type Model struct {
 	hasDB     bool // a database client is installed: the Databases view shows
 	cu        customView
 	hasCustom bool // an agent it knows is installed: Sessions' header has its tab
-	custTab   bool // Sessions' column draws Customizations
-	mouseX    int  // last mouse position (content rows) for hover
+	us        usageView
+	usage     proto.Usage // the agents' limits as the daemon last asked
+	headTab   view        // the tab of its header Sessions' column draws in its place, 0 (never one) for Sessions
+	mouseX    int         // last mouse position (content rows) for hover
 	mouseY    int
 	overBar   barPoint  // the scrollbar cell under the mouse: its slider hovers
 	overTab   string    // the tab under the mouse, in any strip: its chip hovers
@@ -562,7 +569,7 @@ func (m *Model) Init() tea.Cmd {
 	// m.pv is the editor New restored for the workspace; its content loads here.
 	cmds := []tea.Cmd{
 		waitEvent(m.events), tick(), tea.RequestBackgroundColor, tea.RequestForegroundColor,
-		m.refreshGit(), m.pv.load(m), m.loadDrafts(), loadUpdate(), checkFont(), m.ensureTerm(), m.gh.shown(m), m.loadGHUser(), m.diagIn.waitDiags(), m.logIn.waitLogs(),
+		m.refreshGit(), m.pv.load(m), m.loadDrafts(), loadUpdate(), loadUsage(), checkFont(), m.ensureTerm(), m.gh.shown(m), m.loadGHUser(), m.diagIn.waitDiags(), m.logIn.waitLogs(),
 	}
 	if m.open != "" { // over the restored editor, whose answer is then for another
 		cmds = append(cmds, m.openSpec(m.open))
@@ -875,10 +882,10 @@ func (m *Model) allCols() []col {
 		out = removeView(out, viewDB)
 	}
 
-	out = removeView(out, viewCustom)
+	out = removeView(removeView(out, viewCustom), viewUsage)
 
 	for v, ok := range seen {
-		if view(v) == viewGitHub && !m.hasGH || view(v) == viewDB && !m.hasDB || view(v) == viewCustom {
+		if view(v) == viewGitHub && !m.hasGH || view(v) == viewDB && !m.hasDB || headed(view(v)) {
 			continue
 		}
 
@@ -1000,9 +1007,9 @@ func leftCount(cs []col) int {
 	return n
 }
 
-// colOf is the column holding tab v; Customizations' is Sessions'.
+// colOf is the column holding tab v; a tab of Sessions' header is in Sessions'.
 func (m *Model) colOf(v view) int {
-	v = ifElse(v == viewCustom, viewAgents, v)
+	v = ifElse(headed(v), viewAgents, v)
 
 	return slices.IndexFunc(m.cols(), func(c col) bool { return slices.Contains(c.views, v) })
 }
@@ -1056,12 +1063,12 @@ func (m *Model) viewOn(i int) (view, bool) {
 	return best, true
 }
 
-// bodyOn is what column i draws: the tab viewOn says, or Customizations in
-// Sessions' place.
+// bodyOn is what column i draws: the tab viewOn says, or the tab of its
+// header picked in Sessions' place, while that tab is there.
 func (m *Model) bodyOn(i int) (view, bool) {
 	v, ok := m.viewOn(i)
-	if v == viewAgents && m.custTab {
-		return viewCustom, ok
+	if v == viewAgents && (m.headTab == viewCustom && m.hasCustom || m.headTab == viewUsage && m.hasUsage()) {
+		return m.headTab, ok
 	}
 
 	return v, ok
@@ -1367,6 +1374,8 @@ func (m *Model) listBar(v view, y int) (listBar, bool) {
 		b = listBar{geo: func() vbar { return vbar{len(m.db.rows(m)), m.bodyH(viewDB), m.db.l.top} }, to: func(top int) tea.Cmd { m.db.l.top = top; return nil }}
 	case viewCustom:
 		b = listBar{geo: func() vbar { return vbar{len(m.cu.rows(m)), m.bodyH(viewCustom), m.cu.l.top} }, to: func(top int) tea.Cmd { m.cu.l.top = top; return nil }}
+	case viewUsage:
+		b = listBar{geo: func() vbar { return vbar{len(m.us.rows(m)), m.bodyH(viewUsage), m.us.l.top} }, to: func(top int) tea.Cmd { m.us.l.top = top; return nil }}
 	case viewAgents:
 		return m.ag.bar(m, y)
 	case viewGitHub:
@@ -1480,9 +1489,9 @@ func (m *Model) showView(v view) tea.Cmd {
 	i := m.colOf(v)
 	m.clock++
 
-	on := ifElse(v == viewCustom, viewAgents, v)
+	on := ifElse(headed(v), viewAgents, v)
 	if on == viewAgents {
-		m.custTab = v == viewCustom
+		m.headTab = ifElse(headed(v), v, 0)
 	}
 
 	m.recent[on] = m.clock
@@ -1503,6 +1512,8 @@ func (m *Model) showView(v view) tea.Cmd {
 		return tea.Batch(m.db.ensure(m), m.fetchScreen())
 	case viewCustom:
 		return tea.Batch(m.cu.ensure(m), m.fetchScreen())
+	case viewUsage:
+		return tea.Batch(refreshUsage(), m.fetchScreen())
 	default:
 		return m.fetchScreen()
 	}
@@ -1879,7 +1890,7 @@ func (m *Model) menuOf(items []item, x, y int) tea.Cmd {
 }
 
 func (m *Model) tabMenu(v view, x, y int) tea.Cmd {
-	v = ifElse(v == viewCustom, viewAgents, v) // it goes where Sessions goes
+	v = ifElse(headed(v), viewAgents, v) // it goes where Sessions goes
 	cs := m.cols()
 	i := m.colOf(v)
 
@@ -2166,6 +2177,9 @@ func (m *Model) headerActions(s int, v view, w int) []titleAction {
 		add(icRefresh, "Refresh  r", m.cu.refresh)
 		add(icCollapse, "Collapse All  C", func(m *Model) tea.Cmd { m.cu.collapseAll(); return nil })
 
+	case viewUsage:
+		add(icRefresh, "Refresh  r", func(*Model) tea.Cmd { return refreshUsage() })
+
 	case viewAgents:
 		add(icAdd, "New Session…  n", func(m *Model) tea.Cmd { return m.ag.newSession(m, m.ag.selected(m)) })
 		add(icResume, "Resume Session…", func(m *Model) tea.Cmd { return m.ag.resume(m, m.ag.selected(m)) })
@@ -2182,7 +2196,9 @@ func (m *Model) headerActions(s int, v view, w int) []titleAction {
 	// Tabs stay where they are: the actions that fit beside them show, in
 	// order, the rest stay on their keys and in the menu.
 	if tabs := m.headTabs(v, w); len(tabs) > 0 {
-		room, n := w-tabs[1].x-tabs[1].w-1, 0
+		last := tabs[len(tabs)-1]
+
+		room, n := w-last.x-last.w-1, 0
 		for ; n < len(acts); n++ {
 			if room -= ansi.StringWidth(acts[n].label); room < 0 {
 				break
@@ -2596,8 +2612,9 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case draftsMsg:
 		return m, m.onDrafts(msg)
 	case stateMsg:
-		full, sel := m.st.Settings.DiffFull, m.ag.selected(m)
+		full, sel, active := m.st.Settings.DiffFull, m.ag.selected(m), m.st.Active
 		m.st = proto.State(msg)
+		m.dropUsageTab()
 		m.ag.follow(m, sel) // another TUI's pin adds rows above it
 		m.look()
 		m.resize()
@@ -2614,10 +2631,12 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			reload = m.pv.refull(m)
 		}
 
-		return m, tea.Batch(m.syncTabs(), reload)
+		return m, tea.Batch(m.syncTabs(), reload, m.movedProfile(active))
 
 	case updateMsg:
 		return m, m.onUpdate(proto.Update(msg))
+	case usageMsg:
+		return m, m.onUsage(proto.Usage(msg))
 	case fontMsg, fontDoneMsg:
 		return m, m.onFont(msg)
 	case workspacesMsg:
@@ -3121,6 +3140,12 @@ func (m *Model) onEvent(ev proto.Event) tea.Cmd {
 			return m.onUpdate(u)
 		}
 
+	case "usage":
+		var u proto.Usage
+		if json.Unmarshal(ev.Data, &u) == nil {
+			return m.onUsage(u)
+		}
+
 	case "focus":
 		var f proto.FocusParams
 		if json.Unmarshal(ev.Data, &f) != nil {
@@ -3289,6 +3314,13 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 
 		return m.showView(viewCustom)
 
+	case "9":
+		if !m.hasUsage() {
+			return nil
+		}
+
+		return m.showView(viewUsage)
+
 	case "ctrl+f":
 		if v == viewSearch {
 			return m.sr.focus()
@@ -3300,7 +3332,7 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 		return m.openSettings()
 
 	case "?":
-		m.modal = helpModal(m.hasGH, m.hasDB, m.hasCustom)
+		m.modal = m.helpModal()
 		return nil
 
 	case "b":
@@ -3348,6 +3380,8 @@ func (m *Model) viewKey(v view, k tea.KeyPressMsg) tea.Cmd {
 		return m.db.key(m, k)
 	case viewCustom:
 		return m.cu.key(m, k)
+	case viewUsage:
+		return m.us.key(m, k)
 	default: // Agents; the Terminal and the session are handled before here.
 		return m.ag.key(m, k)
 	}
@@ -3403,6 +3437,8 @@ func (m *Model) refilter(v view) {
 		m.db.l.top = 0
 	case viewCustom:
 		m.cu.l.top = 0
+	case viewUsage:
+		m.us.l.top = 0
 	default:
 		m.ag.l.top = 0
 		m.ag.firstHit(m)
@@ -3827,7 +3863,7 @@ func (m *Model) sideMouse(s int, rc rect, msg tea.MouseMsg) tea.Cmd {
 			return nil
 		}
 
-		for _, t := range m.headTabs(v, rc.w) {
+		for _, t := range m.headTabs(v, rc.w-m.barW(s)) {
 			if x >= t.x && x < t.x+t.w {
 				return m.showView(t.v)
 			}
@@ -3921,6 +3957,8 @@ func (m *Model) viewMouse(v view, msg tea.MouseMsg, x, y int) tea.Cmd {
 		return m.db.mouse(m, msg, y)
 	case viewCustom:
 		return m.cu.mouse(m, msg, y)
+	case viewUsage:
+		return m.us.mouse(m, msg, x, y)
 	default: // Agents.
 		return m.ag.mouse(m, msg, x, y)
 	}
@@ -4438,6 +4476,8 @@ func (m *Model) sidebarBody(s, w int) []string {
 		out = append(out, m.db.lines(m, w, h)...)
 	case viewCustom:
 		out = append(out, m.cu.lines(m, w, h)...)
+	case viewUsage:
+		out = append(out, m.us.lines(m, w, h)...)
 	default:
 		out = append(out, m.ag.lines(m, w, h)...)
 	}
@@ -4737,7 +4777,7 @@ func (m *Model) vertTabs(s int) []tab {
 }
 
 func (m *Model) viewHeader(s int, v view, w int) string {
-	title := []string{strings.ToUpper(filepath.Base(m.ws)), "SOURCE CONTROL", "SESSIONS", "SEARCH", "TERMINAL", "GITHUB", "DATABASES", "CUSTOMIZATIONS"}[v]
+	title := []string{strings.ToUpper(filepath.Base(m.ws)), "SOURCE CONTROL", "SESSIONS", "SEARCH", "TERMINAL", "GITHUB", "DATABASES", "CUSTOMIZATIONS", "USAGE"}[v]
 
 	var right []seg
 
@@ -4771,31 +4811,49 @@ func (m *Model) viewHeader(s int, v view, w int) string {
 	return row(w, nil, left, right...)
 }
 
-// tabbed reports whether v shares its header row with the other tab: where an
-// agent Customizations knows is installed, a chip of their own would cost the
-// column an activity bar.
+// tabbed reports whether v shares its header row with other tabs:
+// Customizations where an agent it knows is installed, Usage while an
+// account's limits are known. Chips of their own would cost the column an
+// activity bar.
 func (m *Model) tabbed(v view) bool {
-	return m.hasCustom && (v == viewAgents || v == viewCustom)
+	return (m.hasCustom || m.hasUsage()) && (v == viewAgents || headed(v))
 }
 
 // headTabs are the tabs in view v's header row, the same cells whichever shows
-// and wherever the mouse is: only a column too narrow for both halves them.
+// and wherever the mouse is: only a column too narrow for them all cuts each
+// to its share.
 func (m *Model) headTabs(v view, w int) []tab {
 	if !m.tabbed(v) {
 		return nil
 	}
 
-	sessions, custom := viewTitles[viewAgents], viewTitles[viewCustom]
-	if half := max((w-3)/2, 1); ansi.StringWidth(sessions)+ansi.StringWidth(custom)+3 > w {
-		sessions, custom = ansi.Truncate(sessions, half, ""), ansi.Truncate(custom, half, "")
+	views := []view{viewAgents}
+	if m.hasCustom {
+		views = append(views, viewCustom)
 	}
 
-	n := ansi.StringWidth(sessions)
-
-	return []tab{
-		{v: viewAgents, x: 1, w: n, label: sessions},
-		{v: viewCustom, x: n + 3, w: ansi.StringWidth(custom), label: custom},
+	if m.hasUsage() {
+		views = append(views, viewUsage)
 	}
+
+	gaps, need := 2*(len(views)-1), 0
+	for _, t := range views {
+		need += ansi.StringWidth(viewTitles[t])
+	}
+
+	tabs, x := make([]tab, len(views)), 1
+
+	for i, t := range views {
+		label := viewTitles[t]
+		if need+gaps+1 > w {
+			label = ansi.Truncate(label, max((w-1-gaps)/len(views), 1), "")
+		}
+
+		tabs[i] = tab{v: t, x: x, w: ansi.StringWidth(label), label: label}
+		x += tabs[i].w + 2
+	}
+
+	return tabs
 }
 
 // dropBox paints where a dragged tab would land: a frame over the panels a
@@ -5238,6 +5296,10 @@ func (m *Model) statusLine(w int) (string, []rowAction) {
 	add(" "+name+" ", ink, "Open Project…", func(m *Model) tea.Cmd { return m.projectPicker() })
 	add(" ^⇧p ", ink, "Show All Commands", func(m *Model) tea.Cmd { return m.commandPalette() })
 
+	if chip, tip, run := m.usageChip(); chip != nil {
+		addSegs(tip, run, chip...)
+	}
+
 	if chip, run := m.updateChip(); chip != nil {
 		addSegs(map[string]string{"available": "Install pando v" + m.upd.Latest, "ready": "Restart to Update"}[m.upd.State], run, chip...)
 	}
@@ -5643,6 +5705,7 @@ var hotkeys = map[view][][2]string{
 	viewGitHub: {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"d", "changes"}, {"o", "on github.com"}, {"y", "copy link"}, {"w", "worktree"}, {"x", "done"}, {"^r", "refresh"}, {"C", "collapse"}, {"^f", "filter"}},
 	viewDB:     {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"n", "new connection"}, {"e D", "edit/remove"}, {"c y", "copy name/path"}, {"r", "refresh"}, {"C", "collapse"}, {"^f", "filter"}},
 	viewCustom: {{"↑↓", "move"}, {"←→", "fold"}, {"⏎", "open"}, {"a", "agent"}, {"c y", "copy name/path"}, {"r", "refresh"}, {"C", "collapse"}, {"^f", "filter"}},
+	viewUsage:  {{"↑↓", "move"}, {"⏎", "use for new sessions"}, {"a", "switch automatically"}, {"r", "refresh"}, {"^f", "filter"}},
 }
 
 var globalKeys = [][2]string{{"^]", "focus"}, {"^0 ^1", "side/editor"}, {"1-4 6 7", "views"}, {"^p", "open file"}, {"^⇧p", "commands"}, {"alt+t", "agents"}, {"alt+i", "prompts"}, {"alt+a", "next alarm"}, {"alt+n", "new tab"}, {"alt+s", "new session"}, {"^tab", "editors"}, {"^⇧pgup ^⇧pgdn", "move tab"}, {"^f", "find"}, {"^⇧m", "problems"}, {"^⇧u", "output"}, {"alt+, alt+.", "back/forward"}, {"^`", "terminal"}, {"^b", "hide"}, {"< >", "width"}, {"^,", "settings"}, {"F10", "manage"}, {"esc q", "quit"}}
@@ -5715,6 +5778,10 @@ func (m *Model) viewItems() []item {
 		items = append(items, item{label: "Show Customizations", hint: "8", run: show(viewCustom)})
 	}
 
+	if m.hasUsage() {
+		items = append(items, item{label: "Show Usage", hint: "9", run: show(viewUsage)})
+	}
+
 	for _, it := range m.terminalItems() {
 		if it.label != "Close Terminal" {
 			items = append(items, it)
@@ -5742,7 +5809,7 @@ func (m *Model) viewItems() []item {
 		{label: "Focus Sidebar", hint: "^0", run: func(m *Model) tea.Cmd { return m.focusSidebar() }},
 		{label: "Toggle Sidebars", hint: "^b", run: func(m *Model) tea.Cmd { return m.toggleSidebars() }},
 		{label: "Open Settings", hint: "^,", run: func(m *Model) tea.Cmd { return m.openSettings() }},
-		{label: "Keyboard Shortcuts", hint: "?", run: func(m *Model) tea.Cmd { m.modal = helpModal(m.hasGH, m.hasDB, m.hasCustom); return nil }},
+		{label: "Keyboard Shortcuts", hint: "?", run: func(m *Model) tea.Cmd { m.modal = m.helpModal(); return nil }},
 		{label: "Quit", hint: "q", run: func(m *Model) tea.Cmd { return m.confirmQuit() }},
 	}...)
 	if m.pv.kind != "" || m.sess != "" {
@@ -5820,6 +5887,10 @@ func (m *Model) categories() []category {
 		cs = append(cs, category{"Customizations", m.cu.items(m)})
 	}
 
+	if m.hasUsage() {
+		cs = append(cs, category{"Usage", m.us.items(m)})
+	}
+
 	if m.showsPreview() {
 		cs = append(cs, category{"Editor", append(m.pv.items(m), m.pv.keyItems(m)...)})
 	}
@@ -5835,7 +5906,7 @@ func (m *Model) manageMenu(x, y int) tea.Cmd {
 	items := []item{
 		{label: "Command Palette", hint: "^⇧p", run: func(m *Model) tea.Cmd { return m.commandPalette() }},
 		{label: "Settings", hint: "^,", run: func(m *Model) tea.Cmd { return m.openSettings() }},
-		{label: "Keyboard Shortcuts", hint: "?", run: func(m *Model) tea.Cmd { m.modal = helpModal(m.hasGH, m.hasDB, m.hasCustom); return nil }},
+		{label: "Keyboard Shortcuts", hint: "?", run: func(m *Model) tea.Cmd { m.modal = m.helpModal(); return nil }},
 		{sep: true},
 	}
 
@@ -6153,21 +6224,26 @@ func staleModal(sessions int) *modal {
 
 // helpModal is the keys of every view; the GitHub view's where gh is
 // installed, the Databases view's where a database client is, the
-// Customizations view's where an agent it knows is.
-func helpModal(gh, dbs, custom bool) *modal {
+// Customizations view's where an agent it knows is, the Usage view's while it
+// has an account to show.
+func (m *Model) helpModal() *modal {
 	items := []item{heading("Everywhere")}
 
 	views := []view{viewFiles, viewGit, viewSearch, viewAgents}
-	if gh {
+	if m.hasGH {
 		views = append(views, viewGitHub)
 	}
 
-	if dbs {
+	if m.hasDB {
 		views = append(views, viewDB)
 	}
 
-	if custom {
+	if m.hasCustom {
 		views = append(views, viewCustom)
+	}
+
+	if m.hasUsage() {
+		views = append(views, viewUsage)
 	}
 
 	items = append(items, keyRows(globalKeys)...)
@@ -6179,7 +6255,7 @@ func helpModal(gh, dbs, custom bool) *modal {
 	items = append(items, item{}, heading("Preview"))
 	items = append(items, keyRows(previewKeys)...)
 
-	if dbs {
+	if m.hasDB {
 		items = append(items, item{}, heading("Table"))
 		items = append(items, keyRows(tableKeys)...)
 	}

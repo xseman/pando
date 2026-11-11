@@ -2082,35 +2082,113 @@ func (m *Model) resumeCmd(agent string) []string {
 // its default, which sets nothing, its [profiles], then each config pando saw
 // it run in that none of them sets. The session runs cmd, nil for the agent's
 // preset. It reports whether there was a choice.
+// Each says how spent it is where its limits are known (room), and the one
+// new sessions start with (State.Active) is the row selected.
 func (m *Model) profilePicker(ws, agent string, cmd []string) bool {
-	run := func(env []string) func(*Model) tea.Cmd {
-		return func(m *Model) tea.Cmd { return m.spawn(ws, agent, cmd, "", env) }
-	}
-
-	items := []item{{label: "default", hint: cmp.Or(strings.Join(cmd, " "), strings.Join(m.st.Agents[agent], " ")), run: run(nil)}}
-
-	var set [][]string
-
-	profiles := m.st.Settings.Profiles[agent]
-	for _, name := range slices.Sorted(maps.Keys(profiles)) {
-		env := homeEnv(profiles[name])
-		set = append(set, env)
-		items = append(items, item{label: name, hint: strings.Join(profiles[name], " "), run: run(env)})
-	}
-
-	for _, env := range m.st.Seen[agent] {
-		if !slices.ContainsFunc(set, func(e []string) bool { return slices.Equal(e, env) }) {
-			items = append(items, item{label: strings.Join(env, " "), hint: "seen", run: run(env)})
-		}
-	}
-
-	if len(items) == 1 {
+	profiles := m.profiles(agent)
+	if len(profiles) == 1 {
 		return false
+	}
+
+	profiles[0].hint = cmp.Or(strings.Join(cmd, " "), profiles[0].hint)
+
+	items := make([]item, len(profiles))
+	for i, p := range profiles {
+		items[i] = item{
+			label: p.name, hint: p.hint, inline: m.room(agent, p.env), lead: slices.Equal(m.activeEnv(agent), p.env),
+			run: func(m *Model) tea.Cmd { return m.spawn(ws, agent, cmd, "", p.env) },
+		}
 	}
 
 	m.modal = newPicker(agent+" profile", items)
 
 	return true
+}
+
+// profile is one config a session of an agent can run in: what it sets, and
+// what a row says of it.
+type profile struct {
+	name, hint string
+	env        []string
+}
+
+// profiles are the configs a session of agent can run in: its default, which
+// sets nothing, its [profiles], then each config pando saw it run in that
+// none of them sets.
+func (m *Model) profiles(agent string) []profile {
+	out := []profile{{name: "default", hint: strings.Join(m.st.Agents[agent], " ")}}
+
+	named := m.st.Settings.Profiles[agent]
+	for _, name := range slices.Sorted(maps.Keys(named)) {
+		out = append(out, profile{name: name, hint: strings.Join(named[name], " "), env: homeEnv(named[name])})
+	}
+
+	for _, env := range m.st.Seen[agent] {
+		if !slices.ContainsFunc(out, func(p profile) bool { return slices.Equal(p.env, env) }) {
+			out = append(out, profile{name: strings.Join(env, " "), hint: "seen", env: env})
+		}
+	}
+
+	return out
+}
+
+// canMove reports a session whose agent can continue its conversation in
+// another profile: the daemon knows which conversation it has open and how
+// to continue that one, and its agent has more than one config.
+func (m *Model) canMove(s *proto.Session) bool {
+	return s != nil && s.Conversation != nil && len(m.st.ResumeID[s.Conversation.Agent]) > 0 && len(m.profiles(s.Conversation.Agent)) > 1
+}
+
+// moveProfile asks which profile session id's agent continues in. The agent
+// ends and resumes the same conversation there (session.profile), so it loads
+// that profile's settings, skills and servers from then on.
+func (m *Model) moveProfile(id string) tea.Cmd {
+	s := m.session(id)
+	if !m.canMove(s) {
+		return nil
+	}
+
+	c := s.Conversation
+	profiles := m.profiles(c.Agent)
+
+	// Where it runs now: what the session's own env holds of the variables
+	// its agent's profiles set, as the profile it was started or moved with
+	// left them. An agent started in a shell has none there, only the config
+	// its conversation is in.
+	keys := slices.Clone(m.st.ResumeEnv[c.Agent])
+
+	for _, p := range profiles {
+		for _, kv := range p.env {
+			k, _, _ := strings.Cut(kv, "=")
+			keys = append(keys, k)
+		}
+	}
+
+	now := slices.DeleteFunc(slices.Clone(s.Env), func(kv string) bool {
+		k, _, _ := strings.Cut(kv, "=")
+		return !slices.Contains(keys, k)
+	})
+	if len(now) == 0 {
+		now = slices.Clone(c.Env)
+	}
+
+	slices.Sort(now)
+
+	var items []item
+
+	for _, p := range profiles {
+		if slices.Equal(slices.Sorted(slices.Values(p.env)), now) {
+			continue
+		}
+
+		items = append(items, item{label: p.name, hint: p.hint, inline: m.room(c.Agent, p.env), run: func(*Model) tea.Cmd {
+			return tea.Batch(flash("moving the session to "+p.name+"…", false), do("session.profile", proto.SessionProfileParams{ID: id, Env: p.env}))
+		}})
+	}
+
+	m.modal = newPicker("Move Session to Profile", items)
+
+	return nil
 }
 
 // homeEnv is KEY=VALUE env with a leading ~ in each value expanded, as a
@@ -2549,6 +2627,10 @@ func (a *agents) items(m *Model) []item {
 			item{label: m.pinLabel(id), hint: "p", run: func(m *Model) tea.Cmd { return m.togglePin(id) }})
 		if canSleep(r.s) {
 			row = append(row, item{label: "Sleep Session", hint: "z", run: func(m *Model) tea.Cmd { return m.sleepSession(id) }})
+		}
+
+		if m.canMove(&r.s) {
+			row = append(row, item{label: "Move to Profile…", run: func(m *Model) tea.Cmd { return m.moveProfile(id) }})
 		}
 
 		if !r.pinned && m.sessionsMovable() && len(m.siblings(id)) > 1 {
@@ -3868,8 +3950,12 @@ func (m *Model) sessionMenu(id string) tea.Cmd {
 		end = slices.Insert(end, 0, item{label: "Sleep Session", run: func(m *Model) tea.Cmd { return m.sleepSession(id) }})
 	}
 
-	m.modal = newMenu("", m.mouseX, m.mouseY, menuGroups(
-		[]item{{label: "Rename…", run: func(m *Model) tea.Cmd { return m.renameSession(id) }}}, end)...)
+	top := []item{{label: "Rename…", run: func(m *Model) tea.Cmd { return m.renameSession(id) }}}
+	if m.canMove(m.session(id)) {
+		top = append(top, item{label: "Move to Profile…", run: func(m *Model) tea.Cmd { return m.moveProfile(id) }})
+	}
+
+	m.modal = newMenu("", m.mouseX, m.mouseY, menuGroups(top, end)...)
 
 	return nil
 }

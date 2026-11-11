@@ -169,8 +169,27 @@ func settingsTable() []setting {
 				return m.setSettings(map[string]any{"sleep_after": pick(sleepAfters, sleepHint, v)})
 			},
 		},
+
+		checkbox("Sessions", "Usage", "Plan limits", "usage", func(m *Model) bool { return m.st.Settings.Usage }),
+		{
+			section: "Sessions", group: "Usage", label: "Switch profile", opts: []string{"off", "notify", "auto"},
+			get: func(m *Model) string { return cmp.Or(m.st.Settings.Switch, "off") },
+			set: func(m *Model, v string) tea.Cmd { return m.setSettings(map[string]any{"profile_switch": v}) },
+		},
+		{
+			section: "Sessions", group: "Usage", label: "Switch at", opts: ints(switchAts, switchHint),
+			get: func(m *Model) string { return switchHint(m.st.Settings.SwitchAt) },
+			set: func(m *Model, v string) tea.Cmd {
+				return m.setSettings(map[string]any{"profile_switch_at": pick(switchAts, switchHint, v)})
+			},
+		},
 	}
 }
+
+// switchAts are the shares of a limit Settings cycles profile_switch_at through.
+var switchAts = []int{80, 90, 95, 100}
+
+func switchHint(n int) string { return strconv.Itoa(n) + "%" }
 
 // agentNote is what a Message agent value stands for: the agent "auto"
 // picks, or that the one named is not installed.

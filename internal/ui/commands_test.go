@@ -2986,7 +2986,7 @@ func TestKeyCommands(t *testing.T) {
 	}
 
 	var help []string
-	for _, it := range helpModal(false, false, false).items {
+	for _, it := range (&Model{}).helpModal().items {
 		help = append(help, ansi.Strip(it.label))
 	}
 
@@ -3282,7 +3282,7 @@ func TestPickerPage(t *testing.T) {
 		t.Fatalf("home leaves the heading scrolled away: top %d", m.modal.l.top)
 	}
 	// A list with no row to pick scrolls: Keys help.
-	m.modal = helpModal(false, false, false)
+	m.modal = (&Model{}).helpModal()
 
 	_, _, _, _, rows = m.modal.rect(m)
 	n := len(m.modal.disp)

@@ -81,6 +81,11 @@ bar offers to install it when none is).
 - **Customizations**: a tab beside Sessions, what an agent loads in this
   worktree: its skills, instructions, hooks, MCP servers and plugins as VS
   Code lists them, each opening its file; it follows the session's agent.
+- **Usage**: a tab beside Sessions, claude's and codex's plan limits by
+  sign-in, one per profile: how much of every window is used and when it
+  resets. Near a limit pando offers the profile with the most room for new
+  sessions, or switches to it, and a running claude session moves to another
+  profile with its conversation.
 - **Layout**: VS Code's editor groups, files and sessions split side by side
   or stacked by dragging a tab, a bottom panel with the terminals, the
   problems and the output, a settings tab, draggable views and columns, VS

@@ -11,6 +11,7 @@ The user guide. Settings: [06-config.md](06-config.md); keys:
 - [GitHub](#github)
 - [Databases](#databases)
 - [Customizations](#customizations)
+- [Usage](#usage)
 - [Editor](#editor)
 - [Settings, keys, updates](#settings-keys-updates)
 - [CLI](#cli)
@@ -58,7 +59,8 @@ A session runs an agent: the picker lists the installed `[agents]` presets
 (claude, codex, gemini, agy, grok, opencode, …), then _terminal_, a plain shell. An
 agent with profiles asks which one next: _default_, the `[profiles]` in
 `config.toml`, then every config pando saw it run in, such as a claude
-started as `CLAUDE_CONFIG_DIR=~/.claude-work claude` in a session.
+started as `CLAUDE_CONFIG_DIR=~/.claude-work claude` in a session. Each says
+how much of its plan is used ([Usage](#usage)).
 
 ```toml
 [profiles.claude]
@@ -421,6 +423,48 @@ no live MCP status, no claude.ai connectors and no skills that a plugin or the
 agent itself brings. A file that does not parse and a skill linking to nothing
 show a warning.
 
+## Usage
+
+A tab beside Sessions (`9`) while `usage` is on and `claude` or `codex` is
+installed: each sign-in's plan and a row per limit window, how much of it is
+used and when it resets. A `┃` on a meter is a model's own allowance on that
+window. An agent has a sign-in per config: _default_, each of its
+`[profiles]` that sets its config directory (`CLAUDE_CONFIG_DIR`,
+`CODEX_HOME`), and every config pando saw it run in. A profile that sets
+anything else runs on the default's sign-in and is not listed.
+
+| Key | Does                                                             |
+| --- | ---------------------------------------------------------------- |
+| `⏎` | new sessions of that agent start with this profile (_active_)    |
+| `a` | `profile_switch`: `auto`, or from it back to `notify`            |
+| `r` | ask again; the daemon asks every 15 minutes on its own           |
+
+The active profile is the row a new session's profile picker opens on, where
+each profile says how spent it is, and what `pando session new` starts an
+agent with. The status bar names it with its fullest limit, yellow from 75%
+and red from 90%.
+
+Once the active profile has used `profile_switch_at` percent of a limit (95),
+pando looks for the one with the most room. `notify` offers it in the status
+bar, one click to take it; `auto` makes it the active one; `off` does neither.
+Sessions already running stay on their profile either way. Under `auto` a
+profile over the limit that you pick by hand stands until the limits are next
+asked for: opening the Usage tab, `r`, the 15-minute check, or a change of
+`profile_switch` or `profile_switch_at`.
+
+_Move to Profile…_ in a session's menu moves a running claude session: the
+agent ends and continues the same conversation under the other profile, whose
+settings, skills and MCP servers it loads from then on. The transcript stays
+where it was written, linked into the other profile's `projects/`.
+
+The limits come from each agent's own service: claude's from the endpoint
+Claude Code's `/usage` reads, with the sign-in each profile keeps in
+`.credentials.json`, codex's from its own app-server, which renews its sign-in
+as codex does. pando never renews claude's: one that lapsed shows its last
+limits as _paused_ until Claude Code runs again.
+On macOS Claude Code keeps its sign-in in the Keychain, where pando does not
+look: claude reads _signed out_ there.
+
 ## Editor
 
 - Undo, find & replace, quick open (`ctrl+p`, recent and changed files
@@ -574,6 +618,7 @@ what `--instance work` does, except inside a session, whose
 | `~/.config/pando/prompts/*.md`             | saved prompts, `alt+i`                    |
 | `~/.local/share/pando/worktrees/`          | worktrees created by pando                |
 | `~/.local/share/pando/drafts/`             | unsaved editor text                       |
+| `~/.local/share/pando/usage.json`          | the limits last measured                  |
 | `$XDG_RUNTIME_DIR/pando/instances/NAME/`   | instance NAME's socket and log            |
 | `~/.config/pando/instances/NAME/`          | instance NAME's `state.json`              |
 

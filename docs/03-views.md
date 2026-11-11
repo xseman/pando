@@ -7,7 +7,7 @@ Contents: [Shape](#shape) · [Explorer](#explorer) ·
 [Source Control](#source-control) · [Sessions](#sessions) ·
 [Terminal](#terminal) · [Search](#search) · [Quick open](#quick-open) ·
 [GitHub](#github) · [Databases](#databases) ·
-[Customizations](#customizations) ·
+[Customizations](#customizations) · [Usage](#usage) ·
 [Commands](#commands) · [Text effects](#text-effects)
 
 ## Shape
@@ -31,6 +31,7 @@ items(m) ──▶ context menu + command palette
 | GitHub         | `6` | `github.go`    | pull requests, notifications, issues; needs `gh`                             |
 | Databases      | `7` | `databases.go` | SQLite files, `.env` and `[databases]` servers, their tables; needs a client |
 | Customizations | `8` | `custom.go`    | a tab of Sessions: what one agent loads in the worktree; needs a known agent |
+| Usage          | `9` | `usage.go`     | a tab of Sessions: the agents' plan limits by sign-in; needs `usage` on      |
 
 `ctrl+f` filters a list (`startFilter`) from a framed box under the header;
 Sessions' header has a search button for it.
@@ -341,8 +342,9 @@ A new session runs a harness: an `[agents]` preset whose program is on the
 session that opens the `shell` setting. The harnesses of the three newest
 sessions come first, under _recently opened_. An agent with profiles asks which
 (`profilePicker`): _default_, its `[profiles.<agent>]`, then the configs the
-daemon saw it run in (`seen_env`) that no profile sets; the choice goes in
-`session.new`'s `env`. A project's `+` asks for its worktree first
+daemon saw it run in (`seen_env`) that no profile sets (`profiles`); the choice
+goes in `session.new`'s `env`. A row says how spent its account is (`room`),
+and the picker opens on the active one (`State.Active`, `item.lead`). A project's `+` asks for its worktree first
 (`worktreePicker`), _New Worktree…_ included (`sessionWorktreeMsg`). The `+`
 follows the name of the row under the pointer, or of the selected one while
 Sessions has the keyboard (`agents.actions`).
@@ -357,6 +359,10 @@ resumes in the selected row's worktree, a project asking which
 
 A session is one tab: its strip has no `+`, shells live in the worktree's
 Terminal panel.
+
+_Move to Profile…_ (`moveProfile`) shows where the daemon knows the session's
+conversation, its agent has a `[resume_id]` and another profile to go to
+(`canMove`): the other profiles, then `session.profile`.
 
 ## Terminal
 
@@ -621,9 +627,10 @@ this worktree, read from its files and never written. It is a tab beside
 Sessions in that view's header row (`headTabs`), not a column's view: `allCols`
 leaves it out wherever config lists it, so it costs Sessions no activity bar
 and no width, and moves with Sessions. `viewOn` stays the column's tab, for
-chips, menus and drags; `bodyOn` is what the column draws, `custTab` choosing.
-Both tabs sit under the frame title Agents, a rule row below them, and keep
-their cells whichever shows; the header's hover actions that do not fit beside them stay on their keys.
+chips, menus and drags; `bodyOn` is what the column draws, `headTab` choosing.
+The tabs sit under the frame title Agents, a rule row below them, and keep
+their cells whichever shows; the header's hover actions that do not fit
+beside them stay on their keys.
 A section names its scope when it has entries in one, scope rows appear
 when it has both, and details line up in a column set by every entry, folded or
 not (`nameW`, at most 40%). `⏎` opens the file, on
@@ -664,6 +671,37 @@ as an empty section would say it holds nothing.
 `jsonKeys` walks to an object by `json.Decoder` tokens for the keys' lines, and
 `skillMeta` reads the two frontmatter fields without a YAML dependency; both
 take bytes and have a fuzz target.
+
+## Usage
+
+`usage.go`. The agents' plan limits as the daemon measured them
+(`proto.Usage`, [01-architecture.md](01-architecture.md#usage)): the view asks
+for nothing itself. `Model.usage` is read once (`loadUsage`), then follows the
+`usage` event; showing the tab and `r` call `usage.refresh`. It is the last
+tab of Sessions' header (`headed`, `headTab`, as Customizations), there while
+`hasUsage`: `usage` on and an account known.
+
+```text
+ Claude Code                      auto    usAgent: profile_switch when "auto"
+   default · Max 5x             active    usAccount: State.Active's, else "use"
+   5h  ━━━━━━━━───────────  35%  3h 4m    usLimit: meter, share used, time to reset
+   7d  ━━━━━┃━━━━━━━━━━━──  92%  9h 44m     ┃ a model's own allowance on the window
+   work · Team 5x                  use
+   paused: its sign-in lapsed, …          usNote: Account.Note, its limits dim
+ Codex · Free                             an only account rides its agent's row
+   30d ───────────────────   0%  16d 11h
+```
+
+- A model's limit (`Limit.Model`) marks the row of the window it shares
+  (`ticks`); with no such row it gets one of its own, named.
+- `limitMeter` draws in half cells (`╾`); `levelStyle` colors from 75% and
+  90%, the status bar's chip too (`usageChip`).
+- `⏎`, or a click on `use`, is `useProfile`: `state.set`'s `active_profile`,
+  set here at once. An agent's only account has nothing to pick (`solo`).
+- The chip names the active account of the agent in view, else the first
+  known. With an offer (`Usage.Offer`) it adds `use NAME`, and a click takes
+  it; `onUsage` flashes a new offer once, `movedProfile` a profile the daemon
+  made active (`profile_switch = "auto"`).
 
 ## Commands
 
