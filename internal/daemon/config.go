@@ -87,7 +87,10 @@ func loadConfig(path string) (config, error) {
 	}
 
 	for _, k := range md.Undecoded() {
-		if k.String() != "session_position" { // gone with the session's column: a config from before still has it
+		// session_position went with the session's column: a config from before
+		// still has it. left and right decode themselves (Columns), so toml
+		// counts their keys as undecoded.
+		if k.String() != "session_position" && k[0] != "left" && k[0] != "right" {
 			fmt.Fprintf(os.Stderr, "%s: unknown key %s\n", path, k)
 		}
 	}
