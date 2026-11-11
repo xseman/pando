@@ -315,7 +315,7 @@ func (v *usageView) selected(m *Model) *usRow {
 
 func (v *usageView) lines(m *Model, w, h int) []string {
 	rows, now := v.rows(m), time.Now()
-	hover := m.hoverRow(viewUsage)
+	hover, mx := m.hoverRow(viewUsage), m.mouseCol(viewUsage)
 	v.l.bar = m.barState("list:usage")
 
 	return v.l.render(w, h, len(rows), func(i, rw int) string {
@@ -333,12 +333,17 @@ func (v *usageView) lines(m *Model, w, h int) []string {
 			return row(rw, bg, left, sg(ifElse(m.st.Settings.Switch == "auto", "auto ", ""), dim))
 
 		case usAccount:
-			right := sg("use ", fg(pal.headerAccent))
+			left := []seg{sg("   "+r.acct.Name, name), sg(plan, dim)}
 			if m.active(r.acct) {
-				right = sg("active ", fg(pal.ok))
+				return row(rw, bg, left, sg("active ", fg(pal.ok)))
 			}
 
-			return row(rw, bg, []seg{sg("   "+r.acct.Name, name), sg(plan, dim)}, right)
+			use := sg("use", fg(pal.headerAccent))
+			if i-v.l.top == hover && overUse(mx, w) {
+				use, m.tip = sgOwn("use", keycapHot()), "Start New "+r.acct.Agent+" Sessions as "+r.acct.Name+"  ⏎"
+			}
+
+			return row(rw, bg, left, use, sg(" ", plain))
 
 		case usNote:
 			return row(rw, bg, []seg{sg("   "+r.acct.Note, dim)})
@@ -391,6 +396,9 @@ func limitMeter(w int, pct float64, ticks []float64, tone lipgloss.Style) []seg 
 
 	return cells
 }
+
+// overUse reports cell x of an account's row, w cells wide, on its "use".
+func overUse(x, w int) bool { return x >= w-5 }
 
 // use makes row r's account the one new sessions start with; an agent's only
 // account is that already.
@@ -466,9 +474,8 @@ func (v *usageView) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 			return m.menuOf(v.items(m), mo.X, mo.Y)
 		}
 
-		// The account row's own "use", its last four cells.
 		col := m.colOf(viewUsage)
-		if w := m.colRect(col).w - m.barW(col); i >= 0 && rows[i].kind == usAccount && x >= w-5 {
+		if w := m.colRect(col).w - m.barW(col); i >= 0 && rows[i].kind == usAccount && overUse(x, w) {
 			return v.use(m, &rows[i])
 		}
 	}

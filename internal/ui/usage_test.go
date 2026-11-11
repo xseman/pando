@@ -388,3 +388,35 @@ func TestHeadTabHover(t *testing.T) {
 		t.Fatal("the tint stays once the mouse left the header")
 	}
 }
+
+// TestUsageUseTip is the mouse on an account's "use": it says what a click
+// does, and nothing beside it does.
+func TestUsageUseTip(t *testing.T) {
+	m := usageModel(t)
+	press(m, "9")
+
+	s := m.colOf(viewUsage)
+	rc, y := m.colRect(s), bodyY(t, m, ".claude-work")
+	right := rc.x + rc.w - 1 - ifElse(m.side(s) == 0, 0, m.barW(s))
+
+	m.Update(tea.MouseMotionMsg{X: right - 1, Y: y})
+	m.View()
+
+	if want := "Start New claude Sessions as .claude-work  ⏎"; m.tip != want {
+		t.Fatalf("tip %q, want %q", m.tip, want)
+	}
+
+	m.Update(tea.MouseMotionMsg{X: rc.x + 6, Y: y})
+	m.View()
+
+	if m.tip != "" {
+		t.Fatalf("the account's name says %q", m.tip)
+	}
+
+	m.Update(tea.MouseMotionMsg{X: right - 1, Y: bodyY(t, m, "default")})
+	m.View()
+
+	if m.tip != "" {
+		t.Fatalf("the active account says %q", m.tip)
+	}
+}

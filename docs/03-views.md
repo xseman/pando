@@ -698,7 +698,8 @@ there while `hasUsage`: `usage` on and an account known.
 - `limitMeter` draws in half cells (`╾`); `levelStyle` colors from 75% and
   90%, the status bar's chip too (`usageChip`).
 - `⏎`, or a click on `use`, is `useProfile`: `state.set`'s `active_profile`,
-  set here at once. An agent's only account has nothing to pick (`solo`).
+  set here at once; `use` under the mouse lights and its tip says what a
+  click does (`overUse`). An agent's only account has nothing to pick (`solo`).
 - The chip names the active account of the agent in view, else the first
   known. With an offer (`Usage.Offer`) it adds `use NAME`, and a click takes
   it; `onUsage` flashes a new offer once, `movedProfile` a profile the daemon
