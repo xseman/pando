@@ -12,7 +12,8 @@ import (
 // which Claude Code's own daemon runs, with this terminal attached to it. A
 // pando restart then stops only the attach, and the conversation runs on with
 // its subagents; pando attaches to it again ([resume_job]). A claude too old
-// for --bg runs as it is.
+// for --bg, or one refusing it in a workspace its config has not trusted yet,
+// runs as it is: in the foreground it asks for that trust.
 func claudeBackground(args []string) error {
 	bin, err := exec.LookPath("claude")
 	if err != nil {
@@ -23,7 +24,7 @@ func claudeBackground(args []string) error {
 
 	id := backgroundID(out)
 	if id == "" {
-		if bytes.Contains(out, []byte("unknown option")) {
+		if bytes.Contains(out, []byte("unknown option")) || bytes.Contains(out, []byte("Workspace not trusted")) {
 			return execv(bin, append([]string{"claude"}, args...))
 		}
 

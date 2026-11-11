@@ -277,7 +277,10 @@ Scrollback is lost. A claude resumes by id from its `sessions/<pid>.json`
   environment count, such as `session.new`'s `env` (`ownEnv`).
 - `pando claude ARGS` runs `claude --bg ARGS` and execs `claude attach ID`, so
   the conversation lives in Claude Code's daemon and a restart stops only the
-  attach. With `claude_background` on, resumes by id go through it too.
+  attach. With `claude_background` on, resumes by id go through it too. A
+  claude without `--bg`, or one refusing it in a workspace its config has not
+  trusted (a session moved to another profile), runs in the foreground and
+  asks for the trust there.
 - `session.kill` stops the job too (`[stop_job]`, `claude stop ID`), and the
   jobs its Terminal shells attached to, and waits for each to let go of its
   conversation; `claude --resume` still opens it.
