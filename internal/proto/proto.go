@@ -32,7 +32,7 @@ type Response struct {
 
 // Event is pushed to subscribers. Kind is one of: state, workspaces,
 // sessions, screen (ID = session), focus (Data = FocusParams),
-// update (Data = Update).
+// update (Data = Update), usage (Data = Usage).
 type Event struct {
 	Kind string          `json:"event"`
 	ID   string          `json:"id,omitempty"`
@@ -98,6 +98,9 @@ type Settings struct {
 	// Profiles is per agent preset what a new session of it can run with:
 	// profile name to KEY=VALUE, such as CLAUDE_CONFIG_DIR=~/.claude-work.
 	Profiles map[string]map[string][]string `json:"profiles" toml:"profiles"`
+	Usage    bool                           `json:"usage" toml:"usage"`                         // ask each agent's service for its plan limits, with the sign-in its CLI keeps
+	Switch   string                         `json:"profile_switch" toml:"profile_switch"`       // the active profile over profile_switch_at: "off" | "notify" (offer one with room) | "auto" (new sessions start on it)
+	SwitchAt int                            `json:"profile_switch_at" toml:"profile_switch_at"` // percent used of its fullest limit, 50 to 100
 }
 
 // Column is one sidebar column: views shown as tabs, and its width in cells
@@ -184,6 +187,10 @@ type State struct {
 	// Seen is per program the [resume_env] variables pando saw it run with,
 	// KEY=VALUE: a new session of it offers them after its Profiles.
 	Seen map[string][][]string `json:"seen_env,omitempty"`
+	// Active is per agent the profile a new session of it starts with when
+	// session.new names no env, and the one a TUI's profile picker opens on:
+	// its KEY=VALUE as Seen keeps them; none for its default.
+	Active map[string][]string `json:"active_profile,omitempty"`
 	// Instance is the daemon's instance, "" for the default one; state.json
 	// does not keep it.
 	Instance string `json:"instance,omitempty"`
@@ -346,6 +353,58 @@ type Update struct {
 	Done  int64  `json:"done,omitempty"`
 	Total int64  `json:"total,omitempty"`
 	Error string `json:"error,omitempty"`
+}
+
+// Usage is what the daemon knows of the agents' plan limits: the reply to
+// usage.get and usage.refresh, and the data of every `usage` event.
+type Usage struct {
+	Accounts []Account `json:"accounts"`
+	// Offer is per agent the profile worth switching to, as State.Active
+	// names one: the active one is over profile_switch_at and this one has
+	// the most room. Set while profile_switch is "notify".
+	Offer map[string][]string `json:"offer,omitempty"`
+}
+
+// Account is one sign-in of an agent: its default config, a profile's, or
+// one pando saw it run in.
+type Account struct {
+	Agent  string   `json:"agent"`
+	Name   string   `json:"name"`          // "default", the profile's, or a seen config's directory
+	Env    []string `json:"env,omitempty"` // KEY=VALUE that picks its config; none for the default
+	Plan   string   `json:"plan,omitempty"`
+	Limits []Limit  `json:"limits,omitempty"`
+	// Checked is when Limits were measured, zero for never.
+	Checked time.Time `json:"checked,omitzero"`
+	// Note is why Limits are not current, "" when they are: Limits are then
+	// the last ones measured, a window that has reset since back at zero.
+	Note string `json:"note,omitempty"`
+}
+
+// Peak is how spent the account is: its fullest limit, in percent; false
+// when no limit is known.
+func (a Account) Peak() (float64, bool) {
+	peak := 0.0
+	for _, l := range a.Limits {
+		peak = max(peak, l.Percent)
+	}
+
+	return peak, len(a.Limits) > 0
+}
+
+// Limit is one window of a plan's allowance.
+type Limit struct {
+	Window  string    `json:"window"`          // its span: "5h", "7d", "30d"
+	Model   string    `json:"model,omitempty"` // the model whose own allowance it is, "" for every model's
+	Percent float64   `json:"percent"`         // used, 0 to 100
+	Resets  time.Time `json:"resets,omitzero"` // zero where the service does not say
+}
+
+// SessionProfileParams is session.profile: session ID's agent ends and
+// continues the same conversation under profile Env, KEY=VALUE as
+// State.Active names one; none for the agent's default.
+type SessionProfileParams struct {
+	ID  string   `json:"id"`
+	Env []string `json:"env"`
 }
 
 // Percent is how much of the download is in, 0 while the size is unknown.

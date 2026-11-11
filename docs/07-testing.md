@@ -75,8 +75,8 @@ Targets: `parseStatus`, `pickLines`, `ConflictText`, `parseSuggestion`,
 (`internal/lsp`); `ecGlob`, `detectIndent`, `splitLoc`, `binaryCard`,
 `refine`, `foldRanges`, `parseUserDirs`, terminal links, `renderText`,
 `strWidth`, `wcSafe`, `headCells`, `cutTail`, the Markdown lexer and layout
-(`internal/ui`); `Columns` JSON/TOML (`internal/proto`); transcript titles
-(`internal/daemon`); `checksum` (`internal/update`); `backgroundID` (`main`).
+(`internal/ui`); `Columns` JSON/TOML (`internal/proto`); transcript titles,
+`parseClaudeUsage`, `parseCodexLimits` (`internal/daemon`); `checksum` (`internal/update`); `backgroundID` (`main`).
 
 ```sh
 go test -run xxx -fuzz FuzzParseStatus -fuzztime 30s ./internal/git

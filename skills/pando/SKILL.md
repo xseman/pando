@@ -194,6 +194,27 @@ Waking resumes the conversation the session had open, as a pando restart
 does; a shell wakes to a new shell, and whatever else ran in it (a server, an
 editor) does not come back. `pando session sleep ID` puts one to sleep.
 
+## Profiles and plan limits
+
+An agent can run under more than one profile, each its own sign-in and plan
+(`[profiles]`). `pando call usage.get` lists every account with its limits:
+`percent` used per `window`, and `note` when they are stale.
+
+```sh
+pando call usage.get | jq '.accounts[] | {agent, name, limits, note}'
+pando call session.profile '{"id":"reviewer","env":["CLAUDE_CONFIG_DIR=/home/me/.claude-work"]}'
+```
+
+`pando session new --agent claude` starts with the agent's active profile, the
+one the user or `profile_switch = "auto"` picked; `pando call session.new`
+with an `env` of your own, `[]` for the default, overrides it.
+
+`session.profile` moves a claude session to the profile `env` picks (`[]` for
+the default): the agent ends and resumes the same conversation there. It
+returns once the agent is back at its prompt, as `session wake` does; what the
+agent was doing is interrupted, so move a session that is `idle`. A session
+asleep stays asleep, and wakes in the new profile.
+
 ## Read the result
 
 ```sh

@@ -34,6 +34,9 @@ type conversationSource interface {
 	// title is conversation c's title as the agent keeps it, "" when it has
 	// none: what names a session attached to a job that has no name.
 	title(c proto.Conversation) string
+	// share makes conversation c readable from the config env picks too, so
+	// the agent started there continues it.
+	share(c proto.Conversation, env []string) error
 }
 
 // conversations are the agents whose open conversation pando can tell, by
@@ -212,6 +215,39 @@ func (claudeSource) saved(c proto.Conversation) bool {
 	m, _ := filepath.Glob(filepath.Join(claudeDirIn(c.Env), "projects", "*", c.ID+".jsonl"))
 
 	return len(m) > 0
+}
+
+// share links c's transcript, and the directory of its subagents and tool
+// results beside it, under the same project in the config env picks: one
+// conversation, which either config continues. What is there already stays.
+func (claudeSource) share(c proto.Conversation, env []string) error {
+	m, _ := filepath.Glob(filepath.Join(claudeDirIn(c.Env), "projects", "*", c.ID+".jsonl"))
+	if len(m) == 0 { // nothing said yet: the agent starts afresh there
+		return nil
+	}
+
+	from, err := filepath.EvalSymlinks(m[0]) // a conversation moved before is linked to where it is kept
+	if err != nil {
+		return err
+	}
+
+	project := filepath.Join(claudeDirIn(env), "projects", filepath.Base(filepath.Dir(m[0])))
+	if err := os.MkdirAll(project, 0o700); err != nil {
+		return err
+	}
+
+	for _, name := range []string{c.ID + ".jsonl", c.ID} {
+		src, dst := filepath.Join(filepath.Dir(from), name), filepath.Join(project, name)
+		if gone(src) || !gone(dst) {
+			continue
+		}
+
+		if err := os.Symlink(src, dst); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // title reads the transcript's titles: the last one set by hand

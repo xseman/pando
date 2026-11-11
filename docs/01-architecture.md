@@ -6,7 +6,7 @@ a restart. The TUI is in [02-ui-layout.md](02-ui-layout.md).
 
 - [Processes](#processes) · [Protocol](#protocol) · [Sessions](#sessions) ·
   [Status](#status) · [Resume after a restart](#resume-after-a-restart) ·
-  [Sleep](#sleep)
+  [Sleep](#sleep) · [Usage](#usage)
 
 ## Processes
 
@@ -57,7 +57,9 @@ connection open and streams events instead.
 ```
 
 `session.new` takes `cmd` over the agent's preset and `env`, `KEY=VALUE`
-over the daemon's environment, kept with the session for its restarts.
+over the daemon's environment, kept with the session for its restarts. With
+no `env` at all the session starts with its agent's active profile
+([Usage](#usage)); an empty list is the default, said.
 
 Methods (`Daemon.dispatch`; `subscribe` in `Daemon.handle`):
 
@@ -67,13 +69,15 @@ Methods (`Daemon.dispatch`; `subscribe` in `Daemon.handle`):
 - worktrees: `workspace.list` `workspace.new` `workspace.remove` `workspace.move`
 - sessions: `session.new` `session.get` `session.list` `session.kill`
   `session.rename` `session.move` `session.sleep` `session.wake`
-  `session.input` `session.screen` `session.read` `session.wait`
+  `session.profile` `session.input` `session.screen` `session.read`
+  `session.wait`
 - updates: `update.status` `update.check` `update.install`
+- limits: `usage.get` `usage.refresh`
 
 Events are notifications; the client re-reads what changed: `sessions` →
 `session.list`, `screen` (output, at most every 16 ms) → `session.screen`,
 `state` (also `config.toml` edited on disk) → `state.get`, `workspaces` →
-`workspace.list`. `focus` and `update` carry their payload.
+`workspace.list`. `focus`, `update` and `usage` carry their payload.
 
 - `draft.set` broadcasts nothing: a `state` event per keystroke burst would
   make every client re-read the state.
@@ -321,3 +325,59 @@ session, put off until `session.wake` (`sleep.go`).
   refused unless `wake` is set, as `pando session send` and `keys` do. A wait begun asleep follows the woken session (`d.session` each
   poll). The exit of the process it stops neither closes it nor falls back.
 - `d.moving` keeps a sleep and a wake of one session apart.
+
+## Usage
+
+`usage.go`. The daemon asks each agent's service how much of its plan every
+sign-in has used (`WatchUsage`: at start and every 15 minutes, while `usage`
+is on) and keeps the answer (`proto.Usage`): the reply to `usage.get`, the
+data of the `usage` event, and `usage.json` in the data dir, read at start.
+`usage.refresh` asks again; an answer younger than 15 s stands.
+
+```text
+ accounts: per agent with a source that is installed (usageSources)
+   default ─ [profiles.<agent>] ─ seen_env no profile sets
+        │ measure, one at a time
+        ├─ claude: GET api.anthropic.com/api/oauth/usage, the access token in
+        │          <config>/.credentials.json; five_hour, seven_day, limits[]
+        └─ codex:  codex app-server in CODEX_HOME, account/rateLimits/read
+        │ a failed check keeps the last limits, a window reset since at 0,
+        │ and says why in Account.Note: paused, signed out, busy, unreachable,
+        │ unavailable
+        │ a profile that sets no [resume_env] variable is the default's sign-in
+ advise ─▶ Usage.Offer (notify) or State.Active moved (auto) ─▶ usage, state
+```
+
+- claude's sign-in is only read. An access token that lapsed is `paused`:
+  Claude Code renews it, and nothing is sent until it has. A redirect is
+  refused, so the token reaches no other host. codex's app-server reads and
+  renews its own.
+- `State.Active` is per agent the profile new sessions start with, its
+  `KEY=VALUE`: `session.new` without an `env` gets it (`activeEnv`, while it
+  is still one of the agent's accounts), so `pando session new` does; a TUI
+  always names an `env` and opens its profile picker on the active one.
+  `state.set`'s `active_profile` sets it, an empty list back to the default.
+- `advise` runs after a refresh, and when `active_profile`, `profile_switch`
+  or `profile_switch_at` changes. Under `auto` a refresh moves the active
+  profile, and so does turning `auto` on or lowering its threshold; a profile
+  picked by hand only recomputes the offer and stands until the next refresh.
+  With `usage` off nobody is asked and nothing is offered; the last accounts
+  stay in `usage.get`. Only the active account at or over `profile_switch_at`
+  starts anything; `roomiest` picks the account under it with the most room,
+  one within 15 points of it and one whose numbers are stale after the others,
+  never one signed out. After a move the active account is under the
+  threshold, so `auto` does not flap back when the first one resets.
+- `session.profile` moves a running agent to another profile
+  (`profileSession`): the transcript linked under the same project in the
+  other config (`conversationSource.share`), a sleep, the spec's `env`,
+  conversation and resume pointed there, then a wake, which resumes it by id.
+  The `env` loses what picks a config and whatever a profile of the agent
+  sets, so the profile it leaves does not follow it; it gains the new
+  profile only where the agent is the session's own process. An agent started
+  in a shell gets it on the line typed there (`Conversation.Env`): on the
+  shell too, `ownEnv` would drop it and the conversation be looked for in the
+  wrong config. Only an agent with a
+  `[resume_id]` whose conversation the daemon knows (claude) can follow; a
+  session asleep stays asleep and wakes there. One going to sleep or waking
+  is refused, and one woken between the sleep and the change stays where it
+  is, with an error.

@@ -659,6 +659,7 @@ func serve() error {
 	}
 
 	go d.WatchUpdates()
+	go d.WatchUsage()
 
 	sig := make(chan os.Signal, 1)
 

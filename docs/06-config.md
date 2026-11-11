@@ -86,6 +86,9 @@ config.toml edited ───────────┘  └─ "state" event �
 | `spaces_project_sort`  | `manual`       | `manual` (drag, `alt+↑↓`), `updated` (sessions' last input or change)          |
 | `spaces_hide`          | `[]`           | states left out: `blocked` `running` `done` `idle` `asleep` `exited`           |
 | `sleep_after`          | `60`           | minutes idle and unused before a session sleeps; `0` never                     |
+| `usage`                | `true`         | ask each agent's service for its plan limits: the Usage tab, the status bar    |
+| `profile_switch`       | `notify`       | the active profile near a limit: `notify` (offer another), `auto`, `off`       |
+| `profile_switch_at`    | `95`           | percent of its fullest limit that counts as near, held within 50 to 100        |
 | `sounds`               | `true`         | sound for a session out of view                                                |
 | `sound_done`           | desktop        | file on finish; `""`: bell                                                     |
 | `sound_request`        | desktop        | file on a question; `""`: bell                                                 |
@@ -238,6 +241,7 @@ tick, on leaving the workspace and on quitting.
 | `spaces_folded`  | folded Sessions headings, paths, `time:…`, `pin:…`; sent whole  |
 | `spaces_pinned`  | pinned session ids and project paths, in order; sent whole      |
 | `seen_env`       | per program, the `[resume_env]` values seen; never, edit it out |
+| `active_profile` | per agent, what a session with no `env` starts with; `[]`       |
 
 ```json
 "editors": { "/home/me/app": { "row": true, "ratio": 0.5,

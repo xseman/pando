@@ -52,6 +52,7 @@ func defaultConfig() config {
 			ActBar: "side", TermPos: "bottom", TermH: 12, SessHi: "tint",
 			SpSort: "created", SpGroup: "workspace", SpProj: "manual", ExSort: "name",
 			Sounds: true, SoundDone: done, SoundReq: req, Updates: true, FontOffer: true, Anim: true, Tips: true, Blanks: "selection", ClaudeBg: true, TabSize: 4, MDWidth: 80, Sleep: 60,
+			Usage: true, Switch: "notify", SwitchAt: 95,
 			Drawers: []string{"Commits", "Graph", "Branches", "Stashes", "Remotes"},
 			Right:   proto.Columns{{Views: []string{"agents"}}},
 		},
@@ -263,6 +264,13 @@ func (c *config) encode() []byte {
 		"job, stop to free their memory; opening it brings the agent back. 0: never.", "sleep_after", s.Sleep)
 	kv("Sessions view: projects in their \"manual\" order (drag, alt+up/down) or by \"updated\",\n"+
 		"the one whose sessions changed last first.", "spaces_project_sort", s.SpProj)
+	kv("Ask each agent's service for its plan limits, shown in Sessions' Usage tab and the status\n"+
+		"bar: claude's with the sign-in each profile's Claude Code keeps, codex's through its own\n"+
+		"app-server. Nothing is asked while it is off.", "usage", s.Usage)
+	kv("The profile new sessions of an agent start with has used profile_switch_at percent of a\n"+
+		"limit (50 to 100): \"notify\" offers the profile with the most room, \"auto\" makes it the one\n"+
+		"new sessions start with, \"off\" does neither. Running sessions stay where they are.", "profile_switch", s.Switch)
+	kv("", "profile_switch_at", s.SwitchAt)
 	b.WriteString("\n# Sidebar columns per side, from the screen edge toward main, each with its tabs\n" +
 		"# and optional width. Views: \"files\", \"git\", \"agents\", \"search\", \"session\"; unlisted\n" +
 		"# views join the left column next to main.\n")

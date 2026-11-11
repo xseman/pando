@@ -50,6 +50,10 @@ type Daemon struct {
 	upd      proto.Update   // what the last update check found
 	rel      update.Release // the release it would install
 
+	usage   proto.Usage // the agents' limits as last asked (refreshUsage)
+	usageAt time.Time   // when that was
+	usageMu sync.Mutex  // one refreshUsage at a time, taken before mu
+
 	// ctx ends when Close does: it stops the update watcher and cancels a
 	// download in flight.
 	ctx    context.Context
@@ -91,6 +95,10 @@ func New(configDir, stateDir, dataDir string) (*Daemon, error) {
 		dataDir: dataDir, sessions: map[string]*session{}, state: proto.State{Instance: proto.Instance()},
 		subs: map[chan proto.Event]struct{}{}, pending: map[string]bool{}, moving: map[string]bool{},
 		upd: proto.Update{Current: update.Version},
+	}
+
+	if b, err := os.ReadFile(d.usagePath()); err == nil {
+		_ = json.Unmarshal(b, &d.usage) // one that does not parse is asked for again
 	}
 
 	d.ctx, d.cancel = context.WithCancel(context.Background())
@@ -587,6 +595,10 @@ func (d *Daemon) dispatch(method string, raw json.RawMessage) (any, error) {
 
 		return d.updateStatus(), nil
 
+	case "usage.get":
+		return d.usageNow(), nil
+	case "usage.refresh":
+		return d.refreshUsage(), nil
 	case "state.get":
 		// Encoded here, under the lock: State carries live maps another
 		// connection writes, and handle marshals after dispatch has returned.
@@ -707,6 +719,10 @@ func (d *Daemon) dispatch(method string, raw json.RawMessage) (any, error) {
 			}
 		}
 
+		if p.Env == nil { // none named, not even the default's empty one
+			p.Env = d.activeEnv(p.Agent)
+		}
+
 		spec := proto.SessionSpec{Workspace: realPath(p.Workspace), Agent: p.Agent, Name: strings.TrimSpace(p.Name), Parent: p.Parent, Cmd: p.Cmd, Env: p.Env, FG: p.FG, BG: p.BG}
 
 		return d.newSession(spec, p.Cols, p.Rows)
@@ -799,6 +815,20 @@ func (d *Daemon) dispatch(method string, raw json.RawMessage) (any, error) {
 
 		return nil, d.moveSession(p.ID, p.To)
 
+	case "session.profile":
+		p, err := parse[proto.SessionProfileParams](raw)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, kv := range p.Env {
+			if k, _, ok := strings.Cut(kv, "="); !ok || k == "" {
+				return nil, fmt.Errorf("env %q is not KEY=VALUE", kv)
+			}
+		}
+
+		return d.profileSession(p.ID, p.Env)
+
 	case "session.input":
 		p, err := parse[proto.InputParams](raw)
 		if err != nil {
@@ -884,7 +914,8 @@ func (d *Daemon) save() error {
 		Folded    []string                  `json:"spaces_folded,omitempty"`
 		Pinned    []string                  `json:"spaces_pinned,omitempty"`
 		Seen      map[string][][]string     `json:"seen_env,omitempty"`
-	}{d.state.Projects, d.state.Drafts, d.state.Editors, d.state.Terminals, d.state.Sessions, d.state.Worktrees, d.state.LastWorkspace, d.state.Folded, d.state.Pinned, d.state.Seen}, "", "  ")
+		Active    map[string][]string       `json:"active_profile,omitempty"`
+	}{d.state.Projects, d.state.Drafts, d.state.Editors, d.state.Terminals, d.state.Sessions, d.state.Worktrees, d.state.LastWorkspace, d.state.Folded, d.state.Pinned, d.state.Seen, d.state.Active}, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -981,8 +1012,9 @@ func (d *Daemon) setState(raw json.RawMessage) (any, error) {
 		Editors   map[string]*proto.Editors  `json:"editors"`   // null or no tabs forgets the workspace
 		Terminals map[string]*proto.Terminal `json:"terminals"` // null forgets the workspace
 		Last      *string                    `json:"last_workspace"`
-		Folded    *[]string                  `json:"spaces_folded"` // the whole list, replacing the last
-		Pinned    *[]string                  `json:"spaces_pinned"` // the whole list, replacing the last
+		Folded    *[]string                  `json:"spaces_folded"`  // the whole list, replacing the last
+		Pinned    *[]string                  `json:"spaces_pinned"`  // the whole list, replacing the last
+		Active    map[string][]string        `json:"active_profile"` // per agent, none for its default
 	}
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, err
@@ -991,6 +1023,8 @@ func (d *Daemon) setState(raw json.RawMessage) (any, error) {
 	d.mu.Lock()
 
 	var err error
+
+	was := d.state.Settings
 
 	if p.Settings != nil {
 		// Onto the current values, so maps like git_panes keep the keys the
@@ -1078,11 +1112,40 @@ func (d *Daemon) setState(raw json.RawMessage) (any, error) {
 		d.state.Pinned = *p.Pinned
 	}
 
-	if p.Drafts != nil || p.Editors != nil || p.Terminals != nil || p.Last != nil || p.Folded != nil || p.Pinned != nil {
+	var usage []byte
+
+	now, moved := d.state.Settings, false
+	switched := was.Switch != now.Switch || was.SwitchAt != now.SwitchAt
+
+	// The offer follows the profile in use and profile_switch. A profile
+	// picked by hand stands until the next refresh; "auto" turned on, or its
+	// threshold lowered, moves at once.
+	switch {
+	case p.Active != nil:
+		d.setActive(p.Active)
+	case switched:
+		moved = d.advise(true)
+	case was.Usage != now.Usage: // off: nothing to offer; on: the refresh below moves
+		d.advise(false)
+	}
+
+	if p.Active != nil || switched || was.Usage != now.Usage {
+		usage, _ = json.Marshal(d.usage) // strings, numbers and times
+	}
+
+	if p.Drafts != nil || p.Editors != nil || p.Terminals != nil || p.Last != nil || p.Folded != nil || p.Pinned != nil || p.Active != nil || moved {
 		err = errors.Join(err, d.save())
 	}
 	d.mu.Unlock()
 	d.broadcast(proto.Event{Kind: "state"})
+
+	if usage != nil {
+		d.broadcast(proto.Event{Kind: "usage", Data: usage})
+	}
+
+	if !was.Usage && now.Usage { // turned on: no waiting for WatchUsage's next round
+		go d.refreshUsage()
+	}
 
 	return nil, err
 }
