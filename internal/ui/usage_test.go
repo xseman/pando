@@ -108,7 +108,7 @@ func TestUsageView(t *testing.T) {
 	}
 }
 
-// TestUsageTabs holds the header: Usage is its last tab while an account is
+// TestUsageTabs holds the header: Usage is its second tab while an account is
 // known and usage is on, each tab cut to its share in a narrow column, and
 // the body goes back to Sessions when the tab goes.
 func TestUsageTabs(t *testing.T) {
@@ -131,11 +131,11 @@ func TestUsageTabs(t *testing.T) {
 		return out
 	}
 
-	if got := labels(40); !slices.Equal(got, []string{"Sessions", "Customizations", "Usage"}) {
+	if got := labels(40); !slices.Equal(got, []string{"Sessions", "Usage", "Customizations"}) {
 		t.Fatalf("tabs %q", got)
 	}
 
-	if got := labels(22); !slices.Equal(got, []string{"Sessi", "Custo", "Usage"}) {
+	if got := labels(22); !slices.Equal(got, []string{"Sessi", "Usage", "Custo"}) {
 		t.Fatalf("narrow tabs %q", got)
 	}
 

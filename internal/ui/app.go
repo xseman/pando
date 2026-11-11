@@ -4845,12 +4845,12 @@ func (m *Model) headTabs(v view, w int) []tab {
 	}
 
 	views := []view{viewAgents}
-	if m.hasCustom {
-		views = append(views, viewCustom)
-	}
-
 	if m.hasUsage() {
 		views = append(views, viewUsage)
+	}
+
+	if m.hasCustom {
+		views = append(views, viewCustom)
 	}
 
 	gaps, need := 2*(len(views)-1), 0

@@ -678,9 +678,9 @@ take bytes and have a fuzz target.
 `usage.go`. The agents' plan limits as the daemon measured them
 (`proto.Usage`, [01-architecture.md](01-architecture.md#usage)): the view asks
 for nothing itself. `Model.usage` is read once (`loadUsage`), then follows the
-`usage` event; showing the tab and `r` call `usage.refresh`. It is the last
-tab of Sessions' header (`headed`, `headTab`, as Customizations), there while
-`hasUsage`: `usage` on and an account known.
+`usage` event; showing the tab and `r` call `usage.refresh`. It is the tab
+after Sessions in its header, before Customizations (`headed`, `headTab`),
+there while `hasUsage`: `usage` on and an account known.
 
 ```text
  Claude Code                      auto    usAgent: profile_switch when "auto"
