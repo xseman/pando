@@ -168,6 +168,7 @@ type Model struct {
 	st        proto.State
 	wss       []proto.Workspace
 	sessions  []proto.Session
+	profileOn map[string]string // per session ID, the profile its row and title name (profileOf); nil since state or sessions last came
 	ws, sess  string
 	focus     int                  // a column index or onMain
 	recent    []int                // per view: when it was last shown; a column shows its most recent tab
@@ -2613,7 +2614,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.onDrafts(msg)
 	case stateMsg:
 		full, sel, active := m.st.Settings.DiffFull, m.ag.selected(m), m.st.Active
-		m.st = proto.State(msg)
+		m.st, m.profileOn = proto.State(msg), nil
 		m.dropUsageTab()
 		m.ag.follow(m, sel) // another TUI's pin adds rows above it
 		m.look()
@@ -2674,7 +2675,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := m.sound(m.soundFor(msg))
 		sel, prev := m.ag.selected(m), m.sessions
 
-		m.sessions = msg
+		m.sessions, m.profileOn = msg, nil
 		cmd = tea.Batch(cmd, m.ag.unfoldRunning(m, prev))
 
 		at := m.ag.l.sel
@@ -4390,11 +4391,16 @@ func (m *Model) sideTitle(s int) string {
 }
 
 // mainTitle is the editor area's frame title: where it is, the project and
-// worktree, since the tab says what it shows.
+// worktree, and for a session a profile other than its agent's default, since
+// the tab says what it shows.
 func (m *Model) mainTitle() string {
 	switch {
 	case m.showsSession():
 		if s := m.session(m.sess); s != nil {
+			if p := m.profileOf(s); p != "" {
+				return m.wsTitle(s.Workspace) + " · " + p
+			}
+
 			return m.wsTitle(s.Workspace)
 		}
 

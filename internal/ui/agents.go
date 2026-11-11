@@ -1544,6 +1544,16 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			status = m.runsAt(r, status)
 		}
 
+		// The profile it runs in, off its agent's default: its first letter
+		// where the whole one would cut the session's name.
+		if p := m.profileOf(&r.s); p != "" {
+			if 8+ansi.StringWidth(conn)+ansi.StringWidth(glyph)+ansi.StringWidth(sessionName(r.s))+ansi.StringWidth(p)+ansi.StringWidth(status) > rw { // 8: the blanks and " · " around them
+				p = string([]rune(cmp.Or(strings.TrimLeft(p, "."), p))[:1])
+			}
+
+			status = p + " · " + status
+		}
+
 		// A name the row cuts, at 32 cells or at the column's edge, shows
 		// whole in a tip.
 		g, after, right := m.spin(glyph, r.s), titleAfter(r.s), " "+status+" "
@@ -2139,23 +2149,12 @@ func (m *Model) canMove(s *proto.Session) bool {
 	return s != nil && s.Conversation != nil && len(m.st.ResumeID[s.Conversation.Agent]) > 0 && len(m.profiles(s.Conversation.Agent)) > 1
 }
 
-// moveProfile asks which profile session id's agent continues in. The agent
-// ends and resumes the same conversation there (session.profile), so it loads
-// that profile's settings, skills and servers from then on.
-func (m *Model) moveProfile(id string) tea.Cmd {
-	s := m.session(id)
-	if !m.canMove(s) {
-		return nil
-	}
-
-	c := s.Conversation
-	profiles := m.profiles(c.Agent)
-
-	// Where it runs now: what the session's own env holds of the variables
-	// its agent's profiles set, as the profile it was started or moved with
-	// left them. An agent started in a shell has none there, only the config
-	// its conversation is in.
-	keys := slices.Clone(m.st.ResumeEnv[c.Agent])
+// runsWith is the config session s's agent runs in, sorted: what the
+// session's own env holds of the variables its agent's profiles and keys
+// set, as the profile it was started or moved with left them. An agent
+// started in a shell has none there, only the config its conversation is in.
+func runsWith(s *proto.Session, profiles []profile, keys []string) []string {
+	keys = slices.Clone(keys)
 
 	for _, p := range profiles {
 		for _, kv := range p.env {
@@ -2168,11 +2167,73 @@ func (m *Model) moveProfile(id string) tea.Cmd {
 		k, _, _ := strings.Cut(kv, "=")
 		return !slices.Contains(keys, k)
 	})
-	if len(now) == 0 {
-		now = slices.Clone(c.Env)
+	if len(now) == 0 && s.Conversation != nil {
+		now = slices.Clone(s.Conversation.Env)
 	}
 
 	slices.Sort(now)
+
+	return now
+}
+
+// profileOf names the profile session s's agent runs in, none for its
+// default or an agent with no other; a config no profile names goes by its
+// directory, as in Usage. Every frame asks: the answer is kept until state or
+// sessions come again.
+func (m *Model) profileOf(s *proto.Session) string {
+	if s == nil || s.Conversation == nil {
+		return ""
+	}
+
+	if p, ok := m.profileOn[s.ID]; ok {
+		return p
+	}
+
+	if m.profileOn == nil {
+		m.profileOn = map[string]string{}
+	}
+
+	p := m.runsIn(s)
+	m.profileOn[s.ID] = p
+
+	return p
+}
+
+// runsIn is profileOf's answer, worked out.
+func (m *Model) runsIn(s *proto.Session) string {
+	profiles := m.profiles(s.Conversation.Agent)
+	if len(profiles) < 2 {
+		return ""
+	}
+
+	now := runsWith(s, profiles, m.st.ResumeEnv[s.Conversation.Agent])
+	if len(now) == 0 {
+		return ""
+	}
+
+	for _, p := range profiles {
+		if p.hint != "seen" && slices.Equal(slices.Sorted(slices.Values(p.env)), now) {
+			return p.name
+		}
+	}
+
+	_, dir, _ := strings.Cut(now[0], "=") // a config no profile names: its directory, as Usage calls it
+
+	return filepath.Base(dir)
+}
+
+// moveProfile asks which profile session id's agent continues in. The agent
+// ends and resumes the same conversation there (session.profile), so it loads
+// that profile's settings, skills and servers from then on.
+func (m *Model) moveProfile(id string) tea.Cmd {
+	s := m.session(id)
+	if !m.canMove(s) {
+		return nil
+	}
+
+	c := s.Conversation
+	profiles := m.profiles(c.Agent)
+	now := runsWith(s, profiles, m.st.ResumeEnv[c.Agent])
 
 	var items []item
 

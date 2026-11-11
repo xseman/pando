@@ -452,6 +452,9 @@ profile over the limit that you pick by hand stands until the limits are next
 asked for: opening the Usage tab, `r`, the 15-minute check, or a change of
 `profile_switch` or `profile_switch_at`.
 
+A session running in a profile other than its agent's default says which, in
+Sessions before its status and in the terminal's title.
+
 _Move to Profile…_ in a session's menu moves a running claude session: the
 agent ends and continues the same conversation under the other profile, whose
 settings, skills and MCP servers it loads from then on. The transcript stays

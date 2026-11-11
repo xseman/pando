@@ -174,6 +174,7 @@ re-roots Explorer and Source Control to its worktree.
  ⊙ ├─ ◐ claude · fix   running ✕       ⊙ pinned, ✕ kills it (hover)
    │  ↳ Explore · Trace tabs        a subagent it runs (agSub): ↑↓ walk past, a click is its session's
    └─ ○ shell            3h   idle since (shortAgo); a shell says shell, other states their word
+   └─ ○ pr-737   work · 2m   the profile it runs in off its agent's default (profileOf), its first letter where it would cut the name
    ⑂ feat/x       1 ✕   linked worktree (dimmed), ✕ deletes it (hover)
    └─ ○ shell          idle   no Updated yet
 ──────────────────────────  a rule over every open heading but the first (withGaps)

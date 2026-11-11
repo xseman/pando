@@ -43,6 +43,36 @@ func benchModel(tb testing.TB) *Model {
 	return m
 }
 
+// profilesModel is benchModel with Sessions on screen and 20 claude sessions,
+// every other one in profile work.
+func profilesModel(tb testing.TB) *Model {
+	tb.Helper()
+
+	m := benchModel(tb)
+	m.st.Settings.Right = proto.Columns{{Views: []string{"agents"}}}
+	m.st.Settings.Profiles = map[string]map[string][]string{"claude": {"work": workEnv, "fast": {"ANTHROPIC_MODEL=x"}}}
+	m.st.Agents["claude"] = []string{"claude"}
+
+	base := m.sessions[0]
+	m.sessions = nil
+
+	for i := range 20 {
+		s := base
+		s.ID, s.Name, s.Agent = ifElse(i == 0, "s1", fmt.Sprint("c", i)), "claude-session", "claude" // s1 stays the one on screen
+		s.Conversation = &proto.Conversation{Agent: "claude", ID: s.ID}
+
+		if i%2 == 0 {
+			s.Env = workEnv
+		}
+
+		m.sessions = append(m.sessions, s)
+	}
+
+	m.resize()
+
+	return m
+}
+
 func BenchmarkViewSession(b *testing.B) {
 	m := benchModel(b)
 
@@ -259,7 +289,7 @@ func TestAllocBudgets(t *testing.T) {
 		t.Skip("-race drops sync.Pool items: the counts vary")
 	}
 
-	session, file, large, md, held, pal := benchModel(t), benchModel(t), largeFile(t), largeMarkdown(t), tabHeld(t), benchModel(t)
+	session, file, large, md, held, pal, profiles := benchModel(t), benchModel(t), largeFile(t), largeMarkdown(t), tabHeld(t), benchModel(t), profilesModel(t)
 	openApp(t, file)
 	openApp(t, pal)
 	pressFire(pal, "ctrl+shift+p") // quick open's Actions, once the files are listed
@@ -278,6 +308,7 @@ func TestAllocBudgets(t *testing.T) {
 	}{
 		{"View, session", 240, func() { _ = session.View() }},
 		{"View, file", 400, func() { _ = file.View() }},
+		{"View, sessions in profiles", 660, func() { _ = profiles.View() }}, // a profile is worked out once, not per frame
 		{"hover", 40, func() { _ = session.term.linkAt(session, "s1", 70, 25) }},
 		{"typing in a large file", 3060, func() {
 			large.Update(keyMsg("x"))

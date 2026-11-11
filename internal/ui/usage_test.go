@@ -420,3 +420,48 @@ func TestUsageUseTip(t *testing.T) {
 		t.Fatalf("the active account says %q", m.tip)
 	}
 }
+
+// TestProfileShown: a session off its agent's default says which profile it
+// runs in, in its row and its frame's title; one on the default says nothing.
+func TestProfileShown(t *testing.T) {
+	m := usageModel(t)
+	s := &m.sessions[0]
+	s.Conversation = &proto.Conversation{Agent: "claude", ID: "c1"}
+	m.sess = s.ID
+
+	if got := m.profileOf(s); got != "" || strings.Contains(m.mainTitle(), "claude-work") {
+		t.Fatalf("on the default it says %q, title %q", got, m.mainTitle())
+	}
+
+	s.Env, m.profileOn = append(s.Env, workEnv...), nil // as a sessions message does
+	m.st.Settings.Right, m.st.Settings.WidthR = proto.Columns{{Views: []string{"agents"}}}, 45
+	m.resize()
+
+	if got := m.profileOf(s); got != ".claude-work" {
+		t.Fatalf("in a config no profile names it says %q", got)
+	}
+
+	if !strings.HasSuffix(m.mainTitle(), " · .claude-work") {
+		t.Fatalf("title %q", m.mainTitle())
+	}
+
+	if !strings.Contains(ansi.Strip(m.View().Content), ".claude-work · ") {
+		t.Fatal("the session's row does not say its profile")
+	}
+
+	// A name the whole profile would cut keeps its room: the profile shrinks
+	// to its first letter.
+	s.Name = "a-session-name-of-24-cel"
+
+	if v := ansi.Strip(m.View().Content); !strings.Contains(v, s.Name) || !strings.Contains(v, " c · ") {
+		t.Fatal("a long name is cut for the profile")
+	}
+
+	m.st.Settings.Profiles, m.profileOn = map[string]map[string][]string{"claude": {"work": workEnv}}, nil
+
+	if got := m.profileOf(s); got != "work" {
+		t.Fatalf("in profile work it says %q", got)
+	}
+
+	checkWidths(t, m)
+}
