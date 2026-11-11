@@ -1,5 +1,57 @@
 # Changelog
 
+## [0.11.0](https://github.com/xseman/pando/compare/v0.10.0...v0.11.0) (2026-11-11)
+
+
+### Features
+
+* **daemon:** plan limits by sign-in and profile switching ([c07417a](https://github.com/xseman/pando/commit/c07417a214f0a54dfc910e43323db483078a06fb))
+* **git:** choose the agent and style that write commit messages ([daa5c43](https://github.com/xseman/pando/commit/daa5c43381380753804396caa65631a384b6aab4))
+* **ui:** a session names the profile it runs in ([9d43ae3](https://github.com/xseman/pando/commit/9d43ae332b7316ec1f29ea2b55ce14ec67ecaca8))
+* **ui:** a tip naming the model behind a Usage meter's mark ([250db86](https://github.com/xseman/pando/commit/250db86bdcfb3fb1bb67b5ae0699aae99b3e4e8b))
+* **ui:** a tip on an account's use in Usage ([1d44380](https://github.com/xseman/pando/commit/1d44380bff7d3a3d1395be28113d38aefe0c57bb))
+* **ui:** Add Project first in Open Project ([e82c2d6](https://github.com/xseman/pando/commit/e82c2d684ff77b1f7d56fca0c06f42782127e19c))
+* **ui:** header tabs light under the mouse ([194ead5](https://github.com/xseman/pando/commit/194ead53425aad9f095fd26dad32b864262fc974))
+* **ui:** home, end, pgup and pgdown in pickers ([a9d1a04](https://github.com/xseman/pando/commit/a9d1a041d56ccd0742d368488a0364c31a2b4f9f))
+* **ui:** open pickers and dialogs in the middle over a dimmed frame ([b305973](https://github.com/xseman/pando/commit/b305973fcaffc39939022509035531d0f0f5f4ad))
+* **ui:** opening a row found in Sessions clears its filter ([c967d66](https://github.com/xseman/pando/commit/c967d6632ba735be12f8a709f857fc09f662bcf5))
+* **ui:** pinned sessions show their branch ([1bcc7cf](https://github.com/xseman/pando/commit/1bcc7cf961b7fe0294e7751ea3daf32dc5c2407b))
+* **ui:** quick open lists changed files, lines by file and commands ([01e1289](https://github.com/xseman/pando/commit/01e1289ce5e29bdde46f27e86f36cbd82fad6da1))
+* **ui:** saved prompts on alt+i ([6b6ac0d](https://github.com/xseman/pando/commit/6b6ac0d0306943f32e890ab4216ce732114ea128))
+* **ui:** Usage is the tab after Sessions ([8e25e23](https://github.com/xseman/pando/commit/8e25e2311d4dcd9c02e07a422fd1a0f3169d1461))
+* **ui:** Usage tab with plan limits and Move to Profile ([a37efd2](https://github.com/xseman/pando/commit/a37efd2f0ccbe83b3e420902ca7b519ad2645961))
+
+
+### Bug Fixes
+
+* **claude:** run in the foreground where --bg finds the workspace untrusted ([7de4c9e](https://github.com/xseman/pando/commit/7de4c9e3cc9e0fdd44cb41bd8cd744ac79340aa5))
+* **daemon:** a cancelled resume picker closes its session ([1ea4dfe](https://github.com/xseman/pando/commit/1ea4dfe92e19fff763115f17a4979a6a144e8ad0))
+* **daemon:** an agent suspended with ctrl+z comes back ([d67b78d](https://github.com/xseman/pando/commit/d67b78d603ec33a119f79dff4cf401039f6bb752))
+* **daemon:** no unknown key warning for the left and right columns ([b54347c](https://github.com/xseman/pando/commit/b54347c9c60a40aa597e2841cac8e9c5c805a177))
+* **daemon:** tell subscribers an asleep session moved profile ([bc440f3](https://github.com/xseman/pando/commit/bc440f38ca8e33c03a593cd03943c26af8edd03c))
+* **ui:** an empty file opens ready to edit ([ae5279d](https://github.com/xseman/pando/commit/ae5279d358499453ed5ca0c5a890ca4b03716133))
+* **ui:** quick open keeps its tabs whole when Text's count does not fit ([894caa8](https://github.com/xseman/pando/commit/894caa87a046ae1a2be0dc425249de6bf5270eae))
+* **ui:** quick open's All finds a project with no session ([6a9b21d](https://github.com/xseman/pando/commit/6a9b21dc88ea7b8d682130af96c015b923ba304c))
+
+
+### Performance Improvements
+
+* **ui:** draw modals and quick open several times faster ([f79ad16](https://github.com/xseman/pando/commit/f79ad1619939ec4756467b627b2ab5618a71a0d2))
+
+
+### Documentation
+
+* **demo:** re-record every GIF and the hero ([f32c3b6](https://github.com/xseman/pando/commit/f32c3b63c58d4bac355c956e177442b71329e2bd))
+* **demo:** Usage and quick open GIFs, the merge through Merge Branch… ([a5d0ba2](https://github.com/xseman/pando/commit/a5d0ba239ede68b7fd701521774bacd7f847346f))
+* **readme:** quick start after install, development and license ([271964d](https://github.com/xseman/pando/commit/271964de3174ebb7bdc58c432b5a714659cddd07))
+* rename CLAUDE.md to AGENTS.md ([983c802](https://github.com/xseman/pando/commit/983c8022acd8989e631741ccabb940a3f3a3437d))
+* what moving a session to another profile asks and costs ([e47c522](https://github.com/xseman/pando/commit/e47c522d75323d28289438ae3fbc339bf0bd56d8))
+
+
+### Maintenance
+
+* **proto:** ConfigDir moves from daemon to proto ([6458489](https://github.com/xseman/pando/commit/6458489aa74465434aa80ac83c331810d770aad2))
+
 ## [0.10.0](https://github.com/xseman/pando/compare/v0.9.0...v0.10.0) (2026-11-06)
 
 
