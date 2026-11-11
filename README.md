@@ -13,6 +13,10 @@
     <a href="docs/09-keys.md">Keys</a> · <a href="#docs">Docs</a>
 </p>
 
+<p align="center">
+    <img src="docs/demo/hero.png" alt="pando with Explorer on the left and Sessions on the right, two projects and their claude sessions in it, one working, one waiting for a yes, one done; between them two editor groups side by side, store.go and the claude session that just changed it">
+</p>
+
 ## Why
 
 I wanted to run several coding agents at once, each on its own branch, and
@@ -21,7 +25,7 @@ from each of three tools:
 
 - **[Zed](https://zed.dev)**: its agent panel runs agent sessions beside the
   code; pando runs them side by side over many projects, each in a git worktree.
-- **[herdr](https://github.com/ogulcancelik/herdr)**: a terminal multiplexer
+- **[herdr](https://github.com/herdrdev/herdr)**: a terminal multiplexer
   for coding agents; pando borrows its design, not its code: a daemon that
   holds the sessions and a socket API that drives them.
 - **[VS Code](https://code.visualstudio.com)**: Source Control, its diffs and
@@ -40,14 +44,37 @@ Linux and macOS. The script verifies the binary against `CHECKSUMS.txt` and
 installs it to `~/.local/bin` (`PANDO_VERSION` pins a release,
 `PANDO_INSTALL_DIR` moves it). From source: `make install` (Go 1.26).
 
-Needs git. Optional: `gh` for GitHub, `rg` for search, `sqlite3` (3.37+),
-`psql` and `mariadb` (or `mysql`) for databases, language servers (`gopls`,
-…), `claude`, `codex`, `gemini` or `opencode` for commit messages, and a
-Nerd Font for `icons = "nerd"` (_Symbols Nerd Font Mono_ as a fallback font
-is enough; the first run picks `nerd` when one is installed, and the status
-bar offers to install it when none is).
+Needs git, and the agents you run in sessions (`claude`, `codex`, `gemini`,
+`agy`, `grok`, `opencode`) or a shell. Optional, each for one feature:
 
-![pando with Explorer on the left and Sessions on the right, two projects and their claude sessions in it, one working, one waiting for a yes, one done; between them two editor groups side by side, store.go and the claude session that just changed it](docs/demo/hero.png)
+- `gh`: GitHub
+- `rg`: search
+- `sqlite3` (3.37+), `psql`, `mariadb` or `mysql`: databases
+- language servers (`gopls`, …)
+- `claude`, `codex`, `gemini` or `opencode`: commit messages
+- a Nerd Font: `icons = "nerd"`. _Symbols Nerd Font Mono_ as a fallback font
+  is enough; the first run picks `nerd` when one is installed, and the status
+  bar offers to install it when none is.
+
+## Quick start
+
+```sh
+pando ~/code/app   # add a project and open it; plain `pando` reopens the last
+pando main.go:42:5 # the project holding main.go, the file open at line 42
+```
+
+| Key      | Does                                                           |
+| -------- | -------------------------------------------------------------- |
+| `3`      | Sessions: your projects, worktrees and sessions                |
+| `w`      | a new worktree for the selected project                        |
+| `n`      | a new session in the worktree: an installed agent or a shell   |
+| `ctrl+]` | move focus out of the session; inside it every key goes to it  |
+| `2`      | Source Control for the session's worktree: review and commit   |
+| `?`      | every key of every view                                        |
+| `q`      | close pando, asking first; the sessions keep running           |
+
+`pando` again brings the TUI back where it was. `pando stop` stops the daemon
+and every session in it; the next `pando` starts them again.
 
 ## Features
 
@@ -93,22 +120,6 @@ bar offers to install it when none is).
 - **CLI and API**: JSON over a unix socket; self-update on Linux and macOS.
 - **Instances**: `pando --instance work` is a separate pando, with projects
   and sessions of its own and your settings.
-
-## Quick start
-
-```sh
-pando ~/code/app   # add a project and open it; plain `pando` reopens the last
-pando main.go:42:5 # the project holding main.go, the file open at line 42
-```
-
-| Key      | Does                                                           |
-| -------- | -------------------------------------------------------------- |
-| `3`      | Sessions: your projects, worktrees and sessions                |
-| `w`      | a new worktree for the selected project                        |
-| `n`      | a new session in the worktree: an installed agent or a shell   |
-| `ctrl+]` | move focus out of the session; inside it every key goes to it  |
-| `2`      | Source Control for the session's worktree: review and commit   |
-| `?`      | every key of every view                                        |
 
 ## Tour
 
@@ -163,3 +174,13 @@ Contributors: [UI layout](docs/02-ui-layout.md) ·
 [views](docs/03-views.md) · [preview](docs/04-preview.md) ·
 [git](docs/05-git.md) · [testing](docs/07-testing.md) ·
 [release](docs/08-release.md).
+
+## Development
+
+`make build` builds `./pando`, `make test` and `make lint` check it as CI
+does; [AGENTS.md](AGENTS.md) and the contributor docs above describe the
+code. Bugs and ideas go to [issues](https://github.com/xseman/pando/issues).
+
+## License
+
+Apache-2.0, see [LICENSE](LICENSE).
