@@ -477,6 +477,32 @@ func TestProfileSession(t *testing.T) {
 	if fi, err := os.Lstat(transcript); err != nil || !fi.Mode().IsRegular() {
 		t.Fatalf("the transcript itself: %v, %v", fi, err)
 	}
+
+	// Asleep, it stays so: no sleep or wake tells an attached TUI it moved,
+	// the move itself does.
+	publish(work)
+	call(t, "session.sleep", map[string]any{"id": s.ID}, nil)
+
+	events := subscribed(t)
+	call(t, "session.profile", proto.SessionProfileParams{ID: s.ID, Env: []string{"CLAUDE_CONFIG_DIR=" + other}}, &moved)
+
+	if !moved.Asleep {
+		t.Fatal("an asleep session woke to move")
+	}
+
+	for timeout := time.After(5 * time.Second); ; {
+		select {
+		case ev := <-events:
+			if ev.Kind != "sessions" {
+				continue
+			}
+
+		case <-timeout:
+			t.Fatal("no sessions event for an asleep session's move")
+		}
+
+		break
+	}
 }
 
 // TestProfileSessionInShell moves an agent started in a shell, twice: the

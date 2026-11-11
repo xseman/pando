@@ -828,7 +828,8 @@ func (d *Daemon) profileSession(id string, env []string) (proto.Session, error) 
 	err = d.save()
 	d.mu.Unlock()
 
-	if asleep {
+	if asleep { // no sleep or wake to say it moved
+		d.broadcast(proto.Event{Kind: "sessions"})
 		return s.info(), err
 	}
 
