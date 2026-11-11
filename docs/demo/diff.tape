@@ -1,8 +1,8 @@
 # Source Control: a working tree diff inline and side by side, reverting one
 # line of the change, staging the rest, the commit, then a merge that
 # conflicts: Merge Changes, the conflict resolved in the editor, Continue.
-# VHS cannot send ctrl+s: the demo binds save and Accept Incoming Change to
-# ctrl letters in its config.
+# VHS cannot send ctrl+s or a palette command: the demo binds save, Accept
+# Incoming Change and Merge Branch… to ctrl letters in its config.
 # Record with: make demo   (needs vhs v0.10 or v0.11, ttyd, ffmpeg and a Chrome)
 Output docs/demo/diff.gif
 
@@ -12,7 +12,7 @@ Require ttyd
 Source docs/demo/settings.tape
 Source docs/demo/setup.tape
 Type "bash $DEMO/merge.sh $REPO" Enter
-Type `cfg 34 ctrl+k=editor.saveFile ctrl+e=editor.acceptIncomingChange` Enter
+Type `cfg 34 ctrl+k=editor.saveFile ctrl+e=editor.acceptIncomingChange ctrl+y=git.mergeBranch` Enter
 Type "clear" Enter
 Type "pando" Enter
 Wait+Screen@30s /\^.p/
@@ -73,17 +73,15 @@ Sleep 300ms
 Ctrl+w
 Sleep 600ms
 
-# A merge that conflicts, run in the terminal panel (5). Merge Changes shows
-# up above the sections with ! after the branch, and Commit waits as Continue.
-Type "5"
-Sleep 800ms
-Type "git merge feat"
-Enter
-Sleep 2000ms
-Ctrl+]
-Sleep 400ms
-Type "5"
+# A merge that conflicts: Merge Branch… (ctrl+y here) picks the branch.
+# Merge Changes shows up above the sections with ! after the branch, and
+# Commit waits as Continue.
+Ctrl+y
 Sleep 1200ms
+Type "feat"
+Sleep 600ms
+Enter
+Sleep 2500ms
 
 # ⏎ on a file that still holds conflict markers asks first.
 Type "g"

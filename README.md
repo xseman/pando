@@ -146,6 +146,10 @@ Every GIF below is pando itself, recorded by `make demo`.
 <td width="50%" valign="top"><img src="docs/demo/databases.gif" alt="a SQLite table sorted, filtered and edited in a grid, the pending SQL submitted in one transaction, then sqlite3 in the terminal and the form that adds a server" width="100%"><p align="center"><sub><b>Databases.</b> SQLite, Postgres and MariaDB tables in a grid: filter, sort, edit, submit in one transaction. <a href="docs/usage.md#databases">More</a></sub></p></td>
 <td width="50%" valign="top"><img src="docs/demo/groups.gif" alt="store.go split off into an editor group on the right, maximized and restored, then a shell session moved into a group under it, beside main.go" width="100%"><p align="center"><sub><b>Editor groups.</b> Files and sessions side by side or stacked, as VS Code's groups: drag a tab to a group's edge. <a href="docs/usage.md#the-screen">More</a></sub></p></td>
 </tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/demo/usage.gif" alt="the Usage tab with claude's default and work profiles and codex, a meter per limit window; the default near its weekly limit, work made the profile new sessions start with, then the profile picker with each one's room" width="100%"><p align="center"><sub><b>Usage.</b> Plan limits of every claude and codex sign-in; near a limit pando offers the profile with the most room. <a href="docs/usage.md#usage">More</a></sub></p></td>
+<td width="50%" valign="top"><img src="docs/demo/quickopen.gif" alt="quick open listing changed files, then files and lines for a word, the lines under their files on the Text tab, the Sessions tree and the commands" width="100%"><p align="center"><sub><b>Quick open.</b> <code>ctrl+p</code> over files, text, sessions and commands, a tab for each. <a href="docs/usage.md#editor">More</a></sub></p></td>
+</tr>
 </table>
 
 ## How it works

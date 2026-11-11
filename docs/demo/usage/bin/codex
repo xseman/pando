@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# The codex usage.tape's daemon asks for its plan limits: it answers the
+# app-server's account/rateLimits/read with made-up numbers, then waits for
+# its input to end, as the real server does.
+now=$(date +%s)
+while IFS= read -r line; do
+	case $line in
+	*'"id":1,'*) echo '{"id":1,"result":{}}' ;;
+	*'"id":2,'*) printf '{"id":2,"result":{"rateLimitsByLimitId":{"codex":{"planType":"plus","primary":{"usedPercent":22,"windowDurationMins":300,"resetsAt":%s},"secondary":{"usedPercent":47,"windowDurationMins":10080,"resetsAt":%s}}}}}\n' $((now + 7800)) $((now + 266400)) ;;
+	esac
+done

@@ -7,7 +7,8 @@
 #   cfg 34 claude-edits claude-ask       # and agent ask: one that asks before every command, whatever settings.json says
 #   cfg 26 vim ctrl+k=editor.saveFile    # a setting of its own
 #   cfg 30 resume                        # claude resumed in the foreground, in the demo's palette
-#   cfg 27 hero                          # Spaces on the right, the rest on the left
+#   cfg 27 hero                          # Sessions on the right, the rest on the left
+#   cfg 30 usage                         # plan limits on, a work profile (source usage/usage.sh first)
 #
 # VHS cannot send ctrl+s, F12 or a drag, so every tape binds what it needs to a
 # ctrl letter; keeping the presets here is what stops every tape from repeating
@@ -54,7 +55,8 @@ demo_claude() {
 }
 
 cfg() {
-	local width=$1 top="" agents="" keys="" a
+	# No plan limits unless a tape asks: they would be the recording account's.
+	local width=$1 top="" agents="" keys="" profiles="" usage=false a
 	# Every panel on the left, whatever the defaults say.
 	local layout=$'left = [{ views = ["files", "git", "agents", "search", "github", "databases"] }]\nright = []\n'
 	shift
@@ -66,6 +68,9 @@ cfg() {
 			top+=$'claude_background = false\n' ;;
 		hero) # the README's still: every view on the left but Spaces
 			layout=$'width_right = 30\nleft = [{ views = ["files", "git", "search", "github", "databases"] }]\nright = [{ views = ["agents"] }]\n' ;;
+		usage) # usage.sh's made-up sign-ins: the default and a work profile
+			usage=true
+			profiles+="work = [\"CLAUDE_CONFIG_DIR=$STATE/usage/claude-work\"]"$'\n' ;;
 		claude-ask) agents+="ask = [\"claude\", \"--permission-mode\", \"default\"]"$'\n' ;;
 		claude-edits) agents+="claude = [\"claude\", \"--permission-mode\", \"acceptEdits\", \"--allowedTools\", \"Bash\"]"$'\n' ;;
 		*=*) keys+="\"${a%%=*}\" = \"${a#*=}\""$'\n' ;;
@@ -80,8 +85,9 @@ cfg() {
 	# Top-level keys first: after a [table] header they would belong to it.
 	# A terminal's bash skips the recorder's .bashrc: its prompt is vhs's.
 	{
-		printf 'icons = "nerd"\npanel_borders = true\ncolor_theme = "vscode-%s"\nwidth = %s\nshell = "bash --norc"\n%s%s' "$mode" "$width" "$layout" "$top"
+		printf 'icons = "nerd"\npanel_borders = true\ncolor_theme = "vscode-%s"\nwidth = %s\nshell = "bash --norc"\nusage = %s\n%s%s' "$mode" "$width" "$usage" "$layout" "$top"
 		[ -n "$agents" ] && printf '[agents]\n%s' "$agents"
 		[ -n "$keys" ] && printf '[keys]\n%s' "$keys"
+		[ -n "$profiles" ] && printf '[profiles.claude]\n%s' "$profiles"
 	} > "$PANDO_CONFIG_DIR/config.toml"
 }

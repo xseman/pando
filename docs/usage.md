@@ -471,6 +471,8 @@ limits as _paused_ until Claude Code runs again.
 On macOS Claude Code keeps its sign-in in the Keychain, where pando does not
 look: claude reads _signed out_ there.
 
+![the Usage tab with claude's default and work profiles and codex, a meter per limit window; the default near its weekly limit, work made the profile new sessions start with, then the profile picker with each one's room](demo/usage.gif)
+
 ## Editor
 
 - Undo, find & replace, quick open (`ctrl+p`, recent and changed files
@@ -513,6 +515,8 @@ look: claude reads _signed out_ there.
   dialog that changes the file's own (Auto goes back to what the file says).
 - The status bar names who last changed the cursor's line and when (`Not
   Committed Yet` for a line typed since); a click opens the commit.
+
+![quick open listing changed files, then files and lines for a word, the lines under their files on the Text tab, the Sessions tree and the commands](demo/quickopen.gif)
 
 ![a sloppy Go file typed into an untitled buffer, saved with path completion, and tidied by gofmt on the way to disk](demo/edit.gif)
 

@@ -187,7 +187,7 @@ GIF, [vhs#787](https://github.com/charmbracelet/vhs/issues/787)). Also needs
 
 ```text
 make demo ─▶ make install          overwrites $(PREFIX)/bin/pando
-   ├─ PAR_TAPES, JOBS=4 at once    markdown lsp vim databases groups
+   ├─ PAR_TAPES, JOBS=4 at once    markdown lsp vim databases groups usage quickopen
    │    own /tmp/pando-<tape>/ repo and daemon
    └─ SEQ_TAPES, one at a time     diff edit github tui resume hero
         share /tmp/pando-demo (claude trusts it; its path is on screen)
@@ -203,6 +203,7 @@ make demo ─▶ make install          overwrites $(PREFIX)/bin/pando
 | `setup.tape`    | hidden start: clean env, fresh repo, `source cfg.sh`        |
 | `cfg.sh`        | `cfg <width> [preset…] [key=command…]`; `mode=light`        |
 | `gh/gh`         | fake gh for `github.tape`                                   |
+| `usage/`        | made-up plan limits for `usage.tape`: proxy, fake codex     |
 | `shop.sql`      | the made-up SQLite database of `databases.tape`             |
 
 Tape rules:
