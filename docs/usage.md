@@ -455,7 +455,10 @@ asked for: opening the Usage tab, `r`, the 15-minute check, or a change of
 _Move to Profile…_ in a session's menu moves a running claude session: the
 agent ends and continues the same conversation under the other profile, whose
 settings, skills and MCP servers it loads from then on. The transcript stays
-where it was written, linked into the other profile's `projects/`.
+where it was written, linked into the other profile's `projects/`. A profile
+that has not seen the worktree asks once whether to trust it. A profile signed
+in to another organization cannot reuse the conversation's earlier thinking:
+claude says so, and its next answers are slower and use more tokens.
 
 The limits come from each agent's own service: claude's from the endpoint
 Claude Code's `/usage` reads, with the sign-in each profile keeps in

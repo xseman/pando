@@ -211,7 +211,9 @@ with an `env` of your own, `[]` for the default, overrides it.
 
 `session.profile` moves a claude session to the profile `env` picks (`[]` for
 the default): the agent ends and resumes the same conversation there. It
-returns once the agent is back at its prompt, as `session wake` does; what the
+returns once the agent is back at its prompt, as `session wake` does, or
+`blocked` on claude's question whether to trust the worktree, in a profile that
+has not seen it: that one is the user's to answer. What the
 agent was doing is interrupted, so move a session that is `idle`. A session
 asleep stays asleep, and wakes in the new profile.
 
