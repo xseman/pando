@@ -629,8 +629,9 @@ leaves it out wherever config lists it, so it costs Sessions no activity bar
 and no width, and moves with Sessions. `viewOn` stays the column's tab, for
 chips, menus and drags; `bodyOn` is what the column draws, `headTab` choosing.
 The tabs sit under the frame title Agents, a rule row below them, and keep
-their cells whichever shows; the header's hover actions that do not fit
-beside them stay on their keys.
+their cells whichever shows; the one under the mouse lights, its label and
+the rule under it (`hotTab`), as a strip's tab does. The header's hover
+actions that do not fit beside them stay on their keys.
 A section names its scope when it has entries in one, scope rows appear
 when it has both, and details line up in a column set by every entry, folded or
 not (`nameW`, at most 40%). `⏎` opens the file, on

@@ -4453,7 +4453,14 @@ func (m *Model) sidebarBody(s, w int) []string {
 	}
 
 	if m.tabbed(active) {
-		out = append(out, ruleRow(w, nil, fg(pal.tabBorder)))
+		var marks []ruleMark
+
+		tabs := m.headTabs(active, w)
+		if i := m.hotTab(s, tabs); i >= 0 && tabs[i].v != active {
+			marks = []ruleMark{{x: tabs[i].x, w: tabs[i].w, hot: true}}
+		}
+
+		out = append(out, ruleRow(w, marks, fg(pal.tabBorder)))
 	}
 
 	if f := &m.filters[active]; f.on { // a framed box, as Search's
@@ -4798,13 +4805,23 @@ func (m *Model) viewHeader(s int, v view, w int) string {
 
 	if tabs := m.headTabs(v, w); len(tabs) > 0 {
 		left = []seg{sg(" ", plain)}
+		hot := m.hotTab(s, tabs)
 
 		for i, t := range tabs {
 			if i > 0 {
 				left = append(left, sg("  ", plain))
 			}
 
-			left = append(left, sg(t.label, ifElse(t.v == v, accent.Underline(true), dim)))
+			st := dim
+
+			switch {
+			case t.v == v:
+				st = accent.Underline(true)
+			case i == hot:
+				st = plain
+			}
+
+			left = append(left, sg(t.label, st))
 		}
 	}
 
@@ -4854,6 +4871,22 @@ func (m *Model) headTabs(v view, w int) []tab {
 	}
 
 	return tabs
+}
+
+// hotTab is the index in tabs, column s's header tabs, of the one under the
+// mouse, -1 for none: its label and the rule under it light, as a strip's.
+func (m *Model) hotTab(s int, tabs []tab) int {
+	rc := m.colRect(s)
+	if m.mouseY != m.barH(s) || m.mouseX < rc.x || m.mouseX >= rc.x+rc.w {
+		return -1
+	}
+
+	mx := m.mouseX - rc.x
+	if m.side(s) == 0 {
+		mx -= m.barW(s) // a left column's bar sits before the body
+	}
+
+	return slices.IndexFunc(tabs, func(t tab) bool { return mx >= t.x && mx < t.x+t.w })
 }
 
 // dropBox paints where a dragged tab would land: a frame over the panels a

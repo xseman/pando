@@ -353,3 +353,38 @@ func TestUsageTabsBesideBar(t *testing.T) {
 		}
 	}
 }
+
+// TestHeadTabHover is the mouse over the header's tabs: the rule under the
+// one it is on is tinted, at that tab's cells, and the shown one stays as it
+// is.
+func TestHeadTabHover(t *testing.T) {
+	m := usageModel(t)
+	m.hasCustom = true
+	m.st.Settings.ActBar = "side"
+	m.st.Settings.Right = proto.Columns{{Views: []string{"agents", "search"}, Width: 30}}
+	m.resize()
+
+	s := m.colOf(viewAgents)
+	rc := m.colRect(s)
+	top := bodyY(t, m, "  Usage")
+
+	for _, tb := range m.headTabs(viewAgents, rc.w-m.barW(s)) {
+		m.Update(tea.MouseMotionMsg{X: rc.x + tb.x, Y: top})
+
+		rule := strings.Split(m.View().Content, "\n")[top+1]
+		before, _, hot := strings.Cut(rule, "\x1b["+fgParams(pal.sashHover))
+
+		switch {
+		case tb.v == viewAgents && hot:
+			t.Fatal("the shown tab lights under the mouse")
+		case tb.v != viewAgents && (!hot || ansi.StringWidth(before) != rc.x+tb.x):
+			t.Fatalf("%q at %d: tinted %v, after %d cells", tb.label, rc.x+tb.x, hot, ansi.StringWidth(before))
+		}
+	}
+
+	m.Update(tea.MouseMotionMsg{X: rc.x + 1, Y: top + 3})
+
+	if rule := strings.Split(m.View().Content, "\n")[top+1]; strings.Contains(rule, fgParams(pal.sashHover)) {
+		t.Fatal("the tint stays once the mouse left the header")
+	}
+}
