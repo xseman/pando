@@ -53,6 +53,8 @@ type Daemon struct {
 	usage   proto.Usage // the agents' limits as last asked (refreshUsage)
 	usageAt time.Time   // when that was
 	usageMu sync.Mutex  // one refreshUsage at a time, taken before mu
+	finds   bool        // refreshUsage looks for config directories too (WatchUsage)
+	foundAt time.Time   // when it last did
 
 	// ctx ends when Close does: it stops the update watcher and cancels a
 	// download in flight.

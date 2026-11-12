@@ -184,8 +184,9 @@ type State struct {
 	// they were pinned.
 	Pinned []string `json:"spaces_pinned,omitempty"`
 
-	// Seen is per program the [resume_env] variables pando saw it run with,
-	// KEY=VALUE: a new session of it offers them after its Profiles.
+	// Seen is per program the [resume_env] variables pando saw it run with or
+	// found a config for, KEY=VALUE: a new session of it offers them after
+	// its Profiles.
 	Seen map[string][][]string `json:"seen_env,omitempty"`
 	// Active is per agent the profile a new session of it starts with when
 	// session.new names no env, and the one a TUI's profile picker opens on:
@@ -366,7 +367,7 @@ type Usage struct {
 }
 
 // Account is one sign-in of an agent: its default config, a profile's, or
-// one pando saw it run in.
+// one pando saw it run in or found.
 type Account struct {
 	Agent  string   `json:"agent"`
 	Name   string   `json:"name"`          // "default", the profile's, or a seen config's directory

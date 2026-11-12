@@ -240,7 +240,7 @@ tick, on leaving the workspace and on quitting.
 | `last_workspace` | reopened when pando starts outside a repository                 |
 | `spaces_folded`  | folded Sessions headings, paths, `time:…`, `pin:…`; sent whole  |
 | `spaces_pinned`  | pinned session ids and project paths, in order; sent whole      |
-| `seen_env`       | per program, the `[resume_env]` values seen; never, edit it out |
+| `seen_env`       | per program, the configs seen or found; never, edit it out      |
 | `active_profile` | per agent, what a session with no `env` starts with; `[]`       |
 
 ```json

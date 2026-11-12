@@ -58,8 +58,13 @@ var claudeUsageURL = "https://api.anthropic.com/api/oauth/usage"
 
 // WatchUsage asks for the limits at startup and every usageEvery after, while
 // usage is on, until the daemon closes. `pando serve` starts it; a daemon a
-// test drives directly never reaches for the network on its own.
+// test drives directly never reaches for the network on its own, nor looks
+// through the home directory for configs.
 func (d *Daemon) WatchUsage() {
+	d.mu.Lock()
+	d.finds = true
+	d.mu.Unlock()
+
 	for {
 		d.refreshUsage()
 
@@ -88,13 +93,25 @@ func (d *Daemon) refreshUsage() proto.Usage {
 	defer d.usageMu.Unlock()
 
 	d.mu.Lock()
-	accounts, prev := d.accounts(), d.usage.Accounts
-	skip := !d.state.Settings.Usage || time.Since(d.usageAt) < usageReuse
+	prev, off := d.usage.Accounts, !d.state.Settings.Usage
+	fresh := time.Since(d.usageAt) < usageReuse
 	d.mu.Unlock()
 
-	if skip {
+	if fresh {
 		return d.usageNow()
 	}
+
+	if d.findConfigs() { // with usage off too: the profile picker lists them
+		d.broadcast(proto.Event{Kind: "state"})
+	}
+
+	if off {
+		return d.usageNow()
+	}
+
+	d.mu.Lock()
+	accounts := d.accounts()
+	d.mu.Unlock()
 
 	now := time.Now()
 	for i, a := range accounts {
@@ -120,6 +137,40 @@ func (d *Daemon) refreshUsage() proto.Usage {
 	}
 
 	return d.usageNow()
+}
+
+// findConfigs looks for the agents' config directories, under the home
+// directory and in what runs, and keeps the new ones in d.state.Seen; it
+// reports any. A look younger than usageReuse stands: with usage off nothing
+// else spaces them.
+func (d *Daemon) findConfigs() bool {
+	d.mu.Lock()
+
+	finds := d.finds && time.Since(d.foundAt) >= usageReuse
+	if finds {
+		d.foundAt = time.Now()
+	}
+	d.mu.Unlock()
+
+	home, err := os.UserHomeDir()
+	if !finds || err != nil {
+		return false
+	}
+
+	found := configsRunning() // first: of two directories with one account, the one in use is the config
+	for agent, dirs := range configsUnder(home) {
+		found[agent] = append(found[agent], dirs...)
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	saw := d.discover(home, found)
+	if saw {
+		_ = d.save() // best effort: the next change writes it again
+	}
+
+	return saw
 }
 
 // usagePath keeps the last limits over a restart: a paused account has

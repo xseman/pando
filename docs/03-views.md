@@ -343,7 +343,7 @@ A new session runs a harness: an `[agents]` preset whose program is on the
 session that opens the `shell` setting. The harnesses of the three newest
 sessions come first, under _recently opened_. An agent with profiles asks which
 (`profilePicker`): _default_, its `[profiles.<agent>]`, then the configs the
-daemon saw it run in (`seen_env`) that no profile sets (`profiles`); the choice
+daemon saw it run in or found (`seen_env`) that no profile sets (`profiles`); the choice
 goes in `session.new`'s `env`. A row says how spent its account is (`room`),
 and the picker opens on the active one (`State.Active`, `item.lead`). A project's `+` asks for its worktree first
 (`worktreePicker`), _New Worktree…_ included (`sessionWorktreeMsg`). The `+`

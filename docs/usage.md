@@ -58,8 +58,22 @@ sessions open side by side, a group each.
 A session runs an agent: the picker lists the installed `[agents]` presets
 (claude, codex, gemini, agy, grok, opencode, …), then _terminal_, a plain shell. An
 agent with profiles asks which one next: _default_, the `[profiles]` in
-`config.toml`, then every config pando saw it run in, such as a claude
-started as `CLAUDE_CONFIG_DIR=~/.claude-work claude` in a session. Each says
+`config.toml`, then every config pando saw it run in or found: a directory
+with a sign-in of another account, up to three deep under the home directory
+(gemini's two), or one a running program has in the agent's variable (on
+Linux, and not under the temporary directory). An agent is looked for while
+it is installed and has a preset in `[agents]`, which copilot has only once
+you add it:
+
+| Agent   | Variable            | Account file                   |
+| ------- | ------------------- | ------------------------------ |
+| claude  | `CLAUDE_CONFIG_DIR` | `.claude.json`                 |
+| codex   | `CODEX_HOME`        | `auth.json`                    |
+| grok    | `GROK_HOME`         | `auth.json`                    |
+| copilot | `COPILOT_HOME`      | `config.json`                  |
+| gemini  | `GEMINI_CLI_HOME`   | `.gemini/google_accounts.json` |
+
+Each says
 how much of its plan is used ([Usage](#usage)).
 
 ```toml
@@ -430,7 +444,7 @@ installed: each sign-in's plan and a row per limit window, how much of it is
 used and when it resets. A `┃` on a meter is a model's own allowance on that
 window, named in the row's tip. An agent has a sign-in per config: _default_,
 each of its `[profiles]` that sets its config directory (`CLAUDE_CONFIG_DIR`,
-`CODEX_HOME`), and every config pando saw it run in. A profile that sets
+`CODEX_HOME`), and every config pando found. A profile that sets
 anything else runs on the default's sign-in and is not listed.
 
 | Key | Does                                                             |

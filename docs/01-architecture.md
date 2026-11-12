@@ -340,6 +340,10 @@ data of the `usage` event, and `usage.json` in the data dir, read at start.
 ```text
  accounts: per agent with a source that is installed (usageSources)
    default ─ [profiles.<agent>] ─ seen_env no profile sets
+   seen_env grows first (findConfigs): directories holding an account file
+   (configMarks, a line per agent: variable, file, where its id is) of an
+   account no known config has,
+   3 deep under the home directory less scanSkip, or in /proc/*/environ
         │ measure, one at a time
         ├─ claude: GET api.anthropic.com/api/oauth/usage, the access token in
         │          <config>/.credentials.json; five_hour, seven_day, limits[]
