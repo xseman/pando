@@ -60,7 +60,8 @@ A session runs an agent: the picker lists the installed `[agents]` presets
 agent with profiles asks which one next: _default_, the `[profiles]` in
 `config.toml`, then every config pando saw it run in or found: a directory
 with a sign-in of another account, up to three deep under the home directory
-(gemini's two), or one a running program has in the agent's variable (on
+(gemini's two) outside dependencies, caches and your own folders (`Documents`,
+`Downloads`, `go`, …), or one a running program has in the agent's variable (on
 Linux, and not under the temporary directory). An agent is looked for while
 it is installed and has a preset in `[agents]`, which copilot has only once
 you add it:

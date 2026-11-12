@@ -126,7 +126,7 @@ func configsUnder(home string) map[string][]string {
 
 		if e.IsDir() {
 			depth := strings.Count(path[len(home):], string(filepath.Separator))
-			if depth > scanDepth || slices.Contains(scanSkip, e.Name()) {
+			if depth > scanDepth || path != home && slices.Contains(scanSkip, e.Name()) { // a home named go is still the home
 				return fs.SkipDir
 			}
 

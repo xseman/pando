@@ -157,6 +157,10 @@ func (d *Daemon) findConfigs() bool {
 		return false
 	}
 
+	if target, err := filepath.EvalSymlinks(home); err == nil { // a home that is a link: the walk would stop at it
+		home = target
+	}
+
 	found := configsRunning() // first: of two directories with one account, the one in use is the config
 	for agent, dirs := range configsUnder(home) {
 		found[agent] = append(found[agent], dirs...)

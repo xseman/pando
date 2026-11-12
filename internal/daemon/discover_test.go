@@ -10,8 +10,8 @@ import (
 )
 
 func TestDiscover(t *testing.T) {
-	home := t.TempDir()
-	for _, m := range configMarks { // the developer's own configs are not the defaults here
+	home := filepath.Join(t.TempDir(), "build") // named as a directory the walk skips
+	for _, m := range configMarks {             // the developer's own configs are not the defaults here
 		t.Setenv(m.key, "")
 	}
 
