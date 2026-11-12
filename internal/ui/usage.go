@@ -355,7 +355,6 @@ func (v *usageView) lines(m *Model, w, h int) []string {
 		}
 
 		bg, name := m.rowColors(viewUsage, i == v.l.sel, i-v.l.top == hover)
-		indent := ifElse(r.solo, "   ", "     ") // an account's rows under its name
 		plan := ifElse(r.acct.Plan == "", "", " · "+r.acct.Plan)
 
 		switch r.kind {
@@ -381,7 +380,7 @@ func (v *usageView) lines(m *Model, w, h int) []string {
 			return row(rw, bg, left, use, sg(" ", plain))
 
 		case usNote:
-			return row(rw, bg, []seg{sg(indent+r.acct.Note, dim)})
+			return row(rw, bg, []seg{sg("   "+r.acct.Note, dim)})
 		}
 
 		label := pad(r.lim.Window, 3, false)
@@ -389,7 +388,7 @@ func (v *usageView) lines(m *Model, w, h int) []string {
 			label = r.lim.Model + " " + r.lim.Window
 		}
 
-		lead := indent + label + " "
+		lead := "   " + label + " "
 		stale := r.acct.Note != ""
 		tone := ifElse(stale, dim, levelStyle(r.lim.Percent, fg(pal.accent)))
 		right := []seg{

@@ -50,7 +50,7 @@ func TestUsageView(t *testing.T) {
 	out := checkWidths(t, m)
 	for _, want := range []string{
 		"Sessions  Usage", "✳ Claude Code", "◎ Codex", "default · Max 5x", "active", ".claude-work · Team 5x", "use",
-		" 40% ", " 96% ", "2d 2h", "paused: its sign-in", "Codex · Free", "30d ",
+		" 40% ", " 96% ", "2d 2h", "paused: its sign-in lapsed", "Codex · Free", "30d ",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("no %q:\n%s", want, out)
