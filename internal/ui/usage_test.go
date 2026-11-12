@@ -49,8 +49,8 @@ func TestUsageView(t *testing.T) {
 
 	out := checkWidths(t, m)
 	for _, want := range []string{
-		"Sessions  Usage", "Claude Code", "default · Max 5x", "active", ".claude-work · Team 5x", "use",
-		" 40% ", " 96% ", "2d 2h", "paused: its sign-in lapsed", "Codex · Free", "30d ",
+		"Sessions  Usage", "✳ Claude Code", "◎ Codex", "default · Max 5x", "active", ".claude-work · Team 5x", "use",
+		" 40% ", " 96% ", "2d 2h", "paused: its sign-in", "Codex · Free", "30d ",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("no %q:\n%s", want, out)
@@ -64,16 +64,23 @@ func TestUsageView(t *testing.T) {
 		kinds[i] = r.kind
 	}
 
-	if want := []int{usAgent, usAccount, usLimit, usLimit, usAccount, usLimit, usNote, usAgent, usLimit}; !slices.Equal(kinds, want) {
+	if want := []int{usAgent, usAccount, usLimit, usLimit, usGap, usAccount, usLimit, usNote, usGap, usAgent, usLimit}; !slices.Equal(kinds, want) {
 		t.Fatalf("rows %v, want %v", kinds, want)
 	}
 
-	if len(rows[3].ticks) != 1 || rows[3].ticks[0].Percent != 18 || !rows[7].solo || rows[0].solo {
-		t.Fatalf("7d row %+v, codex %+v", rows[3], rows[7])
+	if len(rows[3].ticks) != 1 || rows[3].ticks[0].Percent != 18 || !rows[9].solo || rows[0].solo {
+		t.Fatalf("7d row %+v, codex %+v", rows[3], rows[9])
 	}
 
 	if week := strings.Split(out, "\n")[bodyY(t, m, " 96% ")]; !strings.Contains(week, "┃") || !strings.Contains(week, "━") {
 		t.Fatalf("the weekly meter: %q", week)
+	}
+
+	// The cursor starts on the first account and passes the heading over it.
+	press(m, "up")
+
+	if m.us.l.sel != 1 {
+		t.Fatalf("cursor on row %d, want the first account", m.us.l.sel)
 	}
 
 	// The account under the cursor, from any of its rows.
@@ -324,7 +331,7 @@ func TestLimitMeter(t *testing.T) {
 		{text(50), "━━━━────"},
 		{text(56), "━━━━╾───"},
 		{text(100), "━━━━━━━━"},
-		{text(25, 100, 0), "┃━─────┃"},
+		{text(25, 100, 0), "━━─────┃"}, // a tick on the first cell would read as the fill
 	} {
 		if c.got != c.want {
 			t.Errorf("meter %q, want %q", c.got, c.want)

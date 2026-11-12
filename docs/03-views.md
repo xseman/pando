@@ -684,18 +684,24 @@ after Sessions in its header, before Customizations (`headed`, `headTab`),
 there while `hasUsage`: `usage` on and an account known.
 
 ```text
- Claude Code                      auto    usAgent: profile_switch when "auto"
+ ✳ Claude Code                    auto    usAgent: its mark, profile_switch when "auto"
    default · Max 5x             active    usAccount: State.Active's, else "use"
-   5h  ━━━━━━━━───────────  35%  3h 4m    usLimit: meter, share used, time to reset
-   7d  ━━━━━┃━━━━━━━━━━━──  92%  9h 44m     ┃ a model's own allowance on the window
+     5h  ━━━━━━━━─────────  35%   3h 4m   usLimit: meter, share used, time to reset
+     7d  ━━━━━┃━━━━━━━━━──  92%  9h 44m     ┃ a model's own allowance on the window
+                                          usGap: before each account and agent but the first
    work · Team 5x                  use
-   paused: its sign-in lapsed, …          usNote: Account.Note, its limits dim
- Codex · Free                             an only account rides its agent's row
-   30d ───────────────────   0%  16d 11h
+     paused: its sign-in lapsed, …        usNote: Account.Note, its limits dim
+
+ ◎ Codex · Free                           an only account rides its agent's row
+   30d ───────────────────   0% 16d 11h
 ```
 
+- An account's rows sit under its name, two cells in. `usGap` and the heading
+  of an agent with accounts to pick are `inert`: `↑↓`, a page and a click
+  pass over them, and the cursor starts on the first account.
 - A model's limit (`Limit.Model`) marks the row of the window it shares
-  (`ticks`); with no such row it gets one of its own, named.
+  (`ticks`); with no such row it gets one of its own, named. A mark on the
+  first cell is left out: it would read as the fill.
 - `limitMeter` draws in half cells (`╾`); `levelStyle` colors from 75% and
   90%, the status bar's chip too (`usageChip`).
 - `⏎`, or a click on `use`, is `useProfile`: `state.set`'s `active_profile`,

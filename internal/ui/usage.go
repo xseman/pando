@@ -247,6 +247,7 @@ const (
 	usAccount        // a sign-in: its name and plan
 	usLimit          // one window of its allowance
 	usNote           // why its limits are not current
+	usGap            // the blank before an agent or account but the first
 )
 
 // usRow is a row of the view. acct is the account it belongs to, an agent's
@@ -263,6 +264,23 @@ type usRow struct {
 // agentNames are the agents as their makers call them.
 var agentNames = map[string]string{"claude": "Claude Code", "codex": "Codex"}
 
+// agentMark is the mark before an agent's heading, Claude Code's in its own
+// orange; none for an agent without one.
+func agentMark(agent string) seg {
+	switch agent {
+	case "claude":
+		return sg("✳ ", fg(hex("#d97757")))
+	case "codex":
+		return sg("◎ ", dim)
+	}
+
+	return seg{}
+}
+
+// inert reports a row the cursor passes over: a gap, or the heading of an
+// agent with accounts to pick under it.
+func (r usRow) inert() bool { return r.kind == usGap || r.kind == usAgent && !r.solo }
+
 // rows are each agent, then its accounts with a row per limit window; a
 // model's own allowance marks the window it shares instead of taking a row.
 // A filter keeps the accounts it matches.
@@ -278,10 +296,18 @@ func (v *usageView) rows(m *Model) []usRow {
 		}
 
 		if len(out) == 0 || out[len(out)-1].acct.Agent != a.Agent {
+			if len(out) > 0 {
+				out = append(out, usRow{kind: usGap})
+			}
+
 			out = append(out, usRow{kind: usAgent, acct: a, solo: solo})
 		}
 
 		if !solo {
+			if out[len(out)-1].kind != usAgent {
+				out = append(out, usRow{kind: usGap})
+			}
+
 			out = append(out, usRow{kind: usAccount, acct: a})
 		}
 
@@ -306,7 +332,7 @@ func (v *usageView) rows(m *Model) []usRow {
 }
 
 func (v *usageView) selected(m *Model) *usRow {
-	if rows := v.rows(m); v.l.sel >= 0 && v.l.sel < len(rows) {
+	if rows := v.rows(m); v.l.sel >= 0 && v.l.sel < len(rows) && !rows[v.l.sel].inert() {
 		return &rows[v.l.sel]
 	}
 
@@ -318,14 +344,23 @@ func (v *usageView) lines(m *Model, w, h int) []string {
 	hover, mx := m.hoverRow(viewUsage), m.mouseCol(viewUsage)
 	v.l.bar = m.barState("list:usage")
 
+	if v.l.sel >= 0 && v.l.sel < len(rows) && rows[v.l.sel].inert() { // first shown, or filtered: on an account
+		v.move(m, 1, len(rows), m.bodyH(viewUsage))
+	}
+
 	return v.l.render(w, h, len(rows), func(i, rw int) string {
 		r := rows[i]
+		if r.kind == usGap {
+			return blank(rw)
+		}
+
 		bg, name := m.rowColors(viewUsage, i == v.l.sel, i-v.l.top == hover)
+		indent := ifElse(r.solo, "   ", "     ") // an account's rows under its name
 		plan := ifElse(r.acct.Plan == "", "", " · "+r.acct.Plan)
 
 		switch r.kind {
 		case usAgent:
-			left := []seg{sg(" "+cmp.Or(agentNames[r.acct.Agent], r.acct.Agent), name.Bold(true))}
+			left := []seg{sg(" ", plain), agentMark(r.acct.Agent), sg(cmp.Or(agentNames[r.acct.Agent], r.acct.Agent), name.Bold(true))}
 			if r.solo {
 				return row(rw, bg, append(left, sg(plan, dim)))
 			}
@@ -335,7 +370,7 @@ func (v *usageView) lines(m *Model, w, h int) []string {
 		case usAccount:
 			left := []seg{sg("   "+r.acct.Name, name), sg(plan, dim)}
 			if m.active(r.acct) {
-				return row(rw, bg, left, sg("active ", fg(pal.ok)))
+				return row(rw, bg, left, sg("active ", fg(pal.ok).Bold(true)))
 			}
 
 			use := sg("use", fg(pal.headerAccent))
@@ -346,7 +381,7 @@ func (v *usageView) lines(m *Model, w, h int) []string {
 			return row(rw, bg, left, use, sg(" ", plain))
 
 		case usNote:
-			return row(rw, bg, []seg{sg("   "+r.acct.Note, dim)})
+			return row(rw, bg, []seg{sg(indent+r.acct.Note, dim)})
 		}
 
 		label := pad(r.lim.Window, 3, false)
@@ -354,15 +389,15 @@ func (v *usageView) lines(m *Model, w, h int) []string {
 			label = r.lim.Model + " " + r.lim.Window
 		}
 
-		lead := "   " + label + " "
+		lead := indent + label + " "
 		stale := r.acct.Note != ""
 		tone := ifElse(stale, dim, levelStyle(r.lim.Percent, fg(pal.accent)))
 		right := []seg{
 			sg(fmt.Sprintf("%3.0f%%", r.lim.Percent), ifElse(stale, dim, levelStyle(r.lim.Percent, name))),
-			sg(pad(until(r.lim.Resets, now), 8, true)+" ", dim),
+			sg(pad(until(r.lim.Resets, now), 9, true)+" ", dim),
 		}
 
-		cells := rw - strWidth(lead) - 14
+		cells := rw - strWidth(lead) - 15
 		if cells < 3 { // too narrow for a meter that says anything
 			return row(rw, bg, []seg{sg(lead, dim)}, right...)
 		}
@@ -401,7 +436,9 @@ func limitMeter(w int, pct float64, ticks []proto.Limit, tone lipgloss.Style) []
 	}
 
 	for _, t := range ticks {
-		cells[min(int(t.Percent/100*float64(w)), w-1)] = sg("┃", plain)
+		if at := min(int(t.Percent/100*float64(w)), w-1); at > 0 { // on the first cell it reads as the fill
+			cells[at] = sg("┃", plain)
+		}
 	}
 
 	return cells
@@ -425,22 +462,41 @@ func (m *Model) toggleAuto() tea.Cmd {
 	return m.setSettings(map[string]any{"profile_switch": ifElse(m.st.Settings.Switch == "auto", "notify", "auto")})
 }
 
+// move moves the selection by d rows and walks on over inert rows the same
+// way, turning back at an end: the first row is a heading.
+func (v *usageView) move(m *Model, d, n, h int) {
+	v.l.move(d, n, h)
+
+	rows, s := v.rows(m), min(max(d, -1), 1)
+	for range n {
+		if v.l.sel < 0 || v.l.sel >= len(rows) || !rows[v.l.sel].inert() {
+			return
+		}
+
+		if v.l.sel+s < 0 || v.l.sel+s >= n {
+			s = -s
+		}
+
+		v.l.move(s, n, h)
+	}
+}
+
 func (v *usageView) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 	h, n := m.bodyH(viewUsage), len(v.rows(m))
 
 	switch k.String() {
 	case "up", "k":
-		v.l.move(-1, n, h)
+		v.move(m, -1, n, h)
 	case "down", "j":
-		v.l.move(1, n, h)
+		v.move(m, 1, n, h)
 	case "pgup":
-		v.l.move(-h, n, h)
+		v.move(m, -h, n, h)
 	case "pgdown":
-		v.l.move(h, n, h)
+		v.move(m, h, n, h)
 	case "g", "home":
-		v.l.move(-n, n, h)
+		v.move(m, -n, n, h)
 	case "G", "end":
-		v.l.move(n, n, h)
+		v.move(m, n, n, h)
 	case "enter", "space":
 		return v.use(m, v.selected(m))
 	case "a":
@@ -476,7 +532,7 @@ func (v *usageView) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 		v.l.wheel(wheelDelta(mo), len(rows), m.bodyH(viewUsage))
 	case tea.MouseClickMsg:
 		i := v.l.at(y, len(rows))
-		if i >= 0 {
+		if i >= 0 && !rows[i].inert() {
 			v.l.sel = i
 		}
 
