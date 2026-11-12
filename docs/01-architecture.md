@@ -349,8 +349,8 @@ data of the `usage` event, and `usage.json` in the data dir, read at start.
         │          <config>/.credentials.json; five_hour, seven_day, limits[]
         └─ codex:  codex app-server in CODEX_HOME, account/rateLimits/read
         │ a failed check keeps the last limits, a window reset since at 0,
-        │ and says why in Account.Note: paused, signed out, busy, unreachable,
-        │ unavailable
+        │ and says why in Account.Note: paused, signed out, unreachable,
+        │ unavailable; a busy service (429) says nothing, the next check asks
         │ a profile that sets no [resume_env] variable is the default's sign-in
  advise ─▶ Usage.Offer (notify) or State.Active moved (auto) ─▶ usage, state
 ```

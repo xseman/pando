@@ -38,10 +38,12 @@ const usageTimeout = 10 * time.Second
 const nearLimit = 15
 
 // Why an account's limits are not current. A lapsed access token is routine:
-// only the agent's own CLI renews it, the next time it runs.
+// only the agent's own CLI renews it, the next time it runs. A busy service
+// is routine too and says nothing worth showing: the next check asks again.
 var (
 	errPaused    = errors.New("paused: its sign-in lapsed, the agent renews it when it next runs")
 	errSignedOut = errors.New("signed out")
+	errBusy      = errors.New("busy: Anthropic limits how often usage is asked for")
 )
 
 // usageSources ask an agent's service for the limits of the account env
@@ -256,7 +258,7 @@ func homeEnv(env []string) []string {
 
 // measure asks account a's service for its limits at now. A failed check
 // keeps what prev had for it, a window that has reset since back at zero, and
-// says why in Note.
+// says why in Note, but for a busy service.
 func measure(ctx context.Context, a proto.Account, prev []proto.Account, now time.Time) proto.Account {
 	if old, ok := account(prev, a.Agent, a.Env); ok {
 		a.Plan, a.Limits, a.Checked = old.Plan, slices.Clone(old.Limits), old.Checked
@@ -269,7 +271,9 @@ func measure(ctx context.Context, a proto.Account, prev []proto.Account, now tim
 	a.Plan = cmp.Or(plan, a.Plan)
 
 	if err != nil {
-		a.Note = err.Error()
+		if !errors.Is(err, errBusy) {
+			a.Note = err.Error()
+		}
 
 		for i, l := range a.Limits {
 			if !l.Resets.IsZero() && l.Resets.Before(now) {
@@ -492,7 +496,7 @@ func claudeUsage(ctx context.Context, env []string) (string, []proto.Limit, erro
 	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
 		return plan, nil, errSignedOut
 	case resp.StatusCode == http.StatusTooManyRequests:
-		return plan, nil, errors.New("busy: Anthropic limits how often usage is asked for")
+		return plan, nil, errBusy
 	case resp.StatusCode != http.StatusOK:
 		return plan, nil, fmt.Errorf("unavailable: Anthropic answered %s", resp.Status)
 	}

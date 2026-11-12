@@ -376,6 +376,13 @@ func TestMeasureKeepsLast(t *testing.T) {
 	if prev[0].Limits[0].Percent != 80 {
 		t.Fatal("the last answer was changed in place")
 	}
+
+	// A busy service keeps the last limits with no reason to show.
+	usageSources["sh"] = func(context.Context, []string) (string, []proto.Limit, error) { return "", nil, errBusy }
+
+	if got := measure(context.Background(), proto.Account{Agent: "sh"}, prev, now); got.Note != "" || got.Limits[1].Percent != 60 {
+		t.Fatalf("busy: %+v", got)
+	}
 }
 
 // TestProfileSession moves a session's agent to another config: the agent
