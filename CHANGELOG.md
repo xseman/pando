@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.12.0](https://github.com/xseman/pando/compare/v0.11.0...v0.12.0) (2026-11-12)
+
+
+### Features
+
+* **daemon:** an agent's other configs found by its account file ([58ec0ec](https://github.com/xseman/pando/commit/58ec0eca666829431f7df54d63df06e54e4bd10f))
+* **ui:** Usage tab spaced out, agent marks and the cursor on an account ([25e7f3d](https://github.com/xseman/pando/commit/25e7f3d97de4fa34ccf3a431ad0c61f4fcd81274))
+
+
+### Bug Fixes
+
+* **daemon:** configs found in a home that is a link or named as a skipped directory ([2042ea1](https://github.com/xseman/pando/commit/2042ea17061c586d14ffd4c20b36663156935025))
+* **daemon:** no note for a busy usage service ([abf68e1](https://github.com/xseman/pando/commit/abf68e13ab0d3294ebc7ad7cfd7b725de532c8be))
+* **ui:** Usage limits back under their account's name ([37ec399](https://github.com/xseman/pando/commit/37ec399c7a4b5fd7748f5ccdcd526da8803b1eb6))
+
 ## [0.11.0](https://github.com/xseman/pando/compare/v0.10.0...v0.11.0) (2026-11-11)
 
 
