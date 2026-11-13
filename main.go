@@ -66,8 +66,9 @@ guide to doing it well. Read it before the first call.
 API methods: ping state.get state.set draft.list draft.set project.add
 project.remove project.move workspace.list workspace.new workspace.remove
 workspace.move focus session.new session.get session.list session.kill
-session.rename session.move session.sleep session.wake session.input
-session.screen session.read session.wait update.status update.check update.install subscribe shutdown
+session.rename session.move session.sleep session.wake session.profile
+session.input session.screen session.read session.wait usage.get
+usage.refresh update.status update.check update.install subscribe shutdown
 
 The API covers sessions, workspaces, projects and settings — everything a
 script needs to drive pando. Explorer, Source Control, Search and the editor
