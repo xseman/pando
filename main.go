@@ -50,6 +50,7 @@ const usage = `pando — terminal sidebar with agent sessions
   pando session new [--agent NAME] [--ws PATH] [--name NAME] [--parent ID] [--wait] [-- CMD...]
   pando session ls | get ID | kill ID | switch ID | rename ID [NAME...] | move ID OTHER
   pando session sleep ID | wake ID   stop its process to free memory | bring its agent back
+  pando session profile ID NAME [--send TEXT]   move its agent to profile NAME, then submit TEXT
   pando session send ID TEXT... [--enter] [--wait]
   pando session keys ID KEY...  named keys, e.g. esc ctrl+c shift+tab
   pando session wait ID [--until idle|blocked|running|asleep|exited] [--match RE] [--timeout MS]
@@ -485,6 +486,7 @@ func session(rest []string) error {
 	timeout := fs.Int("timeout", 0, "milliseconds before a wait gives up, 0 waits forever")
 	scrollback := fs.Bool("scrollback", false, "include scrollback")
 	lines := fs.Int("lines", 0, "keep only the last N lines")
+	send := fs.String("send", "", "text profile submits once the agent is back at its prompt")
 
 	pos, err := parse(fs, rest[min(1, len(rest)):])
 	if err != nil {
@@ -525,6 +527,13 @@ func session(rest []string) error {
 		return proto.Call("session.sleep", map[string]string{"id": arg(pos, 0, "")}, nil)
 	case "wake":
 		return printJSON("session.wake", map[string]string{"id": arg(pos, 0, "")})
+	case "profile":
+		if len(pos) != 2 {
+			return errors.New("session profile ID NAME [--send TEXT] (NAME as usage.get lists it, default for the agent's own)")
+		}
+
+		return printJSON("session.profile", proto.SessionProfileParams{ID: pos[0], Name: pos[1], Send: *send})
+
 	case "rename": // no name: named by what runs in it again
 		return proto.Call("session.rename", map[string]string{"id": arg(pos, 0, ""), "name": strings.Join(pos[min(1, len(pos)):], " ")}, nil)
 	case "move", "mv":

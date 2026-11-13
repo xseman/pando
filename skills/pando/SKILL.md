@@ -32,7 +32,8 @@ only when the user names another one (`pando --instance work session ls`);
 
 `PANDO_SESSION` is set inside a session pando started. If it is set, you are
 running **inside** one of pando's own sessions — that id is your own terminal.
-Never kill, rename or send input to it.
+Never kill, rename or send input to it; moving it to another profile is under
+_Moving yourself_.
 
 ## Learn the current CLI
 
@@ -202,20 +203,47 @@ An agent can run under more than one profile, each its own sign-in and plan
 
 ```sh
 pando call usage.get | jq '.accounts[] | {agent, name, limits, note}'
-pando call session.profile '{"id":"reviewer","env":["CLAUDE_CONFIG_DIR=/home/me/.claude-work"]}'
+pando session profile reviewer work
+pando session profile reviewer default --send 'Continue where you stopped.'
 ```
 
 `pando session new --agent claude` starts with the agent's active profile, the
 one the user or `profile_switch = "auto"` picked; `pando call session.new`
 with an `env` of your own, `[]` for the default, overrides it.
 
-`session.profile` moves a claude session to the profile `env` picks (`[]` for
-the default): the agent ends and resumes the same conversation there. It
+`pando session profile ID NAME` moves a claude session to the profile
+`usage.get` calls NAME, `default` for the agent's own: the agent ends and
+resumes the same conversation there. A name the agent has none of and a
+profile whose `note` is `signed out` are refused, and nothing moves. It
 returns once the agent is back at its prompt, as `session wake` does, or
 `blocked` on claude's question whether to trust the worktree, in a profile that
 has not seen it: that one is the user's to answer. What the
 agent was doing is interrupted, so move a session that is `idle`. A session
 asleep stays asleep, and wakes in the new profile.
+
+`--send TEXT` submits TEXT once the agent is back at its prompt, and wakes a
+session asleep to do it. Where the agent is not seen `idle` at its prompt (the
+trust question, a slow start, a system with no `/proc`) the command fails
+saying the session moved and the text was not sent: read the session before
+you send anything yourself.
+
+`pando call session.profile` takes the same as `id`, `name` and `send`, or an
+`env` of your own in place of `name`.
+
+### Moving yourself
+
+Only when the user asked you to change profile, and it is the one thing you
+do to `$PANDO_SESSION`:
+
+```sh
+pando session profile "$PANDO_SESSION" work --send 'You moved to the work profile. Continue: <what is left>.'
+```
+
+The move ends you in the middle of your turn, and this command with you: its
+output never arrives and nothing after it in the turn runs. What `--send`
+says is all you wake up to besides the conversation, so write there what to
+continue with. Make it the last call of the turn, after everything that must
+not be lost is on disk and no command of yours is still running.
 
 ## Read the result
 
@@ -285,6 +313,8 @@ the session in a workspace that already exists.
 - The one input you send to a session you did not create is a message the
   user asked you to pass, after the checks in _Pass a message to another
   session_.
+- A session changes profile only when the user asked: another's, or your own
+  as _Moving yourself_ says.
 - Do not run `pando stop`: it takes down the daemon and every session in it,
   including the user's.
 - Do not answer an approval or a permission prompt for the user. Report what

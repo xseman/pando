@@ -479,6 +479,10 @@ that has not seen the worktree asks once whether to trust it. A profile signed
 in to another organization cannot reuse the conversation's earlier thinking:
 claude says so, and its next answers are slower and use more tokens.
 
+`pando session profile ID NAME [--send TEXT]` does the same from a script, and
+submits TEXT once the agent is back at its prompt: how an agent moves itself
+and goes on with its work.
+
 The limits come from each agent's own service: claude's from the endpoint
 Claude Code's `/usage` reads, with the sign-in each profile keeps in
 `.credentials.json`, codex's from its own app-server, which renews its sign-in
