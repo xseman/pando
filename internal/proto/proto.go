@@ -381,6 +381,18 @@ type Account struct {
 	Note string `json:"note,omitempty"`
 }
 
+// ConfigName is what agent's config directory dir goes by where no profile
+// names it: its name without the leading dot and the agent's name before a
+// dash, "work" for ~/.claude-work; the directory's name when that leaves none.
+func ConfigName(agent, dir string) string {
+	base := filepath.Base(dir)
+	if name := strings.TrimPrefix(strings.TrimPrefix(base, "."), agent+"-"); name != "" {
+		return name
+	}
+
+	return base
+}
+
 // Peak is how spent the account is: its fullest limit, in percent; false
 // when no limit is known.
 func (a Account) Peak() (float64, bool) {

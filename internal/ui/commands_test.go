@@ -1511,7 +1511,7 @@ func TestNewSessionProfile(t *testing.T) {
 
 	newClaude()
 
-	if m.modal == nil || m.modal.title != "claude profile" || !slices.Equal(labels(m), []string{"default", "work", "CLAUDE_CONFIG_DIR=/opt/nike"}) {
+	if m.modal == nil || m.modal.title != "claude profile" || !slices.Equal(labels(m), []string{"default", "work", "nike"}) {
 		t.Fatalf("claude asks for the profile: %+v", m.modal)
 	}
 
@@ -1560,7 +1560,7 @@ func TestSpacesResume(t *testing.T) {
 	m.st.Settings.Profiles = map[string]map[string][]string{"claude": {"work": {"CLAUDE_CONFIG_DIR=/opt/work"}}}
 	resume(m)
 
-	if m.modal == nil || m.modal.title != "claude profile" || hints()[0] != "claude --resume" {
+	if m.modal == nil || m.modal.title != "claude profile" || !strings.HasSuffix(m.modal.items[0].detail, " ❯ claude --resume") {
 		t.Fatalf("claude alone asks only for the profile it resumes in: %+v", m.modal)
 	}
 

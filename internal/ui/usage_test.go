@@ -72,7 +72,7 @@ func TestUsageView(t *testing.T) {
 		t.Fatalf("7d row %+v, codex %+v", rows[3], rows[9])
 	}
 
-	if week := strings.Split(out, "\n")[bodyY(t, m, " 96% ")]; !strings.Contains(week, "┃") || !strings.Contains(week, "━") {
+	if week := strings.Split(out, "\n")[bodyY(t, m, " 96% ")]; !strings.Contains(week, "▰▰▰▰▰▰▰▰") {
 		t.Fatalf("the weekly meter: %q", week)
 	}
 
@@ -232,9 +232,31 @@ func TestProfileRoom(t *testing.T) {
 	}
 
 	items := m.modal.items
-	if len(items) != 2 || !strings.HasPrefix(items[0].inline, "96% · 2d 2h") || items[1].inline != "30% · paused" {
-		t.Fatalf("items %+v", items)
+
+	row0, row1 := segsText(items[0].segs), segsText(items[1].segs)
+	if len(items) != 2 || !strings.HasPrefix(row0, "default · Max 5x   ▰▰▰") || !strings.HasSuffix(row0, "▱  96%      2d 2h") ||
+		!strings.HasPrefix(row1, "work    · Team 5x  ▰▰▰") || !strings.HasSuffix(row1, "▱  30%     paused") {
+		t.Fatalf("rows %q %q", row0, row1)
 	}
+
+	if _, _, w, _, _ := m.modal.rect(m); ansi.StringWidth(row0) != w-5 || ansi.StringWidth(row1) != w-5 {
+		t.Fatalf("the meters do not fill the box, %d wide: %q %q", w, row0, row1)
+	}
+
+	if items[1].detail != m.ws+" ❯ "+workEnv[0]+" claude" {
+		t.Fatalf("the work profile's detail %q", items[1].detail)
+	}
+
+	v := ansi.Strip(m.View().Content)
+	if !strings.Contains(v, "├") || !strings.Contains(v, items[1].detail) {
+		t.Fatal("the footer does not say what the selected profile runs")
+	}
+
+	if !strings.Contains(v, "96%      2d 2h  │") {
+		t.Fatal("a row's reset is cut, or it does not end at the frame")
+	}
+
+	checkWidths(t, m)
 
 	if items[0].lead || !items[1].lead {
 		t.Fatalf("the active profile is not the one selected: %+v", items)
@@ -243,11 +265,11 @@ func TestProfileRoom(t *testing.T) {
 	// A profile with no config of its own spends the default's plan.
 	m.st.ResumeEnv = map[string][]string{"claude": {"CLAUDE_CONFIG_DIR"}}
 
-	if got := m.room("claude", []string{"ANTHROPIC_MODEL=x"}); !strings.HasPrefix(got, "96%") {
+	if got := segsText(m.room("claude", []string{"ANTHROPIC_MODEL=x"}, 30)); !strings.Contains(got, " 96%") {
 		t.Fatalf("a profile on the default's sign-in says %q", got)
 	}
 
-	if got := m.room("claude", []string{"CLAUDE_CONFIG_DIR=/elsewhere"}); got != "" {
+	if got := segsText(m.room("claude", []string{"CLAUDE_CONFIG_DIR=/elsewhere"}, 30)); got != "" {
 		t.Fatalf("a config nothing is known of says %q", got)
 	}
 
@@ -275,7 +297,7 @@ func TestProfileRoom(t *testing.T) {
 		labels[i] = it.label
 	}
 
-	if want := []string{"default", strings.Join(workEnv, " ")}; !slices.Equal(labels, want) {
+	if want := []string{"default", "work"}; !slices.Equal(labels, want) {
 		t.Fatalf("from fast the picker offers %q, want %q", labels, want)
 	}
 
@@ -316,27 +338,39 @@ func TestLimitMeter(t *testing.T) {
 			lims = append(lims, proto.Limit{Percent: t})
 		}
 
-		var b strings.Builder
-		for _, s := range limitMeter(8, pct, lims, plain) {
-			b.WriteString(s.s)
-		}
-
-		return b.String()
+		return segsText(limitMeter(8, pct, lims, dim))
 	}
 
 	for _, c := range []struct {
 		got, want string
 	}{
-		{text(0), "────────"},
-		{text(50), "━━━━────"},
-		{text(56), "━━━━╾───"},
-		{text(100), "━━━━━━━━"},
-		{text(25, 100, 0), "━━─────┃"}, // a tick on the first cell would read as the fill
+		{text(0), "▱▱▱▱▱▱▱▱"},
+		{text(2), "▰▱▱▱▱▱▱▱"}, // any use shows
+		{text(50), "▰▰▰▰▱▱▱▱"},
+		{text(56), "▰▰▰▰▱▱▱▱"},
+		{text(100), "▰▰▰▰▰▰▰▰"},
 	} {
 		if c.got != c.want {
 			t.Errorf("meter %q, want %q", c.got, c.want)
 		}
 	}
+
+	ticked := limitMeter(8, 25, []proto.Limit{{Percent: 100}, {Percent: 0}}, dim)
+	for i, s := range ticked { // a tick on the first cell would read as the fill
+		if tick := s.st.GetForeground() == plain.GetForeground(); tick != (i == 7) {
+			t.Errorf("cell %d drawn as a tick: %v", i, tick)
+		}
+	}
+}
+
+// segsText is the text of segments, their styles dropped.
+func segsText(ss []seg) string {
+	var b strings.Builder
+	for _, s := range ss {
+		b.WriteString(s.s)
+	}
+
+	return b.String()
 }
 
 // TestUsageTabsBesideBar is the header beside a side activity bar: it is
@@ -456,23 +490,23 @@ func TestProfileShown(t *testing.T) {
 	m.st.Settings.Right, m.st.Settings.WidthR = proto.Columns{{Views: []string{"agents"}}}, 45
 	m.resize()
 
-	if got := m.profileOf(s); got != ".claude-work" {
+	if got := m.profileOf(s); got != "work" {
 		t.Fatalf("in a config no profile names it says %q", got)
 	}
 
-	if !strings.HasSuffix(m.mainTitle(), " · .claude-work") {
+	if !strings.HasSuffix(m.mainTitle(), " · work") {
 		t.Fatalf("title %q", m.mainTitle())
 	}
 
-	if !strings.Contains(ansi.Strip(m.View().Content), ".claude-work · ") {
+	if !strings.Contains(ansi.Strip(m.View().Content), "work · ") {
 		t.Fatal("the session's row does not say its profile")
 	}
 
 	// A name the whole profile would cut keeps its room: the profile shrinks
 	// to its first letter.
-	s.Name = "a-session-name-of-24-cel"
+	s.Name = "a-session-name-of-26-cells"
 
-	if v := ansi.Strip(m.View().Content); !strings.Contains(v, s.Name) || !strings.Contains(v, " c · ") {
+	if v := ansi.Strip(m.View().Content); !strings.Contains(v, s.Name) || !strings.Contains(v, " w · ") {
 		t.Fatal("a long name is cut for the profile")
 	}
 

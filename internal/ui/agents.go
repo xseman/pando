@@ -2092,27 +2092,70 @@ func (m *Model) resumeCmd(agent string) []string {
 // its default, which sets nothing, its [profiles], then each config pando saw
 // it run in that none of them sets. The session runs cmd, nil for the agent's
 // preset. It reports whether there was a choice.
-// Each says how spent it is where its limits are known (room), and the one
-// new sessions start with (State.Active) is the row selected.
 func (m *Model) profilePicker(ws, agent string, cmd []string) bool {
 	profiles := m.profiles(agent)
 	if len(profiles) == 1 {
 		return false
 	}
 
-	profiles[0].hint = cmp.Or(strings.Join(cmd, " "), profiles[0].hint)
+	shown := cmd
+	if shown == nil {
+		shown = m.st.Agents[agent]
+	}
+
+	m.modal = m.profileModal(agent+" profile", agent, ws, shown, profiles, func(p profile) func(*Model) tea.Cmd {
+		return func(m *Model) tea.Cmd { return m.spawn(ws, agent, cmd, "", p.env) }
+	})
+
+	return true
+}
+
+// profileModal is a picker of agent's profiles, each run with cmd in dir:
+// a row says its account's plan, as Usage does, and how spent it is (room),
+// the footer what the selected one runs where (runLine), and the one new
+// sessions start with (State.Active) is the row selected.
+func (m *Model) profileModal(title, agent, dir string, cmd []string, profiles []profile, run func(profile) func(*Model) tea.Cmd) *modal {
+	nameW, planW, detailW := 0, 0, 0
+	plans := make([]string, len(profiles))
+
+	for i, p := range profiles {
+		if a, ok := m.spends(agent, p.env); ok && a.Plan != "" {
+			plans[i] = " · " + a.Plan
+		}
+
+		nameW, planW = max(nameW, strWidth(p.name)), max(planW, strWidth(plans[i]))
+	}
 
 	items := make([]item, len(profiles))
 	for i, p := range profiles {
-		items[i] = item{
-			label: p.name, hint: p.hint, inline: m.room(agent, p.env), lead: slices.Equal(m.activeEnv(agent), p.env),
-			run: func(m *Model) tea.Cmd { return m.spawn(ws, agent, cmd, "", p.env) },
-		}
+		items[i] = item{label: p.name, detail: runLine(dir, p.env, cmd), lead: slices.Equal(m.activeEnv(agent), p.env), run: run(p)}
+		detailW = max(detailW, ansi.StringWidth(items[i].detail))
 	}
 
-	m.modal = newPicker(agent+" profile", items)
+	md := newPicker(title, items)
+	md.foot, md.w = true, detailW+4 // the footer's blanks and the frame: what runs is not cut
 
-	return true
+	_, _, w, _, _ := md.rect(m)
+
+	for i, p := range profiles { // in columns filling the box: frame, " name · plan  ", room, and a row's right "  "
+		name, plan := sg(pad(p.name, nameW, false), plain), sg(pad(plans[i], planW, false)+"  ", dim)
+		items[i].segs = append([]seg{name, plan}, m.room(agent, p.env, w-2-1-nameW-planW-2-2)...)
+	}
+
+	md.refilter() // the rows again, with their meters and the detail in the footer
+
+	return md
+}
+
+// runLine is what a session runs where, as a shell prompt reads it:
+// "~/src/app ❯ CLAUDE_CONFIG_DIR=~/.claude-work claude".
+func runLine(dir string, env, cmd []string) string {
+	line := dir + " ❯ " + strings.Join(append(slices.Clone(env), cmd...), " ")
+	if home, err := os.UserHomeDir(); err == nil {
+		line = strings.ReplaceAll(line, home+"/", "~/")
+	}
+
+	return line
 }
 
 // profile is one config a session of an agent can run in: what it sets, and
@@ -2135,7 +2178,9 @@ func (m *Model) profiles(agent string) []profile {
 
 	for _, env := range m.st.Seen[agent] {
 		if !slices.ContainsFunc(out, func(p profile) bool { return slices.Equal(p.env, env) }) {
-			out = append(out, profile{name: strings.Join(env, " "), hint: "seen", env: env})
+			_, dir, _ := strings.Cut(env[0], "=")
+
+			out = append(out, profile{name: proto.ConfigName(agent, dir), hint: "seen", env: env})
 		}
 	}
 
@@ -2217,9 +2262,9 @@ func (m *Model) runsIn(s *proto.Session) string {
 		}
 	}
 
-	_, dir, _ := strings.Cut(now[0], "=") // a config no profile names: its directory, as Usage calls it
+	_, dir, _ := strings.Cut(now[0], "=") // a config no profile names, as Usage calls it
 
-	return filepath.Base(dir)
+	return proto.ConfigName(s.Conversation.Agent, dir)
 }
 
 // moveProfile asks which profile session id's agent continues in. The agent
@@ -2235,19 +2280,18 @@ func (m *Model) moveProfile(id string) tea.Cmd {
 	profiles := m.profiles(c.Agent)
 	now := runsWith(s, profiles, m.st.ResumeEnv[c.Agent])
 
-	var items []item
+	others := slices.DeleteFunc(profiles, func(p profile) bool { return slices.Equal(slices.Sorted(slices.Values(p.env)), now) })
+	resume := slices.Clone(m.st.ResumeID[c.Agent])
 
-	for _, p := range profiles {
-		if slices.Equal(slices.Sorted(slices.Values(p.env)), now) {
-			continue
-		}
-
-		items = append(items, item{label: p.name, hint: p.hint, inline: m.room(c.Agent, p.env), run: func(*Model) tea.Cmd {
-			return tea.Batch(flash("moving the session to "+p.name+"…", false), do("session.profile", proto.SessionProfileParams{ID: id, Env: p.env}))
-		}})
+	for i, a := range resume {
+		resume[i] = strings.ReplaceAll(a, "{id}", c.ID)
 	}
 
-	m.modal = newPicker("Move Session to Profile", items)
+	m.modal = m.profileModal("Move Session to Profile", c.Agent, s.Workspace, resume, others, func(p profile) func(*Model) tea.Cmd {
+		return func(*Model) tea.Cmd {
+			return tea.Batch(flash("moving the session to "+p.name+"…", false), do("session.profile", proto.SessionProfileParams{ID: id, Env: p.env}))
+		}
+	})
 
 	return nil
 }

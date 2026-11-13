@@ -1313,6 +1313,7 @@ type modal struct {
 	// prompts' ctrl+e and shift+del.
 	keys  map[string]func(m *Model) tea.Cmd
 	note  string // dim at the right end of the title row
+	foot  bool   // the selected item's detail in a last row under a rule, not under the item: the list stays put
 	hints string // keys in the bottom edge, the last dropped where they do not fit
 	// caps are the most rows a group shows under a query, in the order the
 	// items list the groups; the rest wait behind a "+ N more" row that goes
@@ -2167,7 +2168,7 @@ func (md *modal) focus(i int) {
 	}
 
 	md.l.sel = i
-	if i >= 0 && i < len(md.disp) && md.disp[i].detail != "" {
+	if !md.foot && i >= 0 && i < len(md.disp) && md.disp[i].detail != "" {
 		md.disp = slices.Insert(md.disp, i+1, item{label: md.disp[i].detail, cont: true})
 	}
 }
@@ -2324,6 +2325,10 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 	h = rows + 2
 	if md.hasInput() {
 		h++
+	}
+
+	if md.foot {
+		h += 2
 	}
 
 	x = min(md.x, x1-w)
@@ -2622,6 +2627,15 @@ func (md *modal) lines(m *Model) ([]string, int, int) {
 		return md.rowsDrawn.get(k, func() string { return md.itemRow(&it, k.sel, rw) })
 	}) {
 		lines = append(lines, side+r+side)
+	}
+
+	if md.foot {
+		var detail string
+		if md.l.sel >= 0 && md.l.sel < len(md.disp) {
+			detail = md.disp[md.l.sel].detail
+		}
+
+		lines = append(lines, dim.Render("├"+strings.Repeat("─", iw)+"┤"), side+fit(dim.Render(" "+detail), iw)+side)
 	}
 
 	edge := strings.Repeat("─", iw)

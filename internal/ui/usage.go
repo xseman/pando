@@ -130,10 +130,10 @@ func (m *Model) activeEnv(agent string) []string {
 // active reports whether a is the account new sessions of its agent start with.
 func (m *Model) active(a proto.Account) bool { return slices.Equal(m.activeEnv(a.Agent), a.Env) }
 
-// room is how spent agent's account under env is, for a row that names it:
-// its fullest limit and when that resets, or why its limits are not current.
-// "" while nothing is known of it.
-func (m *Model) room(agent string, env []string) string {
+// spends is the account a session of agent under env spends: its config's,
+// or the default's for a profile with no config of its own. False while
+// nothing is known of it.
+func (m *Model) spends(agent string, env []string) (proto.Account, bool) {
 	a, ok := m.account(agent, env)
 	if own := slices.ContainsFunc(env, func(kv string) bool {
 		k, _, _ := strings.Cut(kv, "=")
@@ -142,26 +142,29 @@ func (m *Model) room(agent string, env []string) string {
 		a, ok = m.account(agent, nil)
 	}
 
-	if !ok || !m.hasUsage() {
-		return ""
+	return a, ok && m.hasUsage()
+}
+
+// room is how spent agent's account under env is, w cells of a row that
+// names it: its fullest limit's meter, share and reset, or in place of the
+// reset why its limits are not current. None while nothing is known of it.
+func (m *Model) room(agent string, env []string, w int) []seg {
+	a, ok := m.spends(agent, env)
+	if !ok {
+		return nil
 	}
 
 	if len(a.Limits) == 0 {
-		return noteWord(a.Note)
+		return []seg{sg(noteWord(a.Note), dim)}
 	}
 
 	fullest := slices.MaxFunc(a.Limits, func(x, y proto.Limit) int { return cmp.Compare(x.Percent, y.Percent) })
-	out := fmt.Sprintf("%.0f%%", fullest.Percent)
+	stale := a.Note != ""
+	when := ifElse(stale, noteWord(a.Note), until(fullest.Resets, time.Now()))
 
-	if left := until(fullest.Resets, time.Now()); left != "" {
-		out += " · " + left
-	}
-
-	if a.Note != "" {
-		out += " · " + noteWord(a.Note)
-	}
-
-	return out
+	return append(limitMeter(max(w-16, 3), fullest.Percent, nil, ifElse(stale, dim, levelStyle(fullest.Percent, fg(pal.accent)))),
+		sg(fmt.Sprintf(" %3.0f%%", fullest.Percent), ifElse(stale, dim, levelStyle(fullest.Percent, plain))),
+		sg("  "+pad(when, 9, true), dim)) // "16d 11h" of a 30d window, "signed out"
 }
 
 // noteWord is an account's Note without its explanation: "paused".
@@ -415,28 +418,22 @@ func (v *usageView) lines(m *Model, w, h int) []string {
 	})
 }
 
-// limitMeter draws pct of w cells in half-cell steps, tone over a faint
-// track, with a mark at each of ticks.
+// limitMeter draws pct of w cells, ▰ in tone over a faint ▱ track, any use
+// one cell at least, with the cell at each of ticks in the plain color.
 func limitMeter(w int, pct float64, ticks []proto.Limit, tone lipgloss.Style) []seg {
-	halves := int(math.Round(pct / 100 * float64(w) * 2))
-	full := min(halves/2, w)
-	track := fg(pal.indentGuide)
+	full := min(int(math.Round(pct/100*float64(w))), w)
+	if pct > 0 {
+		full = max(full, 1)
+	}
 
 	cells := make([]seg, w)
 	for i := range cells {
-		switch {
-		case i < full:
-			cells[i] = sg("━", tone)
-		case i == full && halves%2 == 1:
-			cells[i] = sg("╾", tone)
-		default:
-			cells[i] = sg("─", track)
-		}
+		cells[i] = ifElse(i < full, sg("▰", tone), sg("▱", fg(pal.indentGuide)))
 	}
 
 	for _, t := range ticks {
 		if at := min(int(t.Percent/100*float64(w)), w-1); at > 0 { // on the first cell it reads as the fill
-			cells[at] = sg("┃", plain)
+			cells[at].st = plain
 		}
 	}
 

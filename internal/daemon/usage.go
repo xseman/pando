@@ -217,7 +217,7 @@ func (d *Daemon) accounts() []proto.Account {
 		for _, env := range d.state.Seen[agent] {
 			if _, ok := account(out, agent, env); !ok && len(env) > 0 {
 				_, dir, _ := strings.Cut(env[0], "=")
-				out = append(out, proto.Account{Agent: agent, Name: filepath.Base(dir), Env: env})
+				out = append(out, proto.Account{Agent: agent, Name: proto.ConfigName(agent, dir), Env: env})
 			}
 		}
 	}

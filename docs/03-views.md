@@ -343,9 +343,12 @@ A new session runs a harness: an `[agents]` preset whose program is on the
 session that opens the `shell` setting. The harnesses of the three newest
 sessions come first, under _recently opened_. An agent with profiles asks which
 (`profilePicker`): _default_, its `[profiles.<agent>]`, then the configs the
-daemon saw it run in or found (`seen_env`) that no profile sets (`profiles`); the choice
-goes in `session.new`'s `env`. A row says how spent its account is (`room`),
-and the picker opens on the active one (`State.Active`, `item.lead`). A project's `+` asks for its worktree first
+daemon saw it run in or found (`seen_env`) that no profile sets (`profiles`),
+named as in Usage (`proto.ConfigName`: `~/.claude-work` is _work_); the choice
+goes in `session.new`'s `env`. A row says its account's plan and how spent it is (`room`:
+Usage's meter, share, reset), the footer what the selected one runs where
+(`runLine`, `item.detail`, `modal.foot`), and the picker opens on the active one (`State.Active`,
+`item.lead`). A project's `+` asks for its worktree first
 (`worktreePicker`), _New Worktree…_ included (`sessionWorktreeMsg`). The `+`
 follows the name of the row under the pointer, or of the selected one while
 Sessions has the keyboard (`agents.actions`).
@@ -686,14 +689,14 @@ there while `hasUsage`: `usage` on and an account known.
 ```text
  ✳ Claude Code                    auto    usAgent: its mark, profile_switch when "auto"
    default · Max 5x             active    usAccount: State.Active's, else "use"
-   5h  ━━━━━━━━───────────  35%   3h 4m   usLimit: meter, share used, time to reset
-   7d  ━━━━━┃━━━━━━━━━━━──  92%  9h 44m     ┃ a model's own allowance on the window
+   5h  ▰▰▰▰▱▱▱▱▱▱           35%   3h 4m   usLimit: meter, share used, time to reset
+   7d  ▰▰▰▰▰▰▰▰▰▱           92%  9h 44m     a cell in plain: a model's own allowance
                                           usGap: before each account and agent but the first
    work · Team 5x                  use
    paused: its sign-in lapsed, …          usNote: Account.Note, its limits dim
 
  ◎ Codex · Free                           an only account rides its agent's row
-   30d ───────────────────   0% 16d 11h
+   30d ▱▱▱▱▱▱▱▱▱▱            0% 16d 11h
 ```
 
 - `usGap` and the heading of an agent with accounts to pick are `inert`:
@@ -702,7 +705,8 @@ there while `hasUsage`: `usage` on and an account known.
 - A model's limit (`Limit.Model`) marks the row of the window it shares
   (`ticks`); with no such row it gets one of its own, named. A mark on the
   first cell is left out: it would read as the fill.
-- `limitMeter` draws in half cells (`╾`); `levelStyle` colors from 75% and
+- `limitMeter` draws `▰` over a `▱` track as wide as the row allows, in the
+  profile picker too; any use fills one cell. `levelStyle` colors from 75% and
   90%, the status bar's chip too (`usageChip`).
 - `⏎`, or a click on `use`, is `useProfile`: `state.set`'s `active_profile`,
   set here at once; `use` under the mouse lights and its tip says what a

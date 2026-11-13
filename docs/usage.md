@@ -442,10 +442,11 @@ show a warning.
 
 A tab beside Sessions (`9`) while `usage` is on and `claude` or `codex` is
 installed: each sign-in's plan and a row per limit window, how much of it is
-used and when it resets. A `┃` on a meter is a model's own allowance on that
-window, named in the row's tip. An agent has a sign-in per config: _default_,
+used and when it resets. A cell of a meter in the plain color is a model's own
+allowance on that window, named in the row's tip. An agent has a sign-in per config: _default_,
 each of its `[profiles]` that sets its config directory (`CLAUDE_CONFIG_DIR`,
-`CODEX_HOME`), and every config pando found. A profile that sets
+`CODEX_HOME`), and every config pando found, by its directory without the
+agent's name: `~/.claude-work` is _work_. A profile that sets
 anything else runs on the default's sign-in and is not listed.
 
 | Key | Does                                                             |
@@ -455,7 +456,7 @@ anything else runs on the default's sign-in and is not listed.
 | `r` | ask again; the daemon asks every 15 minutes on its own           |
 
 The active profile is the row a new session's profile picker opens on, where
-each profile says how spent it is, and what `pando session new` starts an
+each profile says how spent it is and the selected one what it runs where, and what `pando session new` starts an
 agent with. The status bar names it with its fullest limit, yellow from 75%
 and red from 90%.
 
