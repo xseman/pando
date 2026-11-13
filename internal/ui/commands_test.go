@@ -4834,6 +4834,30 @@ func TestSpacesSubagents(t *testing.T) {
 	if m.ag.l.sel != i || m.sess != "s1" {
 		t.Fatalf("a click on the subagent goes to s1: sel %d, on screen %q", m.ag.l.sel, m.sess)
 	}
+	// The pointer over either shows what it runs on, where the agent says.
+	s1.Model, s1.Effort = "claude-fable-5-2", "medium"
+	s1.Subagents[0].Model, s1.Subagents[0].Effort = "claude-opus-5-5", "low"
+	m.Update(sessionsMsg{s1, s2})
+
+	tip := func(row int) string {
+		m.Update(tea.MouseMotionMsg{X: m.colRect(m.colOf(viewAgents)).x + 10, Y: m.bodyTop(viewAgents) + row - m.ag.l.top})
+		m.tip = "" // as each frame starts
+		m.ag.lines(m, 40, m.bodyH(viewAgents))
+
+		return m.tip
+	}
+
+	if got := tip(i); got != "claude-fable-5-2 · medium effort" {
+		t.Fatalf("the session's tip: %q", got)
+	}
+
+	if got := tip(i + 1); got != "claude-opus-5-5 · low effort" {
+		t.Fatalf("the subagent's tip: %q", got)
+	}
+
+	if got := tip(i + 2); got != "" {
+		t.Fatalf("a session that does not say has no tip: %q", got)
+	}
 }
 
 // TestSpacesWorktreeKillButton is a linked worktree row's ✕: after its

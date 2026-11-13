@@ -1104,6 +1104,16 @@ func (m *Model) runsAt(r agRow, status string) string {
 	return where + " · " + status
 }
 
+// runsOn is a tip's line of what an agent runs on: "claude-opus-5-5 ·
+// medium effort", "" when its agent does not say.
+func runsOn(model, effort string) string {
+	if effort == "" {
+		return model
+	}
+
+	return strings.TrimPrefix(model+" · "+effort+" effort", " · ")
+}
+
 // shortAgo is how long before now t was, in its largest whole unit: now,
 // 12m, 3h, 6d, 5w; "" for no t.
 func shortAgo(t, now time.Time) string {
@@ -1477,8 +1487,15 @@ func (a *agents) lines(m *Model, w, h int) []string {
 				guide = "│  "
 			}
 
-			if label := agLabel(r); y == hover && 8+ansi.StringWidth(label) > rw {
-				m.tip = label
+			if y == hover { // a label the row cuts, whole, over what it runs on
+				tip := runsOn(r.sub.Model, r.sub.Effort)
+				if label := agLabel(r); 8+ansi.StringWidth(label) > rw {
+					tip = label + "\n" + tip
+				}
+
+				if tip = strings.Trim(tip, "\n"); tip != "" {
+					m.tip = tip
+				}
 			}
 
 			return row(rw, bg, []seg{sg("   "+guide+"↳ ", dim), sg(r.sub.Type, base), sg(" · "+r.sub.Description, dim)})
@@ -1555,7 +1572,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		}
 
 		// A name the row cuts, at 32 cells or at the column's edge, shows
-		// whole in a tip.
+		// whole in a tip, over the model its agent runs on.
 		g, after, right := m.spin(glyph, r.s), titleAfter(r.s), " "+status+" "
 
 		if y == hover {
@@ -1566,8 +1583,15 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			m.tip = acts[1].tip
 		}
 
-		if full := fullName(r.s); y == hover && !onPin && !onKill && (full != sessionName(r.s) || 3+ansi.StringWidth(conn+g+full+after+right) > rw) {
-			m.tip = full + after
+		if y == hover && !onPin && !onKill {
+			tip := runsOn(r.s.Model, r.s.Effort)
+			if full := fullName(r.s); full != sessionName(r.s) || 3+ansi.StringWidth(conn+g+full+after+right) > rw {
+				tip = full + after + "\n" + tip
+			}
+
+			if tip = strings.Trim(tip, "\n"); tip != "" {
+				m.tip = tip
+			}
 		}
 
 		left := append(append(lead, sg(conn, dim), sg(g, fg(c))), m.fx.segs("sess:"+r.s.ID, sessionName(r.s), nameSt)...)

@@ -4156,7 +4156,7 @@ func (m *Model) View() tea.View {
 	}
 
 	if m.tip != "" && m.st.Settings.Tips && m.tipShown() && m.modal == nil && m.drag == nil {
-		box, x, y := m.hoverBox([]string{m.tip})
+		box, x, y := m.hoverBox(strings.Split(m.tip, "\n"))
 		m.overlayBox(lines, box, x, y)
 		m.tipSeen = time.Now()
 	}

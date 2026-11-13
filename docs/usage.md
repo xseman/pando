@@ -175,7 +175,8 @@ checkout.
 - The subagents a claude, codex, agy or grok session runs list under its row in
   Sessions while they work: their kind (codex: the name it gave the agent)
   and what they do. They live inside the session; a
-  click on one opens the session.
+  click on one opens the session. The pointer over one, or over a claude
+  session, shows the model and effort its last reply ran on.
 - `alt+i` picks a saved prompt, a file in `~/.config/pando/prompts/`, by
   words of its name or text (a name match first): `⏎` types it into the
   session in view, or the panel's shell when it has the keyboard, as one
