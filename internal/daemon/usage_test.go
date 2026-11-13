@@ -510,6 +510,38 @@ func TestProfileSession(t *testing.T) {
 
 		break
 	}
+
+	// By name, as usage.get lists the agent's accounts, and with what comes
+	// next: the session wakes in that profile and the text is submitted there.
+	usageSources["myagent"] = func(context.Context, []string) (string, []proto.Limit, error) { return "", nil, nil }
+
+	t.Cleanup(func() { delete(usageSources, "myagent") })
+
+	d.mu.Lock()
+	d.state.Agents["myagent"] = []string{agent}
+	d.state.Settings.Usage = true
+	d.usage.Accounts = []proto.Account{{Agent: "myagent", Name: "default", Note: errSignedOut.Error()}}
+	d.mu.Unlock()
+
+	if err := proto.Call("session.profile", proto.SessionProfileParams{ID: s.ID, Name: "nope"}, nil); err == nil || !strings.Contains(err.Error(), "default work") {
+		t.Fatalf("a profile nobody named: %v", err)
+	}
+
+	if err := proto.Call("session.profile", proto.SessionProfileParams{ID: s.ID, Name: "default"}, nil); err == nil || !strings.Contains(err.Error(), "signed out") {
+		t.Fatalf("a profile signed out: %v", err)
+	}
+
+	var woken proto.Session // moved still says asleep: a false one is left out of the answer
+	call(t, "session.profile", proto.SessionProfileParams{ID: s.ID, Name: "work", Send: "WHAT NEXT"}, &woken)
+	waitFor(t, "the text to reach the agent in the named profile", func() bool {
+		scr := screen(s.ID)
+
+		return strings.Contains(scr, "RESUMED conv-m IN "+work) && strings.Contains(scr, "WHAT NEXT")
+	})
+
+	if woken.Asleep || woken.Status != "idle" {
+		t.Fatalf("a session sent text is %+v", woken)
+	}
 }
 
 // TestProfileSessionInShell moves an agent started in a shell, twice: the

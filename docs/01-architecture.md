@@ -388,3 +388,10 @@ data of the `usage` event, and `usage.json` in the data dir, read at start.
   session asleep stays asleep and wakes there. One going to sleep or waking
   is refused, and one woken between the sleep and the change stays where it
   is, with an error.
+  `name` picks the profile in place of `env`, as `usage.get` names the agent's
+  accounts (`profileEnv`): one it has none of and one signed out are refused.
+  `send` is submitted after the wake, which it also gives a session asleep,
+  and only to the agent `idle` in front: a shell would run it and a question
+  take it as its answer, so otherwise the call fails saying the session
+  moved. It is there for a session that moves itself, whose caller the sleep
+  ends: the daemon is all that is left to say what comes next.

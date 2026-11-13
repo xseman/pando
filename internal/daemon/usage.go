@@ -801,13 +801,16 @@ func parseCodexLimits(b []byte) (string, []proto.Limit, error) {
 	return plan, out, nil
 }
 
-// profileSession moves session id's agent to the profile env picks, none for
-// its default: the agent ends and continues the same conversation there, as
-// a sleep and a wake do. Only an agent whose open conversation pando can
+// profileSession moves session p.ID's agent to the profile p.Env picks, none
+// for its default: the agent ends and continues the same conversation there,
+// as a sleep and a wake do. Only an agent whose open conversation pando can
 // name ([resume_id]) can follow it into another config. A session asleep
-// stays asleep, and wakes there.
-func (d *Daemon) profileSession(id string, env []string) (proto.Session, error) {
-	s, err := d.session(id)
+// stays asleep, and wakes there. p.Name picks the profile in place of p.Env,
+// and p.Send is typed once the agent is back at its prompt.
+func (d *Daemon) profileSession(p proto.SessionProfileParams) (proto.Session, error) {
+	env := p.Env
+
+	s, err := d.session(p.ID)
 	if err != nil {
 		return proto.Session{}, err
 	}
@@ -828,10 +831,18 @@ func (d *Daemon) profileSession(id string, env []string) (proto.Session, error) 
 	info := s.info()
 	c := info.Conversation
 	known := c != nil && conversations[c.Agent] != nil && len(d.state.ResumeID[c.Agent]) > 0
+
+	if known && p.Name != "" {
+		env, err = d.profileEnv(c.Agent, p.Name)
+	}
 	d.mu.Unlock()
 
 	if !known {
 		return info, fmt.Errorf("session %s runs no agent whose conversation pando can continue elsewhere", info.ID)
+	}
+
+	if err != nil {
+		return info, err
 	}
 
 	// Before the agent ends: a transcript that cannot be linked leaves it running.
@@ -887,12 +898,71 @@ func (d *Daemon) profileSession(id string, env []string) (proto.Session, error) 
 	err = d.save()
 	d.mu.Unlock()
 
-	if asleep { // no sleep or wake to say it moved
+	if asleep && p.Send == "" { // no sleep or wake to say it moved
 		d.broadcast(proto.Event{Kind: "sessions"})
 		return s.info(), err
 	}
 
 	woken, werr := d.wakeSession(info.ID)
+	if err := errors.Join(err, werr); err != nil || p.Send == "" {
+		return woken, err
+	}
 
-	return woken, errors.Join(err, werr)
+	// A shell the agent has not started in yet would run the text, and a
+	// question would take it as its answer.
+	if woken.Status != "idle" || woken.Program != c.Agent {
+		return woken, fmt.Errorf("session %s moved, the text was not sent: %s is not at its prompt (%s)", woken.ID, c.Agent, woken.Status)
+	}
+
+	ns, err := d.session(woken.ID) // a woken session is a new one under its id
+	if err != nil {
+		return woken, err
+	}
+
+	return woken, submit(ns, p.Send)
+}
+
+// profileEnv is what picks agent's profile name, as usage.get lists it. One
+// nobody is signed in to is refused: the agent would wake at a sign-in. With
+// usage off what was measured once says nothing now, as for advise. d.mu is
+// held.
+func (d *Daemon) profileEnv(agent, name string) ([]string, error) {
+	var names []string
+
+	for _, a := range d.accounts() {
+		if a.Agent != agent {
+			continue
+		}
+
+		names = append(names, a.Name)
+		if a.Name != name {
+			continue
+		}
+
+		if measured, _ := account(d.usage.Accounts, agent, a.Env); d.state.Settings.Usage && measured.Note == errSignedOut.Error() {
+			return nil, fmt.Errorf("%s profile %q is signed out", agent, name)
+		}
+
+		return a.Env, nil
+	}
+
+	return nil, fmt.Errorf("%s has no profile %q, it has: %s", agent, name, strings.Join(names, " "))
+}
+
+// submit types text into s and presses Enter, as `pando session send
+// --enter` does: more than one line as a paste, and Enter a moment later,
+// which a line editor would otherwise take as a pasted newline.
+func submit(s *session, text string) error {
+	in := proto.InputParams{Text: text}
+	if strings.Contains(text, "\n") {
+		in = proto.InputParams{Paste: text}
+	}
+
+	if err := s.input(in); err != nil {
+		return err
+	}
+
+	time.Sleep(50 * time.Millisecond)
+
+	return s.input(proto.InputParams{Text: "\r"})
 }

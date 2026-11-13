@@ -829,7 +829,7 @@ func (d *Daemon) dispatch(method string, raw json.RawMessage) (any, error) {
 			}
 		}
 
-		return d.profileSession(p.ID, p.Env)
+		return d.profileSession(p)
 
 	case "session.input":
 		p, err := parse[proto.InputParams](raw)

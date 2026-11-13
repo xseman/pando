@@ -418,6 +418,13 @@ type Limit struct {
 type SessionProfileParams struct {
 	ID  string   `json:"id"`
 	Env []string `json:"env"`
+	// Name picks the profile in place of Env, as Account names it:
+	// "default" for the agent's default.
+	Name string `json:"name,omitempty"`
+	// Send is typed and submitted once the agent is back at its prompt, a
+	// session asleep woken for it: a session that moves itself has no caller
+	// left to say what comes next.
+	Send string `json:"send,omitempty"`
 }
 
 // Percent is how much of the download is in, 0 while the size is unknown.
