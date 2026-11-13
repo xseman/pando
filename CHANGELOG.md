@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.13.0](https://github.com/xseman/pando/compare/v0.12.0...v0.13.0) (2026-11-13)
+
+
+### Features
+
+* **cli:** session profile moves a session by profile name ([1434724](https://github.com/xseman/pando/commit/14347244c055f8f6115d9ffa7120c1fe4c961356))
+* **daemon:** model and effort of a claude session and its subagents ([1fda86e](https://github.com/xseman/pando/commit/1fda86e19f47234d4e6903e927fa646ed5c33d0a))
+* **daemon:** session.profile by profile name, with text to submit ([5870e05](https://github.com/xseman/pando/commit/5870e0540f6ec5e685c9bc98185c7f53501dcb3e))
+* **ui:** a session's and a subagent's tip names its model and effort ([90d095e](https://github.com/xseman/pando/commit/90d095ecbe05a2f0bcfe2e3640c3406435553e91))
+* **ui:** profile picker in columns, Usage meters in blocks ([1c02eb0](https://github.com/xseman/pando/commit/1c02eb03fc8774d2c4862d4076d71a63e9b7a2bb))
+
+
+### Bug Fixes
+
+* **cli:** help lists session.profile and the usage methods ([6db5e8e](https://github.com/xseman/pando/commit/6db5e8ebc4c15a6aa0e0c8cdb4383ad5bb6e297f))
+* **ui:** indent guides no longer freeze on a deeply indented line ([d5d2fc4](https://github.com/xseman/pando/commit/d5d2fc4bc78c5f950c1cda4022d82719c1f9ee8a))
+
 ## [0.12.0](https://github.com/xseman/pando/compare/v0.11.0...v0.12.0) (2026-11-12)
 
 
