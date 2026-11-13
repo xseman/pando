@@ -601,6 +601,33 @@ func TestIndentGuides(t *testing.T) {
 	if y := checkWidths(t, m); !strings.Contains(y, "  │ y();") {
 		t.Fatalf("2 spaces, a guide every 2 cells:\n%s", y)
 	}
+
+	// A diagram's line far to the right, in a file indented by 1, has a
+	// guide in every cell: the row grows by a guide's bytes with each, where
+	// it once doubled and a line 47 cells in froze the window. 17 levels
+	// fail in megabytes, not in all the memory there is.
+	bar := [2]string{renderText(fg(pal.whitespace), "│"), renderText(fg(pal.indentGuide), "│")}
+
+	deep := paintGuides(blank(17)+"│", 17, 1, 0, bar, 0, 80, 0, 0)
+	if got := ansi.Strip(deep); got != " "+strings.Repeat("│", 17) {
+		t.Fatalf("17 guides a cell apart: %q", got)
+	}
+
+	if len(deep) > 17*len(bar[0])*4 {
+		t.Fatalf("17 guides take %d bytes, a guide %d", len(deep), len(bar[0]))
+	}
+
+	// render_whitespace's dots between the guides stay one run of marks: a
+	// run a guide brought its escapes to every guide after it.
+	m, _ = editorModel(t, "b.ts", "function f() {\n  if (x) {\n    y();\n  }\n"+blank(60)+"z();\n}\n")
+	m.st.Settings.Blanks = "all"
+	m.Update(tea.WindowSizeMsg{Width: 160, Height: 30})
+	m.View()
+
+	z := m.pv.renderRow(vrow{line: 4, from: 0, to: len(m.pv.plain[4])}, m.pvW())
+	if n := strings.Count(ansi.Strip(z), "│"); n != 29 || len(z) > n*len(bar[0])*4 {
+		t.Fatalf("%d guides among the dots take %d bytes, a guide %d: %q", n, len(z), len(bar[0]), ansi.Strip(z))
+	}
 }
 
 func TestRenderWhitespace(t *testing.T) {

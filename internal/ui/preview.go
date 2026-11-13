@@ -2890,7 +2890,7 @@ func (p *preview) guideRoom(vr vrow, marks []string, lo int) []string {
 				marks[c+1] = tabMark
 			}
 
-			marks[c] = ""
+			marks[c] = " " // under the guide: a hole here would end the run of marks, and every run brings its own escapes
 		}
 	}
 
@@ -2909,7 +2909,10 @@ func paintGuides(body string, lv, unit, lit int, bar [2]string, start, end, s0, 
 
 	bw := strWidth(body)
 
-	for k := 1; k < lv; k++ {
+	// Right to left: TruncateLeft keeps the escapes of the cells it cuts, so
+	// a guide drawn left of the cut would have its own twice, and the row
+	// twice as long with every guide.
+	for k := lv - 1; k >= 1; k-- {
 		c := k * unit
 		if c < start || c >= end {
 			continue
