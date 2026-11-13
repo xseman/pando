@@ -233,6 +233,10 @@ tick, `session.tick` decides:
 
   An agy subagent waiting on a background command has ended its turn and
   is left out until woken. Gemini and opencode report none.
+- `Session.Model`, `Session.Effort` and a subagent's: `setSubagents` reads the
+  last assistant line (`message.model`, `effort`) in the tail of the claude
+  transcript, the conversation's or `agent-<id>.jsonl` (`claudeRuns`), again
+  only once it grew. Claude only.
 - `/proc` is Linux only; elsewhere (macOS, Windows) only the screen and
   output timing decide, codex, agy and grok list no subagents (their readers
   need `/proc/<pid>/fd`), and an agent's session is taken to run the agent

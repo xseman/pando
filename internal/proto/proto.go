@@ -332,6 +332,10 @@ type Session struct {
 	// the agent records them (claude, codex, agy, grok); they live inside its
 	// process, so they are seen, not attached to.
 	Subagents []Subagent `json:"subagents,omitempty"`
+	// Model and Effort are what its agent's last reply ran on, where the
+	// agent records them (claude); "" before its first.
+	Model  string `json:"model,omitempty"`
+	Effort string `json:"effort,omitempty"`
 }
 
 // Subagent is one a session's agent runs, as the agent describes it.
@@ -339,6 +343,8 @@ type Subagent struct {
 	Type        string    `json:"type"` // the kind the agent ran: Explore, a custom agent's name, fork
 	Description string    `json:"description"`
 	Started     time.Time `json:"started"`
+	Model       string    `json:"model,omitempty"` // of its last reply, as Session's (claude)
+	Effort      string    `json:"effort,omitempty"`
 }
 
 // Update is what the daemon knows about a newer pando: the reply to

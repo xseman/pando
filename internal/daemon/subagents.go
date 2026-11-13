@@ -110,7 +110,8 @@ func claudeSubagents(c proto.Conversation, now time.Time) []proto.Subagent {
 			continue
 		}
 
-		out = append(out, proto.Subagent{Type: v.Type, Description: v.Description, Started: meta.ModTime()})
+		model, effort := claudeRuns(filepath.Join(sc.dir, name+".jsonl"))
+		out = append(out, proto.Subagent{Type: v.Type, Description: v.Description, Started: meta.ModTime(), Model: model, Effort: effort})
 	}
 
 	slices.SortFunc(out, func(a, b proto.Subagent) int { return a.Started.Compare(b.Started) })
@@ -129,6 +130,90 @@ var subs = struct {
 type subScan struct {
 	dir  string
 	done map[string]bool
+}
+
+// claudeModel is the model and effort conversation c's last reply ran on,
+// "" until claudeSubagents has found its transcript.
+func claudeModel(c proto.Conversation) (model, effort string) {
+	subs.Lock()
+	sc := subs.m[c.ID]
+	subs.Unlock()
+
+	if sc == nil {
+		return "", ""
+	}
+
+	return claudeRuns(filepath.Dir(sc.dir) + ".jsonl")
+}
+
+// claudeTail is how much of a transcript's end claudeRuns reads for its last
+// reply.
+// ponytail: a transcript that ends in more than this without a whole reply,
+// one huge tool result, keeps what the reply before it said.
+const claudeTail = 256 << 10
+
+// claudeRuns is the model and effort of the last reply in claude transcript
+// path, the conversation's or a subagent's: each assistant line carries
+// message.model and effort. "" before the first; a transcript is read again
+// only once it grew.
+func claudeRuns(path string) (model, effort string) {
+	claudeRun.Lock()
+	defer claudeRun.Unlock()
+
+	st, err := os.Stat(path)
+	if err != nil {
+		return "", ""
+	}
+
+	r := claudeRun.m[path]
+	if r.size == st.Size() {
+		return r.model, r.effort
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return r.model, r.effort
+	}
+	defer func() { _ = f.Close() }() // read only: nothing to lose
+
+	off := max(st.Size()-claudeTail, 0)
+	b := make([]byte, st.Size()-off)
+	n, _ := f.ReadAt(b, off)
+
+	lines := bytes.Split(b[:n], []byte{'\n'})
+	for _, line := range slices.Backward(lines) {
+		if !bytes.Contains(line, []byte(`"effort":"`)) { // the rest hold whole tool output
+			continue
+		}
+
+		var v struct {
+			Message struct {
+				Model string `json:"model"`
+			} `json:"message"`
+			Effort string `json:"effort"`
+		}
+
+		if json.Unmarshal(line, &v) == nil && v.Message.Model != "" && v.Effort != "" {
+			r.model, r.effort = v.Message.Model, v.Effort
+			break
+		}
+	}
+
+	r.size = st.Size()
+	claudeRun.m[path] = r
+
+	return r.model, r.effort
+}
+
+// claudeRun are the transcripts claudeRuns has read, by path.
+var claudeRun = struct {
+	sync.Mutex
+	m map[string]claudeRan
+}{m: map[string]claudeRan{}}
+
+type claudeRan struct {
+	size          int64
+	model, effort string
 }
 
 // openFiles are the files process pid and its descendants hold open, where

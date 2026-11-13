@@ -325,4 +325,32 @@ func TestClaudeSubagents(t *testing.T) {
 	if got := list(); len(got) != 3 || got[0].Description != "Crashed" {
 		t.Fatalf("written again, the stale one is back: %v", got)
 	}
+	// What its last reply ran on, and the conversation's own: a line that
+	// is no reply says nothing, and nothing new keeps what was read.
+	reply := func(model, effort string) string {
+		return `{"message":{"model":"` + model + `","role":"assistant"},"effort":"` + effort + `"}` + "\n"
+	}
+
+	mustWrite(t, jsonl, reply("claude-opus-5-5", "low")+reply("claude-haiku-5-5", "high")+`{"toolUseResult":"\"effort\":\"max\""}`+"\n")
+
+	if got := list(); got[0].Model != "claude-haiku-5-5" || got[0].Effort != "high" || got[1].Model != "" {
+		t.Fatalf("a subagent's last reply: %+v", got)
+	}
+
+	if model, effort := claudeModel(c); model != "" || effort != "" {
+		t.Fatalf("no reply in the conversation yet: %q %q", model, effort)
+	}
+
+	conv := filepath.Join(claudeDir(), "projects", "-ws", "conv-s.jsonl")
+	mustWrite(t, conv, reply("claude-fable-5-2", "medium")+`{"type":"user"}`+"\n")
+
+	if model, effort := claudeModel(c); model != "claude-fable-5-2" || effort != "medium" {
+		t.Fatalf("the conversation's last reply: %q %q", model, effort)
+	}
+
+	mustWrite(t, conv, reply("claude-fable-5-2", "medium")+`{"type":"user"}`+"\n"+`{"type":"user"}`+"\n")
+
+	if model, effort := claudeModel(c); model != "claude-fable-5-2" || effort != "medium" {
+		t.Fatalf("grown by no reply, it keeps the last: %q %q", model, effort)
+	}
 }
