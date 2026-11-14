@@ -539,8 +539,8 @@ func (s *session) info() proto.Session {
 }
 
 // setSubagents records the subagents program prog, process pid in front,
-// runs now (subagentReaders), and the model its last reply ran on; it
-// reports a change clients show.
+// runs now, and the model and effort its own last turn ran on
+// (subagentReaders); it reports a change clients show.
 func (s *session) setSubagents(pid int, prog string, now time.Time) bool {
 	if pid == 0 { // the terminal cannot tell what runs (no /proc), as remember
 		pid, prog = s.ownAgent()
@@ -550,14 +550,13 @@ func (s *session) setSubagents(pid int, prog string, now time.Time) bool {
 	c := s.spec.Conversation
 	s.mu.Unlock()
 
-	var subagents []proto.Subagent
-	if read := subagentReaders[prog]; read != nil {
-		subagents = read(pid, c, now) // files read outside s.mu, which info waits on
-	}
+	var (
+		subagents     []proto.Subagent
+		model, effort string
+	)
 
-	var model, effort string
-	if prog == "claude" && c != nil { // ponytail: claude only, the others' rollouts are not read for it
-		model, effort = claudeModel(*c)
+	if read := subagentReaders[prog]; read != nil {
+		subagents, model, effort = read(pid, c, now) // files read outside s.mu, which info waits on
 	}
 
 	s.mu.Lock()

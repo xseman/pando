@@ -17,24 +17,35 @@ import (
 )
 
 // subagentReaders read the subagents an agent's process runs now, oldest
-// first, by program: pid is the agent's process, c the conversation remember
-// found for it. Gemini and opencode report none.
-var subagentReaders = map[string]func(pid int, c *proto.Conversation, now time.Time) []proto.Subagent{
-	"claude": func(_ int, c *proto.Conversation, now time.Time) []proto.Subagent {
+// first, and the model and effort its own last turn ran on, by program: pid
+// is the agent's process, c the conversation remember found for it. Copilot
+// and gemini list no subagents; opencode reports nothing.
+var subagentReaders = map[string]func(pid int, c *proto.Conversation, now time.Time) (subagents []proto.Subagent, model, effort string){
+	"claude": func(_ int, c *proto.Conversation, now time.Time) ([]proto.Subagent, string, string) {
 		if c == nil {
-			return nil
+			return nil, "", ""
 		}
 
-		return claudeSubagents(*c, now)
+		subagents := claudeSubagents(*c, now)
+		model, effort := claudeModel(*c)
+
+		return subagents, model, effort
 	},
-	"codex": func(pid int, _ *proto.Conversation, _ time.Time) []proto.Subagent {
-		return codexSubagents(openFiles(pid))
+	"codex": func(pid int, _ *proto.Conversation, _ time.Time) ([]proto.Subagent, string, string) {
+		files := openFiles(pid)
+		subagents := codexSubagents(files)
+		model, effort := codexModel(files)
+
+		return subagents, model, effort
 	},
-	"agy": func(pid int, _ *proto.Conversation, _ time.Time) []proto.Subagent {
-		return agySubagents(openFiles(pid))
+	"agy": func(pid int, _ *proto.Conversation, _ time.Time) ([]proto.Subagent, string, string) {
+		return agySubagents(openFiles(pid)), "", ""
 	},
-	"grok": func(pid int, _ *proto.Conversation, _ time.Time) []proto.Subagent {
-		return grokSubagents(openFiles(pid))
+	"grok": func(pid int, _ *proto.Conversation, _ time.Time) ([]proto.Subagent, string, string) {
+		files := openFiles(pid)
+		model, effort := grokModel(files)
+
+		return grokSubagents(files), model, effort
 	},
 }
 
@@ -248,7 +259,8 @@ func openFiles(pid int) []string {
 // Codex writes each thread to a rollout-…-<id>.jsonl and keeps it open while
 // the thread lives; a subagent's session_meta names the thread that spawned
 // it (source.subagent.thread_spawn). One works from its turn's task_started
-// to its task_complete or turn_aborted.
+// to its task_complete or turn_aborted, on the model and effort its last
+// turn_context names.
 func codexSubagents(files []string) []proto.Subagent {
 	codexThreads.Lock()
 	defer codexThreads.Unlock()
@@ -269,11 +281,11 @@ func codexSubagents(files []string) []proto.Subagent {
 			codexThreads.m[p] = t
 		}
 
-		if t.sub.Type == "" { // the conversation itself
+		t.read(p)
+
+		if t.sub.Type == "" { // the conversation itself: read for codexModel
 			continue
 		}
-
-		t.read(p)
 
 		if t.running {
 			out = append(out, t.sub)
@@ -283,6 +295,22 @@ func codexSubagents(files []string) []proto.Subagent {
 	return byStart(out)
 }
 
+// codexModel is the model and effort of the conversation among the rollouts
+// open in files, as codexSubagents last read it: its last turn's. A turn on
+// the model's own effort names none.
+func codexModel(files []string) (model, effort string) {
+	codexThreads.Lock()
+	defer codexThreads.Unlock()
+
+	for _, p := range files {
+		if t := codexThreads.m[p]; t != nil && t.sub.Type == "" {
+			return t.sub.Model, t.sub.Effort
+		}
+	}
+
+	return "", ""
+}
+
 // codexThreads are the rollouts codexSubagents has read, by path.
 var codexThreads = struct {
 	sync.Mutex
@@ -290,8 +318,9 @@ var codexThreads = struct {
 }{m: map[string]*codexThread{}}
 
 // codexThread is a rollout as codexSubagents knows it: the subagent it
-// writes (no Type for one that is none), how far it was read, and whether
-// its turn was going at that point.
+// writes (no Type for one that is none, the conversation: its model and
+// effort only), how far it was read, and whether its turn was going at that
+// point.
 type codexThread struct {
 	sub     proto.Subagent
 	off     int64
@@ -346,7 +375,8 @@ func codexMeta(path string) *codexThread {
 }
 
 // read takes in the whole lines appended since the last read, for the
-// turn's last task event; a file that shrank is read again from the start.
+// turn's last task event and turn_context; a file that shrank is read again
+// from the start.
 func (t *codexThread) read(path string) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -376,13 +406,16 @@ func (t *codexThread) read(path string) {
 	}
 
 	for line := range bytes.SplitSeq(b[:end], []byte{'\n'}) {
-		if !bytes.Contains(line, []byte(`"type":"event_msg"`)) { // the rest hold whole tool output
+		if !bytes.Contains(line, []byte(`"type":"event_msg"`)) && !bytes.Contains(line, []byte(`"type":"turn_context"`)) { // the rest hold whole tool output
 			continue
 		}
 
 		var v struct {
+			Type    string `json:"type"`
 			Payload struct {
-				Type string `json:"type"`
+				Type   string `json:"type"`
+				Model  string `json:"model"`
+				Effort string `json:"effort"`
 			} `json:"payload"`
 		}
 
@@ -390,10 +423,12 @@ func (t *codexThread) read(path string) {
 			continue
 		}
 
-		switch v.Payload.Type {
-		case "task_started":
+		switch {
+		case v.Type == "turn_context":
+			t.sub.Model, t.sub.Effort = v.Payload.Model, v.Payload.Effort
+		case v.Payload.Type == "task_started":
 			t.running = true
-		case "task_complete", "turn_aborted":
+		case v.Payload.Type == "task_complete", v.Payload.Type == "turn_aborted":
 			t.running = false
 		}
 	}
@@ -457,7 +492,8 @@ func agySubagents(files []string) []proto.Subagent {
 // open in files, by each one's events.jsonl. Grok keeps
 // subagents/<id>/meta.json beside a session's for each subagent it spawned,
 // "running" until it ends, and the subagent's own session open meanwhile:
-// one a crash left "running" is not open, so it is left out.
+// one a crash left "running" is not open, so it is left out. Its session's
+// summary.json names the model and effort it runs on.
 func grokSubagents(files []string) []proto.Subagent {
 	open := map[string]string{} // session id to its directory
 
@@ -487,11 +523,47 @@ func grokSubagents(files []string) []proto.Subagent {
 				continue
 			}
 
-			out = append(out, proto.Subagent{Type: v.Type, Description: v.Description, Started: v.Started})
+			model, effort, _ := grokSummary(open[v.Child])
+			out = append(out, proto.Subagent{Type: v.Type, Description: v.Description, Started: v.Started, Model: model, Effort: effort})
 		}
 	}
 
 	return byStart(out)
+}
+
+// grokModel is the model and effort of the session a grok process holds
+// open in files that is no subagent's.
+func grokModel(files []string) (model, effort string) {
+	for _, p := range files {
+		if filepath.Base(p) != "events.jsonl" {
+			continue
+		}
+
+		if model, effort, kind := grokSummary(filepath.Dir(p)); kind != "subagent" && model != "" {
+			return model, effort
+		}
+	}
+
+	return "", ""
+}
+
+// grokSummary reads a grok session's summary.json in dir: the model and
+// effort it runs on, and its kind, "subagent" for one a session spawned.
+// ponytail: one caught half written reads as none until the next tick.
+func grokSummary(dir string) (model, effort, kind string) {
+	b, err := os.ReadFile(filepath.Join(dir, "summary.json"))
+
+	var v struct {
+		Model  string `json:"current_model_id"`
+		Effort string `json:"reasoning_effort"`
+		Kind   string `json:"session_kind"`
+	}
+
+	if err != nil || json.Unmarshal(b, &v) != nil {
+		return "", "", ""
+	}
+
+	return v.Model, v.Effort, v.Kind
 }
 
 // agyTail is how much of a transcript's end agyWorking reads for its last

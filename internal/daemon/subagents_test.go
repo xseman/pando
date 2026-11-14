@@ -55,12 +55,26 @@ func TestCodexSubagents(t *testing.T) {
 		t.Fatalf("the parent's turn it copied is over: %v", got)
 	}
 
+	if model, effort := codexModel(files); model != "" || effort != "" {
+		t.Fatalf("no turn of the conversation's yet: %q %q", model, effort)
+	}
+	// Each turn names what it runs on, the effort only off the model's own.
+	appendTo(t, root, `{"type":"turn_context","payload":{"model":"gpt-6-luna","collaboration_mode":{"settings":{"model":"gpt-6-luna","reasoning_effort":null}}}}`+"\n")
 	appendTo(t, kid, `{"timestamp":"2026-10-28T08:57:44Z","type":"event_msg","payload":{"type":"task_started"}}`+"\n"+
+		`{"type":"turn_context","payload":{"model":"gpt-6-luna","effort":"low"}}`+"\n"+
+		`{"type":"turn_context","payload":{"model":"gpt-6-sol","effort":"medium"}}`+"\n"+
 		`{"timestamp":"2026-10-28T08:57:46Z","type":"response_item","payload":{"type":"custom_tool_call","name":"exec"}}`+"\n")
 
-	want := []proto.Subagent{{Type: "Harvey", Description: "find callers", Started: time.Date(2026, 10, 28, 8, 57, 43, 772e6, time.UTC)}}
+	want := []proto.Subagent{{
+		Type: "Harvey", Description: "find callers", Started: time.Date(2026, 10, 28, 8, 57, 43, 772e6, time.UTC),
+		Model: "gpt-6-sol", Effort: "medium",
+	}}
 	if got := codexSubagents(files); !slices.Equal(got, want) {
 		t.Fatalf("its own turn runs: %v", got)
+	}
+
+	if model, effort := codexModel(files); model != "gpt-6-luna" || effort != "" {
+		t.Fatalf("the conversation's last turn: %q %q", model, effort)
 	}
 
 	appendTo(t, kid, `{"timestamp":"2026-10-28T08:58:48Z","type":"event_msg","payload":{"type":"task_complete","last_agent_message":"done"}}`+"\n")
@@ -140,9 +154,33 @@ func TestGrokSubagents(t *testing.T) {
 		t.Fatalf("running: %v", got)
 	}
 
+	// Each session's summary names what it runs on: the subagent's its own,
+	// the process's the one that is no subagent.
+	if model, effort := grokModel(files); model != "" || effort != "" {
+		t.Fatalf("no summary yet: %q %q", model, effort)
+	}
+
+	mustWrite(t, filepath.Join(cwd, "kid", "summary.json"), `{"current_model_id":"grok-4.6","session_kind":"subagent","reasoning_effort":"low"}`)
+	mustWrite(t, filepath.Join(cwd, "parent", "summary.json"), `{"current_model_id":"grok-4.7","session_kind":"headless","reasoning_effort":"high"}`)
+
+	want[0].Model, want[0].Effort = "grok-4.6", "low"
+	if got := grokSubagents(files); !slices.Equal(got, want) {
+		t.Fatalf("on its own model: %v", got)
+	}
+
+	for _, fs := range [][]string{files, {events("kid"), events("parent")}} { // whichever /proc lists first
+		if model, effort := grokModel(fs); model != "grok-4.7" || effort != "high" {
+			t.Fatalf("the session's own, not its subagent's: %q %q", model, effort)
+		}
+	}
+
 	mustWrite(t, meta, strings.Replace(running, `"running"`, `"completed"`, 1))
 
 	if got := grokSubagents(files); got != nil {
 		t.Fatalf("completed: %v", got)
 	}
 }
+
+// Copilot's session, the one whose inuse hold the process has open, runs on
+// the model picked last, or the one a reply of its own said since: not a
+// subagent's.
