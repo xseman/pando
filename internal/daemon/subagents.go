@@ -4,9 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"cmp"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -39,7 +42,27 @@ var subagentReaders = map[string]func(pid int, c *proto.Conversation, now time.T
 		return subagents, model, effort
 	},
 	"agy": func(pid int, _ *proto.Conversation, _ time.Time) ([]proto.Subagent, string, string) {
-		return agySubagents(openFiles(pid)), "", ""
+		files := openFiles(pid)
+		model, effort := agyModel(files)
+
+		return agySubagents(files), model, effort
+	},
+	"gemini": func(pid int, _ *proto.Conversation, _ time.Time) ([]proto.Subagent, string, string) {
+		dir, _ := os.Readlink("/proc/" + strconv.Itoa(pid) + "/cwd") // gone, or not on Linux: no session found
+
+		home := envOf(pid, "GEMINI_CLI_HOME")
+		if home == "" {
+			home, _ = os.UserHomeDir()
+		}
+
+		model, effort := geminiModel(filepath.Join(home, ".gemini"), dir)
+
+		return nil, model, effort
+	},
+	"copilot": func(pid int, _ *proto.Conversation, _ time.Time) ([]proto.Subagent, string, string) {
+		model, effort := copilotModel(openFiles(pid))
+
+		return nil, model, effort
 	},
 	"grok": func(pid int, _ *proto.Conversation, _ time.Time) ([]proto.Subagent, string, string) {
 		files := openFiles(pid)
@@ -564,6 +587,200 @@ func grokSummary(dir string) (model, effort, kind string) {
 	}
 
 	return v.Model, v.Effort, v.Kind
+}
+
+// modelScan is how far a log was read for the model and effort its agent
+// runs on, and the last it named.
+type modelScan struct {
+	off           int64
+	model, effort string
+}
+
+// modelScans are the logs scanModel has read, by path.
+var modelScans = struct {
+	sync.Mutex
+	m map[string]*modelScan
+}{m: map[string]*modelScan{}}
+
+// scanModel is the model and effort the log at path last named: take reads
+// them off each whole line appended since the last scan. A log that shrank
+// is read again from the start.
+func scanModel(path string, take func(s *modelScan, line []byte)) (model, effort string) {
+	modelScans.Lock()
+	defer modelScans.Unlock()
+
+	s := modelScans.m[path]
+	if s == nil {
+		s = &modelScan{}
+		modelScans.m[path] = s
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return s.model, s.effort
+	}
+	defer func() { _ = f.Close() }() // read only: nothing to lose
+
+	st, err := f.Stat()
+	if err != nil || st.Size() == s.off {
+		return s.model, s.effort
+	}
+
+	if st.Size() < s.off {
+		*s = modelScan{}
+	}
+
+	b := make([]byte, st.Size()-s.off)
+	n, _ := f.ReadAt(b, s.off)
+
+	end := bytes.LastIndexByte(b[:n], '\n')
+	if end < 0 { // a line still being written: it is read whole next time
+		return s.model, s.effort
+	}
+
+	for line := range bytes.SplitSeq(b[:end], []byte{'\n'}) {
+		take(s, line)
+	}
+
+	s.off += int64(end + 1)
+
+	return s.model, s.effort
+}
+
+// copilotModel is the model and effort of the session a copilot process
+// holds in files, by its inuse.<pid>.hold: the session's events.jsonl names
+// the one picked (session.model_change, "auto" for copilot's choice), the
+// one copilot chose (session.auto_mode_resolved) and the one each reply of
+// its own ran on (assistant.message).
+func copilotModel(files []string) (model, effort string) {
+	for _, p := range files {
+		if base := filepath.Base(p); !strings.HasPrefix(base, "inuse.") || filepath.Ext(base) != ".hold" {
+			continue
+		}
+
+		return scanModel(filepath.Join(filepath.Dir(p), "events.jsonl"), func(s *modelScan, line []byte) {
+			if !bytes.Contains(line, []byte(`"type":"session.`)) && !bytes.Contains(line, []byte(`"type":"assistant.message"`)) { // the rest hold whole tool output
+				return
+			}
+
+			var v struct {
+				Type string `json:"type"`
+				Data struct {
+					New    string `json:"newModel"`
+					Effort string `json:"reasoningEffort"`
+					Chosen string `json:"chosenModel"`
+					Model  string `json:"model"`
+					Parent string `json:"parentToolCallId"` // a subagent's reply
+				} `json:"data"`
+			}
+
+			if json.Unmarshal(line, &v) != nil {
+				return
+			}
+
+			switch {
+			case v.Type == "session.model_change":
+				s.model, s.effort = v.Data.New, v.Data.Effort
+			case v.Type == "session.auto_mode_resolved" && v.Data.Chosen != "":
+				s.model = v.Data.Chosen
+			case v.Type == "assistant.message" && v.Data.Parent == "" && v.Data.Model != "":
+				s.model = v.Data.Model
+			}
+		})
+	}
+
+	return "", ""
+}
+
+// geminiModel is the model of the gemini session written last for the
+// project in dir, under config directory home: tmp/<project>/chats holds a
+// session-*.jsonl each, whose replies ("type":"gemini") name their model.
+// The project goes by the name projects.json gives dir, by the hash of dir
+// before gemini kept that. Gemini records no effort.
+// ponytail: gemini holds no file open, so two sessions in one directory
+// both read as the one written last.
+func geminiModel(home, dir string) (model, effort string) {
+	if dir == "" {
+		return "", ""
+	}
+
+	var reg struct {
+		Projects map[string]string `json:"projects"`
+	}
+
+	b, _ := os.ReadFile(filepath.Join(home, "projects.json")) // none: the hash stands in
+	_ = json.Unmarshal(b, &reg)
+
+	sum := sha256.Sum256([]byte(dir))
+	id := hex.EncodeToString(sum[:])
+
+	if name := reg.Projects[dir]; name != "" {
+		id = filepath.Base(name) // a name, never a path out of tmp
+	}
+
+	var (
+		last string
+		at   time.Time
+	)
+
+	chats := filepath.Join(home, "tmp", id, "chats")
+	es, _ := os.ReadDir(chats) // none yet: it comes with the first message
+
+	for _, e := range es {
+		if !strings.HasPrefix(e.Name(), "session-") || filepath.Ext(e.Name()) != ".jsonl" {
+			continue
+		}
+
+		if info, err := e.Info(); err == nil && info.ModTime().After(at) {
+			last, at = e.Name(), info.ModTime()
+		}
+	}
+
+	if last == "" {
+		return "", ""
+	}
+
+	return scanModel(filepath.Join(chats, last), func(s *modelScan, line []byte) {
+		if !bytes.Contains(line, []byte(`"type":"gemini"`)) {
+			return
+		}
+
+		var v struct {
+			Type  string `json:"type"`
+			Model string `json:"model"`
+		}
+
+		if json.Unmarshal(line, &v) == nil && v.Type == "gemini" && v.Model != "" {
+			s.model = v.Model
+		}
+	})
+}
+
+// agySetting is how agy tells its model of a changed Model Selection, in the
+// user's next message: "… from None to Gemini 3.8 Flash (Medium). No need …".
+var agySetting = regexp.MustCompile("`Model Selection` from .*? to (.+?)(?: \\((\\w+)\\))?\\. No need")
+
+// agyModel is the model and effort of the conversation an agy process has
+// open, the one whose presence/<id>.lock it holds in files.
+// ponytail: agy keeps the selection in a protobuf, so it is read off the
+// note in the transcript, by its wording; a subagent's has none.
+func agyModel(files []string) (model, effort string) {
+	for _, p := range files {
+		if filepath.Base(filepath.Dir(p)) != "presence" || filepath.Ext(p) != ".lock" {
+			continue
+		}
+
+		home, id := filepath.Dir(filepath.Dir(p)), strings.TrimSuffix(filepath.Base(p), ".lock")
+
+		return scanModel(filepath.Join(home, "brain", id, ".system_generated", "logs", "transcript.jsonl"), func(s *modelScan, line []byte) {
+			if ms := agySetting.FindAllSubmatch(line, -1); len(ms) > 0 {
+				m := ms[len(ms)-1]
+				s.model, s.effort = string(m[1]), strings.ToLower(string(m[2]))
+			}
+		})
+	}
+
+	return "", ""
 }
 
 // agyTail is how much of a transcript's end agyWorking reads for its last

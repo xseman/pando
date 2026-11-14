@@ -1,6 +1,8 @@
 package daemon
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"slices"
@@ -184,3 +186,121 @@ func TestGrokSubagents(t *testing.T) {
 // Copilot's session, the one whose inuse hold the process has open, runs on
 // the model picked last, or the one a reply of its own said since: not a
 // subagent's.
+func TestCopilotModel(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "session-state", "s1")
+	events := filepath.Join(dir, "events.jsonl")
+	files := []string{filepath.Join(dir, "inuse.42.hold")}
+	model := func() string {
+		model, effort := copilotModel(files)
+
+		return model + " " + effort
+	}
+
+	if got := model(); got != " " {
+		t.Fatalf("no events yet: %q", got)
+	}
+
+	mustWrite(t, events, `{"type":"session.start","data":{"selectedModel":"auto"}}`+"\n"+
+		`{"type":"session.model_change","data":{"newModel":"auto","reasoningEffort":"high"}}`+"\n")
+
+	if got := model(); got != "auto high" {
+		t.Fatalf("picked: %q", got)
+	}
+
+	appendTo(t, events, `{"type":"session.auto_mode_resolved","data":{"chosenModel":"gpt-6-luna"}}`+"\n"+
+		`{"type":"assistant.message","data":{"parentToolCallId":"call_1","model":"claude-haiku-4.5"}}`+"\n"+
+		`{"type":"assistant.message","data":{"content":"hi"}}`+"\n"+
+		`{"type":"assistant.mess`)
+
+	if got := model(); got != "gpt-6-luna high" {
+		t.Fatalf("copilot's choice, past a subagent's reply: %q", got)
+	}
+
+	appendTo(t, events, `age","data":{"model":"gpt-5.5"}}`+"\n")
+
+	if got := model(); got != "gpt-5.5 high" {
+		t.Fatalf("its own reply, once whole: %q", got)
+	}
+
+	appendTo(t, events, `{"type":"session.model_change","data":{"previousModel":"gpt-5.5","newModel":"claude-opus-4.8"}}`+"\n")
+
+	if got := model(); got != "claude-opus-4.8 " {
+		t.Fatalf("picked again, on the model's own effort: %q", got)
+	}
+}
+
+// Agy names the model in the note its transcript carries of a changed Model
+// Selection: the last one stands, its effort the part in brackets.
+func TestAgyModel(t *testing.T) {
+	home := t.TempDir()
+	files := []string{filepath.Join(home, "presence", "c1.lock")}
+	transcript := filepath.Join(home, "brain", "c1", ".system_generated", "logs", "transcript.jsonl")
+	note := func(from, to string) string {
+		return `{"type":"USER_INPUT","content":"<USER_SETTINGS_CHANGE>\nThe user changed setting ` + "`Model Selection`" + ` from ` + from + ` to ` + to + `. No need to comment on this change.\n"}` + "\n"
+	}
+
+	mustWrite(t, transcript, `{"type":"USER_INPUT","content":"hello"}`+"\n")
+
+	if model, effort := agyModel(files); model != "" || effort != "" {
+		t.Fatalf("no note yet: %q %q", model, effort)
+	}
+
+	appendTo(t, transcript, note("None", "Gemini 3.8 Flash (Medium)")+`{"type":"PLANNER_RESPONSE"}`+"\n")
+
+	if model, effort := agyModel(files); model != "Gemini 3.8 Flash" || effort != "medium" {
+		t.Fatalf("the model it started on: %q %q", model, effort)
+	}
+
+	appendTo(t, transcript, note("Gemini 3.8 Flash (Medium)", "Claude Opus 5.5"))
+
+	if model, effort := agyModel(files); model != "Claude Opus 5.5" || effort != "" {
+		t.Fatalf("changed, to one without an effort: %q %q", model, effort)
+	}
+}
+
+// Gemini's session is the one written last for the project its process
+// runs in, by the name projects.json gives the directory, else its hash.
+func TestGeminiModel(t *testing.T) {
+	home, dir := t.TempDir(), "/home/me/app"
+	reply := func(model string) string {
+		return `{"id":"1","type":"gemini","content":"hi","model":"` + model + `"}` + "\n"
+	}
+
+	if model, _ := geminiModel(home, dir); model != "" {
+		t.Fatalf("no session yet: %q", model)
+	}
+
+	chats := filepath.Join(home, "tmp", "app", "chats")
+	mustWrite(t, filepath.Join(home, "projects.json"), `{"projects":{"/home/me/app":"app","/home/me/other":"other"}}`)
+	mustWrite(t, filepath.Join(chats, "session-2026-11-01T10-00-aaaaaaaa.jsonl"), `{"sessionId":"a","kind":"main"}`+"\n"+reply("gemini-3.5-pro"))
+	mustWrite(t, filepath.Join(home, "tmp", "other", "chats", "session-2026-11-02T10-00-cccccccc.jsonl"), reply("gemini-other"))
+
+	old := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(filepath.Join(chats, "session-2026-11-01T10-00-aaaaaaaa.jsonl"), old, old); err != nil {
+		t.Fatal(err)
+	}
+
+	if model, effort := geminiModel(home, dir); model != "gemini-3.5-pro" || effort != "" {
+		t.Fatalf("the project's session: %q %q", model, effort)
+	}
+
+	latest := filepath.Join(chats, "session-2026-11-03T10-00-bbbbbbbb.jsonl")
+	mustWrite(t, latest, `{"sessionId":"b","kind":"main"}`+"\n"+`{"type":"user","content":"\"type\":\"gemini\""}`+"\n")
+
+	if model, _ := geminiModel(home, dir); model != "" {
+		t.Fatalf("the one written last has no reply yet: %q", model)
+	}
+
+	appendTo(t, latest, reply("gemini-3.8-flash"))
+
+	if model, _ := geminiModel(home, dir); model != "gemini-3.8-flash" {
+		t.Fatalf("its reply: %q", model)
+	}
+	// Before gemini named projects, the directory's hash did.
+	sum := sha256.Sum256([]byte("/home/me/old"))
+	mustWrite(t, filepath.Join(home, "tmp", hex.EncodeToString(sum[:]), "chats", "session-2026-01-01T10-00-dddddddd.jsonl"), reply("gemini-2.5-pro"))
+
+	if model, _ := geminiModel(home, "/home/me/old"); model != "gemini-2.5-pro" {
+		t.Fatalf("by the hash: %q", model)
+	}
+}
