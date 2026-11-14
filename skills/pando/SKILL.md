@@ -120,11 +120,15 @@ you how to answer.
 `attention` is a UI flag for the human, not a state. Ignore it.
 
 `subagents` lists what the agent of a claude, codex, agy or grok session runs
-inside it right now (`type`, `description`, `started`; claude's also the
-`model` and `effort` of its last reply, as the session's own), oldest first; codex,
+inside it right now (`type`, `description`, `started`; with claude, codex
+and grok also the `model` and `effort` it runs on), oldest first; codex,
 agy and grok on Linux only, none while `asleep` or `exited`. They are part of
 that session, not sessions of their own: there is nothing to read, wait on or
 send to but the session itself.
+
+`model` and `effort` are what the session's agent runs on, where it records
+them: claude, codex, grok, copilot, agy and gemini (no effort), all but
+claude on Linux only. Empty before its first reply.
 
 ## Wait instead of polling
 

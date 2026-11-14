@@ -233,10 +233,26 @@ tick, `session.tick` decides:
 
   An agy subagent waiting on a background command has ended its turn and
   is left out until woken. Gemini and opencode report none.
-- `Session.Model`, `Session.Effort` and a subagent's: `setSubagents` reads the
-  last assistant line (`message.model`, `effort`) in the tail of the claude
-  transcript, the conversation's or `agent-<id>.jsonl` (`claudeRuns`), again
-  only once it grew. Claude only.
+- `Session.Model`, `Session.Effort` and a subagent's come from the same
+  readers, for the session's own conversation and each subagent's:
+
+  | Agent   | Reads                                                                              |
+  | ------- | ---------------------------------------------------------------------------------- |
+  | claude  | the last assistant line (`message.model`, `effort`) in the transcript's tail       |
+  | codex   | the rollout's last `turn_context` (`model`, `effort`; none on the model's default) |
+  | grok    | the session's `summary.json` (`current_model_id`, `reasoning_effort`)              |
+  | copilot | `events.jsonl` beside the `inuse.<pid>.hold` it holds: the last model named        |
+  | agy     | the last "`Model Selection` from … to …" note in the conversation's transcript     |
+  | gemini  | the last reply's `model` in the newest `tmp/<project>/chats/session-*.jsonl`       |
+
+  Copilot's is the model picked (`session.model_change`), the one copilot
+  chose for "auto" (`session.auto_mode_resolved`) or the one its own last
+  reply ran on. Agy keeps the selection in a protobuf only, so the note's
+  wording is what is read, and its subagents name none. Gemini's project is
+  the one `projects.json` names for its cwd; it holds no file open, so two
+  sessions in one directory read as the one written last, and it records no
+  effort. Copilot and gemini list no subagents. Opencode keeps its sessions
+  in SQLite, which the daemon does not read.
 - `/proc` is Linux only; elsewhere (macOS, Windows) only the screen and
   output timing decide, codex, agy and grok list no subagents (their readers
   need `/proc/<pid>/fd`), and an agent's session is taken to run the agent
