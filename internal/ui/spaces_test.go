@@ -356,8 +356,8 @@ func TestSpacesSticky(t *testing.T) {
 }
 
 // TestSpacesGroupByState groups the sessions under their state, the most
-// demanding first, each heading counting its own; a row says where it runs
-// and since when, its heading the state.
+// demanding first, each heading counting its own; a row says since when, its
+// heading the state, and the line under it where it runs.
 func TestSpacesGroupByState(t *testing.T) {
 	m := testModel(t)
 	now := time.Now()
@@ -394,8 +394,19 @@ func TestSpacesGroupByState(t *testing.T) {
 	}
 
 	s1 := slices.IndexFunc(rows, func(r agRow) bool { return r.s.ID == "s1" })
-	if l := ansi.Strip(lines[s1]); !strings.HasSuffix(l, " "+filepath.Base(m.ws)+" · main · 3h ") {
-		t.Fatalf("an idle row: its project, branch and age: %q", l)
+	if l := ansi.Strip(lines[s1]); !strings.HasSuffix(l, "shell                                            3h ") {
+		t.Fatalf("an idle row: its age alone: %q", l)
+	}
+
+	if l := strings.TrimRight(ansi.Strip(lines[s1+1]), " "); rows[s1+1].kind != agPlace || !strings.HasSuffix(l, "main · "+filepath.Base(m.ws)) {
+		t.Fatalf("under it, where it runs: its branch, then its project: %q", l)
+	}
+
+	m.ag.l.sel = s1 + 1
+	m.ag.step(m, rows, 1)
+
+	if m.ag.l.sel == s1+1 {
+		t.Fatal("the place line is never selected")
 	}
 
 	checkWidths(t, m)

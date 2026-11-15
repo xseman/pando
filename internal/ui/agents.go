@@ -27,9 +27,10 @@ const (
 	agProject = iota
 	agWorkspace
 	agSession
-	agSub  // a subagent the session above runs: seen, never selected; a click goes to its session
-	agGap  // the row before an open heading, drawn as a rule over it; blank before the folded and as the padding that sinks them; nothing selects it
-	agTime // a heading of no project: Pinned, Other Projects, Group by Time's Today, Yesterday, …, or Group by State's
+	agSub   // a subagent the session above runs: seen, never selected; a click goes to its session
+	agGap   // the row before an open heading, drawn as a rule over it; blank before the folded and as the padding that sinks them; nothing selects it
+	agTime  // a heading of no project: Pinned, Other Projects, Group by Time's Today, Yesterday, …, or Group by State's
+	agPlace // Group by State's line under a session saying where it runs: seen, never selected; a click goes to its session
 )
 
 // pinnedHead is the heading over the pinned sessions, an agTime row.
@@ -85,11 +86,34 @@ func (a *agents) rows(m *Model) []agRow {
 	}
 	// Pinned is a pane of its own over the tree, its border the gap.
 	pins := a.pinnedRows(m, sessions, q)
-	if q == "" {
-		return append(pins, a.pinFolded(m, a.withGaps(withSubagents(out)), a.pane(pins, m.bodyH(viewAgents)).lines)...)
+	if q != "" {
+		out = matching(q, out)
 	}
 
-	return append(pins, a.withGaps(withSubagents(matching(q, out)))...)
+	out = withSubagents(out)
+	if m.st.Settings.SpGroup == "state" {
+		out = withPlaces(out)
+	}
+
+	if q == "" {
+		return append(pins, a.pinFolded(m, a.withGaps(out), a.pane(pins, m.bodyH(viewAgents)).lines)...)
+	}
+
+	return append(pins, a.withGaps(out)...)
+}
+
+// withPlaces puts a line saying where each session runs under its row, over
+// the subagents it runs: Group by State lists no project tree to say it.
+func withPlaces(rows []agRow) []agRow {
+	out := make([]agRow, 0, 2*len(rows))
+	for _, r := range rows {
+		out = append(out, r)
+		if r.kind == agSession && !r.pinned {
+			out = append(out, agRow{kind: agPlace, project: r.project, ws: r.ws, s: r.s})
+		}
+	}
+
+	return out
 }
 
 // withSubagents puts the subagents a session runs under its row in the tree;
@@ -110,17 +134,21 @@ func withSubagents(rows []agRow) []agRow {
 	return out
 }
 
-// inert reports a row nothing selects: a gap, or a subagent's.
-func (r agRow) inert() bool { return r.kind == agGap || r.kind == agSub }
+// inert reports a row nothing selects: a gap, a subagent's or a place's.
+func (r agRow) inert() bool { return r.kind == agGap || r.ofSession() }
+
+// ofSession reports a row a click takes to the session above it: a
+// subagent's or a place's.
+func (r agRow) ofSession() bool { return r.kind == agSub || r.kind == agPlace }
 
 // caption reports r one of the dim captions over the projects not on top.
 func (r agRow) caption() bool { return r.when == bareHead || r.when == recentHead }
 
 // moreSessions reports whether another session follows row i's in its
-// worktree, past the subagents under it.
+// worktree, past the subagents and the place under it.
 func moreSessions(rows []agRow, i int) bool {
 	j := i + 1
-	for j < len(rows) && rows[j].kind == agSub {
+	for j < len(rows) && rows[j].ofSession() {
 		j++
 	}
 
@@ -1146,27 +1174,18 @@ func agLabel(r agRow) string {
 }
 
 // runsAt is session row r's status grouped by Time or State, with no project
-// tree to say where it runs: its branch before it; by State its project too,
-// and since when in place of the state its heading says.
+// tree to say where it runs: by Time its branch before it; by State since
+// when in place of the state its heading says, its place line saying where.
 func (m *Model) runsAt(r agRow, status string) string {
-	where := r.ws.Branch
-	if where == "" {
-		where = filepath.Base(r.ws.Path)
+	if m.st.Settings.SpGroup == "state" {
+		if t := shortAgo(r.s.Updated, time.Now()); t != "" && r.s.Status != "exited" {
+			return t
+		}
+
+		return status
 	}
 
-	if m.st.Settings.SpGroup != "state" {
-		return where + " · " + status
-	}
-
-	if r.ws.Project != "" {
-		where = filepath.Base(r.ws.Project) + " · " + where
-	}
-
-	if t := shortAgo(r.s.Updated, time.Now()); t != "" && r.s.Status != "exited" {
-		status = t
-	}
-
-	return where + " · " + status
+	return wsName(r.ws) + " · " + status
 }
 
 // runsOn is a tip's line of what an agent runs on: "claude-opus-5-5 ·
@@ -1545,6 +1564,19 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			}
 
 			return row(rw, bg, append(left, plus...), append([]seg{sg(right, dim)}, kill...)...)
+
+		case agPlace: // under its session's name, on the tree's guide while sessions follow
+			guide := "   "
+			if moreSessions(rows, i) {
+				guide = "│  "
+			}
+
+			segs := []seg{sg("   "+guide+"  ", dim), sg(wtGlyph(r.ws).s()+" "+wsName(r.ws), fg(m.wtColor(r.ws)))}
+			if r.ws.Project != "" {
+				segs = append(segs, sg(" · "+filepath.Base(r.ws.Project), dim))
+			}
+
+			return row(rw, bg, segs)
 
 		case agSub: // under its session's glyph, on the tree's guide while sessions follow
 			guide := "   "
@@ -3009,7 +3041,7 @@ func (a *agents) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 
 	case tea.MouseClickMsg:
 		i := a.rowAt(m, rows, y)
-		for i > 0 && rows[i].kind == agSub { // a subagent's row is its session's
+		for i > 0 && rows[i].ofSession() { // a subagent's or a place's row is its session's
 			i--
 		}
 
@@ -3385,7 +3417,7 @@ func (a *agents) sessionAt(m *Model, y int) string {
 	}
 
 	rows := a.rows(m)
-	if i := a.rowAt(m, rows, y); i >= 0 && (rows[i].kind == agSession || rows[i].kind == agSub) && !rows[i].pinned { // a subagent's row is its session's
+	if i := a.rowAt(m, rows, y); i >= 0 && (rows[i].kind == agSession || rows[i].ofSession()) && !rows[i].pinned { // a subagent's or a place's row is its session's
 		return rows[i].s.ID
 	}
 

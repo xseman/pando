@@ -295,6 +295,9 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
   the project's order). A worktree no session runs in keeps its row, after
   them. A session's menu adds its worktree's _Split Sessions_ and _Delete
   Worktree…_. Pinned stays a tree.
+- Group by State puts a line under each session (`agPlace`, `withPlaces`):
+  its worktree in its color, then its project. Never selected; a click is
+  its session's.
 - Session reordering applies under Sort by Created + Group by Workspace only;
   a project on top's under Sort Projects Manually only.
 - `p`, the gutter's ⊙ (on hover) or the menu pins a session, or unpins it
@@ -342,7 +345,7 @@ settings (`spaces_hide`, `spaces_sort`, `spaces_group`) read by
 | Group by Workspace  | the tree above                                       |
 | Group by Project    | the tree, a project's sessions in one list (below)   |
 | Group by Time       | `agTime` headings Today … Older; rows add the branch |
-| Group by State      | Blocked … Asleep, counted; rows add project, age     |
+| Group by State      | Blocked … Asleep, counted; age, a line where it runs |
 | Collapse All Groups | folds every project or heading                       |
 
 ### Sessions and tabs
