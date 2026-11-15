@@ -442,10 +442,14 @@ show a warning.
 
 ## Usage
 
-A tab beside Sessions (`9`) while `usage` is on and `claude` or `codex` is
-installed: each sign-in's plan and a row per limit window, how much of it is
-used and when it resets. A cell of a meter in the plain color is a model's own
-allowance on that window, named in the row's tip. An agent has a sign-in per config: _default_,
+A tab beside Sessions (`9`) while `usage` is on and `claude`, `codex`, `agy`,
+`copilot` or `grok` is installed: each sign-in's plan and a row per limit
+window, how much of it is used and when it resets. A model's own allowance on
+the window is a cell of the meter colored as its own share is, named in the
+row's tip, and at the row's end once it is at 75% (`Fable 93%`). A limit of
+some models only, with no window of every model's to mark, takes a row named
+after them: agy's `Gemini 5h` and `Claude + GPT 5h`, copilot's `chat 1mo` on
+the free plan. An agent has a sign-in per config: _default_,
 each of its `[profiles]` that sets its config directory (`CLAUDE_CONFIG_DIR`,
 `CODEX_HOME`), and every config pando found, by its directory without the
 agent's name: `~/.claude-work` is _work_. A profile that sets
@@ -457,9 +461,12 @@ anything else runs on the default's sign-in and is not listed.
 | `a` | `profile_switch`: `auto`, or from it back to `notify`            |
 | `r` | ask again; the daemon asks every 15 minutes on its own           |
 
-The active profile is the row a new session's profile picker opens on, where
-each profile says how spent it is and the selected one what it runs where, and what `pando session new` starts an
-agent with. The status bar names it with its fullest limit, yellow from 75%
+The active profile is the row a new session's profile picker opens on, and
+what `pando session new` starts an agent with. The picker's rows have a
+column per window, claude's `5h` and `7d` named in its top edge: each a
+meter, share and reset, a model's own allowance a cell of it and named at the
+row's end from 75%; the selected row's footer says what it runs where. The
+status bar names the active profile with its fullest limit, yellow from 75%
 and red from 90%.
 
 Once the active profile has used `profile_switch_at` percent of a limit (95),
@@ -488,10 +495,14 @@ and goes on with its work.
 The limits come from each agent's own service: claude's from the endpoint
 Claude Code's `/usage` reads, with the sign-in each profile keeps in
 `.credentials.json`, codex's from its own app-server, which renews its sign-in
-as codex does. pando never renews claude's: one that lapsed shows its last
-limits as _paused_ until Claude Code runs again.
-On macOS Claude Code keeps its sign-in in the Keychain, where pando does not
-look: claude reads _signed out_ there.
+as codex does, agy's from Google's Cloud Code API with the sign-in agy keeps in
+the keyring, grok's from xAI's billing endpoint with `auth.json`'s key in
+`GROK_HOME`, copilot's from GitHub with `GH_TOKEN` or `gh`'s sign-in (Copilot's
+own is in the keyring, where pando does not look, so every copilot config shows
+gh's account). pando never renews a sign-in: one that lapsed shows its last
+limits as _paused_ until its agent runs again.
+On macOS Claude Code and agy keep their sign-ins in the Keychain, where pando
+does not look: they read _signed out_ there.
 
 ![the Usage tab with claude's default and work profiles and codex, a meter per limit window; the default near its weekly limit, work made the profile new sessions start with, then the profile picker with each one's room](demo/usage.gif)
 

@@ -233,14 +233,21 @@ func TestProfileRoom(t *testing.T) {
 
 	items := m.modal.items
 
-	row0, row1 := segsText(items[0].segs), segsText(items[1].segs)
-	if len(items) != 2 || !strings.HasPrefix(row0, "default · Max 5x   ▰▰▰") || !strings.HasSuffix(row0, "▱  96%      2d 2h") ||
-		!strings.HasPrefix(row1, "work    · Team 5x  ▰▰▰") || !strings.HasSuffix(row1, "▱  30%     paused") {
-		t.Fatalf("rows %q %q", row0, row1)
+	// A column per window, 5h then 7d, Fable's own limit a tick on the 7d
+	// meter; work's stale 7d dim, its 5h column empty and why at the end.
+	left0, right0, right1 := segsText(items[0].segs), segsText(items[0].right), segsText(items[1].right)
+	if len(items) != 2 || left0 != "default · Max 5x   " || segsText(items[1].segs) != "work    · Team 5x  " ||
+		!strings.HasPrefix(right0, "▰") || !strings.Contains(right0, " 40%    2d 2h   ▰") || !strings.HasSuffix(right0, " 96%    2d 2h        ") ||
+		!strings.HasPrefix(right1, "      ") || !strings.HasSuffix(right1, " 30%           paused") {
+		t.Fatalf("rows %q %q, %q %q", left0, right0, segsText(items[1].segs), right1)
 	}
 
-	if _, _, w, _, _ := m.modal.rect(m); ansi.StringWidth(row0) != w-5 || ansi.StringWidth(row1) != w-5 {
-		t.Fatalf("the meters do not fill the box, %d wide: %q %q", w, row0, row1)
+	if _, _, w, _, _ := m.modal.rect(m); ansi.StringWidth(right0) != ansi.StringWidth(right1) || ansi.StringWidth(left0+right0) > w-5 || w < 80 {
+		t.Fatalf("the columns do not line up in the box, %d wide: %q %q", w, right0, right1)
+	}
+
+	if !strings.HasPrefix(m.modal.note, "5h ─") || !strings.Contains(m.modal.note, "── 7d ─") {
+		t.Fatalf("the top edge names %q", m.modal.note)
 	}
 
 	if items[1].detail != m.ws+" ❯ "+workEnv[0]+" claude" {
@@ -252,8 +259,8 @@ func TestProfileRoom(t *testing.T) {
 		t.Fatal("the footer does not say what the selected profile runs")
 	}
 
-	if !strings.Contains(v, "96%      2d 2h  │") {
-		t.Fatal("a row's reset is cut, or it does not end at the frame")
+	if !strings.Contains(v, "96%    2d 2h         │") || !strings.Contains(v, "5h ─") {
+		t.Fatalf("a row's reset is cut, it does not end at the frame, or the windows are not named:\n%s", v)
 	}
 
 	checkWidths(t, m)
@@ -265,12 +272,12 @@ func TestProfileRoom(t *testing.T) {
 	// A profile with no config of its own spends the default's plan.
 	m.st.ResumeEnv = map[string][]string{"claude": {"CLAUDE_CONFIG_DIR"}}
 
-	if got := segsText(m.room("claude", []string{"ANTHROPIC_MODEL=x"}, 30)); !strings.Contains(got, " 96%") {
-		t.Fatalf("a profile on the default's sign-in says %q", got)
+	if a, ok := m.spends("claude", []string{"ANTHROPIC_MODEL=x"}); !ok || a.Name != "default" {
+		t.Fatalf("a profile on the default's sign-in spends %+v", a)
 	}
 
-	if got := segsText(m.room("claude", []string{"CLAUDE_CONFIG_DIR=/elsewhere"}, 30)); got != "" {
-		t.Fatalf("a config nothing is known of says %q", got)
+	if a, ok := m.spends("claude", []string{"CLAUDE_CONFIG_DIR=/elsewhere"}); ok {
+		t.Fatalf("a config nothing is known of spends %+v", a)
 	}
 
 	m.modal = nil
@@ -355,11 +362,43 @@ func TestLimitMeter(t *testing.T) {
 		}
 	}
 
-	ticked := limitMeter(8, 25, []proto.Limit{{Percent: 100}, {Percent: 0}}, dim)
-	for i, s := range ticked { // a tick on the first cell would read as the fill
-		if tick := s.st.GetForeground() == plain.GetForeground(); tick != (i == 7) {
-			t.Errorf("cell %d drawn as a tick: %v", i, tick)
-		}
+	// A tick is a filled cell colored as its own share is; one on the first
+	// cell would read as the fill.
+	ticked := limitMeter(8, 25, []proto.Limit{{Percent: 100}, {Percent: 0}, {Percent: 50}}, dim)
+	if segsText(ticked) != "▰▰▱▱▰▱▱▰" || ticked[7].st.GetForeground() != pal.errc || ticked[4].st.GetForeground() != plain.GetForeground() || ticked[0].st.GetForeground() != dim.GetForeground() {
+		t.Errorf("ticks %q", segsText(ticked))
+	}
+}
+
+// TestModelFlag holds a model's own limit named at the end of its row once it
+// nears its end, and a meter of a window only models' own limits are on,
+// agy's groups: the fullest shown, the other its tick.
+func TestModelFlag(t *testing.T) {
+	m := usageModel(t)
+	m.usage.Accounts[0].Limits[2].Percent = 93
+	m.showView(viewUsage)
+
+	if week := strings.Split(checkWidths(t, m), "\n")[bodyY(t, m, " 96% ")]; !strings.HasSuffix(strings.TrimRight(week, " │"), "Fable 93%") {
+		t.Fatalf("the weekly row: %q", week)
+	}
+
+	if flag, _ := modelFlag([]proto.Limit{{Model: "Fable", Percent: 74}, {Percent: 99}}); flag != "" {
+		t.Fatalf("flagged %q under 75%%", flag)
+	}
+
+	groups := []proto.Limit{{Window: "5h", Model: "Gemini", Percent: 12}, {Window: "5h", Model: "Claude + GPT", Percent: 81}, {Window: "7d", Model: "Gemini", Percent: 30}}
+
+	shown, ticks, ok := windowLimit(groups, "5h")
+	if !ok || shown.Model != "Claude + GPT" || len(ticks) != 1 || ticks[0].Model != "Gemini" {
+		t.Fatalf("5h shows %+v, ticks %+v", shown, ticks)
+	}
+
+	if _, _, ok := windowLimit(groups, "1mo"); ok {
+		t.Fatal("a window with no limit shows one")
+	}
+
+	if got := roomWindows([]proto.Account{{Limits: groups}, {Limits: []proto.Limit{{Window: "1mo"}}}}); !slices.Equal(got, []string{"5h", "7d"}) {
+		t.Fatalf("windows %q", got)
 	}
 }
 

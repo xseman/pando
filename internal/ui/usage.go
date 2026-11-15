@@ -145,26 +145,134 @@ func (m *Model) spends(agent string, env []string) (proto.Account, bool) {
 	return a, ok && m.hasUsage()
 }
 
-// room is how spent agent's account under env is, w cells of a row that
-// names it: its fullest limit's meter, share and reset, or in place of the
-// reset why its limits are not current. None while nothing is known of it.
-func (m *Model) room(agent string, env []string, w int) []seg {
-	a, ok := m.spends(agent, env)
-	if !ok {
-		return nil
+// Room's columns: a window's meter, share and reset, and the gap between two.
+const (
+	roomCell  = 14 // " 93%" and "  2d 17h" after the meter
+	roomGap   = 3
+	roomMeter = 12 // the meter's cells the picker asks room for
+)
+
+// roomWindows are the limit windows a profile picker's rows show, at most two
+// in the order accounts name them: claude's 5h and 7d.
+func roomWindows(accounts []proto.Account) []string {
+	var out []string
+
+	for _, a := range accounts {
+		for _, l := range a.Limits {
+			if len(out) < 2 && !slices.Contains(out, l.Window) {
+				out = append(out, l.Window)
+			}
+		}
 	}
 
-	if len(a.Limits) == 0 {
-		return []seg{sg(noteWord(a.Note), dim)}
+	return out
+}
+
+// windowLimit is what a meter of limits on window shows: the limit every
+// model draws from, else the fullest of the models' own, the others as its
+// ticks. False for a window none of limits is on.
+func windowLimit(limits []proto.Limit, window string) (proto.Limit, []proto.Limit, bool) {
+	on := slices.DeleteFunc(slices.Clone(limits), func(l proto.Limit) bool { return l.Window != window })
+	if len(on) == 0 {
+		return proto.Limit{}, nil, false
 	}
 
-	fullest := slices.MaxFunc(a.Limits, func(x, y proto.Limit) int { return cmp.Compare(x.Percent, y.Percent) })
+	i := slices.IndexFunc(on, func(l proto.Limit) bool { return l.Model == "" })
+	if i < 0 {
+		i = slices.Index(on, slices.MaxFunc(on, func(x, y proto.Limit) int { return cmp.Compare(x.Percent, y.Percent) }))
+	}
+
+	shown := on[i]
+	ticks := slices.Delete(on, i, i+1)
+
+	return shown, ticks, true
+}
+
+// modelFlag names the fullest of limits that is a model's own once it is at
+// 75% or over, "Fable 93%", and its share; "" under that.
+func modelFlag(limits []proto.Limit) (string, float64) {
+	var top proto.Limit
+
+	for _, l := range limits {
+		if l.Model != "" && l.Percent >= 75 && l.Percent > top.Percent {
+			top = l
+		}
+	}
+
+	if top.Model == "" {
+		return "", 0
+	}
+
+	flag := fmt.Sprintf("%s %.0f%%", top.Model, top.Percent)
+
+	return flag, top.Percent
+}
+
+// roomFlag is what ends account a's row in a profile picker: why its limits
+// are not current, else the model's own limit nearest its end (modelFlag).
+func roomFlag(a proto.Account) (string, lipgloss.Style) {
+	if a.Note != "" {
+		return noteWord(a.Note), dim
+	}
+
+	flag, pct := modelFlag(a.Limits)
+
+	return flag, levelStyle(pct, dim)
+}
+
+// room is how spent account a is, at the right end of its row in a profile
+// picker: per window a column of colW cells, its meter, share and reset,
+// the column empty where a has no limit; then roomFlag in flagW cells.
+func room(a proto.Account, windows []string, colW, flagW int) []seg {
 	stale := a.Note != ""
-	when := ifElse(stale, noteWord(a.Note), until(fullest.Resets, time.Now()))
+	now := time.Now()
 
-	return append(limitMeter(max(w-16, 3), fullest.Percent, nil, ifElse(stale, dim, levelStyle(fullest.Percent, fg(pal.accent)))),
-		sg(fmt.Sprintf(" %3.0f%%", fullest.Percent), ifElse(stale, dim, levelStyle(fullest.Percent, plain))),
-		sg("  "+pad(when, 9, true), dim)) // "16d 11h" of a 30d window, "signed out"
+	var out []seg
+
+	for i, w := range windows {
+		if i > 0 {
+			out = append(out, sg(strings.Repeat(" ", roomGap), plain))
+		}
+
+		l, ticks, ok := windowLimit(a.Limits, w)
+		if !ok {
+			out = append(out, sg(strings.Repeat(" ", colW), plain))
+			continue
+		}
+
+		when := ifElse(stale, "", until(l.Resets, now))
+		out = append(out, limitMeter(max(colW-roomCell, 3), l.Percent, ifElse(stale, nil, ticks), ifElse(stale, dim, levelStyle(l.Percent, fg(pal.accent))))...)
+		out = append(out,
+			sg(fmt.Sprintf(" %3.0f%%", l.Percent), ifElse(stale, dim, levelStyle(l.Percent, plain))),
+			sg("  "+pad(when, roomCell-7, true), dim)) // "2d 17h", "16d 11h" of a 30d window
+	}
+
+	if flagW > 0 {
+		flag, st := roomFlag(a)
+		out = append(out, sg("  ", plain), sg(pad(flag, flagW, false), st))
+	}
+
+	return out
+}
+
+// roomHead names room's columns in a profile picker's top edge, each window
+// over its meter.
+func roomHead(windows []string, colW, flagW int) string {
+	var b strings.Builder
+
+	for i, w := range windows {
+		if i > 0 {
+			b.WriteString(strings.Repeat("─", roomGap-1) + " ")
+		}
+
+		b.WriteString(w + " " + strings.Repeat("─", max(colW-strWidth(w)-1, 0)))
+	}
+
+	if flagW > 0 {
+		b.WriteString(strings.Repeat("─", flagW+2))
+	}
+
+	return b.String()
 }
 
 // noteWord is an account's Note without its explanation: "paused".
@@ -265,7 +373,7 @@ type usRow struct {
 }
 
 // agentNames are the agents as their makers call them.
-var agentNames = map[string]string{"claude": "Claude Code", "codex": "Codex"}
+var agentNames = map[string]string{"claude": "Claude Code", "codex": "Codex", "agy": "Antigravity", "copilot": "Copilot", "grok": "Grok"}
 
 // agentMark is the mark before an agent's heading, Claude Code's in its own
 // orange; none for an agent without one.
@@ -345,6 +453,24 @@ func (v *usageView) selected(m *Model) *usRow {
 func (v *usageView) lines(m *Model, w, h int) []string {
 	rows, now := v.rows(m), time.Now()
 	hover, mx := m.hoverRow(viewUsage), m.mouseCol(viewUsage)
+
+	// The limits' labels in one column, so their meters line up, and a column
+	// at the right end for the model's own limit a row names, when one does.
+	labelW, flagW := 3, 0
+
+	for _, r := range rows {
+		if r.kind != usLimit {
+			continue
+		}
+
+		labelW = max(labelW, strWidth(limitLabel(r.lim)))
+
+		if r.acct.Note == "" {
+			flag, _ := modelFlag(r.ticks)
+			flagW = max(flagW, strWidth(flag))
+		}
+	}
+
 	v.l.bar = m.barState("list:usage")
 
 	if v.l.sel >= 0 && v.l.sel < len(rows) && rows[v.l.sel].inert() { // first shown, or filtered: on an account
@@ -386,25 +512,25 @@ func (v *usageView) lines(m *Model, w, h int) []string {
 			return row(rw, bg, []seg{sg("   "+r.acct.Note, dim)})
 		}
 
-		label := pad(r.lim.Window, 3, false)
-		if r.lim.Model != "" { // a model's allowance with no window of every model's to mark
-			label = r.lim.Model + " " + r.lim.Window
-		}
-
-		lead := "   " + label + " "
+		lead := "   " + pad(limitLabel(r.lim), labelW, false) + " "
 		stale := r.acct.Note != ""
 		tone := ifElse(stale, dim, levelStyle(r.lim.Percent, fg(pal.accent)))
+		ticks := ifElse(stale, nil, r.ticks)
 		right := []seg{
 			sg(fmt.Sprintf("%3.0f%%", r.lim.Percent), ifElse(stale, dim, levelStyle(r.lim.Percent, name))),
 			sg(pad(until(r.lim.Resets, now), 9, true)+" ", dim),
 		}
 
-		cells := rw - strWidth(lead) - 15
+		if flagW > 0 {
+			flag, pct := modelFlag(ticks)
+			right = append(right, sg(" "+pad(flag, flagW, false)+" ", levelStyle(pct, dim)))
+		}
+
+		cells := rw - strWidth(lead) - 15 - ifElse(flagW > 0, flagW+2, 0)
 		if cells < 3 { // too narrow for a meter that says anything
 			return row(rw, bg, []seg{sg(lead, dim)}, right...)
 		}
 
-		ticks := ifElse(stale, nil, r.ticks)
 		if len(ticks) > 0 && i-v.l.top == hover {
 			tips := make([]string, len(ticks))
 			for j, t := range ticks {
@@ -418,8 +544,14 @@ func (v *usageView) lines(m *Model, w, h int) []string {
 	})
 }
 
+// limitLabel names a limit's row: its window, after the models it is theirs
+// when it has no window of every model's to mark ("Gemini 5h").
+func limitLabel(l proto.Limit) string {
+	return strings.TrimPrefix(l.Model+" "+l.Window, " ")
+}
+
 // limitMeter draws pct of w cells, ▰ in tone over a faint ▱ track, any use
-// one cell at least, with the cell at each of ticks in the plain color.
+// one cell at least, with a ▰ at each of ticks colored as its share is.
 func limitMeter(w int, pct float64, ticks []proto.Limit, tone lipgloss.Style) []seg {
 	full := min(int(math.Round(pct/100*float64(w))), w)
 	if pct > 0 {
@@ -433,7 +565,7 @@ func limitMeter(w int, pct float64, ticks []proto.Limit, tone lipgloss.Style) []
 
 	for _, t := range ticks {
 		if at := min(int(t.Percent/100*float64(w)), w-1); at > 0 { // on the first cell it reads as the fill
-			cells[at].st = plain
+			cells[at] = sg("▰", levelStyle(t.Percent, plain))
 		}
 	}
 

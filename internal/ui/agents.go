@@ -2136,15 +2136,28 @@ func (m *Model) profilePicker(ws, agent string, cmd []string) bool {
 
 // profileModal is a picker of agent's profiles, each run with cmd in dir:
 // a row says its account's plan, as Usage does, and how spent it is (room),
-// the footer what the selected one runs where (runLine), and the one new
-// sessions start with (State.Active) is the row selected.
+// the windows named in the top edge (roomHead), the footer what the selected
+// one runs where (runLine), and the one new sessions start with
+// (State.Active) is the row selected.
 func (m *Model) profileModal(title, agent, dir string, cmd []string, profiles []profile, run func(profile) func(*Model) tea.Cmd) *modal {
-	nameW, planW, detailW := 0, 0, 0
+	nameW, planW, detailW, flagW := 0, 0, 0, 0
 	plans := make([]string, len(profiles))
+	accounts := make([]proto.Account, len(profiles))
+	known := make([]bool, len(profiles))
+
+	var measured []proto.Account
 
 	for i, p := range profiles {
-		if a, ok := m.spends(agent, p.env); ok && a.Plan != "" {
-			plans[i] = " · " + a.Plan
+		accounts[i], known[i] = m.spends(agent, p.env)
+		if known[i] {
+			flag, _ := roomFlag(accounts[i])
+			flagW = max(flagW, strWidth(flag))
+
+			measured = append(measured, accounts[i])
+		}
+
+		if known[i] && accounts[i].Plan != "" {
+			plans[i] = " · " + accounts[i].Plan
 		}
 
 		nameW, planW = max(nameW, strWidth(p.name)), max(planW, strWidth(plans[i]))
@@ -2156,14 +2169,35 @@ func (m *Model) profileModal(title, agent, dir string, cmd []string, profiles []
 		detailW = max(detailW, ansi.StringWidth(items[i].detail))
 	}
 
+	windows := roomWindows(measured)
+	flagArea := ifElse(flagW > 0, flagW+2, 0)
+	// What the rows take besides room: the frame, " name · plan  ", and a row's right "  ".
+	frame := 2 + 1 + nameW + planW + 2 + 2
+	asked := len(windows)*(roomMeter+roomCell) + max(len(windows)-1, 0)*roomGap + flagArea
+
 	md := newPicker(title, items)
-	md.foot, md.w = true, detailW+4 // the footer's blanks and the frame: what runs is not cut
+	md.foot, md.w = true, max(detailW+4, frame+asked) // the footer's blanks and the frame: what runs is not cut
 
 	_, _, w, _, _ := md.rect(m)
 
-	for i, p := range profiles { // in columns filling the box: frame, " name · plan  ", room, and a row's right "  "
-		name, plan := sg(pad(p.name, nameW, false), plain), sg(pad(plans[i], planW, false)+"  ", dim)
-		items[i].segs = append([]seg{name, plan}, m.room(agent, p.env, w-2-1-nameW-planW-2-2)...)
+	if len(windows) > 1 && w-frame-flagArea-roomGap < 2*(3+roomCell) { // too narrow for two meters that say anything
+		windows = windows[:1]
+	}
+
+	colW := 0
+	if n := len(windows); n > 0 {
+		colW = (w - frame - flagArea - (n-1)*roomGap) / n
+	}
+
+	for i, p := range profiles { // in columns filling the box: " name · plan  " left, room right
+		items[i].segs = []seg{sg(pad(p.name, nameW, false), plain), sg(pad(plans[i], planW, false)+"  ", dim)}
+		if known[i] {
+			items[i].right = room(accounts[i], windows, colW, flagW)
+		}
+	}
+
+	if head := roomHead(windows, colW, flagW); len(windows) > 0 && strWidth(title)+strWidth(head)+6 <= w {
+		md.note = head
 	}
 
 	md.refilter() // the rows again, with their meters and the detail in the footer
