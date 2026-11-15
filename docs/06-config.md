@@ -82,7 +82,7 @@ config.toml edited ───────────┘  └─ "state" event �
 | `shell`                | `""`           | command every terminal opens: [Shell](#shell)                                  |
 | `session_highlight`    | `tint`         | waiting, done or failed session: `tint` (pulsing), `steady`, `off`             |
 | `spaces_sort`          | `created`      | `created`, `updated` (last input or change of state)                           |
-| `spaces_group`         | `workspace`    | `workspace`, `time` (Today, Yesterday, …), `state` (Blocked, Working, …)       |
+| `spaces_group`         | `workspace`    | `workspace`, `project` (a list each), `time` (Today, …), `state` (Blocked, …)  |
 | `spaces_project_sort`  | `manual`       | `manual` (drag, `alt+↑↓`), `updated` (sessions' last input or change)          |
 | `spaces_hide`          | `[]`           | states left out: `blocked` `running` `done` `idle` `asleep` `exited`           |
 | `sleep_after`          | `60`           | minutes idle and unused before a session sleeps; `0` never                     |

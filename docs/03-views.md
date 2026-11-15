@@ -219,8 +219,8 @@ re-roots Explorer and Source Control to its worktree.
 - A project with no session: a click or `⏎` switches to its checkout, `n`
   starts a session as on a heading.
 - `/` or `ctrl+f` filters (`matching`): a row holding every word typed, in
-  any case and without accents (`hits`), in a session's name and title but
-  not its agent, a worktree's branch, a project's name, its folder's and the
+  any case and without accents (`hits`), in a session's name, title and
+  branch but not its agent, a worktree's branch, a project's name, its folder's and the
   branch of the checkout it holds (`searchText`). A project found brings all it holds; one under the caption
   shows there, under it. The first session found is selected (`firstHit`),
   `⏎` opens it, as a click on its name, and clears the filter (`openHit`);
@@ -287,6 +287,14 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
 - A worktree with two sessions or more has _Split Sessions_ (`▥`, hover,
   `splitSessions`): a group each, side by side and as wide as each other,
   the files of the groups it had in the first.
+- Group by Project (`flat`, `flatRows`) keeps the projects as the tree has
+  them and drops the worktree rows: a project's sessions in one list in
+  `sessionRank`'s order, the Sort's within a state, each saying its
+  worktree's last path segment before its status in that worktree's color
+  (`wtColor`: the checkout in the accent, linked ones through `wtColors` in
+  the project's order). A worktree no session runs in keeps its row, after
+  them. A session's menu adds its worktree's _Split Sessions_ and _Delete
+  Worktree…_. Pinned stays a tree.
 - Session reordering applies under Sort by Created + Group by Workspace only;
   a project on top's under Sort Projects Manually only.
 - `p`, the gutter's ⊙ (on hover) or the menu pins a session, or unpins it
@@ -332,6 +340,7 @@ settings (`spaces_hide`, `spaces_sort`, `spaces_group`) read by
 | Sort by Updated     | newest input, question or real work (`Updated`)      |
 | Sort Projects …     | saved order, or newest session change first          |
 | Group by Workspace  | the tree above                                       |
+| Group by Project    | the tree, a project's sessions in one list (below)   |
 | Group by Time       | `agTime` headings Today … Older; rows add the branch |
 | Group by State      | Blocked … Asleep, counted; rows add project, age     |
 | Collapse All Groups | folds every project or heading                       |

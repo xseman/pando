@@ -401,6 +401,88 @@ func TestSpacesGroupByState(t *testing.T) {
 	checkWidths(t, m)
 }
 
+// TestSpacesGroupByProject lists a project's sessions in one list, the most
+// demanding first, each saying its worktree in that worktree's color; a
+// worktree no session runs in keeps its row, after them.
+func TestSpacesGroupByProject(t *testing.T) {
+	m := testModel(t)
+	root := m.wss[0].Project
+	feat, empty := t.TempDir(), t.TempDir()
+	m.wss = append(m.wss,
+		proto.Workspace{Path: feat, Project: root, Branch: "fix/woocommerce-currency"},
+		proto.Workspace{Path: empty, Project: root, Branch: "feat/idle"})
+	m.sessions = append(m.sessions,
+		proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: feat, Agent: "claude"}, Status: "idle", Attention: true},
+		proto.Session{SessionSpec: proto.SessionSpec{ID: "s3", Workspace: feat, Agent: "claude"}, Status: "running"})
+	press(m, "3", "o")
+
+	i := slices.IndexFunc(m.modal.disp, func(it item) bool { return strings.TrimSpace(it.label) == "Group by Project" })
+	if i < 0 {
+		t.Fatalf("no Group by Project in the view menu: %+v", m.modal.disp)
+	}
+
+	m.modal.choose(m, i)
+	m.st.Settings.SpGroup = "project" // the daemon's state event, which the test has none of
+
+	var got []string
+
+	rows := m.ag.rows(m)
+	for _, r := range rows {
+		switch r.kind {
+		case agSession:
+			got = append(got, r.s.ID)
+		case agWorkspace:
+			got = append(got, r.ws.Branch)
+		}
+	}
+
+	if want := []string{"s3", "s2", "s1", "feat/idle"}; !slices.Equal(got, want) || m.sessionsMovable() {
+		t.Fatalf("rows %q, want %q: running, done, idle, then the empty worktree; no reorder", got, want)
+	}
+
+	if m.wtColor(m.wss[0]) != pal.accent || m.wtColor(m.wss[1]) == m.wtColor(m.wss[2]) {
+		t.Fatal("the checkout in the accent, each linked worktree its own color")
+	}
+
+	lines := m.ag.lines(m, 60, m.bodyH(viewAgents))
+	s3 := slices.IndexFunc(rows, func(r agRow) bool { return r.s.ID == "s3" })
+
+	if l := ansi.Strip(lines[s3]); !strings.Contains(l, "woocommerce-currency running") || strings.Contains(l, "├─") {
+		t.Fatalf("a row says its worktree's last path segment, with no tree guide: %q", l)
+	}
+
+	m.ag.l.sel = s3
+	labels := func() []string {
+		var out []string
+		for _, it := range m.ag.items(m) {
+			out = append(out, it.label)
+		}
+
+		return out
+	}()
+
+	if !slices.Contains(labels, "Split Sessions") || !slices.Contains(labels, "Delete Worktree…") {
+		t.Fatalf("its menu does what its worktree's row would: %q", labels)
+	}
+
+	press(m, "/")
+	typeText(m, "woocommerce")
+
+	var found []string
+
+	for _, r := range m.ag.rows(m) {
+		if r.kind == agSession {
+			found = append(found, r.s.ID)
+		}
+	}
+
+	if !slices.Equal(found, []string{"s3", "s2"}) {
+		t.Fatalf("the Filter finds a session by its worktree's branch: %q (query %q)", found, m.query(viewAgents))
+	}
+
+	checkWidths(t, m)
+}
+
 // TestSpacesUnfoldRunning opens a folded project when one of its sessions
 // goes to work; folded again while it works, it stays shut.
 func TestSpacesUnfoldRunning(t *testing.T) {

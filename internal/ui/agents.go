@@ -186,6 +186,8 @@ func searchText(r agRow) string {
 		return agLabel(r) + " " + filepath.Base(filepath.Dir(r.project)) + " " + r.ws.Branch
 	case r.when == bareHead:
 		return ""
+	case r.kind == agSession: // its branch too: Group by Project's row says it, with no worktree row to find
+		return agLabel(r) + " " + r.ws.Branch
 	}
 
 	return agLabel(r)
@@ -290,7 +292,12 @@ func (a *agents) treeRows(m *Model, sessions []proto.Session, q string, all bool
 			}
 		}
 
-		add(projectRows(head(p), wts, sessions, q))
+		rows := projectRows(head(p), wts, sessions, q)
+		if m.flat() {
+			rows = flatRows(rows)
+		}
+
+		add(rows)
 	}
 
 	var other []agRow
@@ -386,6 +393,29 @@ func projectRows(head agRow, wts []proto.Workspace, sessions []proto.Session, q 
 	}
 
 	return rows
+}
+
+// flatRows are a project's rows, as projectRows has them, as Group by Project
+// lists them: its sessions in sessionRank's order, the Sort's within a
+// state, each saying its worktree, then the worktrees no session runs in.
+func flatRows(rows []agRow) []agRow {
+	var sessions, empty []agRow
+
+	for _, r := range rows[1:] {
+		if r.kind == agSession {
+			sessions = append(sessions, r)
+			continue
+		}
+
+		used := slices.ContainsFunc(rows, func(s agRow) bool { return s.kind == agSession && s.ws.Path == r.ws.Path })
+		if !used {
+			empty = append(empty, r)
+		}
+	}
+
+	slices.SortStableFunc(sessions, func(x, y agRow) int { return sessionRank(x.s) - sessionRank(y.s) })
+
+	return slices.Concat(rows[:1], sessions, empty)
 }
 
 // merged reports an open project heading that holds its own checkout, its
@@ -594,6 +624,41 @@ func (m *Model) byWorkspace() bool {
 	g := m.st.Settings.SpGroup
 
 	return g != "time" && g != "state"
+}
+
+// flat reports Sessions grouped by Project: the project tree with its
+// sessions in one list, each saying its worktree, in place of worktree rows.
+func (m *Model) flat() bool { return m.st.Settings.SpGroup == "project" }
+
+// wtColors are the colors of a project's linked worktrees, in its order.
+// shortcut: four, the fifth linked worktree takes the first's again; a
+// palette field of its own when a project holds more at once.
+func wtColors() [4]color.Color {
+	return [4]color.Color{pal.modified, pal.attention, pal.added, pal.deleted}
+}
+
+// wtColor is worktree w's color, the same on every row that says it: the
+// project's checkout in the accent, its linked worktrees through wtColors.
+func (m *Model) wtColor(w proto.Workspace) color.Color {
+	if w.Main || w.Project == "" {
+		return pal.accent
+	}
+
+	i := 0
+
+	for _, x := range m.wss {
+		if x.Path == w.Path {
+			break
+		}
+
+		if x.Project == w.Project && !x.Main {
+			i++
+		}
+	}
+
+	colors := wtColors()
+
+	return colors[i%len(colors)]
 }
 
 // projects are the projects in the project Sort's order: their saved one, or
@@ -1505,6 +1570,10 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		if !moreSessions(rows, i) {
 			conn = "└─ "
 		}
+
+		if m.flat() && !r.pinned { // one list under its project: no worktree to hang off
+			conn = "  "
+		}
 		// The gutter before it holds the pin: lit on a pinned session, dim
 		// on the row under the pointer (not the selection), raised with its
 		// tip under the pointer. The row under the pointer ends in its ✕.
@@ -1596,7 +1665,26 @@ func (a *agents) lines(m *Model, w, h int) []string {
 
 		left := append(append(lead, sg(conn, dim), sg(g, fg(c))), m.fx.segs("sess:"+r.s.ID, sessionName(r.s), nameSt)...)
 
-		return row(rw, bg, append(left, sg(after, nameSt)), append([]seg{sg(right, statusSt)}, kill...)...)
+		// Grouped by Project, its worktree's last path segment before its
+		// status, cut to 20 cells or to what leaves the name 12, gone under 6.
+		var where []seg
+
+		if m.flat() && !r.pinned && r.ws.Path != "" {
+			lead := " " + wtGlyph(r.ws).s() + " "
+			name := wsName(r.ws)
+			room := min(20, rw-3-12-ansi.StringWidth(conn+g+lead+right)) // the gutter, the name's 12
+
+			if room >= 6 {
+				where = []seg{sg(lead+ansi.Truncate(name[strings.LastIndex(name, "/")+1:], room, "…"), fg(m.wtColor(r.ws)))}
+			}
+		}
+
+		ends := append([]seg{sg(right, statusSt)}, kill...)
+		if where != nil {
+			ends = append(where, ends...)
+		}
+
+		return row(rw, bg, append(left, sg(after, nameSt)), ends...)
 	}
 
 	var out []string
@@ -2807,6 +2895,20 @@ func (a *agents) items(m *Model) []item {
 		remove = []item{{label: label, hint: "x", run: func(m *Model) tea.Cmd { return a.remove(m, r) }}}
 	}
 
+	// Grouped by Project, a worktree a session runs in has no row of its
+	// own: its session's menu does what that row's buttons would.
+	if r != nil && r.kind == agSession && m.flat() && !r.pinned && r.project != "" {
+		wt := agRow{kind: agWorkspace, project: r.project, ws: r.ws}
+
+		if m.sessionCount(wt.ws.Path) > 1 {
+			row = append(row, item{label: "Split Sessions", run: func(m *Model) tea.Cmd { return m.splitSessions(wt.ws.Path) }})
+		}
+
+		if !wt.ws.Main {
+			remove = append(remove, item{label: removeLabel(&wt), run: func(m *Model) tea.Cmd { return a.remove(m, &wt) }})
+		}
+	}
+
 	return menuGroups(create, row, goTo, remove)
 }
 
@@ -2849,7 +2951,8 @@ func (a *agents) viewMenu(m *Model, x, y int) tea.Cmd {
 		{label: checked(st.SpProj != "updated", "Sort Projects Manually"), run: set("spaces_project_sort", "manual")},
 		{label: checked(st.SpProj == "updated", "Sort Projects by Updated"), run: set("spaces_project_sort", "updated")},
 		{},
-		{label: checked(m.byWorkspace(), "Group by Workspace"), run: set("spaces_group", "workspace")},
+		{label: checked(m.byWorkspace() && !m.flat(), "Group by Workspace"), run: set("spaces_group", "workspace")},
+		{label: checked(m.flat(), "Group by Project"), run: set("spaces_group", "project")},
 		{label: checked(st.SpGroup == "time", "Group by Time"), run: set("spaces_group", "time")},
 		{label: checked(st.SpGroup == "state", "Group by State"), run: set("spaces_group", "state")},
 		{},
@@ -3252,7 +3355,7 @@ func (a *agents) moveProject(m *Model, from, to string) {
 func (m *Model) sessionsMovable() bool {
 	st := m.st.Settings
 
-	return st.SpSort != "updated" && m.byWorkspace()
+	return st.SpSort != "updated" && m.byWorkspace() && !m.flat()
 }
 
 // siblings are the ids of the sessions the view lists in session id's worktree,
