@@ -365,9 +365,17 @@ data of the `usage` event, and `usage.json` in the data dir, read at start.
    account no known config has,
    3 deep under the home directory less scanSkip, or in /proc/*/environ
         │ measure, one at a time
-        ├─ claude: GET api.anthropic.com/api/oauth/usage, the access token in
-        │          <config>/.credentials.json; five_hour, seven_day, limits[]
-        └─ codex:  codex app-server in CODEX_HOME, account/rateLimits/read
+        ├─ claude:  GET api.anthropic.com/api/oauth/usage, the access token in
+        │           <config>/.credentials.json; five_hour, seven_day, limits[]
+        ├─ codex:   codex app-server in CODEX_HOME, account/rateLimits/read
+        ├─ agy:     POST daily-cloudcode-pa.googleapis.com/v1internal
+        │           :loadCodeAssist (plan, project) and :retrieveUserQuotaSummary,
+        │           the token in the keyring (secret-tool, service gemini) or
+        │           <AGY_DIR>/antigravity-oauth-token; groups[].buckets[]
+        ├─ copilot: GET api.github.com/copilot_internal/user, COPILOT_GITHUB_TOKEN,
+        │           GH_TOKEN, GITHUB_TOKEN or `gh auth token`; quota_snapshots
+        └─ grok:    GET cli-chat-proxy.grok.com/v1/billing?format=credits, the key
+                    in <GROK_HOME>/auth.json; without format the monthly quota
         │ a failed check keeps the last limits, a window reset since at 0,
         │ and says why in Account.Note: paused, signed out, unreachable,
         │ unavailable; a busy service (429) says nothing, the next check asks
@@ -375,10 +383,16 @@ data of the `usage` event, and `usage.json` in the data dir, read at start.
  advise ─▶ Usage.Offer (notify) or State.Active moved (auto) ─▶ usage, state
 ```
 
-- claude's sign-in is only read. An access token that lapsed is `paused`:
-  Claude Code renews it, and nothing is sent until it has. A redirect is
-  refused, so the token reaches no other host. codex's app-server reads and
-  renews its own.
+- claude's, agy's and grok's sign-ins are only read. An access token that
+  lapsed is `paused` while a refresh token stands behind it: the agent renews
+  it, and nothing is sent until it has. A redirect is refused, so no token
+  reaches another host (`askJSON`). codex's app-server reads and renews its
+  own.
+- A `Limit` is a window (`5h`, `7d`, `1mo`) and the models whose own
+  allowance it is, `Model`, empty for every model's. claude's Fable weekly and
+  codex's other limit ids are a model's; each of agy's groups (Gemini, Claude
+  and GPT) is its own, as are copilot's chat and completions on the free plan,
+  while premium requests are the plan's.
 - `State.Active` is per agent the profile new sessions start with, its
   `KEY=VALUE`: `session.new` without an `env` gets it (`activeEnv`, while it
   is still one of the agent's accounts), so `pando session new` does; a TUI

@@ -413,8 +413,8 @@ func (a Account) Peak() (float64, bool) {
 
 // Limit is one window of a plan's allowance.
 type Limit struct {
-	Window  string    `json:"window"`          // its span: "5h", "7d", "30d"
-	Model   string    `json:"model,omitempty"` // the model whose own allowance it is, "" for every model's
+	Window  string    `json:"window"`          // its span: "5h", "7d", "30d", "1mo" for a calendar month
+	Model   string    `json:"model,omitempty"` // the models whose own allowance it is ("Fable", "Claude + GPT", "chat"), "" for every model's
 	Percent float64   `json:"percent"`         // used, 0 to 100
 	Resets  time.Time `json:"resets,omitzero"` // zero where the service does not say
 }

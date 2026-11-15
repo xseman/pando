@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -649,6 +651,222 @@ func FuzzParseCodexLimits(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, b []byte) {
 		_, limits, _ := parseCodexLimits(b)
+		checkLimits(t, limits)
+	})
+}
+
+// copilotAnswer is what GitHub's quota endpoint answered a free plan, cut to
+// what is read.
+const copilotAnswer = `{"copilot_plan":"individual","access_type_sku":"free_limited_copilot","quota_reset_date_utc":"2026-12-01T00:00:00.000Z",
+"quota_snapshots":{"chat":{"percent_remaining":99.9,"unlimited":false,"entitlement":200},
+"completions":{"percent_remaining":100.0,"unlimited":false,"entitlement":2000},
+"premium_interactions":{"percent_remaining":0.0,"unlimited":false,"entitlement":0}}}`
+
+// TestCopilotUsage holds a month's allowance per kind of request asked with
+// the token Copilot CLI takes first: the free plan's chat and completions,
+// nothing granted no limit, and a paid plan's premium requests every model's.
+func TestCopilotUsage(t *testing.T) {
+	answer := copilotAnswer
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer gh-tok" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		_, _ = w.Write([]byte(answer))
+	}))
+	defer srv.Close()
+
+	copilotUsageURL = srv.URL
+
+	t.Cleanup(func() { copilotUsageURL = "https://api.github.com/copilot_internal/user" })
+	t.Setenv("COPILOT_GITHUB_TOKEN", "")
+	t.Setenv("GITHUB_TOKEN", "")
+	t.Setenv("GH_TOKEN", "gh-tok")
+
+	plan, limits, err := copilotUsage(context.Background(), nil)
+	if err != nil || plan != "Free" {
+		t.Fatalf("plan %q, err %v", plan, err)
+	}
+
+	resets, left := time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC), 99.9 // a share computed as the parser does, not folded at compile time
+
+	want := []proto.Limit{
+		{Window: "1mo", Model: "chat", Percent: 100 - left, Resets: resets},
+		{Window: "1mo", Model: "completions", Percent: 0, Resets: resets},
+	}
+	if !reflect.DeepEqual(limits, want) {
+		t.Fatalf("limits %+v\nwant   %+v", limits, want)
+	}
+
+	answer = `{"copilot_plan":"individual_pro","quota_snapshots":{"chat":{"unlimited":true},"premium_interactions":{"percent_remaining":25,"entitlement":1500}}}`
+
+	if plan, limits, _ := copilotUsage(context.Background(), nil); plan != "Pro+" || len(limits) != 1 || limits[0].Model != "" || limits[0].Percent != 75 {
+		t.Fatalf("a paid plan: %q %+v", plan, limits)
+	}
+
+	if _, _, err := copilotUsage(context.Background(), []string{"COPILOT_GITHUB_TOKEN=other"}); !errors.Is(err, errSignedOut) {
+		t.Fatalf("a refused token: %v", err)
+	}
+}
+
+// agyQuotaAnswer is a quota summary of two groups, the Claude one's weekly
+// bucket spent to nothing, which protobuf JSON leaves its share out of.
+const agyQuotaAnswer = `{"groups":[{"displayName":"Gemini","buckets":[
+{"bucketId":"gemini-5h","window":"5h","remainingFraction":0.88,"resetTime":"2026-11-15T18:00:00Z"},
+{"bucketId":"gemini-weekly","window":"weekly","remainingFraction":0.7,"resetTime":"2026-11-20T00:00:00Z"}]},
+{"displayName":"Claude + GPT","buckets":[{"bucketId":"3p-5h","remainingFraction":1},
+{"bucketId":"3p-weekly","resetTime":"2026-11-20T00:00:00Z"},{"bucketId":"3p-other","disabled":true}]}]}`
+
+// TestAgyUsage holds agy's sign-in read from the keyring, the plan and the
+// project from loadCodeAssist, and every bucket its group's own limit; a
+// lapsed token is never sent.
+func TestAgyUsage(t *testing.T) {
+	bin, expiry := t.TempDir(), time.Now().Add(time.Hour).Format(time.RFC3339)
+	token := `{"token":{"access_token":"agy-tok","refresh_token":"r","expiry":"` + expiry + `"},"auth_method":"consumer"}`
+
+	mustWrite(t, filepath.Join(bin, "secret-tool"), "#!/bin/sh\ncat \"$(dirname \"$0\")/token\"\n")
+	mustWrite(t, filepath.Join(bin, "token"), token)
+
+	if err := os.Chmod(filepath.Join(bin, "secret-tool"), 0o755); err != nil { // the test runs it
+		t.Fatal(err)
+	}
+
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	asked := 0
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		asked++
+
+		body, _ := io.ReadAll(r.Body)
+
+		switch {
+		case r.Header.Get("Authorization") != "Bearer agy-tok":
+			w.WriteHeader(http.StatusUnauthorized)
+		case strings.HasSuffix(r.URL.Path, ":loadCodeAssist"):
+			_, _ = w.Write([]byte(`{"currentTier":{"id":"free-tier"},"paidTier":{"id":"g1-pro-tier","name":"Google AI Pro"},"cloudaicompanionProject":"proj-1"}`))
+		case strings.HasSuffix(r.URL.Path, ":retrieveUserQuotaSummary") && string(body) == `{"project":"proj-1"}`:
+			_, _ = w.Write([]byte(agyQuotaAnswer))
+		default:
+			t.Errorf("asked %s %s", r.URL.Path, body)
+			w.WriteHeader(http.StatusBadRequest)
+		}
+	}))
+	defer srv.Close()
+
+	agyUsageURL = srv.URL + "/v1internal"
+
+	t.Cleanup(func() { agyUsageURL = "https://daily-cloudcode-pa.googleapis.com/v1internal" })
+
+	plan, limits, err := agyUsage(context.Background(), nil)
+	if err != nil || plan != "Pro" {
+		t.Fatalf("plan %q, err %v", plan, err)
+	}
+
+	got := make([]string, len(limits))
+	for i, l := range limits {
+		got[i] = l.Window + " " + l.Model + " " + strconv.FormatFloat(math.Round(l.Percent), 'f', -1, 64)
+	}
+
+	if want := []string{"5h Gemini 12", "7d Gemini 30", "5h Claude + GPT 0", "7d Claude + GPT 100"}; !slices.Equal(got, want) {
+		t.Fatalf("limits %q, want %q", got, want)
+	}
+
+	asked = 0
+
+	mustWrite(t, filepath.Join(bin, "token"), strings.Replace(token, expiry, "2026-01-01T00:00:00Z", 1))
+
+	if _, _, err := agyUsage(context.Background(), nil); !errors.Is(err, errPaused) || asked != 0 {
+		t.Fatalf("a lapsed token: err %v, asked %d times", err, asked)
+	}
+
+	mustWrite(t, filepath.Join(bin, "token"), "")
+
+	if _, _, err := agyUsage(context.Background(), []string{"AGY_DIR=" + t.TempDir()}); !errors.Is(err, errSignedOut) || asked != 0 {
+		t.Fatalf("no sign-in: err %v, asked %d times", err, asked)
+	}
+}
+
+// TestGrokUsage holds the credits of Grok's sign-in in the home env picks: a
+// week's share as xAI sends it, a unified-billing account's monthly quota
+// beside it, and a lapsed token paused while its refresh token can renew it.
+func TestGrokUsage(t *testing.T) {
+	unified := false
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Header.Get("Authorization") != "Bearer grok-tok":
+			w.WriteHeader(http.StatusUnauthorized)
+		case r.URL.Query().Get("format") == "credits":
+			_, _ = w.Write([]byte(`{"config":{"currentPeriod":{"type":"CREDIT_PERIOD_WEEKLY","end":"2026-11-19T00:00:00Z"},
+"creditUsagePercent":{"val":22.5},"isUnifiedBillingUser":` + strconv.FormatBool(unified) + `}}`))
+
+		default:
+			_, _ = w.Write([]byte(`{"config":{"monthlyLimit":{"val":"400"},"used":100,"billingPeriodEnd":"2026-12-01T00:00:00Z"}}`))
+		}
+	}))
+	defer srv.Close()
+
+	grokUsageURL = srv.URL
+
+	t.Cleanup(func() { grokUsageURL = "https://cli-chat-proxy.grok.com/v1/billing" })
+
+	home := t.TempDir()
+	env := []string{"GROK_HOME=" + home}
+	login := func(expires time.Time) {
+		t.Helper()
+		mustWrite(t, filepath.Join(home, "auth.json"), `{"https://auth.x.ai":{"key":"grok-tok","refresh_token":"r","expires_at":"`+expires.Format(time.RFC3339)+`"}}`)
+	}
+
+	login(time.Now().Add(time.Hour))
+	mustWrite(t, filepath.Join(home, "settings_cache.json"), `{"payload":"{\"settings\":{\"subscription_tier_display\":\"SuperGrok\"}}"}`)
+
+	plan, limits, err := grokUsage(context.Background(), env)
+	if err != nil || plan != "SuperGrok" {
+		t.Fatalf("plan %q, err %v", plan, err)
+	}
+
+	week := proto.Limit{Window: "7d", Percent: 22.5, Resets: time.Date(2026, 11, 19, 0, 0, 0, 0, time.UTC)}
+	if !reflect.DeepEqual(limits, []proto.Limit{week}) {
+		t.Fatalf("limits %+v", limits)
+	}
+
+	unified = true
+
+	month := proto.Limit{Window: "1mo", Percent: 25, Resets: time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC)}
+	if _, limits, _ := grokUsage(context.Background(), env); !reflect.DeepEqual(limits, []proto.Limit{week, month}) {
+		t.Fatalf("unified billing: %+v", limits)
+	}
+
+	login(time.Now().Add(-time.Hour))
+
+	if _, _, err := grokUsage(context.Background(), env); !errors.Is(err, errPaused) {
+		t.Fatalf("a lapsed token: %v", err)
+	}
+
+	login(time.Now().Add(-40 * 24 * time.Hour))
+
+	if _, _, err := grokUsage(context.Background(), env); !errors.Is(err, errSignedOut) {
+		t.Fatalf("a refresh token past renewing: %v", err)
+	}
+}
+
+func FuzzParseAgyQuota(f *testing.F) {
+	f.Add([]byte(agyQuotaAnswer))
+
+	f.Fuzz(func(t *testing.T, b []byte) {
+		limits, _ := parseAgyQuota(b)
+		checkLimits(t, limits)
+	})
+}
+
+func FuzzParseCopilotQuota(f *testing.F) {
+	f.Add([]byte(copilotAnswer))
+
+	f.Fuzz(func(t *testing.T, b []byte) {
+		_, limits, _ := parseCopilotQuota(b)
 		checkLimits(t, limits)
 	})
 }

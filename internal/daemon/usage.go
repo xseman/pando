@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"bufio"
+	"bytes"
 	"cmp"
 	"context"
 	"encoding/json"
@@ -43,20 +44,28 @@ const nearLimit = 15
 var (
 	errPaused    = errors.New("paused: its sign-in lapsed, the agent renews it when it next runs")
 	errSignedOut = errors.New("signed out")
-	errBusy      = errors.New("busy: Anthropic limits how often usage is asked for")
+	errBusy      = errors.New("busy: the service limits how often usage is asked for")
 )
 
 // usageSources ask an agent's service for the limits of the account env
 // picks, by [agents] preset. plan is known without the service, so it comes
 // back with an error too.
 var usageSources = map[string]func(ctx context.Context, env []string) (plan string, limits []proto.Limit, err error){
-	"claude": claudeUsage,
-	"codex":  codexUsage,
+	"claude":  claudeUsage,
+	"codex":   codexUsage,
+	"agy":     agyUsage,
+	"copilot": copilotUsage,
+	"grok":    grokUsage,
 }
 
-// claudeUsageURL is the endpoint Claude Code's own /usage reads; tests point
-// it at a server of theirs.
-var claudeUsageURL = "https://api.anthropic.com/api/oauth/usage"
+// The endpoints each agent's own CLI reads its limits from; tests point them
+// at a server of theirs.
+var (
+	claudeUsageURL  = "https://api.anthropic.com/api/oauth/usage"
+	agyUsageURL     = "https://daily-cloudcode-pa.googleapis.com/v1internal"
+	copilotUsageURL = "https://api.github.com/copilot_internal/user"
+	grokUsageURL    = "https://cli-chat-proxy.grok.com/v1/billing"
+)
 
 // WatchUsage asks for the limits at startup and every usageEvery after, while
 // usage is on, until the daemon closes. `pando serve` starts it; a daemon a
@@ -478,37 +487,61 @@ func claudeUsage(ctx context.Context, env []string) (string, []proto.Limit, erro
 		return plan, nil, err
 	}
 
-	req.Header.Set("Authorization", "Bearer "+login.Token)
 	req.Header.Set("anthropic-beta", "oauth-2025-04-20")
+
+	var body json.RawMessage
+	if err := askJSON(req, login.Token, &body); err != nil {
+		return plan, nil, err
+	}
+
+	limits, err := parseClaudeUsage(body)
+
+	return plan, limits, err
+}
+
+// askJSON sends req with token as its bearer and decodes the answer into v.
+// A refused token reads as signed out, 429 as a busy service. The token goes
+// to the one host it was issued for: a redirect is refused.
+func askJSON(req *http.Request, token string, v any) error {
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/json")
 
-	// The token goes to the one host it was issued for: a redirect is refused.
 	client := http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return plan, nil, errors.New("unreachable: " + err.Error())
+		return errors.New("unreachable: " + err.Error())
 	}
 
 	defer func() { _ = resp.Body.Close() }()
 
 	switch {
 	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
-		return plan, nil, errSignedOut
+		return errSignedOut
 	case resp.StatusCode == http.StatusTooManyRequests:
-		return plan, nil, errBusy
+		return errBusy
 	case resp.StatusCode != http.StatusOK:
-		return plan, nil, fmt.Errorf("unavailable: Anthropic answered %s", resp.Status)
+		return fmt.Errorf("unavailable: %s answered %s", req.URL.Host, resp.Status)
 	}
 
-	var body json.RawMessage
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return plan, nil, errors.New("unavailable: " + err.Error())
+	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
+		return errors.New("unavailable: " + err.Error())
 	}
 
-	limits, err := parseClaudeUsage(body)
+	return nil
+}
 
-	return plan, limits, err
+// envIn is key's value in env, else the daemon's own: where a profile points
+// an agent.
+func envIn(env []string, key string) string {
+	value := os.Getenv(key)
+	for _, kv := range env {
+		if v, ok := strings.CutPrefix(kv, key+"="); ok {
+			value = v
+		}
+	}
+
+	return value
 }
 
 // parseClaudeUsage reads the endpoint's answer: the five-hour and seven-day
@@ -799,6 +832,452 @@ func parseCodexLimits(b []byte) (string, []proto.Limit, error) {
 	}
 
 	return plan, out, nil
+}
+
+// agyToken is the sign-in agy keeps: its access token, the refresh token
+// that renews it, and when it lapses.
+type agyToken struct {
+	Access  string    `json:"access_token"`
+	Refresh string    `json:"refresh_token"`
+	Expiry  time.Time `json:"expiry"`
+}
+
+// agyTier is a plan as Google's Cloud Code API names it.
+type agyTier struct {
+	Name string `json:"name"`
+	ID   string `json:"id"`
+}
+
+// agyUsage asks Google's Cloud Code API for the quota of agy's sign-in: the
+// plan, then a 5-hour and a weekly bucket per group of models. The token is
+// only read: agy alone renews it.
+func agyUsage(ctx context.Context, env []string) (string, []proto.Limit, error) {
+	login := agyLogin(ctx, env)
+
+	switch {
+	case login.Access == "":
+		return "", nil, errSignedOut
+	case !login.Expiry.IsZero() && login.Expiry.Before(time.Now()) && login.Refresh != "":
+		return "", nil, errPaused
+	case !login.Expiry.IsZero() && login.Expiry.Before(time.Now()):
+		return "", nil, errSignedOut
+	}
+
+	ask := func(method string, body, v any) error {
+		b, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, agyUsageURL+":"+method, bytes.NewReader(b))
+		if err != nil {
+			return err
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", "antigravity") // as agy's own requests name themselves
+
+		return askJSON(req, login.Access, v)
+	}
+
+	var assist struct {
+		Paid    *agyTier        `json:"paidTier"`
+		Current *agyTier        `json:"currentTier"`
+		Project json.RawMessage `json:"cloudaicompanionProject"` // its id, or {"id": …}
+	}
+	if err := ask("loadCodeAssist", struct{}{}, &assist); err != nil {
+		return "", nil, err
+	}
+
+	plan := agyPlan(cmp.Or(assist.Paid, assist.Current))
+
+	var project struct {
+		ID string `json:"id"`
+	}
+	if json.Unmarshal(assist.Project, &project.ID) != nil {
+		_ = json.Unmarshal(assist.Project, &project) // none: the summary is asked without one
+	}
+
+	body := map[string]string{}
+	if project.ID != "" {
+		body["project"] = project.ID
+	}
+
+	var quota json.RawMessage
+	if err := ask("retrieveUserQuotaSummary", body, &quota); err != nil {
+		return plan, nil, err
+	}
+
+	limits, err := parseAgyQuota(quota)
+
+	return plan, limits, err
+}
+
+// agyLogin is the sign-in agy keeps in the Secret Service keyring, else in its
+// antigravity-oauth-token file.
+//
+// shortcut: the keyring is read with secret-tool, so on macOS, where agy uses
+// the Keychain, it reads signed out. Read it with `security` when someone on
+// macOS asks.
+func agyLogin(ctx context.Context, env []string) agyToken {
+	b, err := exec.CommandContext(ctx, "secret-tool", "lookup", "service", "gemini", "username", "antigravity").Output()
+	if err != nil || len(bytes.TrimSpace(b)) == 0 {
+		dir := envIn(env, "AGY_DIR")
+		if home, err := os.UserHomeDir(); dir == "" && err == nil {
+			dir = filepath.Join(home, ".gemini", "antigravity-cli")
+		}
+
+		b, _ = os.ReadFile(filepath.Join(dir, "antigravity-oauth-token")) // none reads as signed out
+	}
+
+	var v struct {
+		Token agyToken `json:"token"`
+	}
+
+	_ = json.Unmarshal(b, &v)
+
+	return v.Token
+}
+
+// agyPlan names a tier as agy does: Ultra, Pro or Free where its id or name
+// says one, else its name.
+func agyPlan(tier *agyTier) string {
+	if tier == nil {
+		return ""
+	}
+
+	named := strings.ToLower(tier.ID + " " + tier.Name)
+	for _, word := range []string{"ultra", "pro", "free"} {
+		if strings.Contains(named, word) {
+			return title(word)
+		}
+	}
+
+	return cmp.Or(strings.TrimPrefix(tier.Name, "Google AI "), tier.ID)
+}
+
+// parseAgyQuota reads the quota summary: per group of models (Gemini, Claude
+// and GPT) a 5-hour and a weekly bucket, as the share left. Each bucket is its
+// group's own, no group's use counts against another's, so every limit names
+// its group. An answer of buckets without groups lists Gemini's.
+func parseAgyQuota(b []byte) ([]proto.Limit, error) {
+	type bucket struct {
+		ID       string   `json:"bucketId"`
+		Name     string   `json:"displayName"`
+		Window   string   `json:"window"`
+		Left     *float64 `json:"remainingFraction"`
+		Amount   *float64 `json:"remainingAmount"`
+		Resets   string   `json:"resetTime"`
+		Disabled bool     `json:"disabled"`
+	}
+
+	type group struct {
+		Name    string   `json:"displayName"`
+		Buckets []bucket `json:"buckets"`
+	}
+
+	var v struct {
+		Groups  []group  `json:"groups"`
+		Buckets []bucket `json:"buckets"`
+	}
+	if err := json.Unmarshal(b, &v); err != nil {
+		return nil, errors.New("unavailable: " + err.Error())
+	}
+
+	if len(v.Groups) == 0 && len(v.Buckets) > 0 {
+		v.Groups = []group{{Name: "Gemini", Buckets: v.Buckets}}
+	}
+
+	var out []proto.Limit
+
+	for _, g := range v.Groups {
+		for _, bk := range g.Buckets {
+			resets, _ := time.Parse(time.RFC3339, bk.Resets) // none: the reset is not known
+
+			// protobuf JSON leaves a zero out: a bucket that resets and says
+			// nothing of what is left has nothing left. An amount left is no
+			// share of the whole.
+			used := 100.0
+
+			switch {
+			case bk.Disabled:
+				continue
+			case bk.Left != nil:
+				used = (1 - *bk.Left) * 100
+			case bk.Amount != nil && *bk.Amount != 0, bk.Amount == nil && resets.IsZero():
+				continue
+			}
+
+			p, ok := percent(used)
+			if !ok {
+				continue
+			}
+
+			window := "5h"
+			if strings.Contains(strings.ToLower(bk.Window+" "+bk.ID+" "+bk.Name), "week") {
+				window = "7d"
+			}
+
+			out = append(out, proto.Limit{Window: window, Model: strings.TrimSpace(g.Name), Percent: p, Resets: resets})
+		}
+	}
+
+	return out, nil
+}
+
+// copilotPlans name Copilot's plans as GitHub's quota answer spells them.
+var copilotPlans = map[string]string{"individual": "Pro", "individual_pro": "Pro+", "business": "Business", "enterprise": "Enterprise"}
+
+// copilotUsage asks GitHub for the Copilot quota of the token Copilot CLI
+// takes first: COPILOT_GITHUB_TOKEN, GH_TOKEN or GITHUB_TOKEN, else gh's
+// sign-in to github.com.
+//
+// shortcut: the CLI keeps its own sign-in in the keyring, which pando does not
+// read, so gh's stands in for it, in every config alike. Read the keyring once
+// someone signs Copilot in as another account than gh.
+func copilotUsage(ctx context.Context, env []string) (string, []proto.Limit, error) {
+	token := cmp.Or(envIn(env, "COPILOT_GITHUB_TOKEN"), envIn(env, "GH_TOKEN"), envIn(env, "GITHUB_TOKEN"))
+	if token == "" {
+		out, err := exec.CommandContext(ctx, "gh", "auth", "token", "--hostname", "github.com").Output()
+		if err != nil { // no gh, or nobody signed in to it
+			return "", nil, errSignedOut
+		}
+
+		token = strings.TrimSpace(string(out))
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, copilotUsageURL, http.NoBody)
+	if err != nil {
+		return "", nil, err
+	}
+
+	var body json.RawMessage
+	if err := askJSON(req, token, &body); err != nil {
+		return "", nil, err
+	}
+
+	return parseCopilotQuota(body)
+}
+
+// parseCopilotQuota reads GitHub's answer: a month's allowance per kind of
+// request, premium requests the plan's own, chat and completions the free
+// plan's. One without a cap, or with nothing granted, is no limit.
+func parseCopilotQuota(b []byte) (string, []proto.Limit, error) {
+	type quota struct {
+		Granted   float64  `json:"entitlement"`
+		Left      *float64 `json:"percent_remaining"`
+		Unlimited bool     `json:"unlimited"`
+	}
+
+	var v struct {
+		Plan   string           `json:"copilot_plan"`
+		SKU    string           `json:"access_type_sku"` // "free_limited_copilot" on the free plan
+		Resets string           `json:"quota_reset_date_utc"`
+		Quotas map[string]quota `json:"quota_snapshots"`
+	}
+	if err := json.Unmarshal(b, &v); err != nil {
+		return "", nil, errors.New("unavailable: " + err.Error())
+	}
+
+	plan := cmp.Or(copilotPlans[v.Plan], title(v.Plan))
+	if strings.Contains(v.SKU, "free") {
+		plan = "Free"
+	}
+
+	resets, _ := time.Parse(time.RFC3339, v.Resets) // none: the reset is not known
+
+	ids := slices.SortedFunc(maps.Keys(v.Quotas), func(a, b string) int {
+		return cmp.Or(cmp.Compare(b2i(a != "premium_interactions"), b2i(b != "premium_interactions")), cmp.Compare(a, b))
+	})
+
+	var out []proto.Limit
+
+	for _, id := range ids {
+		q := v.Quotas[id]
+		if q.Unlimited || q.Granted <= 0 || q.Left == nil {
+			continue
+		}
+
+		p, ok := percent(100 - *q.Left)
+		if !ok {
+			continue
+		}
+
+		scope := id
+		if id == "premium_interactions" {
+			scope = ""
+		}
+
+		out = append(out, proto.Limit{Window: "1mo", Model: scope, Percent: p, Resets: resets})
+	}
+
+	return plan, out, nil
+}
+
+// grokLogin is a sign-in Grok keeps in auth.json.
+type grokLogin struct {
+	Token   string `json:"key"`
+	Expires string `json:"expires_at"`
+	Renews  string `json:"refresh_token"`
+}
+
+// grokRenews is how long Grok's refresh token renews its access token, as
+// Grok's docs give a sign-in with no expiry of its own.
+const grokRenews = 30 * 24 * time.Hour
+
+// grokUsage asks xAI for the credits of the sign-in Grok keeps in the home env
+// picks, as Grok's own /usage does: the share of the week's or the month's
+// credits used, and a unified-billing account's monthly quota.
+func grokUsage(ctx context.Context, env []string) (string, []proto.Limit, error) {
+	home := envIn(env, "GROK_HOME")
+	if dir, err := os.UserHomeDir(); home == "" && err == nil {
+		home = filepath.Join(dir, ".grok")
+	}
+
+	plan := grokPlan(home)
+
+	var logins map[string]grokLogin // one per issuer
+
+	b, _ := os.ReadFile(filepath.Join(home, "auth.json")) // none reads as signed out
+	_ = json.Unmarshal(b, &logins)
+
+	var login grokLogin
+
+	for _, issuer := range slices.Sorted(maps.Keys(logins)) {
+		if logins[issuer].Token != "" {
+			login = logins[issuer]
+			break
+		}
+	}
+
+	// Grok renews its access token from the refresh token when it runs.
+	expires, _ := time.Parse(time.RFC3339, login.Expires)
+	lapsed := !expires.IsZero() && expires.Before(time.Now())
+
+	switch {
+	case login.Token == "":
+		return plan, nil, errSignedOut
+	case lapsed && login.Renews != "" && time.Since(expires) < grokRenews:
+		return plan, nil, errPaused
+	case lapsed:
+		return plan, nil, errSignedOut
+	}
+
+	ask := func(url string, v any) error {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+		if err != nil {
+			return err
+		}
+
+		return askJSON(req, login.Token, v)
+	}
+
+	var credits struct {
+		Config struct {
+			Period struct {
+				Type string    `json:"type"`
+				End  time.Time `json:"end"`
+			} `json:"currentPeriod"`
+			Used    *grokAmount `json:"creditUsagePercent"`
+			Unified bool        `json:"isUnifiedBillingUser"`
+		} `json:"config"`
+	}
+	if err := ask(grokUsageURL+"?format=credits", &credits); err != nil {
+		return plan, nil, err
+	}
+
+	c := credits.Config
+
+	var out []proto.Limit
+
+	// protobuf JSON leaves a zero out: no share is none used yet, but for a
+	// unified-billing account, whose use the monthly quota counts, and a
+	// period already over.
+	if c.Used != nil || !c.Unified && c.Period.End.After(time.Now()) {
+		used := 0.0
+		if c.Used != nil {
+			used = float64(*c.Used)
+		}
+
+		window := "1mo"
+		if strings.Contains(c.Period.Type, "WEEK") {
+			window = "7d"
+		}
+
+		if p, ok := percent(used); ok {
+			out = append(out, proto.Limit{Window: window, Percent: p, Resets: c.Period.End})
+		}
+	}
+
+	if !c.Unified {
+		return plan, out, nil
+	}
+
+	var monthly struct {
+		Config struct {
+			Quota  grokAmount `json:"monthlyLimit"`
+			Used   grokAmount `json:"used"`
+			Resets time.Time  `json:"billingPeriodEnd"`
+		} `json:"config"`
+	}
+
+	err := ask(grokUsageURL, &monthly)
+	m := monthly.Config
+
+	if p, ok := percent(float64(m.Used / m.Quota * 100)); err == nil && m.Quota > 0 && ok {
+		out = append(out, proto.Limit{Window: "1mo", Percent: p, Resets: m.Resets})
+	} else if len(out) == 0 { // the credits' window stands without it
+		return plan, nil, cmp.Or(err, errors.New("unavailable: xAI named no limits"))
+	}
+
+	return plan, out, nil
+}
+
+// grokAmount is a number as xAI's protobuf JSON sends one: plain or quoted,
+// or a money field's {"val": n}.
+type grokAmount float64
+
+func (a *grokAmount) UnmarshalJSON(b []byte) error {
+	if bytes.HasPrefix(b, []byte("{")) {
+		var money struct {
+			Val json.Number `json:"val"`
+		}
+		if err := json.Unmarshal(b, &money); err != nil {
+			return err
+		}
+
+		b = []byte(cmp.Or(money.Val.String(), "0")) // a zero is left out
+	}
+
+	var n json.Number
+	if err := json.Unmarshal(b, &n); err != nil {
+		return err
+	}
+
+	f, err := n.Float64()
+	*a = grokAmount(f)
+
+	return err
+}
+
+// grokPlan is the plan the settings Grok caches from xAI name.
+func grokPlan(home string) string {
+	var cache struct {
+		Payload string `json:"payload"` // JSON again
+	}
+
+	b, _ := os.ReadFile(filepath.Join(home, "settings_cache.json")) // none: no plan
+	_ = json.Unmarshal(b, &cache)
+
+	var v struct {
+		Settings struct {
+			Tier string `json:"subscription_tier_display"`
+		} `json:"settings"`
+	}
+
+	_ = json.Unmarshal([]byte(cache.Payload), &v)
+
+	return v.Settings.Tier
 }
 
 // profileSession moves session p.ID's agent to the profile p.Env picks, none
