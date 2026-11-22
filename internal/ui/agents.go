@@ -60,6 +60,7 @@ type agRow struct {
 	tail    bool   // a row under bareHead: a tight list, no rule between its projects
 	closed  bool   // a project heading that lists nothing under it
 	sub     proto.Subagent
+	job     bool // agSub: a recurring job the session's agent set up, not a subagent
 }
 
 // agents is the Project → Workspace → Session tree.
@@ -116,7 +117,8 @@ func withPlaces(rows []agRow) []agRow {
 	return out
 }
 
-// withSubagents puts the subagents a session runs under its row in the tree;
+// withSubagents puts the subagents a session runs, then the recurring jobs
+// its agent set up, under its row in the tree;
 // Pinned's copy goes without.
 func withSubagents(rows []agRow) []agRow {
 	out := make([]agRow, 0, len(rows))
@@ -128,6 +130,11 @@ func withSubagents(rows []agRow) []agRow {
 
 		for _, sub := range r.s.Subagents {
 			out = append(out, agRow{kind: agSub, project: r.project, ws: r.ws, s: r.s, sub: sub})
+		}
+
+		for _, job := range r.s.Schedules { // a subagent's row: its cadence for a kind, the prompt's first line for what it does
+			prompt, _, _ := strings.Cut(strings.TrimSpace(job.Prompt), "\n")
+			out = append(out, agRow{kind: agSub, project: r.project, ws: r.ws, s: r.s, sub: proto.Subagent{Type: job.Every, Description: prompt}, job: true})
 		}
 	}
 
@@ -1595,7 +1602,12 @@ func (a *agents) lines(m *Model, w, h int) []string {
 				}
 			}
 
-			return row(rw, bg, []seg{sg("   "+guide+"↳ ", dim), sg(r.sub.Type, base), sg(" · "+r.sub.Description, dim)})
+			mark := "↳ "
+			if r.job {
+				mark = "↻ "
+			}
+
+			return row(rw, bg, []seg{sg("   "+guide+mark, dim), sg(r.sub.Type, base), sg(" · "+r.sub.Description, dim)})
 		}
 		// herdr's tree: sessions hang off their branch, the last one on └─.
 		conn := "├─ "

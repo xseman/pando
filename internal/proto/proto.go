@@ -332,6 +332,11 @@ type Session struct {
 	// the agent records them (claude, codex, agy, grok); they live inside its
 	// process, so they are seen, not attached to.
 	Subagents []Subagent `json:"subagents,omitempty"`
+	// Schedules are the recurring jobs its agent set up for itself and has
+	// not cancelled, oldest first, where the agent records them (claude,
+	// copilot, grok, agy; all but claude on Linux only). They fire inside
+	// its process, so they stop with it.
+	Schedules []Schedule `json:"schedules,omitempty"`
 	// Model and Effort are what its agent's last turn ran on, where the
 	// agent records them (claude, codex, grok, copilot, agy, gemini; all
 	// but claude on Linux only); "" before its first.
@@ -346,6 +351,15 @@ type Subagent struct {
 	Started     time.Time `json:"started"`
 	Model       string    `json:"model,omitempty"` // of its last turn, as Session's
 	Effort      string    `json:"effort,omitempty"`
+}
+
+// Schedule is one recurring job a session's agent set up for itself.
+type Schedule struct {
+	// Every is its cadence as the agent keeps it: a cron expression, an
+	// interval ("5m", "10 minutes"), or "self-paced" where the agent picks
+	// each delay.
+	Every  string `json:"every"`
+	Prompt string `json:"prompt"` // what each run is given
 }
 
 // Update is what the daemon knows about a newer pando: the reply to

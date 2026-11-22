@@ -89,6 +89,7 @@ type session struct {
 	commands      []int            // the shell commands under the foreground, as last seen
 	command       bool             // one of them was there the tick before too
 	subagents     []proto.Subagent // what its agent runs now (setSubagents)
+	schedules     []proto.Schedule // the recurring jobs its agent set up (setSubagents)
 	model, effort string           // what its agent's last reply ran on (setSubagents)
 
 	started  time.Time  // set before the session is registered, read-only after
@@ -526,47 +527,46 @@ func (s *session) info() proto.Session {
 		updated = s.spec.Created
 	}
 
-	subagents := s.subagents
+	subagents, schedules := s.subagents, s.schedules
 	if status == "asleep" || status == "exited" { // nothing runs them: the ticker no longer looks
-		subagents = nil
+		subagents, schedules = nil, nil
 	}
 
 	return proto.Session{
 		SessionSpec: s.spec, Status: status, ExitCode: s.exitCode, Attention: s.attention, Shell: status == "running" && s.onShell(),
-		Title: s.shownTitle(), Program: s.program, Updated: updated, Subagents: subagents,
+		Title: s.shownTitle(), Program: s.program, Updated: updated, Subagents: subagents, Schedules: schedules,
 		Model: s.model, Effort: s.effort,
 	}
 }
 
-// setSubagents records the subagents program prog, process pid in front,
-// runs now, and the model and effort its own last turn ran on
-// (subagentReaders); it reports a change clients show.
+// setSubagents records what program prog, process pid in front, runs now:
+// its subagents, the model and effort of its own last turn and the recurring
+// jobs it set up (subagentReaders); it reports a change clients show.
 func (s *session) setSubagents(pid int, prog string, now time.Time) bool {
 	if pid == 0 { // the terminal cannot tell what runs (no /proc), as remember
 		pid, prog = s.ownAgent()
 	}
 
+	pid = s.worker(pid) // under `claude attach` the job's process is the agent
+
 	s.mu.Lock()
 	c := s.spec.Conversation
 	s.mu.Unlock()
 
-	var (
-		subagents     []proto.Subagent
-		model, effort string
-	)
-
+	var runs agentRuns
 	if read := subagentReaders[prog]; read != nil {
-		subagents, model, effort = read(pid, c, now) // files read outside s.mu, which info waits on
+		runs = read(pid, c, now) // files read outside s.mu, which info waits on
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if slices.Equal(s.subagents, subagents) && s.model == model && s.effort == effort {
+	same := slices.Equal(s.subagents, runs.subagents) && slices.Equal(s.schedules, runs.schedules)
+	if same && s.model == runs.model && s.effort == runs.effort {
 		return false
 	}
 
-	s.subagents, s.model, s.effort = subagents, model, effort
+	s.subagents, s.schedules, s.model, s.effort = runs.subagents, runs.schedules, runs.model, runs.effort
 
 	return true
 }

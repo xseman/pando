@@ -173,6 +173,7 @@ re-roots Explorer and Source Control to its worktree.
    ⌂ main + New Session  ↺ Resume ▥ 2  the project's own checkout, buttons (hover; ▥ Split Sessions; one that does not fit before the count is left out), session count
  ⊙ ├─ ◐ claude · fix   running ✕       ⊙ pinned, ✕ kills it (hover)
    │  ↳ Explore · Trace tabs        a subagent it runs (agSub): ↑↓ walk past, a click is its session's; its tip, and a session's, the model and effort it runs on (claude, codex, grok, copilot, agy, gemini)
+   │  ↻ */5 * * * * · Check CI      a recurring job its agent set up (agSub, `job`): as a subagent's row, the cadence and the prompt's first line
    └─ ○ shell            3h   idle since (shortAgo); a shell says shell, other states their word
    └─ ○ pr-737   work · 2m   the profile it runs in off its agent's default (profileOf), its first letter where it would cut the name
    ⑂ feat/x       1 ✕   linked worktree (dimmed), ✕ deletes it (hover)

@@ -4796,6 +4796,29 @@ func TestSpacesKillButton(t *testing.T) {
 	}
 }
 
+// TestSpacesSchedules is a session's recurring jobs: a row each under it,
+// past its subagents, the cadence and the prompt's first line.
+func TestSpacesSchedules(t *testing.T) {
+	m := testModel(t)
+	s1 := m.sessions[0]
+	s1.Subagents = []proto.Subagent{{Type: "Explore", Description: "Trace session tabs"}}
+	s1.Schedules = []proto.Schedule{{Every: "*/5 * * * *", Prompt: "Check the build\nand report"}}
+	m.Update(sessionsMsg{s1})
+	press(m, "3")
+
+	rows := m.ag.rows(m)
+	i := slices.IndexFunc(rows, func(r agRow) bool { return r.kind == agSession && r.s.ID == "s1" })
+
+	if i < 0 || i+2 >= len(rows) || rows[i+2].kind != agSub || !rows[i+2].job {
+		t.Fatalf("the job under s1's subagent: %+v", rows)
+	}
+
+	lines := m.ag.lines(m, 40, m.bodyH(viewAgents))
+	if l := strings.TrimSpace(ansi.Strip(lines[i+2])); l != "↻ */5 * * * * · Check the build" {
+		t.Fatalf("the job's row: %q", l)
+	}
+}
+
 // TestSpacesSubagents is a session's subagents: a row each under it, on the
 // tree's guide, which ↑↓ walk past and a click takes for the session's.
 func TestSpacesSubagents(t *testing.T) {

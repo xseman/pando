@@ -233,6 +233,30 @@ tick, `session.tick` decides:
 
   An agy subagent waiting on a background command has ended its turn and
   is left out until woken. Gemini and opencode report none.
+- `Session.Schedules`, the recurring jobs an agent set up for itself, come
+  from the same readers (`schedules.go`): the log is read once, then only
+  what was appended, and a job is listed from its creation to its cancel:
+
+  | Agent   | Reads                                                                               | Ends with                                               |
+  | ------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------- |
+  | claude  | `CronCreate` answered with an id, `ScheduleWakeup`, in the transcript               | `CronDelete`, 7 days; a loop: `stop`, its process       |
+  | copilot | `session.schedule_created` (cron, recurring or self-paced) in `events.jsonl`        | `session.schedule_cancelled`; a loop: not rearmed       |
+  | grok    | `scheduled_task_created` in `updates.jsonl` beside the held `events.jsonl`          | `scheduled_task_deleted`, 7 days, its process           |
+  | agy     | `schedule` calls with a `CronExpression` answered with a task id, in the transcript | `manage_task` kill, its "finished" message, its process |
+
+  A self-paced loop counts until 25 min past its wake-up (`wakeSlack`;
+  claude's `ScheduleWakeup`, copilot's `session.schedule_rearmed`). "Its
+  process" is the one started (`startedAt`, `/proc`) after the job was made:
+  such a job did not come back with a resume. Claude takes a transcript's
+  cron jobs up again as it resumes it, and copilot its events'; grok says
+  each durable task created again. Copilot's
+  events follow [copilot-sdk](https://github.com/microsoft/copilot-sdk)'s
+  schema, grok's are as [grok-build](https://github.com/xai-org/grok-build)
+  writes them. Agy's are read by its binary's strings and the lines of its
+  other tools, a real job's unseen: a kill that names the task another way
+  leaves it listed until its process ends. Codex and gemini have no jobs of
+  their own (codex's automations are the desktop app's); opencode's
+  automations are not read.
 - `Session.Model`, `Session.Effort` and a subagent's come from the same
   readers, for the session's own conversation and each subagent's:
 

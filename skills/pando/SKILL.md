@@ -126,6 +126,14 @@ agy and grok on Linux only, none while `asleep` or `exited`. They are part of
 that session, not sessions of their own: there is nothing to read, wait on or
 send to but the session itself.
 
+`schedules` lists the recurring jobs the agent of a claude, copilot, grok or
+agy session set up for itself and has not cancelled (`every`: a cron
+expression, an interval like `5m` or `10 minutes`, or `self-paced`;
+`prompt`), oldest first;
+copilot, grok and agy on Linux only, none while `asleep` or `exited`. A
+session with one starts turns on its own: `idle` is not the end of its work,
+and putting it to sleep or killing it stops the job.
+
 `model` and `effort` are what the session's agent runs on, where it records
 them: claude, codex, grok, copilot, agy and gemini (no effort), all but
 claude on Linux only. Empty before its first reply.

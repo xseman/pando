@@ -178,6 +178,10 @@ checkout.
   click on one opens the session. The pointer over one, or over its session,
   shows the model and effort it runs on: a claude, codex, grok, copilot, agy
   or gemini session, and the subagents of the first three.
+- The recurring jobs a claude, copilot, grok or agy session set up for itself
+  (`/loop`, `/every`, a cron) list under its row too, on `↻`: the cadence
+  and the first line of the prompt, until the agent cancels them or its
+  process ends.
 - `alt+i` picks a saved prompt, a file in `~/.config/pando/prompts/`, by
   words of its name or text (a name match first): `⏎` types it into the
   session in view, or the panel's shell when it has the keyboard, as one

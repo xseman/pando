@@ -19,35 +19,37 @@ import (
 	"github.com/xseman/pando/internal/proto"
 )
 
-// subagentReaders read the subagents an agent's process runs now, oldest
-// first, and the model and effort its own last turn ran on, by program: pid
-// is the agent's process, c the conversation remember found for it. Copilot
-// and gemini list no subagents; opencode reports nothing.
-var subagentReaders = map[string]func(pid int, c *proto.Conversation, now time.Time) (subagents []proto.Subagent, model, effort string){
-	"claude": func(_ int, c *proto.Conversation, now time.Time) ([]proto.Subagent, string, string) {
+// subagentReaders read what an agent's process runs now, by program: its
+// subagents, oldest first, the model and effort its own last turn ran on,
+// and the recurring jobs it set up for itself (schedules.go). pid is the
+// agent's process, c the conversation remember found for it. Copilot and
+// gemini list no subagents, codex and gemini no jobs; opencode reports
+// nothing.
+var subagentReaders = map[string]func(pid int, c *proto.Conversation, now time.Time) agentRuns{
+	"claude": func(pid int, c *proto.Conversation, now time.Time) agentRuns {
 		if c == nil {
-			return nil, "", ""
+			return agentRuns{}
 		}
 
 		subagents := claudeSubagents(*c, now)
 		model, effort := claudeModel(*c)
 
-		return subagents, model, effort
+		return agentRuns{subagents, model, effort, claudeSchedules(*c, startedAt(pid), now)}
 	},
-	"codex": func(pid int, _ *proto.Conversation, _ time.Time) ([]proto.Subagent, string, string) {
+	"codex": func(pid int, _ *proto.Conversation, _ time.Time) agentRuns {
 		files := openFiles(pid)
 		subagents := codexSubagents(files)
 		model, effort := codexModel(files)
 
-		return subagents, model, effort
+		return agentRuns{subagents, model, effort, nil}
 	},
-	"agy": func(pid int, _ *proto.Conversation, _ time.Time) ([]proto.Subagent, string, string) {
+	"agy": func(pid int, _ *proto.Conversation, now time.Time) agentRuns {
 		files := openFiles(pid)
 		model, effort := agyModel(files)
 
-		return agySubagents(files), model, effort
+		return agentRuns{agySubagents(files), model, effort, agySchedules(files, startedAt(pid), now)}
 	},
-	"gemini": func(pid int, _ *proto.Conversation, _ time.Time) ([]proto.Subagent, string, string) {
+	"gemini": func(pid int, _ *proto.Conversation, _ time.Time) agentRuns {
 		dir, _ := os.Readlink("/proc/" + strconv.Itoa(pid) + "/cwd") // gone, or not on Linux: no session found
 
 		home := envOf(pid, "GEMINI_CLI_HOME")
@@ -57,19 +59,27 @@ var subagentReaders = map[string]func(pid int, c *proto.Conversation, now time.T
 
 		model, effort := geminiModel(filepath.Join(home, ".gemini"), dir)
 
-		return nil, model, effort
+		return agentRuns{nil, model, effort, nil}
 	},
-	"copilot": func(pid int, _ *proto.Conversation, _ time.Time) ([]proto.Subagent, string, string) {
-		model, effort := copilotModel(openFiles(pid))
+	"copilot": func(pid int, _ *proto.Conversation, now time.Time) agentRuns {
+		files := openFiles(pid)
+		model, effort := copilotModel(files)
 
-		return nil, model, effort
+		return agentRuns{nil, model, effort, copilotSchedules(files, now)}
 	},
-	"grok": func(pid int, _ *proto.Conversation, _ time.Time) ([]proto.Subagent, string, string) {
+	"grok": func(pid int, _ *proto.Conversation, now time.Time) agentRuns {
 		files := openFiles(pid)
 		model, effort := grokModel(files)
 
-		return grokSubagents(files), model, effort
+		return agentRuns{grokSubagents(files), model, effort, grokSchedules(files, startedAt(pid), now)}
 	},
+}
+
+// agentRuns is what a subagentReaders row read.
+type agentRuns struct {
+	subagents     []proto.Subagent
+	model, effort string
+	schedules     []proto.Schedule
 }
 
 func byStart(out []proto.Subagent) []proto.Subagent {
