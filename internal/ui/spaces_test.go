@@ -190,7 +190,7 @@ func TestSpacesIdleAge(t *testing.T) {
 	press(m, "3")
 
 	lines := m.ag.lines(m, 40, m.bodyH(viewAgents))
-	for i, want := range map[int]string{1: " 3h ", 2: " input ", 3: " idle "} {
+	for i, want := range map[int]string{1: " 3h ", 2: "  input  ", 3: " idle "} {
 		if l := ansi.Strip(lines[i]); !strings.HasSuffix(l, want) {
 			t.Fatalf("row %d ends in %q: %q", i, want, l)
 		}

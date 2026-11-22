@@ -203,8 +203,9 @@ checkout.
 | `◌`  | `asleep`  | stopped to free memory; opening it brings it back         |
 | `✕`  | `exited`  | failed (`exit N`); a clean exit closes the session        |
 
-One needing you pulses until clicked (`session_highlight`) and can
-play a sound (`sounds`).
+One needing you has a tinted row with its status on a colored plate, pulses
+until clicked (`session_highlight`) and can play a sound (`sounds`). One
+asleep is grey.
 
 ![three claude sessions, each in a worktree of its own, come to life; one finishes (✓), one waits for a yes (×, pulsing), and the finished one's diff is reviewed and committed without leaving pando](demo/tui.gif)
 

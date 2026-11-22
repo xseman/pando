@@ -1551,7 +1551,12 @@ func (a *agents) lines(m *Model, w, h int) []string {
 				chev = sgOwn(chev.s, keycapHot().Background(pal.twistieHoverBg))
 			}
 
-			left := []seg{chev, sg(m.spin(glyph, ss...), fg(c)), sg(agLabel(r), base.Bold(open))} // folded, a step under the open ones
+			nameSt := base.Bold(open) // folded, a step under the open ones
+			if bg == nil && len(ss) > 0 && !slices.ContainsFunc(ss, func(s proto.Session) bool { return s.Status != "asleep" }) {
+				nameSt = fg(pal.ignored) // nothing awake in it: it steps back with its sessions
+			}
+
+			left := []seg{chev, sg(m.spin(glyph, ss...), fg(c)), sg(agLabel(r), nameSt)}
 			if r.merged() {
 				left = append(append(left, sg("  ", plain)), m.wsSegs(r.ws, base)...)
 			}
@@ -1643,13 +1648,30 @@ func (a *agents) lines(m *Model, w, h int) []string {
 
 		// The session on screen: the accent's bar in the gutter's first cell
 		// and its name in the accent, as VS Code marks the active item. One
-		// that needs you says so in its status, in its symbol's color, bold
-		// on the pulse's beat; no row is tinted, so none reads as selected.
+		// that needs you has its name bold, its row in the soft shade of its
+		// tint and its status on a plate in its symbol's color, bold on the
+		// pulse's beat; one asleep steps back in the ignored grey. The
+		// selection and the row under the pointer keep their own colors.
+		tint, soft := sessionTint(r.s)
+		needs := tint != nil && m.st.Settings.SessHi != "off"
+		quiet := r.s.Status == "asleep" && bg == nil
+
 		nameSt, lead := base, []seg{gutter}
-		if m.sess == r.s.ID {
+
+		switch {
+		case m.sess == r.s.ID:
 			nameSt = nameSt.Foreground(pal.headerAccent).Bold(true)
 			gutter.s = strings.TrimPrefix(gutter.s, " ") // the pin's own blank before it
 			lead = []seg{sg("▎", fg(pal.headerAccent)), gutter}
+
+		case needs:
+			nameSt = nameSt.Bold(true)
+		case quiet:
+			nameSt = fg(pal.ignored)
+		}
+
+		if needs && bg == nil {
+			bg = soft
 		}
 
 		status, statusSt := r.s.Status, dim
@@ -1666,9 +1688,16 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			status = shortAgo(r.s.Updated, time.Now())
 		}
 
-		if tint, _ := sessionTint(r.s); tint != nil && m.st.Settings.SessHi != "off" {
+		switch {
+		case needs:
 			statusSt = fg(c).Bold(m.pulses(r.s) && m.blinkOn)
+		case r.s.Status == "running":
+			statusSt = fg(c)
+		case quiet:
+			statusSt = fg(pal.ignored)
 		}
+
+		word := status // what the plate holds, before where it runs and its profile
 
 		if !m.byWorkspace() && !r.pinned { // no project tree to say where it runs
 			status = m.runsAt(r, status)
@@ -1688,8 +1717,14 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		// whole in a tip, over the model its agent runs on.
 		g, after, right := m.spin(glyph, r.s), titleAfter(r.s), " "+status+" "
 
+		var plate string
+		if needs && strings.HasSuffix(status, word) { // grouped by State its status is a time: no plate
+			plate = " " + word + " "
+			right = " " + strings.TrimSuffix(status, word) + plate + " "
+		}
+
 		if y == hover {
-			right, kill = " "+status, drawActions(acts[1:], mx)
+			right, kill = strings.TrimSuffix(right, " "), drawActions(acts[1:], mx)
 		}
 
 		if onKill {
@@ -1723,7 +1758,12 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			}
 		}
 
-		ends := append([]seg{sg(right, statusSt)}, kill...)
+		ends := []seg{sg(right, statusSt)}
+		if at := strings.LastIndex(right, plate); plate != "" {
+			ends = []seg{sg(right[:at], dim), sg(plate, statusSt.Reverse(true)), sg(right[at+len(plate):], dim)}
+		}
+
+		ends = append(ends, kill...)
 		if where != nil {
 			ends = append(where, ends...)
 		}

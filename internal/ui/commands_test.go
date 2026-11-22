@@ -483,8 +483,9 @@ func TestAgentsTreeAndSounds(t *testing.T) {
 }
 
 // TestSessionHighlight tints the tab of a session that waits (×), finished
-// unseen (✓) or failed (✕) in its symbol's color; its Spaces row says so in
-// its status instead, untinted. The tint pulses between two shades until the
+// unseen (✓) or failed (✕) in its symbol's color; its Sessions row takes the
+// tint's soft shade and says so on a plate in its status, and one asleep
+// steps back in grey. The tab's tint pulses between two shades until the
 // session is clicked, and stays steady while the state lasts; a new state
 // pulses again. "steady" never pulses, "off" drops it, and the session on
 // screen needs none.
@@ -494,7 +495,8 @@ func TestSessionHighlight(t *testing.T) {
 	m.sessions = append(m.sessions,
 		proto.Session{SessionSpec: proto.SessionSpec{ID: "b", Workspace: m.ws, Agent: "claude"}, Status: "blocked"},
 		proto.Session{SessionSpec: proto.SessionSpec{ID: "d", Workspace: m.ws, Agent: "codex"}, Status: "idle", Attention: true},
-		proto.Session{SessionSpec: proto.SessionSpec{ID: "r", Workspace: m.ws, Agent: "gemini"}, Status: "running", Attention: true})
+		proto.Session{SessionSpec: proto.SessionSpec{ID: "r", Workspace: m.ws, Agent: "gemini"}, Status: "running", Attention: true},
+		proto.Session{SessionSpec: proto.SessionSpec{ID: "z", Workspace: m.ws, Agent: "opencode"}, Status: "asleep"})
 	press(m, "3")
 
 	shades := func() (full, soft bool) {
@@ -505,9 +507,13 @@ func TestSessionHighlight(t *testing.T) {
 	}
 
 	spaces := strings.Join(m.ag.lines(m, 40, 20), "\n")
-	if strings.Contains(spaces, bgParams(pal.blockedBg)) || strings.Contains(spaces, bgParams(pal.blockedSoftBg)) ||
-		!strings.Contains(ansi.Strip(spaces), "input") || !strings.Contains(ansi.Strip(spaces), "done") {
-		t.Fatalf("Spaces says the state in its status, untinted:\n%s", spaces)
+	if strings.Contains(spaces, bgParams(pal.blockedBg)) || !strings.Contains(spaces, bgParams(pal.blockedSoftBg)) || !strings.Contains(spaces, bgParams(pal.doneSoftBg)) ||
+		!strings.Contains(ansi.Strip(spaces), " input ") || !strings.Contains(ansi.Strip(spaces), " done ") {
+		t.Fatalf("Sessions tints the row softly and says the state in its status:\n%s", spaces)
+	}
+
+	if !strings.Contains(spaces, fgParams(pal.ignored)+"mopencode") {
+		t.Fatalf("a session asleep steps back in grey:\n%s", spaces)
 	}
 
 	// A new state pulses: the ticker runs and flips the shade.
