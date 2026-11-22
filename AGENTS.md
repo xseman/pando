@@ -80,6 +80,14 @@ libgit2: git is shelled out.
   invariant, not just "did not panic"; keep the `testdata/fuzz` crashers.
 - Config changes go through the daemon so `config.toml` keeps its comments and
   every attached TUI gets the `state` event.
+- Anything that reads an agent's own data (usage limits, profiles, model,
+  transcripts) is keyed by harness: one row per harness in its table
+  (`usageSources`, `configMarks`, `subagentReaders`, `conversations` in
+  `internal/daemon`), found through the harness's own config variable and
+  account file, never through one machine's directory layout. Adding a
+  harness is a new row. A harness left out for later gets a `// ponytail:`
+  note, one that has no such data a plain comment. Say which harnesses a
+  change covers.
 - A change in behaviour updates `README.md` (user-facing) or `docs/` (how it
   works). Keep both terse; tables over prose.
 - `make lint` must stay clean. Never silence a linter to get there: fix the
