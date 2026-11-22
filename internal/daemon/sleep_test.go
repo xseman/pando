@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -496,8 +497,8 @@ func TestSleepGenericAgents(t *testing.T) {
 // TestAutoSleep puts a session to sleep once it has gone unused for
 // sleep_after, its Terminal panel's shell with it; one in use, one working,
 // one running something pando would not bring back, one whose panel works,
-// runs a server or holds a job, a plain shell, and one that rang for attention
-// nobody gave stay awake.
+// runs a server or holds a job, one whose agent set up a recurring job, a
+// plain shell, and one that rang for attention nobody gave stay awake.
 func TestAutoSleep(t *testing.T) {
 	needProc(t)
 
@@ -505,6 +506,18 @@ func TestAutoSleep(t *testing.T) {
 	sleepUnit = 300 * time.Millisecond
 
 	t.Cleanup(func() { sleepUnit = unit })
+
+	var watcher atomic.Int64 // the pid of the sh that set up a recurring job
+
+	subagentReaders["sh"] = func(pid int, _ *proto.Conversation, _ time.Time) agentRuns {
+		if int64(pid) != watcher.Load() {
+			return agentRuns{}
+		}
+
+		return agentRuns{schedules: []proto.Schedule{{Every: "0 9 * * *", Prompt: "Check the build"}}}
+	}
+
+	t.Cleanup(func() { delete(subagentReaders, "sh") })
 
 	boot := start(t)
 
@@ -546,6 +559,12 @@ func TestAutoSleep(t *testing.T) {
 	newSession(jobPanel, "sleep 300 &")
 	viewed := newSession("", "")
 	rang := newSession("", `printf '\a'`)
+	watching := newSession("", "")
+
+	d.mu.Lock()
+	pid, _ := d.sessions[watching].foreground()
+	d.mu.Unlock()
+	watcher.Store(int64(pid))
 
 	var shell proto.Session
 	call(t, "session.new", map[string]any{"workspace": ws, "cmd": []string{"bash", "--norc"}}, &shell)
@@ -580,7 +599,7 @@ func TestAutoSleep(t *testing.T) {
 
 	for name, id := range map[string]string{
 		"busy": busy, "server": server, "busy panel's": busyPanel, "server panel's": serverPanel, "job panel's": jobPanel,
-		"viewed": viewed, "rang": rang, "shell": shell.ID,
+		"viewed": viewed, "rang": rang, "watching": watching, "shell": shell.ID,
 	} {
 		if st := status(id); st == "asleep" {
 			t.Errorf("the %s session fell asleep", name)

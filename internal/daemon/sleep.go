@@ -135,11 +135,12 @@ func (d *Daemon) sleepy(s *session, now time.Time) bool {
 // unused reports session s idle and unused for after, its finished turn seen
 // (attention), with what runs in front one pando brings back: an agent with
 // a resume, or its own shell at the prompt with no job left running. A server
-// or an editor, or nothing that says what runs (no /proc), keeps it awake.
+// or an editor, or nothing that says what runs (no /proc), keeps it awake,
+// and so does a recurring job its agent set up, which fires inside it.
 // d.mu is held.
 func (d *Daemon) unused(s *session, now time.Time, after time.Duration) bool {
 	info := s.info()
-	if info.Status != "idle" || info.Attention || now.Sub(s.used()) < after {
+	if info.Status != "idle" || info.Attention || len(info.Schedules) > 0 || now.Sub(s.used()) < after {
 		return false
 	}
 

@@ -245,8 +245,8 @@ its background job and its `claude attach` together.
   that long: nobody typed into it, looked at it or saw it change. Blocked,
   working, a background command running, finished but not looked at yet (`✓`),
   or running something pando would not bring back, it stays awake, and so does
-  a plain shell. A timer inside the agent (`/loop`) does not hold it: set
-  `sleep_after` above its interval. `sleep_after` in `config.toml`, or
+  a plain shell, and one with a recurring job (`↻`), which would stop with
+  it. `sleep_after` in `config.toml`, or
   _Settings → Sessions_, sets the minutes; `0` turns it off.
 - Asleep (`◌`), its screen stays, its process and a claude's background job
   are stopped. A daemon restart leaves it asleep. A Terminal panel's shell

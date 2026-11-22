@@ -196,7 +196,8 @@ nothing. `pando session keys` with no keys prints the names it accepts.
 
 An agent's session unused for an hour (`sleep_after`), or one put to sleep by
 the user, is `asleep`: its process, and a claude's background job, were stopped
-to free memory. Its screen still reads. `pando session send` and `keys` wake it
+to free memory. One with `schedules` (a recurring job its agent set up) does
+not sleep on its own. Its screen still reads. `pando session send` and `keys` wake it
 first and wait for its prompt; anything else wakes it by hand:
 
 ```sh
