@@ -199,6 +199,7 @@ checkout.
 | `◐`  | `running` | works; it turns while it does                             |
 | `◐`  | `shell`   | at its prompt, a shell command running under it (blue)    |
 | `✓`  | `done`    | finished, not looked at yet                               |
+| `↻`  | `watch`   | between runs of a recurring job: its turns end unannounced |
 | `○`  | `idle`    | at its prompt                                             |
 | `◌`  | `asleep`  | stopped to free memory; opening it brings it back         |
 | `✕`  | `exited`  | failed (`exit N`); a clean exit closes the session        |

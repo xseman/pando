@@ -4823,6 +4823,45 @@ func TestSpacesSchedules(t *testing.T) {
 	if l := strings.TrimSpace(ansi.Strip(lines[i+2])); l != "↻ */5 * * * * · Check the build" {
 		t.Fatalf("the job's row: %q", l)
 	}
+
+	// Between its job's runs it is watching: a turn that ended is no news.
+	s1.Status, s1.Attention = "idle", true
+	m.Update(sessionsMsg{s1})
+
+	lines = m.ag.lines(m, 40, m.bodyH(viewAgents))
+	if l := ansi.Strip(lines[i]); sessionState(s1) != "watch" || !strings.Contains(l, "↻ ") || !strings.HasSuffix(strings.TrimRight(l, " "), " watch") {
+		t.Fatalf("the watching session's row: %q", l)
+	}
+
+	if tint, _ := sessionTint(s1); tint != nil || m.attentionCount() != 0 || len(m.alarms()) != 0 {
+		t.Fatal("a watching session asks for nobody")
+	}
+
+	was := s1
+	was.Status, was.Attention = "running", false
+	m.sess, m.sessions = "", []proto.Session{was}
+
+	if cue := m.soundFor([]proto.Session{s1}); cue != "" {
+		t.Fatalf("its run ending plays %q", cue)
+	}
+
+	ended := s1
+	ended.Schedules = nil
+	m.sessions = []proto.Session{s1}
+
+	if cue := m.soundFor([]proto.Session{ended}); cue != "done" || sessionState(ended) != "done" {
+		t.Fatalf("its last job gone, what it left unseen plays %q", cue)
+	}
+
+	idle := proto.Session{SessionSpec: proto.SessionSpec{ID: "s2", Workspace: m.ws, Agent: "claude"}, Status: "idle"}
+	if g, _ := groupGlyph([]proto.Session{idle, s1}); g != "↻ " {
+		t.Fatalf("its project's symbol beside an idle one: %q", g)
+	}
+
+	s1.Status = "blocked"
+	if sessionState(s1) != "blocked" {
+		t.Fatal("a question it asks still does")
+	}
 }
 
 // TestSpacesSubagents is a session's subagents: a row each under it, on the

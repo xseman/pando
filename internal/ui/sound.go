@@ -42,7 +42,7 @@ const soundGap = time.Second // one cue per second, a batch of finishes is one s
 
 // soundFor is the cue a session list update deserves: "request" when a
 // session out of view started waiting for an answer, "done" when one
-// finished unseen, "" otherwise. herdr plays these for background workspaces.
+// finished unseen, a run of a recurring job aside, "" otherwise. herdr plays these for background workspaces.
 func (m *Model) soundFor(next []proto.Session) string {
 	cue := ""
 
@@ -60,7 +60,7 @@ func (m *Model) soundFor(next []proto.Session) string {
 		switch {
 		case s.Status == "blocked" && old.Status != "blocked":
 			return "request"
-		case s.Attention && !old.Attention && s.Status != "blocked":
+		case s.Attention && s.Status != "blocked" && !watching(s) && (!old.Attention || watching(old)): // its last job gone, what it left is news
 			cue = "done"
 		}
 	}

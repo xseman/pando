@@ -5525,7 +5525,7 @@ func (m *Model) attentionCount() int {
 	n := 0
 
 	for _, s := range m.sessions {
-		if s.Attention && s.ID != m.sess {
+		if s.Attention && !watching(s) && s.ID != m.sess {
 			n++
 		}
 	}

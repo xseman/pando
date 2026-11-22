@@ -280,7 +280,8 @@ by id. Hit exactly that session:
 
 1. **Find.** Join `session ls` (its `workspace` path) with `ws ls` (that
    path's `project`, shown by basename, and `branch`). Match the label against
-   `name`, `agent`, `program` and `title`; Sessions' done is `idle`, unseen.
+   `name`, `agent`, `program` and `title`; Sessions' done is `idle`, unseen, and its
+   watch is `idle` with `schedules`.
    From here on use the `id`.
 2. **Prove.** Exactly one candidate; not `$PANDO_SESSION`; `program` not a
    shell (`bash`, `zsh`, `fish`…), which would run the text as a command —

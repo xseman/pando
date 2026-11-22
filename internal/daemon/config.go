@@ -259,7 +259,7 @@ func (c *config) encode() []byte {
 		"(colors blocked_bg, done_bg and their _soft_bg), \"steady\" to tint without the pulse, or \"off\".", "session_highlight", s.SessHi)
 	kv("Sessions view: sessions sorted by \"created\" or \"updated\" (last input or change of state),\n"+
 		"grouped by \"workspace\" (project and worktree) or \"time\" (Today, Yesterday, …), and\n"+
-		"the states left out: blocked, running, done, idle, asleep, exited.", "spaces_sort", s.SpSort)
+		"the states left out: blocked, running, done, watch, idle, asleep, exited.", "spaces_sort", s.SpSort)
 	kv("", "spaces_group", s.SpGroup)
 	kv("", "spaces_hide", list(s.SpHide))
 	kv("Put an agent's session to sleep once it has been idle and unused - nobody typed into it,\n"+

@@ -1228,8 +1228,9 @@ func shortAgo(t, now time.Time) string {
 
 // sessionGlyph is herdr's status symbol set: × blocked on a permission or a
 // question, ◐ working (in the accent's blue on a shell command), ✓ done
-// (idle, unseen since it finished), ○ idle, and ✕ for a process that exited
-// with a code; ◌ asleep, nothing running until it is opened.
+// (idle, unseen since it finished), ↻ between the runs of a recurring job, ○
+// idle, and ✕ for a process that exited with a code; ◌ asleep, nothing
+// running until it is opened.
 func sessionGlyph(s proto.Session) (string, color.Color) {
 	switch {
 	case s.Status == "asleep":
@@ -1242,6 +1243,8 @@ func sessionGlyph(s proto.Session) (string, color.Color) {
 		return "◐ ", pal.warn
 	case s.Status == "exited":
 		return "✕ ", pal.ignored
+	case watching(s):
+		return "↻ ", pal.accent
 	case s.Attention:
 		return "✓ ", pal.attention
 	}
@@ -1303,17 +1306,24 @@ func (m *Model) spinLater() tea.Cmd {
 }
 
 // sessionState names what a session's symbol says: blocked, running,
-// asleep, exited, done (finished unseen) or idle.
+// asleep, exited, watch (idle between the runs of a recurring job), done
+// (finished unseen) or idle.
 func sessionState(s proto.Session) string {
 	switch {
 	case s.Status == "blocked", s.Status == "running", s.Status == "asleep", s.Status == "exited":
 		return s.Status
+	case watching(s):
+		return "watch"
 	case s.Attention:
 		return "done"
 	}
 
 	return "idle"
 }
+
+// watching reports a session between two runs of a recurring job its agent
+// set up: each run ends by itself, so its end is no news.
+func watching(s proto.Session) bool { return s.Status == "idle" && len(s.Schedules) > 0 }
 
 // sessionTint is the background session_highlight gives s in its symbol's
 // color: waiting for an answer (×) or ended with an error (✕) in the error's,
@@ -1408,15 +1418,17 @@ func sessionRank(s proto.Session) int {
 		return 0
 	case s.Status == "running":
 		return 1
+	case watching(s):
+		return 3
 	case s.Attention:
 		return 2
 	case s.Status == "idle":
-		return 3
+		return 4
 	case s.Status == "asleep":
-		return 5
+		return 6
 	}
 
-	return 4
+	return 5
 }
 
 // groupGlyph is a project's symbol: its most demanding session, · for none.
@@ -1678,8 +1690,8 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		switch state := sessionState(r.s); {
 		case state == "blocked":
 			status = "input"
-		case state == "done":
-			status = "done"
+		case state == "done", state == "watch":
+			status = state
 		case r.s.Status == "exited":
 			status = fmt.Sprintf("exit %d", r.s.ExitCode)
 		case r.s.Shell:
@@ -3000,7 +3012,7 @@ func (a *agents) menu(m *Model, x, y int) tea.Cmd { return m.menuOf(a.items(m), 
 
 // sessionStates are the states the Filter can leave out, in sessionRank's order.
 var sessionStates = []struct{ state, label string }{
-	{"blocked", "Blocked"}, {"running", "Working"}, {"done", "Done"}, {"idle", "Idle"}, {"exited", "Exited"}, {"asleep", "Asleep"},
+	{"blocked", "Blocked"}, {"running", "Working"}, {"done", "Done"}, {"watch", "Watching"}, {"idle", "Idle"}, {"exited", "Exited"}, {"asleep", "Asleep"},
 }
 
 // checked is a menu label with VS Code's check column: ✓ when on.
@@ -3662,9 +3674,9 @@ func (m *Model) sessionItems(ss []proto.Session) []item {
 		glyph, _ := sessionGlyph(s)
 
 		status := s.Status
-		switch {
-		case s.Attention && status == "idle":
-			status = "done"
+		switch state := sessionState(s); {
+		case state == "done", state == "watch":
+			status = state
 		case s.Shell:
 			status = "shell"
 		}

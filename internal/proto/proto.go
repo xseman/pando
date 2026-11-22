@@ -93,7 +93,7 @@ type Settings struct {
 	SpSort    string              `json:"spaces_sort" toml:"spaces_sort"`                 // sessions by "created" or "updated"
 	SpGroup   string              `json:"spaces_group" toml:"spaces_group"`               // Sessions rows: "workspace" (the project tree), "project" (a project's sessions in one list), "time" (Today, Yesterday, …) or "state" (Blocked, Working, …)
 	SpProj    string              `json:"spaces_project_sort" toml:"spaces_project_sort"` // Sessions projects in their "manual" order or by "updated" (their sessions' last output)
-	SpHide    []string            `json:"spaces_hide" toml:"spaces_hide"`                 // session states Sessions leaves out: blocked, running, done, idle, asleep, exited
+	SpHide    []string            `json:"spaces_hide" toml:"spaces_hide"`                 // session states Sessions leaves out: blocked, running, done, watch, idle, asleep, exited
 	Sleep     int                 `json:"sleep_after" toml:"sleep_after"`                 // minutes an idle session goes unused before it is put to sleep; 0 never
 	// Profiles is per agent preset what a new session of it can run with:
 	// profile name to KEY=VALUE, such as CLAUDE_CONFIG_DIR=~/.claude-work.

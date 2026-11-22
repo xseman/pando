@@ -240,7 +240,7 @@ The daemon decides each status
 ([01-architecture.md](01-architecture.md#status)); Sessions
 draws herdr's glyphs, one per state (`sessionGlyph`, `sessionState`; the
 table is in [usage.md](usage.md#sessions)). `done` is `idle` with
-`attention`; an `exited` row is a failure, shown as `exit N`.
+`attention`, `watch` is `idle` with `Schedules`, whatever its `attention`; an `exited` row is a failure, shown as `exit N`.
 
 - Rows roll up the most demanding glyph of what they hold (`groupGlyph`).
 - A working `◐` turns a quarter every `spinStep` (250 ms), in Sessions and on
@@ -326,7 +326,7 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
   in the first 30 s after a reconnect, a restarted daemon's agents coming back
   (`resumeGrace`).
 - `alt+t` opens quick open on its Sessions tab (`sessionTree`), with
-  `@blocked`, `@running`, `@shell`, `@done`, `@idle`, `@exited`, `@asleep`
+  `@blocked`, `@running`, `@shell`, `@done`, `@watch`, `@idle`, `@exited`, `@asleep`
   and `!agent` filters.
 - `alt+a` opens the next session waiting on you (`alarms`): blocked, then
   ended with an error, then finished unseen, the one waiting longest first in

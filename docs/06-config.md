@@ -84,7 +84,7 @@ config.toml edited ───────────┘  └─ "state" event �
 | `spaces_sort`          | `created`      | `created`, `updated` (last input or change of state)                           |
 | `spaces_group`         | `workspace`    | `workspace`, `project` (a list each), `time` (Today, …), `state` (Blocked, …)  |
 | `spaces_project_sort`  | `manual`       | `manual` (drag, `alt+↑↓`), `updated` (sessions' last input or change)          |
-| `spaces_hide`          | `[]`           | states left out: `blocked` `running` `done` `idle` `asleep` `exited`           |
+| `spaces_hide`          | `[]`           | states left out: `blocked` `running` `done` `watch` `idle` `asleep` `exited`   |
 | `sleep_after`          | `60`           | minutes idle and unused before a session sleeps; `0` never                     |
 | `usage`                | `true`         | ask each agent's service for its plan limits: the Usage tab, the status bar    |
 | `profile_switch`       | `notify`       | the active profile near a limit: `notify` (offer another), `auto`, `off`       |

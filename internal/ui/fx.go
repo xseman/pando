@@ -552,7 +552,7 @@ func (m *Model) noteFx() {
 		track(key, sessionName(s), fxMorph, true)
 
 		mood := ""
-		if s.Status == "blocked" || s.Attention {
+		if s.Status == "blocked" || s.Attention && !watching(s) {
 			mood = s.Status + strconv.FormatBool(s.Attention)
 		}
 

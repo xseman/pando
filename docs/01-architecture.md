@@ -168,7 +168,7 @@ character. Output costs a sixth of the CPU it did.
 ## Status
 
 `Session.Status` is `blocked`, `running`, `idle`, `asleep` or `exited`; the TUI shows
-`idle` with `attention` as done, and `running` with `shell` (a shell command
+`idle` with `attention` as done, `idle` with `Schedules` as watch, and `running` with `shell` (a shell command
 under the worker, the screen not saying running) as shell, its ◐ blue. Each
 tick, `session.tick` decides:
 
