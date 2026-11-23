@@ -1,5 +1,47 @@
 # Changelog
 
+## [0.13.0](https://github.com/xseman/pando/compare/v0.12.0...v0.13.0) (2026-11-23)
+
+
+### Features
+
+* **cli:** session profile moves a session by profile name ([1434724](https://github.com/xseman/pando/commit/14347244c055f8f6115d9ffa7120c1fe4c961356))
+* **daemon:** model and effort of a claude session and its subagents ([1fda86e](https://github.com/xseman/pando/commit/1fda86e19f47234d4e6903e927fa646ed5c33d0a))
+* **daemon:** model and effort of codex and grok sessions ([a554ee7](https://github.com/xseman/pando/commit/a554ee793cf6d3aa5fa37db9d456b4a73f58f08f))
+* **daemon:** model and effort of copilot, agy and gemini sessions ([1838a86](https://github.com/xseman/pando/commit/1838a86b844e8be430eb764f957746461a41b195))
+* **daemon:** plan limits of agy, copilot and grok ([be77196](https://github.com/xseman/pando/commit/be77196d565dbed78d9fb05b0f30effe844dc15d))
+* **daemon:** session.profile by profile name, with text to submit ([5870e05](https://github.com/xseman/pando/commit/5870e0540f6ec5e685c9bc98185c7f53501dcb3e))
+* **daemon:** the recurring jobs a session's agent set up, under its row ([cd58c89](https://github.com/xseman/pando/commit/cd58c89f8f27a2b4fd73246987a302a3d9a48bcd))
+* **ui:** a column per limit window in the profile picker ([79d4e76](https://github.com/xseman/pando/commit/79d4e767b0426c00a05432483615316a019a4552))
+* **ui:** a line under each session saying where it runs, by State ([f1db725](https://github.com/xseman/pando/commit/f1db725205ada3ef49e5a1f77c7cb4d64388ad64))
+* **ui:** a session's and a subagent's tip names its model and effort ([90d095e](https://github.com/xseman/pando/commit/90d095ecbe05a2f0bcfe2e3640c3406435553e91))
+* **ui:** group sessions by project, each saying its worktree ([4170331](https://github.com/xseman/pando/commit/4170331455e397725aed2a29c8f5d77ace2c4a62))
+* **ui:** profile picker in columns, Usage meters in blocks ([1c02eb0](https://github.com/xseman/pando/commit/1c02eb03fc8774d2c4862d4076d71a63e9b7a2bb))
+* **ui:** show a session between the runs of a recurring job as watch ([afba4c2](https://github.com/xseman/pando/commit/afba4c2fc99a07dca1421730506ff386c12a3886))
+* **ui:** tint the row of a session that needs you, grey the ones asleep ([591d390](https://github.com/xseman/pando/commit/591d390f17739b2158bfd466e9419a186dcd429e))
+
+
+### Bug Fixes
+
+* **cli:** help lists session.profile and the usage methods ([6db5e8e](https://github.com/xseman/pando/commit/6db5e8ebc4c15a6aa0e0c8cdb4383ad5bb6e297f))
+* **daemon:** keep a session with a recurring job awake ([4d47ac0](https://github.com/xseman/pando/commit/4d47ac0353c884225edfb1cacf980b9c6d402072))
+* **demo:** keep the machine's sign-ins out of usage.gif ([e512fdb](https://github.com/xseman/pando/commit/e512fdb56c3ef1ce83fa658be45b16d5bc47e449))
+* **ui:** indent guides no longer freeze on a deeply indented line ([d5d2fc4](https://github.com/xseman/pando/commit/d5d2fc4bc78c5f950c1cda4022d82719c1f9ee8a))
+
+
+### Documentation
+
+* **agents:** an agent's own data is keyed by harness ([b8594d7](https://github.com/xseman/pando/commit/b8594d7d12f3a9f45e63f7370cd8d92eb5986b20))
+* **demo:** re-record the GIFs that show Sessions and Usage ([11ca539](https://github.com/xseman/pando/commit/11ca53931656bb3d7820a6e8d5edbf1a17829962))
+* **readme:** drop the License section, Related as a short list ([a457664](https://github.com/xseman/pando/commit/a457664323bee5a625c330df36d2e11dac3f36d6))
+* **readme:** shorter Features ([2f40ca5](https://github.com/xseman/pando/commit/2f40ca56d0ef9b7ad057188a60f01597da4cc73e))
+* where each agent's model and effort are read from ([e1c68f2](https://github.com/xseman/pando/commit/e1c68f2d3f00a215a003c3e285734c1b0ec62e33))
+
+
+### Testing
+
+* **ui:** find a bare project by its name and branch ([673be3f](https://github.com/xseman/pando/commit/673be3fdbcc3d7f11de86cb56bc13d1f45af62a6))
+
 ## [0.12.0](https://github.com/xseman/pando/compare/v0.11.0...v0.12.0) (2026-11-12)
 
 
