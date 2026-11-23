@@ -192,6 +192,10 @@ type State struct {
 	// session.new names no env, and the one a TUI's profile picker opens on:
 	// its KEY=VALUE as Seen keeps them; none for its default.
 	Active map[string][]string `json:"active_profile,omitempty"`
+	// Order is per agent its accounts in the order Usage left them, each its
+	// KEY=VALUE as Active keeps them, none for its default; the accounts it
+	// does not name follow in the daemon's order.
+	Order map[string][][]string `json:"profile_order,omitempty"`
 	// Instance is the daemon's instance, "" for the default one; state.json
 	// does not keep it.
 	Instance string `json:"instance,omitempty"`

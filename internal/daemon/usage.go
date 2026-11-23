@@ -231,7 +231,45 @@ func (d *Daemon) accounts() []proto.Account {
 		}
 	}
 
+	ordered(out, d.state.Order)
+
 	return out
+}
+
+// ordered sorts accounts, grouped by agent A–Z, in the order order gives each
+// agent's; the ones it does not name keep their order after them.
+func ordered(accounts []proto.Account, order map[string][][]string) {
+	rank := func(a proto.Account) int {
+		named := order[a.Agent]
+		if i := slices.IndexFunc(named, func(env []string) bool { return slices.Equal(env, a.Env) }); i >= 0 {
+			return i
+		}
+
+		return len(named)
+	}
+
+	slices.SortStableFunc(accounts, func(x, y proto.Account) int {
+		return cmp.Or(cmp.Compare(x.Agent, y.Agent), rank(x)-rank(y))
+	})
+}
+
+// setOrder takes each agent's account order in patch, an empty one forgetting
+// it, and puts the accounts measured last in it. d.mu is held.
+func (d *Daemon) setOrder(patch map[string][][]string) {
+	if d.state.Order == nil {
+		d.state.Order = map[string][][]string{}
+	}
+
+	for agent, order := range patch {
+		if len(order) == 0 {
+			delete(d.state.Order, agent)
+		} else {
+			d.state.Order[agent] = order
+		}
+	}
+
+	d.usage.Accounts = slices.Clone(d.usage.Accounts) // a refresh reads the last one outside d.mu
+	ordered(d.usage.Accounts, d.state.Order)
 }
 
 // account is agent's account that env picks, the default for none.

@@ -729,6 +729,10 @@ there while `hasUsage`: `usage` on and an account known.
   known. With an offer (`Usage.Offer`) it adds `use NAME`, and a click takes
   it; `onUsage` flashes a new offer once, `movedProfile` a profile the daemon
   made active (`profile_switch = "auto"`).
+- An account drags among its agent's by any of its rows, `alt+↑↓` too
+  (`reorderProfile`): a tinted row marks the drop (`dropSlot`), the release
+  moves it here and sends the agent's whole order as `state.set`'s
+  `profile_order`, which the daemon sorts `Usage.Accounts` by (`ordered`).
 
 ## Commands
 

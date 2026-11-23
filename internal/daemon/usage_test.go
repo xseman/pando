@@ -263,6 +263,27 @@ func TestProfileSwitch(t *testing.T) {
 		t.Fatalf("notify: offer %v, active %v", u.Offer, active())
 	}
 
+	// profile_order puts an agent's accounts in its order at once, the ones
+	// it does not name after them, and a refresh keeps it.
+	call(t, "state.set", map[string]any{"profile_order": map[string][][]string{"sh": {{"D=b"}, nil}}}, nil)
+
+	for _, u := range []proto.Usage{{}, refresh()} {
+		if u.Accounts == nil {
+			call(t, "usage.get", nil, &u)
+		}
+
+		names := make([]string, len(u.Accounts))
+		for i, a := range u.Accounts {
+			names[i] = a.Name
+		}
+
+		if want := []string{"b", "default", "out"}; !slices.Equal(names, want) {
+			t.Fatalf("ordered accounts %q, want %q", names, want)
+		}
+	}
+
+	call(t, "state.set", map[string]any{"profile_order": map[string][][]string{"sh": {nil, {"D=b"}}}}, nil)
+
 	// Taking the offer ends it, and what was measured survives a restart's read.
 	call(t, "state.set", map[string]any{"active_profile": map[string][]string{"sh": {"D=b"}}}, nil)
 

@@ -467,6 +467,8 @@ anything else runs on the default's sign-in and is not listed.
 | `a` | `profile_switch`: `auto`, or from it back to `notify`            |
 | `r` | ask again; the daemon asks every 15 minutes on its own           |
 
+Drag a profile, or `alt+↑` `alt+↓`, to reorder an agent's profiles.
+
 The active profile is the row a new session's profile picker opens on, and
 what `pando session new` starts an agent with. The picker's rows have a
 column per window, claude's `5h` and `7d` named in its top edge: each a

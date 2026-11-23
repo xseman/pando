@@ -79,6 +79,7 @@ const (
 	dragStrip
 	dragGrid
 	dragOpen
+	dragProfile
 )
 
 // actH is the height of a sidebar's activity bar: the icons, then the row
@@ -102,7 +103,7 @@ func railW() int { return actW() }
 // drag is a mouse gesture from a click until its release.
 type drag struct {
 	kind    int
-	col     int    // dragDivider: the column being resized
+	col     int    // dragDivider: the column being resized; dragProfile: the account being moved, an index in Usage.Accounts
 	pane    string // dragPane: Git drawer title, or GitHub section title with v viewGitHub
 	v       view   // dragTab: the tab being dragged; dragPane: viewGit or viewGitHub
 	proj    string // dragRow: the project being moved in the Sessions list
@@ -112,7 +113,7 @@ type drag struct {
 	strip   int    // dragStrip: the tab strip, stripEditor and on
 	tab     string // dragStrip: the tab being moved, an editor's or a session's id; dragOpen: the file's held from Explorer, or the session's from Sessions
 	org     int    // dragStrip: the screen column of the strip's first cell
-	slot    int    // dragStrip: where the tab would land, an index in stripOrder; -1 nowhere
+	slot    int    // dragStrip: where the tab would land, an index in stripOrder; dragProfile: the account whose place it would take; -1 nowhere
 	x0      int    // dragTab, dragStrip: where it was picked up; dragRow: the row's column pressed; dragMsgSel: the message text's screen origin, with y0
 	drop    *dropTarget
 	split   *pane // dragGrid: the split whose divider moves
@@ -3989,6 +3990,8 @@ func (m *Model) dragMouse(msg tea.MouseMsg) tea.Cmd {
 		return m.dragTerm(d, mo.Y, release)
 	case dragRow:
 		return m.ag.dragRowTo(m, d, mo.X, mo.Y, release)
+	case dragProfile:
+		return m.us.dragTo(m, d, mo.Y, release)
 	case dragScroll:
 		return m.barDragTo(d.bar, mo.X, mo.Y, release)
 	case dragStrip:

@@ -277,6 +277,7 @@ focused one alone ([Editor groups](#editor-groups)).
 | tab onto a bar, or the half facing main   | slot between chips (`slotAt`, `placeView`) |
 | tab below a bar, toward the screen edge   | a new column                               |
 | Sessions project, worktree or session row | a tinted row between rows (`dropSlot`)     |
+| Usage account, among its agent's          | the same (`usageView.dropSlot`)            |
 
 `dropAt` picks the target, `dropBox` draws it. A Sessions row moves only on
 release, onto the row of its kind under the pointer (`dropOn`); a project

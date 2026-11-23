@@ -917,7 +917,8 @@ func (d *Daemon) save() error {
 		Pinned    []string                  `json:"spaces_pinned,omitempty"`
 		Seen      map[string][][]string     `json:"seen_env,omitempty"`
 		Active    map[string][]string       `json:"active_profile,omitempty"`
-	}{d.state.Projects, d.state.Drafts, d.state.Editors, d.state.Terminals, d.state.Sessions, d.state.Worktrees, d.state.LastWorkspace, d.state.Folded, d.state.Pinned, d.state.Seen, d.state.Active}, "", "  ")
+		Order     map[string][][]string     `json:"profile_order,omitempty"`
+	}{d.state.Projects, d.state.Drafts, d.state.Editors, d.state.Terminals, d.state.Sessions, d.state.Worktrees, d.state.LastWorkspace, d.state.Folded, d.state.Pinned, d.state.Seen, d.state.Active, d.state.Order}, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -1017,6 +1018,7 @@ func (d *Daemon) setState(raw json.RawMessage) (any, error) {
 		Folded    *[]string                  `json:"spaces_folded"`  // the whole list, replacing the last
 		Pinned    *[]string                  `json:"spaces_pinned"`  // the whole list, replacing the last
 		Active    map[string][]string        `json:"active_profile"` // per agent, none for its default
+		Order     map[string][][]string      `json:"profile_order"`  // per agent, the whole list replacing the last; empty forgets it
 	}
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, err
@@ -1114,6 +1116,10 @@ func (d *Daemon) setState(raw json.RawMessage) (any, error) {
 		d.state.Pinned = *p.Pinned
 	}
 
+	if p.Order != nil {
+		d.setOrder(p.Order)
+	}
+
 	var usage []byte
 
 	now, moved := d.state.Settings, false
@@ -1131,11 +1137,11 @@ func (d *Daemon) setState(raw json.RawMessage) (any, error) {
 		d.advise(false)
 	}
 
-	if p.Active != nil || switched || was.Usage != now.Usage {
+	if p.Active != nil || p.Order != nil || switched || was.Usage != now.Usage {
 		usage, _ = json.Marshal(d.usage) // strings, numbers and times
 	}
 
-	if p.Drafts != nil || p.Editors != nil || p.Terminals != nil || p.Last != nil || p.Folded != nil || p.Pinned != nil || p.Active != nil || moved {
+	if p.Drafts != nil || p.Editors != nil || p.Terminals != nil || p.Last != nil || p.Folded != nil || p.Pinned != nil || p.Active != nil || p.Order != nil || moved {
 		err = errors.Join(err, d.save())
 	}
 	d.mu.Unlock()

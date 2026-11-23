@@ -557,3 +557,65 @@ func TestProfileShown(t *testing.T) {
 
 	checkWidths(t, m)
 }
+
+// TestUsageDragReorder drags an account among its agent's: the rows stay put
+// while a band marks the drop, the release moves it and saves the order,
+// another agent's rows take no drop, and alt+↑↓ moves it within its agent.
+func TestUsageDragReorder(t *testing.T) {
+	m := usageModel(t)
+	m.showView(viewUsage)
+
+	cs, _ := m.layout()
+	x := cs[m.colOf(viewUsage)].x + 1
+	from, to := bodyY(t, m, ".claude-work · Team"), bodyY(t, m, "default · Max 5x")
+	names := func() []string {
+		out := make([]string, len(m.usage.Accounts))
+		for i, a := range m.usage.Accounts {
+			out[i] = a.Agent + ":" + a.Name
+		}
+
+		return out
+	}
+	original := names()
+
+	m.Update(tea.MouseClickMsg{X: x, Y: from, Button: tea.MouseLeft})
+
+	if m.drag == nil || m.drag.kind != dragProfile || m.drag.col != 1 {
+		t.Fatalf("a press on an account starts a drag: %+v", m.drag)
+	}
+
+	m.Update(tea.MouseMotionMsg{X: x, Y: bodyY(t, m, "Codex · Free"), Button: tea.MouseLeft})
+
+	if m.drag.slot != -1 {
+		t.Fatalf("another agent's row takes a drop: %d", m.drag.slot)
+	}
+
+	m.Update(tea.MouseMotionMsg{X: x, Y: to, Button: tea.MouseLeft})
+
+	if m.drag.slot != 0 || !slices.Equal(names(), original) || m.us.dropSlot(m, m.us.rows(m)) != 1 {
+		t.Fatalf("the rows stay put while the drop is marked: slot %d, %v", m.drag.slot, names())
+	}
+
+	checkWidths(t, m)
+
+	_, cmd := m.Update(tea.MouseReleaseMsg{X: x, Y: to, Button: tea.MouseLeft})
+	if want := []string{"claude:.claude-work", "claude:default", "codex:default"}; cmd == nil || m.drag != nil || !slices.Equal(names(), want) {
+		t.Fatalf("the release saves the order: cmd %v, drag %+v, %v", cmd != nil, m.drag, names())
+	}
+
+	if r := m.us.selected(m); r == nil || r.kind != usAccount || r.acct.Name != ".claude-work" {
+		t.Fatalf("the moved account stays selected: %+v", r)
+	}
+
+	press(m, "alt+up")
+
+	if names()[0] != "claude:.claude-work" {
+		t.Fatalf("alt+up past the first: %v", names())
+	}
+
+	press(m, "alt+down", "alt+down")
+
+	if !slices.Equal(names(), original) {
+		t.Fatalf("alt+down stays among its agent's: %v", names())
+	}
+}

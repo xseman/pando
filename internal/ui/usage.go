@@ -55,9 +55,15 @@ func (m *Model) dropUsageTab() {
 	}
 }
 
+// accountAt is the index in Usage.Accounts of agent's account that env
+// picks, the default for none; -1 for no such account.
+func (m *Model) accountAt(agent string, env []string) int {
+	return slices.IndexFunc(m.usage.Accounts, func(a proto.Account) bool { return a.Agent == agent && slices.Equal(a.Env, env) })
+}
+
 // account is agent's account that env picks, the default for none.
 func (m *Model) account(agent string, env []string) (proto.Account, bool) {
-	i := slices.IndexFunc(m.usage.Accounts, func(a proto.Account) bool { return a.Agent == agent && slices.Equal(a.Env, env) })
+	i := m.accountAt(agent, env)
 	if i < 0 {
 		return proto.Account{}, false
 	}
@@ -477,13 +483,26 @@ func (v *usageView) lines(m *Model, w, h int) []string {
 		v.move(m, 1, len(rows), m.bodyH(viewUsage))
 	}
 
-	return v.l.render(w, h, len(rows), func(i, rw int) string {
+	slot := v.dropSlot(m, rows) // the drop band takes a row of its own
+	n := len(rows) + ifElse(slot >= 0, 1, 0)
+
+	return v.l.render(w, h, n, func(i, rw int) string {
+		y := i - v.l.top
+
+		switch {
+		case slot < 0 || i < slot:
+		case i == slot: // a band in the selection's tint, as Sessions' drop mark
+			return row(rw, pal.selBg, nil)
+		default:
+			i--
+		}
+
 		r := rows[i]
 		if r.kind == usGap {
 			return blank(rw)
 		}
 
-		bg, name := m.rowColors(viewUsage, i == v.l.sel, i-v.l.top == hover)
+		bg, name := m.rowColors(viewUsage, i == v.l.sel, y == hover)
 		plan := ifElse(r.acct.Plan == "", "", " · "+r.acct.Plan)
 
 		switch r.kind {
@@ -502,7 +521,7 @@ func (v *usageView) lines(m *Model, w, h int) []string {
 			}
 
 			use := sg("use", fg(pal.headerAccent))
-			if i-v.l.top == hover && overUse(mx, w) {
+			if y == hover && overUse(mx, w) {
 				use, m.tip = sgOwn("use", keycapHot()), "Start New "+r.acct.Agent+" Sessions as "+r.acct.Name+"  ⏎"
 			}
 
@@ -531,7 +550,7 @@ func (v *usageView) lines(m *Model, w, h int) []string {
 			return row(rw, bg, []seg{sg(lead, dim)}, right...)
 		}
 
-		if len(ticks) > 0 && i-v.l.top == hover {
+		if len(ticks) > 0 && y == hover {
 			tips := make([]string, len(ticks))
 			for j, t := range ticks {
 				tips[j] = fmt.Sprintf("┃ %s's Own %s Limit  %.0f%%", t.Model, r.lim.Window, t.Percent)
@@ -627,6 +646,8 @@ func (v *usageView) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		v.move(m, n, n, h)
 	case "enter", "space":
 		return v.use(m, v.selected(m))
+	case "alt+up", "alt+down":
+		return v.shift(m, map[bool]int{true: -1, false: 1}[k.String() == "alt+up"])
 	case "a":
 		return m.toggleAuto()
 	case "r", "ctrl+r":
@@ -672,7 +693,142 @@ func (v *usageView) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 		if w := m.colRect(col).w - m.barW(col); i >= 0 && rows[i].kind == usAccount && overUse(x, w) {
 			return v.use(m, &rows[i])
 		}
+		// An account of an agent with more than one drags among them by any
+		// of its rows.
+		if i >= 0 && mo.Button == tea.MouseLeft && !rows[i].inert() && !rows[i].solo {
+			m.drag = &drag{kind: dragProfile, col: m.accountAt(rows[i].acct.Agent, rows[i].acct.Env), slot: -1, y0: mo.Y}
+		}
 	}
 
 	return nil
+}
+
+// dragTo marks where the dragged account would land, a tinted row before the
+// one whose place it takes or past it (dropSlot), and the release moves it
+// there. Let go anywhere else it stays.
+func (v *usageView) dragTo(m *Model, d *drag, y int, release bool) tea.Cmd {
+	if y != d.y0 {
+		d.moved = true
+	}
+
+	if d.moved {
+		d.slot = v.dropOn(m, d, v.rows(m))
+	}
+
+	if !release {
+		return nil
+	}
+
+	m.drag = nil
+
+	if d.slot < 0 {
+		return nil
+	}
+
+	return m.reorderProfile(d.col, d.slot)
+}
+
+// dropOn is the account whose place drag d takes with the pointer over one of
+// its rows: one of the dragged one's agent, not itself. Over a gap or the
+// band it keeps the last; -1 for none.
+func (v *usageView) dropOn(m *Model, d *drag, rows []usRow) int {
+	y := m.hoverRow(viewUsage)
+	if y < 0 || d.col >= len(m.usage.Accounts) {
+		return -1
+	}
+
+	i := v.l.top + y
+	if at := v.dropSlot(m, rows); at >= 0 && i >= at { // the rows below the band sit a row lower
+		if i == at {
+			return d.slot
+		}
+
+		i--
+	}
+
+	if i >= len(rows) {
+		return -1
+	}
+
+	if rows[i].kind == usGap {
+		return d.slot
+	}
+
+	to := m.accountAt(rows[i].acct.Agent, rows[i].acct.Env)
+	if to < 0 || to == d.col || m.usage.Accounts[to].Agent != m.usage.Accounts[d.col].Agent {
+		return -1
+	}
+
+	return to
+}
+
+// dropSlot is the row the drop band goes before while an account drags: the
+// account row of the one it takes the place of moving up, past that one's
+// limits moving down; -1 with no drop.
+func (v *usageView) dropSlot(m *Model, rows []usRow) int {
+	d := m.drag
+	if d == nil || d.kind != dragProfile || d.slot < 0 || d.slot >= len(m.usage.Accounts) {
+		return -1
+	}
+
+	to := m.usage.Accounts[d.slot]
+
+	at := slices.IndexFunc(rows, func(r usRow) bool {
+		return r.kind == usAccount && r.acct.Agent == to.Agent && slices.Equal(r.acct.Env, to.Env)
+	})
+	if at < 0 || d.slot < d.col {
+		return at
+	}
+
+	at++
+	for at < len(rows) && (rows[at].kind == usLimit || rows[at].kind == usNote) {
+		at++
+	}
+
+	return at
+}
+
+// shift moves the selected account d places among its agent's: alt+↑↓'s
+// half of the drag.
+func (v *usageView) shift(m *Model, d int) tea.Cmd {
+	r := v.selected(m)
+	if r == nil || r.solo {
+		return nil
+	}
+
+	from := m.accountAt(r.acct.Agent, r.acct.Env)
+	to := from + d
+
+	if from < 0 || to < 0 || to >= len(m.usage.Accounts) || m.usage.Accounts[to].Agent != r.acct.Agent {
+		return nil
+	}
+
+	return m.reorderProfile(from, to)
+}
+
+// reorderProfile puts account from where account to is in Usage.Accounts, both
+// of one agent, here at once and in state.json's profile_order; the moved
+// account stays selected.
+func (m *Model) reorderProfile(from, to int) tea.Cmd {
+	a := m.usage.Accounts[from]
+	rest := slices.Delete(slices.Clone(m.usage.Accounts), from, from+1)
+	m.usage.Accounts = slices.Insert(rest, to, a)
+
+	var order [][]string
+
+	for _, b := range m.usage.Accounts {
+		if b.Agent == a.Agent {
+			order = append(order, b.Env)
+		}
+	}
+
+	rows := m.us.rows(m)
+	if i := slices.IndexFunc(rows, func(r usRow) bool {
+		return r.kind == usAccount && slices.Equal(r.acct.Env, a.Env) && r.acct.Agent == a.Agent
+	}); i >= 0 {
+		m.us.l.sel = i
+		m.us.l.snap(m.bodyH(viewUsage))
+	}
+
+	return do("state.set", map[string]any{"profile_order": map[string][][]string{a.Agent: order}})
 }

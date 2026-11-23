@@ -242,6 +242,7 @@ tick, on leaving the workspace and on quitting.
 | `spaces_pinned`  | pinned session ids and project paths, in order; sent whole      |
 | `seen_env`       | per program, the configs seen or found; never, edit it out      |
 | `active_profile` | per agent, what a session with no `env` starts with; `[]`       |
+| `profile_order`  | per agent, its accounts' `env` in Usage order; sent whole, `[]` |
 
 ```json
 "editors": { "/home/me/app": { "row": true, "ratio": 0.5,
