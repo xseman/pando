@@ -188,27 +188,23 @@ code. Bugs and ideas go to [issues](https://github.com/xseman/pando/issues).
 
 ## Related
 
-Projects that read the same agent files, worth a look when an agent changes
-its format:
+Other readers of the same agent files, worth a look when an agent changes its
+format:
 
-| Project                                                                                       | Reads                                                                    |
-| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| [microsoft/copilot-sdk](https://github.com/microsoft/copilot-sdk)                             | Copilot's session events schema, `session.schedule_*` included           |
-| [xai-org/grok-build](https://github.com/xai-org/grok-build)                                   | Grok's own source: the `scheduled_task_*` updates it writes              |
-| [nwverse/persona](https://github.com/nwverse/persona)                                         | Go: claude's background tasks, `CronCreate` and `ScheduleWakeup` loops   |
-| [agent-ecosystem/agentminutes](https://github.com/agent-ecosystem/agentminutes)               | Go library: one event schema over agy, claude, codex, copilot logs       |
-| [three-feathers/agent-durbar](https://github.com/three-feathers/agent-durbar)                 | TypeScript: copilot's schedules, created, cancelled and rearmed          |
-| [Arithmomaniac/copilot-session-tools](https://github.com/Arithmomaniac/copilot-session-tools) | Python: copilot's `events.jsonl`, schedule events included               |
-| [asheshgoplani/agent-deck](https://github.com/asheshgoplani/agent-deck)                       | Go: a session manager TUI for claude, gemini, opencode, codex            |
-| [kenn-io/agentsview](https://github.com/kenn-io/agentsview)                                   | Go: session parsers for claude, codex, copilot, gemini and many more     |
-| [codealong/codealong](https://github.com/codealong/codealong)                                 | Rust: claude wake-ups, sessions of codex, opencode, antigravity, cursor  |
-| [jazzyalex/agent-sessions](https://github.com/jazzyalex/agent-sessions)                       | Swift: session history of codex, claude, opencode, copilot, grok         |
-| [majiayu000/agent-sessions](https://github.com/majiayu000/agent-sessions)                     | Rust library and JSONL format reference for claude and codex             |
-| [nihen/ah](https://github.com/nihen/ah)                                                       | Rust: one CLI over claude, codex, gemini, copilot, cursor, grok sessions |
-| [steipete/CodexBar](https://github.com/steipete/CodexBar)                                     | Swift: plan limits of codex, claude and other agents                     |
-| [ccusage/ccusage](https://github.com/ccusage/ccusage)                                         | token use from claude and codex transcripts                              |
-| [omacom/omarchy](https://github.com/omacom/omarchy)                                           | the usage readout pando's plan limits started from                       |
-
-## License
-
-Apache-2.0, see [LICENSE](LICENSE).
+- [microsoft/copilot-sdk](https://github.com/microsoft/copilot-sdk): copilot's session events
+- [xai-org/grok-build](https://github.com/xai-org/grok-build): grok's own source
+- [nwverse/persona](https://github.com/nwverse/persona): claude's background tasks and loops
+- [agent-ecosystem/agentminutes](https://github.com/agent-ecosystem/agentminutes),
+  [kenn-io/agentsview](https://github.com/kenn-io/agentsview),
+  [nihen/ah](https://github.com/nihen/ah),
+  [codealong/codealong](https://github.com/codealong/codealong),
+  [jazzyalex/agent-sessions](https://github.com/jazzyalex/agent-sessions),
+  [majiayu000/agent-sessions](https://github.com/majiayu000/agent-sessions):
+  session logs of many agents
+- [three-feathers/agent-durbar](https://github.com/three-feathers/agent-durbar),
+  [Arithmomaniac/copilot-session-tools](https://github.com/Arithmomaniac/copilot-session-tools):
+  copilot's schedules
+- [asheshgoplani/agent-deck](https://github.com/asheshgoplani/agent-deck): a session manager TUI
+- [steipete/CodexBar](https://github.com/steipete/CodexBar),
+  [ccusage/ccusage](https://github.com/ccusage/ccusage),
+  [omacom/omarchy](https://github.com/omacom/omarchy): plan limits and token use
