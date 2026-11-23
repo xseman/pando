@@ -22,3 +22,15 @@ pkill -f '^python3 -I .*/usage/proxy[.]py' && while pgrep -f '^python3 -I .*/usa
 setsid timeout 600 python3 -I "$DEMO/usage/proxy.py" 18443 "$u/srv.pem" "$u/srv.key" >/dev/null 2>&1 < /dev/null &
 export PATH=$DEMO/usage/bin:$PATH CODEX_HOME=$u/codex HTTPS_PROXY=http://127.0.0.1:18443 SSL_CERT_FILE=$u/ca.pem
 demo_claude_src=$u/claude
+
+# The daemon looks for more sign-ins in the home directory and in every
+# process's environment (/proc), where it would find the recording machine's:
+# usage.tape starts it, once cfg has written config.toml, with a home of its
+# own and a /proc holding only what it runs. The pando on screen keeps the real
+# home, where its Nerd Font is.
+export GOCACHE=$(go env GOCACHE) GOPATH=$(go env GOPATH)
+serve_alone() {
+	mkdir -p "$STATE/home"
+	HOME=$STATE/home setsid unshare --user --map-current-user --pid --fork --mount-proc --kill-child pando serve >/dev/null 2>&1 < /dev/null &
+	until [ -S "$PANDO_RUNTIME_DIR/pando.sock" ]; do sleep 0.1; done
+}

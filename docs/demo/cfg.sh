@@ -70,6 +70,9 @@ cfg() {
 			layout=$'width_right = 30\nleft = [{ views = ["files", "git", "search", "github", "databases"] }]\nright = [{ views = ["agents"] }]\n' ;;
 		usage) # usage.sh's made-up sign-ins: the default and a work profile
 			usage=true
+			# only the agents usage.sh makes up: another one installed (agy,
+			# grok) would show the recording machine's sign-in
+			agents+=$'claude = ["claude"]\ncodex = ["codex"]\nshell = ["bash"]\nterminal = ["bash"]\n'
 			profiles+="work = [\"CLAUDE_CONFIG_DIR=$STATE/usage/claude-work\"]"$'\n' ;;
 		claude-ask) agents+="ask = [\"claude\", \"--permission-mode\", \"default\"]"$'\n' ;;
 		claude-edits) agents+="claude = [\"claude\", \"--permission-mode\", \"acceptEdits\", \"--allowedTools\", \"Bash\"]"$'\n' ;;

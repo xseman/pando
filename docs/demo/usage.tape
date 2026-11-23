@@ -15,6 +15,7 @@ Source docs/demo/settings.tape
 Source docs/demo/setup.tape
 Type "source $DEMO/usage/usage.sh" Enter
 Type `cfg 44 usage` Enter
+Type "serve_alone" Enter
 # A shell session, so Sessions holds one.
 Type "pando project add . >/dev/null && pando session new --ws . --name shop --wait -- bash --norc >/dev/null" Enter
 Type "pando session send shop 'go run .' --wait >/dev/null; clear" Enter
@@ -27,6 +28,8 @@ Type "9"
 Sleep 500ms
 Type "r"
 Wait+Screen@10s /use work/
+# The notice saying so goes before the recording starts: the status bar cuts it.
+Wait+Screen@15s / 0 {4,}pando-demo/
 Type "3"
 Sleep 500ms
 Show
@@ -43,15 +46,13 @@ Sleep 300ms
 Down
 Sleep 300ms
 Down
-Sleep 300ms
-Down
 Sleep 800ms
 Enter
 Sleep 2500ms
 
 # A new claude session asks which profile, each with what it has left.
 Type "3"
-Sleep 600ms
+Sleep 1200ms
 Type "n"
 Sleep 800ms
 Type "cl"
