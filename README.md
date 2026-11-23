@@ -78,49 +78,29 @@ and every session in it; the next `pando` starts them again.
 
 ## Features
 
-- **Agent sessions**: projects → worktrees → sessions, each with its own shells,
-  marked when they need you, the subagents claude, codex, agy or grok run
-  and the recurring jobs claude, copilot, grok or agy set up listed under
-  them, resumed after a daemon restart, put to sleep when unused
-  to free memory; ctrl+click a `path:line` or a URL in their output to open it;
-  saved prompts typed into any of them with `alt+i`.
-- **Source Control**: VS Code's view — line-level staging, Commit & Sync,
-  Publish, AI commit messages, history drawers, GitLens-style commit and pull
-  request comparisons.
-- **Diffs**: inline or side by side, word-level highlights, hidden lines
-  unfolded in place, changes marked on the scrollbar and stepped through
-  (`]` `[`), a file's revisions stepped through like GitLens.
-- **Editor**: undo, find & replace, suggestions, format on save, vim mode,
-  code folding, `.editorconfig` and detected indentation, the line's git
-  blame in the status bar, unsaved drafts that survive a restart, language
-  servers with hover, parameter hints and their problems underlined, listed
-  (`ctrl+shift+m`) and stepped through (`F8`).
-- **Explorer and Search**: git decorations, VS Code's context menu, quick
-  open over files, sessions, the files' text and the commands in tabs
-  (JetBrains' Search Everywhere), workspace search & replace.
-- **GitHub**: with `gh` installed, pull requests, issues and notifications as
-  VS Code's GitHub Pull Requests view lists them; a pull request opens in the
-  editor or checks out in a worktree of its own.
-- **Databases**: the worktree's SQLite files, the server its `.env` names and
-  connections added in a form (Postgres, MariaDB, MySQL, SQLite; passwords in
-  the system keyring), their tables in a grid: filter, sort and page, then
-  edit cells and rows and submit them in one transaction, or open the client
-  in the terminal for the rest.
-- **Customizations**: a tab beside Sessions, what an agent loads in this
-  worktree: its skills, instructions, hooks, MCP servers and plugins as VS
-  Code lists them, each opening its file; it follows the session's agent.
-- **Usage**: a tab beside Sessions, claude's and codex's plan limits by
-  sign-in, one per profile: how much of every window is used and when it
-  resets. Near a limit pando offers the profile with the most room for new
-  sessions, or switches to it, and a running claude session moves to another
-  profile with its conversation.
-- **Layout**: VS Code's editor groups, files and sessions split side by side
-  or stacked by dragging a tab, a bottom panel with the terminals, the
-  problems and the output, a settings tab, draggable views and columns, VS
-  Code's 2026 themes, remappable keys.
-- **CLI and API**: JSON over a unix socket; self-update on Linux and macOS.
-- **Instances**: `pando --instance work` is a separate pando, with projects
-  and sessions of its own and your settings.
+- **Agent sessions**: projects → worktrees → sessions, marked when they need
+  you, with their subagents and recurring jobs; resumed after a restart, asleep
+  when unused, saved prompts on `alt+i`.
+- **Source Control**: VS Code's view with line-level staging, AI commit
+  messages and GitLens-style history.
+- **Diffs**: inline or side by side, word-level highlights, a file's revisions
+  stepped through.
+- **Editor**: find & replace, format on save, vim mode, folding, git blame,
+  drafts that survive a restart, language servers.
+- **Explorer and Search**: git decorations, quick open over files, sessions,
+  text and commands, workspace search & replace.
+- **GitHub**: pull requests, issues and notifications through `gh`; a pull
+  request opens as a diff or checks out in a worktree.
+- **Databases**: SQLite, Postgres, MariaDB and MySQL tables in a grid: filter,
+  sort, edit, submit in one transaction.
+- **Customizations**: an agent's skills, instructions, hooks, MCP servers and
+  plugins in this worktree.
+- **Usage**: plan limits of every claude and codex sign-in; near a limit pando
+  offers the profile with the most room.
+- **Layout**: VS Code's editor groups, a bottom panel, draggable views, VS
+  Code's themes, remappable keys.
+- **CLI and API**: JSON over a unix socket; self-update on Linux and macOS;
+  `pando --instance work` for a separate pando.
 
 ## Tour
 
