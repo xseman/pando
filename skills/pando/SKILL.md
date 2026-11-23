@@ -32,8 +32,9 @@ only when the user names another one (`pando --instance work session ls`);
 
 `PANDO_SESSION` is set inside a session pando started. If it is set, you are
 running **inside** one of pando's own sessions — that id is your own terminal.
-Never kill, rename or send input to it; moving it to another profile is under
-_Moving yourself_.
+You act on it only when the user asks you to: to move it to another profile
+(_Moving yourself_) or to close it (_Closing yourself_); never rename it or
+send input to it.
 
 ## Learn the current CLI
 
@@ -318,13 +319,29 @@ pando session new --agent claude --ws <that path> --name feat-x --wait
 Create a worktree only when the user asked for isolated work. Otherwise start
 the session in a workspace that already exists.
 
+## Closing yourself
+
+Only when the user asked you to close your own session (to clean it up once
+the work is done), and as the last call of your turn:
+
+```sh
+pando session kill "$PANDO_SESSION"
+```
+
+The kill ends you, this command with you, and the shells started with you as
+parent: its output never arrives and nothing after it runs, your reply
+included. So before it, have everything the user is to keep on disk, committed
+or pushed as they asked, no command of yours still running, and your final
+report written in this turn's text ahead of the call.
+
 ## Safety
 
 - Do not kill, rename, move, put to sleep or send input to a session you did
-  not create, and never to `$PANDO_SESSION`. Killing a session also kills the
-  shells started with it as parent (`--agent terminal --parent ID`), so a kill
-  can take more than one terminal, and stops a claude's background job: the
-  conversation is kept, the turn it was on is not.
+  not create, and to `$PANDO_SESSION` only as _Moving yourself_ and _Closing
+  yourself_ say. Killing a session also kills the shells started with it as
+  parent (`--agent terminal --parent ID`), so a kill can take more than one
+  terminal, and stops a claude's background job: the conversation is kept,
+  the turn it was on is not.
 - The one input you send to a session you did not create is a message the
   user asked you to pass, after the checks in _Pass a message to another
   session_.
