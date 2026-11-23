@@ -402,7 +402,7 @@ func TestQuickOpenSessionTree(t *testing.T) {
 	}
 
 	press(m, "ctrl+u")
-	typeText(m, filepath.Base(bare))
+	typeText(m, filepath.Base(bare)+" dev") // with its branch: the temp dir all projects share may hold the name too
 
 	if got := labels(m); !slices.Equal(got, want[2:3]) {
 		t.Fatalf("a project with no session found by its name: %q", got)
@@ -448,7 +448,7 @@ func TestQuickOpenAllSessions(t *testing.T) {
 
 	bare := addProject(t, m, "dev")
 	m.quickOpen(indexMsg{ws: m.ws}, qoAll)
-	typeText(m, filepath.Base(bare))
+	typeText(m, filepath.Base(bare)+" dev") // with its branch: the temp dir all projects share may hold the name too
 
 	if got, want := labels(m), []string{"sessions", "· " + filepath.Base(bare) + "  ⌂ dev"}; len(got) < len(want) || !slices.Equal(got[:len(want)], want) || m.modal.l.sel != 1 {
 		t.Fatalf("a project with no session found by its name, selected: %q, sel %d", got, m.modal.l.sel)
