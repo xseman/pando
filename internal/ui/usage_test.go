@@ -454,12 +454,12 @@ func TestRoomWindows(t *testing.T) {
 		t.Fatalf("windows %q", got)
 	}
 
-	shown, ticks, ok := windowLimit(groups, "5h")
-	if !ok || shown.Model != "Claude + GPT" || len(ticks) != 1 || ticks[0].Model != "Gemini" {
+	shown, ticks := windowLimit(groups, "5h")
+	if shown.Model != "Claude + GPT" || len(ticks) != 1 || ticks[0].Model != "Gemini" {
 		t.Fatalf("5h shows %+v, ticks %+v", shown, ticks)
 	}
 
-	if _, _, ok := windowLimit(groups, "1mo"); ok {
+	if shown, _ := windowLimit(groups, "1mo"); shown != (proto.Limit{}) {
 		t.Fatal("a window with no limit shows one")
 	}
 }

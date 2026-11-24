@@ -2347,7 +2347,7 @@ func (m *Model) profileModal(title, agent, dir string, cmd []string, profiles []
 		nameW = max(nameW, strWidth(p.name), strWidth(accounts[i].Plan))
 
 		for _, win := range roomWindows(accounts[i : i+1]) {
-			l, _, _ := windowLimit(accounts[i].Limits, win)
+			l, _ := windowLimit(accounts[i].Limits, win)
 			labelW = max(labelW, strWidth(limitLabel(l)))
 		}
 

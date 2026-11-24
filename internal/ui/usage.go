@@ -172,11 +172,11 @@ func roomWindows(accounts []proto.Account) []string {
 
 // windowLimit is what a meter of limits on window shows: the limit every
 // model draws from, else the fullest of the models' own, the others as its
-// ticks. False for a window none of limits is on.
-func windowLimit(limits []proto.Limit, window string) (proto.Limit, []proto.Limit, bool) {
+// ticks. The zero limit for a window none of limits is on.
+func windowLimit(limits []proto.Limit, window string) (proto.Limit, []proto.Limit) {
 	on := slices.DeleteFunc(slices.Clone(limits), func(l proto.Limit) bool { return l.Window != window })
 	if len(on) == 0 {
-		return proto.Limit{}, nil, false
+		return proto.Limit{}, nil
 	}
 
 	i := slices.IndexFunc(on, func(l proto.Limit) bool { return l.Model == "" })
@@ -187,7 +187,7 @@ func windowLimit(limits []proto.Limit, window string) (proto.Limit, []proto.Limi
 	shown := on[i]
 	ticks := slices.Delete(on, i, i+1)
 
-	return shown, ticks, true
+	return shown, ticks
 }
 
 // roomRows draw account a in a profile picker as Usage's wide layout does:
@@ -205,7 +205,7 @@ func roomRows(a proto.Account, name string, active bool, nameW, labelW, w int) [
 		rows = append(rows, [2][]seg{noteSegs(a.Note, labelW+1+w+13)})
 	} else {
 		for _, win := range roomWindows([]proto.Account{a}) {
-			l, ticks, _ := windowLimit(a.Limits, win)
+			l, ticks := windowLimit(a.Limits, win)
 			rows = append(rows, [2][]seg{
 				append([]seg{sg(pad(limitLabel(l), labelW, false)+" ", dim)}, limitMeter(w, l.Percent, ticks, fg(pal.accent))...),
 				{sg(fmt.Sprintf("%3.0f%%", l.Percent), levelStyle(l.Percent, plain)), sg(pad(until(l.Resets, now), 9, true), dim)},
