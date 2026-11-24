@@ -177,7 +177,8 @@ checkout.
   and what they do. They live inside the session; a
   click on one opens the session. The pointer over one, or over its session,
   shows the model and effort it runs on: a claude, codex, grok, copilot, agy
-  or gemini session, and the subagents of the first three.
+  or gemini session, and the subagents of the first three. A session's also
+  names its agent and profile, `claude · work`.
 - The recurring jobs a claude, copilot, grok or agy session set up for itself
   (`/loop`, `/every`, a cron) list under its row too, on `↻`: the cadence
   and the first line of the prompt, until the agent cancels them or its

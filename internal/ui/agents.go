@@ -1745,7 +1745,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		}
 
 		if y == hover && !onPin && !onKill {
-			tip := runsOn(r.s.Model, r.s.Effort)
+			tip := m.harnessOf(&r.s) + "\n" + runsOn(r.s.Model, r.s.Effort)
 			if full := fullName(r.s); full != sessionName(r.s) || 3+ansi.StringWidth(conn+g+full+after+right) > rw {
 				tip = full + after + "\n" + tip
 			}
@@ -2487,6 +2487,16 @@ func (m *Model) profileOf(s *proto.Session) string {
 	m.profileOn[s.ID] = p
 
 	return p
+}
+
+// harnessOf is a tip's line of the agent session s runs and the profile it
+// runs in, "claude · work"; "" for a session that runs none.
+func (m *Model) harnessOf(s *proto.Session) string {
+	if s.Conversation == nil {
+		return ""
+	}
+
+	return s.Conversation.Agent + " · " + cmp.Or(m.profileOf(s), "default")
 }
 
 // runsIn is profileOf's answer, worked out.

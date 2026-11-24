@@ -587,12 +587,20 @@ func TestProfileShown(t *testing.T) {
 		t.Fatalf("on the default it says %q, title %q", got, m.mainTitle())
 	}
 
+	if got := m.harnessOf(s); got != "claude · default" {
+		t.Fatalf("on the default its tip says %q", got)
+	}
+
 	s.Env, m.profileOn = append(s.Env, workEnv...), nil // as a sessions message does
 	m.st.Settings.Right, m.st.Settings.WidthR = proto.Columns{{Views: []string{"agents"}}}, 45
 	m.resize()
 
 	if got := m.profileOf(s); got != "work" {
 		t.Fatalf("in a config no profile names it says %q", got)
+	}
+
+	if got := m.harnessOf(s); got != "claude · work" {
+		t.Fatalf("its tip says %q", got)
 	}
 
 	if !strings.HasSuffix(m.mainTitle(), " · work") {
