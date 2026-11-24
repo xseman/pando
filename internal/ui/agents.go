@@ -2385,8 +2385,10 @@ func (m *Model) profileModal(title, agent, dir string, cmd []string, profiles []
 	}
 
 	if head := roomHead(columns, colW); len(columns) > 0 && strWidth(title)+strWidth(head)+6 <= w {
-		md.note = head
+		md.note, md.joins = head, roomJoins(columns, colW)
 	}
+
+	md.input.Placeholder = "filter"
 
 	md.refilter() // the rows again, with their meters and the detail in the footer
 

@@ -151,10 +151,10 @@ func (m *Model) spends(agent string, env []string) (proto.Account, bool) {
 	return a, ok && m.hasUsage()
 }
 
-// Room's columns: a limit's meter, share and reset, and the gap between two.
+// Room's columns: a window's share, meter and reset, and the rule between two.
 const (
-	roomCell  = 14 // " 93%" and "  2d 17h" after the meter
-	roomGap   = 3
+	roomCell  = 13 // " 93% " before the meter, " 2d 17h" after it
+	roomGap   = 3  // " │ "
 	roomMeter = 12 // the meter's cells the picker asks room for
 )
 
@@ -195,9 +195,9 @@ func windowLimit(limits []proto.Limit, window string) (proto.Limit, []proto.Limi
 }
 
 // room is how spent account a is, at the right end of its row in a profile
-// picker: per window a meter, share and reset in colW cells (windowLimit),
-// blank where a has no limit on it; why its limits are not current across
-// them instead.
+// picker: per window its share in bold, meter and reset in colW cells
+// (windowLimit), blank where a has no limit on it, a rule between two
+// windows; why its limits are not current across them instead.
 func room(a proto.Account, windows []string, colW int) []seg {
 	if a.Note != "" {
 		return noteSegs(a.Note, len(windows)*colW+max(len(windows)-1, 0)*roomGap)
@@ -209,7 +209,7 @@ func room(a proto.Account, windows []string, colW int) []seg {
 
 	for i, w := range windows {
 		if i > 0 {
-			out = append(out, sg(strings.Repeat(" ", roomGap), plain))
+			out = append(out, sg(" │ ", meterTrack[0]))
 		}
 
 		l, ticks, ok := windowLimit(a.Limits, w)
@@ -218,29 +218,40 @@ func room(a proto.Account, windows []string, colW int) []seg {
 			continue
 		}
 
+		out = append(out, sg(fmt.Sprintf("%3.0f%% ", l.Percent), levelStyle(l.Percent, bold)))
 		out = append(out, limitMeter(max(colW-roomCell, 3), l.Percent, ticks, fg(pal.accent))...)
-		out = append(out,
-			sg(fmt.Sprintf(" %3.0f%%", l.Percent), levelStyle(l.Percent, plain)),
-			sg("  "+pad(until(l.Resets, now), roomCell-7, true), dim)) // "2d 17h", "16d 11h" of a 30d window
+		out = append(out, sg(" "+pad(until(l.Resets, now), roomCell-6, true), dim)) // "2d 17h", "16d 11h" of a 30d window
 	}
 
 	return out
 }
 
 // roomHead names room's columns in a profile picker's top edge, each window
-// over its meter.
+// over its share, a ┬ over the rule between two (roomJoins).
 func roomHead(windows []string, colW int) string {
 	var b strings.Builder
 
 	for i, c := range windows {
 		if i > 0 {
-			b.WriteString(strings.Repeat("─", roomGap-1) + " ")
+			b.WriteString("─┬─")
 		}
 
-		b.WriteString(c + " " + strings.Repeat("─", max(colW-strWidth(c)-1, 0)))
+		b.WriteString(" " + c + " " + strings.Repeat("─", max(colW-strWidth(c)-2, 0)))
 	}
 
 	return b.String()
+}
+
+// roomJoins are the rules between room's windows, each as the cells right of
+// it to a row's end, its margin included: where the footer's rule meets them.
+func roomJoins(windows []string, colW int) []int {
+	var out []int
+
+	for i := 1; i < len(windows); i++ {
+		out = append(out, (len(windows)-i)*(colW+roomGap)-1) // the rule mid " │ ", a row's margin after room
+	}
+
+	return out
 }
 
 // noteSegs say why an account's limits are not current in w cells: its word

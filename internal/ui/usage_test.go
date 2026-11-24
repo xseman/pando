@@ -292,12 +292,13 @@ func TestProfileRoom(t *testing.T) {
 
 	items := m.modal.items
 
-	// A column per window, 5h then 7d, Fable's own limit a ┃ on the 7d meter;
+	// A column per window, 5h then 7d with a rule between, each its share
+	// first, then its meter and reset; Fable's own limit a ┃ on the 7d meter;
 	// work's stale limits are not drawn, why spans the columns, and ● marks
 	// the active one.
 	left0, right0, right1 := segsText(items[0].segs), segsText(items[0].right), segsText(items[1].right)
 	if len(items) != 2 || left0 != "  default · Max 5x   " || segsText(items[1].segs) != "● work    · Team 5x  " ||
-		!strings.HasPrefix(right0, "▰") || !strings.Contains(right0, " 40%    2d 2h   ▰") || !strings.HasSuffix(right0, " 96%    2d 2h") || strings.Count(right0, "┃") != 1 ||
+		!strings.HasPrefix(right0, " 40% ▰") || !strings.Contains(right0, "   2d 2h │  96% ▰") || !strings.HasSuffix(right0, "▱   2d 2h") || strings.Count(right0, "┃") != 1 ||
 		!strings.HasPrefix(right1, "paused · its sign-in lapsed  ") || strings.Contains(right1, "30%") {
 		t.Fatalf("rows %q %q, %q %q", left0, right0, segsText(items[1].segs), right1)
 	}
@@ -306,8 +307,15 @@ func TestProfileRoom(t *testing.T) {
 		t.Fatalf("the columns do not line up in the box, %d wide: %q %q", w, right0, right1)
 	}
 
-	if !strings.HasPrefix(m.modal.note, "5h ─") || !strings.Contains(m.modal.note, "── 7d ─") || strings.Contains(m.modal.note, "Fable") {
-		t.Fatalf("the top edge names %q", m.modal.note)
+	// The windows are named over their shares in the top edge, which joins the
+	// rule between them, and so does the footer's rule.
+	cell := func(s, sub string) int {
+		before, _, _ := strings.Cut(s, sub)
+		return ansi.StringWidth(before)
+	}
+	if !strings.HasPrefix(m.modal.note, " 5h ─") || !strings.Contains(m.modal.note, "─┬─ 7d ─") || strings.Contains(m.modal.note, "Fable") ||
+		cell(m.modal.note, "┬") != cell(right0, "│") {
+		t.Fatalf("the top edge names %q over %q", m.modal.note, right0)
 	}
 
 	// The footer says what runs where, the settings that tell profiles apart
@@ -322,8 +330,10 @@ func TestProfileRoom(t *testing.T) {
 	}
 
 	lines := strings.Split(v, "\n")
-	if !strings.Contains(v, " 96%    2d 2h │") || !strings.Contains(lines[slices.IndexFunc(lines, func(l string) bool { return strings.Contains(l, "● work") })+1], "├") {
-		t.Fatalf("a row's reset is cut, or the box is taller than its rows:\n%s", v)
+
+	work := slices.IndexFunc(lines, func(l string) bool { return strings.Contains(l, "● work") })
+	if first, rule := lines[work-1], lines[work+1]; !strings.Contains(first, "2d 2h │") || !strings.Contains(rule, "├") || cell(rule, "┴") != cell(first, "│  96%") {
+		t.Fatalf("a row's reset is cut, the box is taller than its rows, or the footer's rule misses the rule between windows:\n%s", v)
 	}
 
 	checkWidths(t, m)

@@ -1315,6 +1315,7 @@ type modal struct {
 	note  string // dim at the right end of the title row
 	foot  bool   // the selected item's detail in a last row under a rule, not under the item: the list stays put
 	fit   bool   // a filtered list as tall as its items however few, not 8 rows: a short list that is all there is
+	joins []int  // the cells right of each rule down the rows to the frame, which the footer's rule meets with ┴
 	hints string // keys in the bottom edge, the last dropped where they do not fit
 	// caps are the most rows a group shows under a query, in the order the
 	// items list the groups; the rest wait behind a "+ N more" row that goes
@@ -2636,7 +2637,14 @@ func (md *modal) lines(m *Model) ([]string, int, int) {
 			detail = md.disp[md.l.sel].detail
 		}
 
-		lines = append(lines, dim.Render("├"+strings.Repeat("─", iw)+"┤"), side+fit(dim.Render(" "+detail), iw)+side)
+		rule := []rune(strings.Repeat("─", iw))
+		for _, j := range md.joins {
+			if j < iw {
+				rule[iw-1-j] = '┴'
+			}
+		}
+
+		lines = append(lines, dim.Render("├"+string(rule)+"┤"), side+fit(dim.Render(" "+detail), iw)+side)
 	}
 
 	edge := strings.Repeat("─", iw)

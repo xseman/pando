@@ -474,8 +474,9 @@ Drag a profile, or `alt+↑` `alt+↓`, to reorder an agent's profiles.
 
 The active profile is the row a new session's profile picker opens on, and
 what `pando session new` starts an agent with. The picker's rows have a
-column per window, claude's `5h` and `7d` named in its top edge: each a
-meter, share and reset, a model's own allowance a `┃` on it; `●` marks the
+column per window, claude's `5h` and `7d` named in its top edge, a rule
+between them: each the share in bold, a meter and the reset, a model's own
+allowance a `┃` on the meter; `●` marks the
 active profile, and the selected row's footer says what it runs where. The
 status bar names the active profile with its fullest limit every model draws
 from, yellow from 75% and red from 90%: a model's own limit at its end leaves
