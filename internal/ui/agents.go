@@ -2695,53 +2695,11 @@ func (a *agents) remove(m *Model, r *agRow) tea.Cmd {
 		return nil
 	}
 
-	names := map[string]string{}
-
-	switch r.kind {
-	case agSession:
-		names["sess:"+r.s.ID] = sessionName(r.s)
-	case agWorkspace:
-		names["ws:"+r.ws.Path] = wsName(r.ws)
-	}
-
-	for _, id := range kill {
-		if s := m.session(id); s != nil {
-			names["sess:"+id] = sessionName(*s)
-		}
-	}
-
 	m.modal = newDialog(title,
-		item{label: label, run: func(m *Model) tea.Cmd { return m.dissolve(names, killThen(kill, method, params)) }},
+		item{label: label, run: func(*Model) tea.Cmd { return killThen(kill, method, params) }},
 		cancelItem())
 
 	return nil
-}
-
-// dissolve runs cmd once names, the keys and text of what it removes, have
-// dissolved into noise on screen. The names stay blank a while after, until
-// the daemon's list drops their rows.
-func (m *Model) dissolve(names map[string]string, cmd tea.Cmd) tea.Cmd {
-	if !m.fx.on || len(names) == 0 {
-		return cmd
-	}
-
-	const hold = 30 // frames
-
-	d := 0
-
-	for key, name := range names {
-		a := anim{kind: fxMorph, from: name, dur: morphDur(name, "")}
-		d = max(d, a.dur)
-		a.dur += hold
-		m.fx.run(key, a)
-	}
-
-	// ponytail: quitting pando within the dissolve leaves what it removes in
-	// place; run these on quit if that bites.
-	return func() tea.Msg {
-		time.Sleep(time.Duration(d) * fxFrame)
-		return cmd()
-	}
 }
 
 // wsSegs are worktree w's glyph and name on a row whose text is base: the

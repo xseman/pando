@@ -260,12 +260,11 @@ func TestBlockedSessionSweeps(t *testing.T) {
 	}
 }
 
-// TestKillDissolves is Kill Session: the name dissolves into noise before
-// the kill is sent, and stays blank until the session's row goes.
-func TestKillDissolves(t *testing.T) {
+// TestKillAtOnce is Kill Session: the kill is sent at once, with no effect
+// on the name to wait out.
+func TestKillAtOnce(t *testing.T) {
 	m := fxModel(t)
-	s := *m.session("s1")
-	m.ag.remove(m, &agRow{kind: agSession, s: s})
+	m.ag.remove(m, &agRow{kind: agSession, s: *m.session("s1")})
 
 	if m.modal == nil {
 		t.Fatal("Kill asks first")
@@ -278,14 +277,8 @@ func TestKillDissolves(t *testing.T) {
 		t.Fatal("the kill is sent")
 	}
 
-	a, _, ok := m.fx.at("sess:s1")
-	if !ok || a.to != "" || a.from != sessionName(s) {
-		t.Fatalf("the name dissolves: %+v", m.fx.anims)
-	}
-
-	m.fx.frame += morphDur(a.from, "")
-	if got := m.fx.text("sess:s1", sessionName(s)); strings.TrimSpace(got) != "" {
-		t.Fatalf("dissolved, the name holds blank: %q", got)
+	if _, _, ok := m.fx.at("sess:s1"); ok {
+		t.Fatalf("the name stays still: %+v", m.fx.anims)
 	}
 }
 

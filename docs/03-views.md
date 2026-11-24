@@ -805,7 +805,7 @@ effect keyed by its subject (`sess:ID`, `ws:PATH`); drawing asks `fx.text` or
 | -------- | ----------------------------------------------------- |
 | morph    | session renamed, branch switched, update version      |
 | decode   | new session or worktree, a flash, a commit suggestion |
-| dissolve | session killed, worktree deleted, message committed   |
+| dissolve | message committed                                     |
 | sweep    | session starts waiting or finishes                    |
 | roll     | counts: changes, ahead/behind, results, sessions      |
 | shimmer  | Syncing…, Committing…, Searching…, Loading…           |
