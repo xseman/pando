@@ -151,15 +151,11 @@ func (m *Model) spends(agent string, env []string) (proto.Account, bool) {
 	return a, ok && m.hasUsage()
 }
 
-// Room's columns: a window's share, meter and reset, and the rule between two.
-const (
-	roomCell  = 13 // " 93% " before the meter, " 2d 17h" after it
-	roomGap   = 3  // " │ "
-	roomMeter = 12 // the meter's cells the picker asks room for
-)
+// pickMeter is the meter's cells the profile picker asks room for.
+const pickMeter = 30
 
-// roomWindows are the limit windows a profile picker's rows show, a column
-// each in the order accounts name them: claude's 5h and 7d.
+// roomWindows are the limit windows accounts name, in the order they name
+// them: claude's 5h and 7d.
 func roomWindows(accounts []proto.Account) []string {
 	var out []string
 
@@ -194,66 +190,49 @@ func windowLimit(limits []proto.Limit, window string) (proto.Limit, []proto.Limi
 	return shown, ticks, true
 }
 
-// room is how spent account a is, at the right end of its row in a profile
-// picker: per window its share in bold, meter and reset in colW cells
-// (windowLimit), blank where a has no limit on it, a rule between two
-// windows; why its limits are not current in the first column instead, the
-// rule left standing.
-func room(a proto.Account, windows []string, colW int) []seg {
+// roomRows draw account a in a profile picker as Usage's wide layout does:
+// its name, marked ● when active, over its plan in nameW cells, beside a row
+// per window, its label in labelW cells, a meter of w cells, then the share
+// and the reset; why its limits are not current instead of them. Each row is
+// its left and its right.
+func roomRows(a proto.Account, name string, active bool, nameW, labelW, w int) [][2][]seg {
+	names := slices.DeleteFunc([]string{name, a.Plan}, func(s string) bool { return s == "" })
 	now := time.Now()
 
-	var out []seg
+	var rows [][2][]seg
 
-	for i, w := range windows {
-		if i > 0 {
-			out = append(out, sg(" │ ", meterTrack[0]))
+	if a.Note != "" {
+		rows = append(rows, [2][]seg{noteSegs(a.Note, labelW+1+w+13)})
+	} else {
+		for _, win := range roomWindows([]proto.Account{a}) {
+			l, ticks, _ := windowLimit(a.Limits, win)
+			rows = append(rows, [2][]seg{
+				append([]seg{sg(pad(limitLabel(l), labelW, false)+" ", dim)}, limitMeter(w, l.Percent, ticks, fg(pal.accent))...),
+				{sg(fmt.Sprintf("%3.0f%%", l.Percent), levelStyle(l.Percent, plain)), sg(pad(until(l.Resets, now), 9, true), dim)},
+			})
 		}
-
-		if a.Note != "" && i == 0 {
-			out = append(out, noteSegs(a.Note, colW)...)
-			continue
-		}
-
-		l, ticks, ok := windowLimit(a.Limits, w)
-		if !ok || a.Note != "" {
-			out = append(out, sg(strings.Repeat(" ", colW), plain))
-			continue
-		}
-
-		out = append(out, sg(fmt.Sprintf("%3.0f%% ", l.Percent), levelStyle(l.Percent, bold)))
-		out = append(out, limitMeter(max(colW-roomCell, 3), l.Percent, ticks, fg(pal.accent))...)
-		out = append(out, sg(" "+pad(until(l.Resets, now), roomCell-6, true), dim)) // "2d 17h", "16d 11h" of a 30d window
 	}
 
-	return out
-}
+	for len(rows) < len(names) {
+		rows = append(rows, [2][]seg{})
+	}
 
-// roomHead names room's columns in a profile picker's top edge, each window
-// over its share, a ┬ over the rule between two (roomJoins).
-func roomHead(windows []string, colW int) string {
-	var b strings.Builder
+	for i := range rows {
+		mark, text, st := sg("  ", plain), "", dim
 
-	for i, c := range windows {
-		if i > 0 {
-			b.WriteString("─┬─")
+		switch {
+		case i == 0 && active:
+			mark, text, st = sg("● ", fg(pal.ok)), names[0], plain
+		case i == 0:
+			text, st = names[0], plain
+		case i < len(names):
+			text = names[i]
 		}
 
-		b.WriteString(" " + c + " " + strings.Repeat("─", max(colW-strWidth(c)-2, 0)))
+		rows[i][0] = append([]seg{mark, sg(pad(text, nameW, false)+"  ", st)}, rows[i][0]...)
 	}
 
-	return b.String()
-}
-
-// roomJoins are the rules between room's windows, each as the cells right of
-// it to a row's end, its margin included: where the footer's rule meets them.
-func roomJoins(windows []string, colW int) []int {
-	var out []int
-
-	for i := 1; i < len(windows); i++ {
-		out = append(out, (len(windows)-i)*(colW+roomGap)-1) // the rule mid " │ ", a row's margin after room
-	}
-
-	return out
+	return rows
 }
 
 // noteSegs say why an account's limits are not current in w cells: its word

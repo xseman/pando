@@ -360,12 +360,11 @@ sessions come first, under _recently opened_. An agent with profiles asks which
 (`profilePicker`): _default_, its `[profiles.<agent>]`, then the configs the
 daemon saw it run in or found (`seen_env`) that no profile sets (`profiles`),
 named as in Usage (`proto.ConfigName`: `~/.claude-work` is _work_); the choice
-goes in `session.new`'s `env`. A row says its account's plan and how spent it is (`room`:
-a column per window, its share in bold, then Usage's meter and the reset, a
-rule between two that the top edge and the footer's rule join and that runs
-past the filter (`roomJoins`, `modal.joins`, `joinRule`), the window named over
-its share in the top edge; why its limits are not current in the first
-column), `●` marks
+goes in `session.new`'s `env`. A profile is a block as Usage's wide layout
+draws its account (`roomRows`): its name over its plan beside a row per window,
+a meter, the share and the reset, or why its limits are not current; a blank
+between two. The rows under the first are `item.more`, drawn and selected with
+it (`item.part`, `modal.owner`). `●` marks
 the active one (`State.Active`, `item.lead`), which the picker opens on, and the
 footer says what the selected one runs where, its settings in the accent color
 (`runLine`, `item.detail`, `modal.foot`). The box is as tall as its rows

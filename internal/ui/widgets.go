@@ -1317,7 +1317,6 @@ type modal struct {
 	note  string // dim at the right end of the title row
 	foot  bool   // the selected item's detail in a last row under a rule, not under the item: the list stays put
 	fit   bool   // a filtered list as tall as its items however few, not 8 rows: a short list that is all there is
-	joins []int  // the cells right of each rule down the rows to the frame, which the footer's rule meets with ┴
 	hints string // keys in the bottom edge, the last dropped where they do not fit
 	// caps are the most rows a group shows under a query, in the order the
 	// items list the groups; the rest wait behind a "+ N more" row that goes
@@ -2586,12 +2585,7 @@ func (md *modal) lines(m *Model) ([]string, int, int) {
 	side := dim.Render("│")
 
 	if md.hasInput() {
-		inW := iw // the rules between columns run down past the filter
-		if len(md.joins) > 0 {
-			inW = iw - 1 - md.joins[0]
-		}
-
-		md.input.SetWidth(inW - 3)
+		md.input.SetWidth(iw - 3)
 
 		in := md.input
 		if md.selected { // as the editor's selection
@@ -2604,7 +2598,7 @@ func (md *modal) lines(m *Model) ([]string, int, int) {
 			md.caret = [2]string{v, realCaret(v)}
 		}
 
-		lines = append(lines, side+fit(md.caret[1], inW)+dim.Render(joinRule(iw-inW, ' ', '│', md.joins))+side)
+		lines = append(lines, side+fit(md.caret[1], iw)+side)
 	}
 
 	md.rowsDrawn.frame()
@@ -2658,7 +2652,7 @@ func (md *modal) lines(m *Model) ([]string, int, int) {
 			detail = md.disp[md.l.sel].detail
 		}
 
-		lines = append(lines, dim.Render("├"+joinRule(iw, '─', '┴', md.joins)+"┤"), side+fit(dim.Render(" "+detail), iw)+side)
+		lines = append(lines, dim.Render("├"+strings.Repeat("─", iw)+"┤"), side+fit(dim.Render(" "+detail), iw)+side)
 	}
 
 	edge := strings.Repeat("─", iw)
@@ -3542,16 +3536,3 @@ func (c *clicks) count(x, y int) int {
 }
 
 func (c *clicks) double(x, y int) bool { return c.count(x, y) == 2 }
-
-// joinRule is w cells of fill with mark where each of joins, counted in cells
-// from its right end, falls inside it.
-func joinRule(w int, fill, mark rune, joins []int) string {
-	rule := []rune(strings.Repeat(string(fill), max(w, 0)))
-	for _, j := range joins {
-		if j < w {
-			rule[w-1-j] = mark
-		}
-	}
-
-	return string(rule)
-}

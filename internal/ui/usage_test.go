@@ -292,32 +292,6 @@ func TestProfileRoom(t *testing.T) {
 
 	items := m.modal.items
 
-	// A column per window, 5h then 7d with a rule between, each its share
-	// first, then its meter and reset; Fable's own limit a ┃ on the 7d meter;
-	// work's stale limits are not drawn, why fills the first column, and ● marks
-	// the active one.
-	left0, right0, right1 := segsText(items[0].segs), segsText(items[0].right), segsText(items[1].right)
-	if len(items) != 2 || left0 != "  default · Max 5x   " || segsText(items[1].segs) != "● work    · Team 5x  " ||
-		!strings.HasPrefix(right0, " 40% ▰") || !strings.Contains(right0, "   2d 2h │  96% ▰") || !strings.HasSuffix(right0, "▱   2d 2h") || strings.Count(right0, "┃") != 1 ||
-		!strings.HasPrefix(right1, "paused · its sign-in lapsed  ") || strings.Contains(right1, "30%") {
-		t.Fatalf("rows %q %q, %q %q", left0, right0, segsText(items[1].segs), right1)
-	}
-
-	if _, _, w, _, _ := m.modal.rect(m); ansi.StringWidth(right0) != ansi.StringWidth(right1) || ansi.StringWidth(left0+right0) > w-5 || w < 80 {
-		t.Fatalf("the columns do not line up in the box, %d wide: %q %q", w, right0, right1)
-	}
-
-	// The windows are named over their shares in the top edge, which joins the
-	// rule between them, and so does the footer's rule.
-	cell := func(s, sub string) int {
-		before, _, _ := strings.Cut(s, sub)
-		return ansi.StringWidth(before)
-	}
-	if !strings.HasPrefix(m.modal.note, " 5h ─") || !strings.Contains(m.modal.note, "─┬─ 7d ─") || strings.Contains(m.modal.note, "Fable") ||
-		cell(m.modal.note, "┬") != cell(right0, "│") {
-		t.Fatalf("the top edge names %q over %q", m.modal.note, right0)
-	}
-
 	// The footer says what runs where, the settings that tell profiles apart
 	// in the accent color.
 	if ansi.Strip(items[1].detail) != m.ws+" ❯ "+workEnv[0]+" claude" || !strings.Contains(items[1].detail, fgParams(pal.headerAccent)+"m"+workEnv[0]) {
@@ -329,18 +303,39 @@ func TestProfileRoom(t *testing.T) {
 		t.Fatal("the footer does not say what the selected profile runs")
 	}
 
+	// A profile is Usage's block: its name over its plan beside a row per
+	// window, 5h over 7d, the meters and shares lined up, Fable's own limit
+	// a ┃ on the 7d meter, a blank between two profiles. Work's stale limits
+	// are not drawn, why instead, and ● marks the active one. The box ends
+	// with the last profile's rows.
 	lines := strings.Split(v, "\n")
-
-	work := slices.IndexFunc(lines, func(l string) bool { return strings.Contains(l, "● work") })
-	if first, rule := lines[work-1], lines[work+1]; !strings.Contains(first, "2d 2h │") || !strings.Contains(rule, "├") || cell(rule, "┴") != cell(first, "│  96%") {
-		t.Fatalf("a row's reset is cut, the box is taller than its rows, or the footer's rule misses the rule between windows:\n%s", v)
+	cell := func(s, sub string) int {
+		before, _, _ := strings.Cut(s, sub)
+		return ansi.StringWidth(before)
 	}
 
-	// The rule runs unbroken from the top edge to the footer: past the
-	// filter and past work's note, which keeps to the first column.
-	at := cell(lines[work-1], "│  96%")
-	if ansi.Cut(lines[work-2], at, at+1) != "│" || ansi.Cut(lines[work], at, at+1) != "│" {
-		t.Fatalf("the rule between windows breaks on the filter or the note:\n%s", v)
+	at := slices.IndexFunc(lines, func(l string) bool { return strings.Contains(l, "default  5h ") })
+	if at < 0 || at+5 >= len(lines) {
+		t.Fatalf("no default block:\n%s", v)
+	}
+
+	top := lines[slices.IndexFunc(lines, func(l string) bool { return strings.Contains(l, "╭") })]
+	box := func(l string) string { return ansi.Cut(l, cell(top, "╭")+1, cell(top, "╮")) } // the line inside the frame
+
+	h5, d7, gap, work, plan, rule := box(lines[at]), box(lines[at+1]), box(lines[at+2]), box(lines[at+3]), box(lines[at+4]), lines[at+5]
+	if !strings.Contains(h5, " 40%    2d 2h") || !strings.Contains(d7, "Max 5x   7d ▰") || !strings.Contains(d7, " 96%    2d 2h") || strings.Count(d7, "┃") != 1 ||
+		cell(h5, "▰") != cell(d7, "▰") || cell(h5, "%") != cell(d7, "%") ||
+		strings.TrimSpace(gap) != "" ||
+		!strings.Contains(work, "● work     paused · its sign-in lapsed") || strings.Contains(work+plan, "%") ||
+		strings.TrimSpace(plan) != "Team 5x" || !strings.HasPrefix(strings.TrimSpace(rule), "├") {
+		t.Fatalf("the profiles' blocks:\n%s", strings.Join([]string{h5, d7, gap, work, plan, rule}, "\n"))
+	}
+
+	// Both of work's rows are its own: the cursor on it, they are drawn
+	// selected, and a click on its plan's row picks it.
+	md := m.modal
+	if sel := md.l.sel; md.disp[sel].label != "work" || !md.disp[sel+1].part || md.owner(sel+1) != sel {
+		t.Fatalf("work's plan row is not part of it: %+v", md.disp)
 	}
 
 	checkWidths(t, m)

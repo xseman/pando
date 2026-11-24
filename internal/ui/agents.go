@@ -2332,73 +2332,47 @@ func (m *Model) profilePicker(ws, agent string, cmd []string) bool {
 }
 
 // profileModal is a picker of agent's profiles, each run with cmd in dir:
-// a row says its account's plan, as Usage does, and how spent it is (room),
-// a column per window named in the top edge (roomHead), the footer what the
-// selected one runs where (runLine), and the one new sessions start with
-// (State.Active) is marked ● and the row selected.
+// a profile is a block of rows as Usage's wide layout draws its account
+// (roomRows), a blank between two, the footer what the selected one runs
+// where (runLine), and the one new sessions start with (State.Active) is
+// marked ● and selected.
 func (m *Model) profileModal(title, agent, dir string, cmd []string, profiles []profile, run func(profile) func(*Model) tea.Cmd) *modal {
-	nameW, planW, detailW := 0, 0, 0
-	plans := make([]string, len(profiles))
+	nameW, labelW, detailW := 0, 0, 0
 	accounts := make([]proto.Account, len(profiles))
-	known := make([]bool, len(profiles))
-
-	var measured []proto.Account
-
-	for i, p := range profiles {
-		accounts[i], known[i] = m.spends(agent, p.env)
-		if known[i] {
-			measured = append(measured, accounts[i])
-		}
-
-		if known[i] && accounts[i].Plan != "" {
-			plans[i] = " · " + accounts[i].Plan
-		}
-
-		nameW, planW = max(nameW, strWidth(p.name)), max(planW, strWidth(plans[i]))
-	}
-
 	active := m.activeEnv(agent)
 	items := make([]item, len(profiles))
 
 	for i, p := range profiles {
+		accounts[i], _ = m.spends(agent, p.env)
+		nameW = max(nameW, strWidth(p.name), strWidth(accounts[i].Plan))
+
+		for _, win := range roomWindows(accounts[i : i+1]) {
+			l, _, _ := windowLimit(accounts[i].Limits, win)
+			labelW = max(labelW, strWidth(limitLabel(l)))
+		}
+
 		items[i] = item{label: p.name, detail: runLine(dir, p.env, cmd), lead: slices.Equal(active, p.env), run: run(p)}
 		detailW = max(detailW, ansi.StringWidth(items[i].detail))
 	}
 
-	columns := roomWindows(measured)
-	// What the rows take besides room: the frame, " ● name · plan  ", and a row's right "  ".
-	frame := 2 + 1 + 2 + nameW + planW + 2 + 2
-	asked := len(columns)*(roomMeter+roomCell) + max(len(columns)-1, 0)*roomGap
+	// What a row takes besides its meter: the frame and the blanks the picker
+	// puts at both ends and before its right, "● name  ", the label and
+	// "93%   2d 17h".
+	frame := 2 + 3 + 2 + nameW + 2 + labelW + 1 + 13
 
 	md := newPicker(title, items)
-	md.foot, md.fit, md.w = true, true, max(detailW+4, frame+asked) // the footer's blanks and the frame: what runs is not cut
-	md.refilter()                                                   // without the detail row newPicker put under the selection: the box keeps the rows it is first measured with
+	md.foot, md.fit, md.w = true, true, max(detailW+4, frame+pickMeter) // what runs is not cut
+	md.refilter()                                                       // without the detail row newPicker put under the selection: the box keeps the rows it is first measured with
 
 	_, _, w, _, _ := md.rect(m)
 
-	colW := 0
+	for i, p := range profiles {
+		rows := roomRows(accounts[i], p.name, items[i].lead, nameW, labelW, max(w-frame, 3))
+		items[i].segs, items[i].right = rows[0][0], rows[0][1]
 
-	for n := len(columns); n > 0; n-- { // the columns with room for a meter that says anything, the first one at least
-		if colW = (w - frame - (n-1)*roomGap) / n; colW >= 3+roomCell || n == 1 {
-			columns = columns[:n]
-			break
+		for _, r := range rows[1:] {
+			items[i].more = append(items[i].more, item{segs: r[0], right: r[1]})
 		}
-	}
-
-	for i, p := range profiles { // in columns filling the box: " ● name · plan  " left, room right
-		mark := sg("  ", plain)
-		if items[i].lead {
-			mark = sg("● ", fg(pal.ok))
-		}
-
-		items[i].segs = []seg{mark, sg(pad(p.name, nameW, false), plain), sg(pad(plans[i], planW, false)+"  ", dim)}
-		if known[i] {
-			items[i].right = room(accounts[i], columns, colW)
-		}
-	}
-
-	if head := roomHead(columns, colW); len(columns) > 0 && strWidth(title)+strWidth(head)+6 <= w {
-		md.note, md.joins = head, roomJoins(columns, colW)
 	}
 
 	md.input.Placeholder = "filter"

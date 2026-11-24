@@ -473,11 +473,11 @@ anything else runs on the default's sign-in and is not listed.
 Drag a profile, or `alt+↑` `alt+↓`, to reorder an agent's profiles.
 
 The active profile is the row a new session's profile picker opens on, and
-what `pando session new` starts an agent with. The picker's rows have a
-column per window, claude's `5h` and `7d` named in its top edge, a rule
-between them: each the share in bold, a meter and the reset, a model's own
-allowance a `┃` on the meter; `●` marks the
-active profile, and the selected row's footer says what it runs where. The
+what `pando session new` starts an agent with. The picker shows each profile
+as Usage does: its name over its plan beside a row per window, claude's `5h`
+over `7d`, each a meter, the share and the reset, a model's own allowance a
+`┃` on the meter, a blank between two profiles; `●` marks the
+active profile, and the footer says what the selected one runs where. The
 status bar names the active profile with its fullest limit every model draws
 from, yellow from 75% and red from 90%: a model's own limit at its end leaves
 the others room.
