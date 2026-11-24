@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.14.0](https://github.com/xseman/pando/compare/v0.13.0...v0.14.0) (2026-11-24)
+
+
+### Features
+
+* **ui:** draw each profile in the picker as Usage does ([a30ca19](https://github.com/xseman/pando/commit/a30ca19697924a43568623f7b50833f3e7cf1de3))
+* **ui:** let a picker item span more rows ([fa90482](https://github.com/xseman/pando/commit/fa90482d02f1887b40c911ec5aaac5469cbcfd6d))
+* **ui:** profile picker as a table of windows ([3476f3e](https://github.com/xseman/pando/commit/3476f3ef02b263bffb045f7d6ef95e4a82b4c5bc))
+* **ui:** put the session on screen on a plate in the accent ([8b2d4bb](https://github.com/xseman/pando/commit/8b2d4bb82119fb6b21c7c27f9a094271dc160325))
+* **ui:** reorder profiles in Usage by drag and alt+up/down ([10e1c83](https://github.com/xseman/pando/commit/10e1c83754b18c771a4275542ccab8aa3f2dfe21))
+* **ui:** Usage names beside limits, banded meters, ● in the picker ([c184731](https://github.com/xseman/pando/commit/c1847311880301672a2a3c49aeba6242705e7d17))
+
+
+### Bug Fixes
+
+* **ui:** close a session at once, without the dissolve ([c6d8499](https://github.com/xseman/pando/commit/c6d84996038685d4d069ef70f9d2b22511cf11d4))
+* **ui:** keep the profile picker's window rule unbroken ([9403cba](https://github.com/xseman/pando/commit/9403cba02affce897e027b66e13326951b6cffc7))
+* **ui:** raise a row's hover button clear of the row's shade ([36c1a78](https://github.com/xseman/pando/commit/36c1a780341c1992c013a07c150b0a4cab70ffcf))
+* **usage:** measure an account by the limits every model draws from ([f4236b0](https://github.com/xseman/pando/commit/f4236b0ba5fde8593b7d413b2a790a01a55ab37e))
+
+
+### Documentation
+
+* **skill:** let an agent close its own session when asked ([c7f2b63](https://github.com/xseman/pando/commit/c7f2b636c5b0da3e2f2b90956b5046c04706d146))
+
+
+### Maintenance
+
+* **ui:** drop windowLimit's unused found result ([c213ca0](https://github.com/xseman/pando/commit/c213ca0ace05523890805f9d7f15c96bbeb43332))
+
 ## [0.13.0](https://github.com/xseman/pando/compare/v0.12.0...v0.13.0) (2026-11-23)
 
 
