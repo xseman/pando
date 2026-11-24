@@ -39,18 +39,19 @@ func usageModel(t *testing.T) *Model {
 	return m
 }
 
-// TestUsageView holds what the tab draws and does: an agent's accounts with a
-// row per window, a model's own allowance a mark on the window it shares, a
-// stale account dim under its reason, an only account on its agent's row;
-// ⏎ makes an account the one new sessions start with.
+// TestUsageView holds what the tab draws and does in a narrow column: an
+// agent's accounts each over a row per window, a model's own allowance a ┃ on
+// the window it shares, a stale one its reason in place of its limits, an only account on its agent's row; the
+// cursor goes from account to account, and ⏎ makes one the account new
+// sessions start with.
 func TestUsageView(t *testing.T) {
 	m := usageModel(t)
 	m.showView(viewUsage)
 
 	out := checkWidths(t, m)
 	for _, want := range []string{
-		"Sessions  Usage", "✳ Claude Code", "◎ Codex", "default · Max 5x", "active", ".claude-work · Team 5x", "use",
-		" 40% ", " 96% ", "2d 2h", "paused: its sign-in lapsed", "Codex · Free", "30d ",
+		"Sessions  Usage", "✳ Claude Code", "◎ Codex", "default · Max 5x", "active", ".claude-work · Team", "paused",
+		" 40% ", " 96% ", "┃", "2d 2h", "  its sign-in lapsed", "Codex · Free", "30d ",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("no %q:\n%s", want, out)
@@ -64,15 +65,15 @@ func TestUsageView(t *testing.T) {
 		kinds[i] = r.kind
 	}
 
-	if want := []int{usAgent, usAccount, usLimit, usLimit, usGap, usAccount, usLimit, usNote, usGap, usAgent, usLimit}; !slices.Equal(kinds, want) {
+	if want := []int{usAgent, usAccount, usLimit, usLimit, usGap, usAccount, usNote, usGap, usAgent, usLimit}; !slices.Equal(kinds, want) {
 		t.Fatalf("rows %v, want %v", kinds, want)
 	}
 
-	if len(rows[3].ticks) != 1 || rows[3].ticks[0].Percent != 18 || !rows[9].solo || rows[0].solo {
-		t.Fatalf("7d row %+v, codex %+v", rows[3], rows[9])
+	if len(rows[3].ticks) != 1 || rows[3].ticks[0].Percent != 18 || !rows[8].solo || rows[0].solo || strings.Contains(out, " 18% ") || strings.Contains(out, " 30% ") {
+		t.Fatalf("7d row %+v, codex %+v, the first %+v, or a tick's or stale share drawn:\n%s", rows[3], rows[8], rows[0], out)
 	}
 
-	if week := strings.Split(out, "\n")[bodyY(t, m, " 96% ")]; !strings.Contains(week, "▰▰▰▰▰▰▰▰") {
+	if week := strings.Split(out, "\n")[bodyY(t, m, " 96% ")]; !strings.Contains(week, "▰┃▰▰▰▰▰▰") {
 		t.Fatalf("the weekly meter: %q", week)
 	}
 
@@ -83,14 +84,20 @@ func TestUsageView(t *testing.T) {
 		t.Fatalf("cursor on row %d, want the first account", m.us.l.sel)
 	}
 
-	// The account under the cursor, from any of its rows.
-	press(m, "down", "down", "down", "down", "down", "enter")
+	// Down goes to the next account, past the rows of this one's limits.
+	press(m, "down")
+
+	if r := m.us.selected(m); r == nil || r.acct.Name != ".claude-work" {
+		t.Fatalf("down selects %+v", r)
+	}
+
+	press(m, "enter")
 
 	if !slices.Equal(m.st.Active["claude"], workEnv) {
 		t.Fatalf("active %v", m.st.Active)
 	}
 
-	if out := checkWidths(t, m); strings.Count(out, "active") != 1 || !strings.Contains(strings.Split(out, "\n")[bodyY(t, m, ".claude-work")], "active") {
+	if out := checkWidths(t, m); strings.Count(out, "active") != 1 || !strings.Contains(strings.Split(out, "\n")[bodyY(t, m, ".claude-wor")], "active") {
 		t.Fatalf("after ⏎:\n%s", out)
 	}
 
@@ -110,8 +117,60 @@ func TestUsageView(t *testing.T) {
 	// A filter keeps the accounts it matches under their agent.
 	press(m, "ctrl+f", "w", "o", "r", "k")
 
-	if got := m.us.rows(m); len(got) != 4 || got[1].acct.Name != ".claude-work" {
+	if got := m.us.rows(m); len(got) != 3 || got[1].acct.Name != ".claude-work" {
 		t.Fatalf("filtered rows %+v", got)
+	}
+}
+
+// TestUsageWide holds the tab in a column wide enough for its names' column:
+// an account's name over its plan beside its limits, ● the active one's, a
+// stale one's reason beside its name; the cursor's account tinted down all
+// its rows.
+func TestUsageWide(t *testing.T) {
+	m := usageModel(t)
+	m.st.Settings.Right, m.st.Settings.WidthR = proto.Columns{{Views: []string{"agents"}}}, 62
+	m.resize()
+	m.showView(viewUsage)
+
+	out := checkWidths(t, m)
+	lines := strings.Split(out, "\n")
+
+	for want, after := range map[string]string{
+		" ● default       5h":                          "40%",
+		"Max 5x        7d":                             "┃",
+		"   .claude-work  paused · its sign-in lapsed": "",
+		"   Free          30d":                         "0%",
+	} {
+		if !strings.Contains(lines[bodyY(t, m, want)], after) {
+			t.Fatalf("no %q with %q:\n%s", want, after, out)
+		}
+	}
+
+	rows := m.us.rows(m)
+
+	kinds := make([]int, len(rows))
+	for i, r := range rows {
+		kinds[i] = r.kind
+	}
+
+	if want := []int{usAgent, usLimit, usLimit, usGap, usNote, usName, usGap, usAgent, usLimit}; !slices.Equal(kinds, want) || !rows[1].head || rows[2].head || !rows[4].head || !rows[7].head {
+		t.Fatalf("rows %v, want %v; heads %+v", kinds, want, rows)
+	}
+
+	press(m, "down")
+
+	sel, _ := m.rowColors(viewUsage, true, false)
+	view := strings.Split(m.View().Content, "\n")
+
+	if plan, first := view[bodyY(t, m, "Team 5x")], view[bodyY(t, m, "Max 5x")]; !strings.Contains(plan, bgParams(sel)) || strings.Contains(first, bgParams(sel)) {
+		t.Fatalf("the selected account's plan row %q, the first's %q", plan, first)
+	}
+
+	// alt+↑ moves the whole block, and the cursor stays on its head.
+	press(m, "alt+up")
+
+	if r, rows := m.us.selected(m), m.us.rows(m); r == nil || r.acct.Name != ".claude-work" || rows[1].acct.Name != ".claude-work" || !rows[1].head || rows[3].kind != usGap {
+		t.Fatalf("after alt+up %+v, rows %+v", r, rows[:3])
 	}
 }
 
@@ -233,12 +292,13 @@ func TestProfileRoom(t *testing.T) {
 
 	items := m.modal.items
 
-	// A column per window, 5h then 7d, Fable's own limit a tick on the 7d
-	// meter; work's stale 7d dim, its 5h column empty and why at the end.
+	// A column per window, 5h then 7d, Fable's own limit a ┃ on the 7d meter;
+	// work's stale limits are not drawn, why spans the columns, and ● marks
+	// the active one.
 	left0, right0, right1 := segsText(items[0].segs), segsText(items[0].right), segsText(items[1].right)
-	if len(items) != 2 || left0 != "default · Max 5x   " || segsText(items[1].segs) != "work    · Team 5x  " ||
-		!strings.HasPrefix(right0, "▰") || !strings.Contains(right0, " 40%    2d 2h   ▰") || !strings.HasSuffix(right0, " 96%    2d 2h        ") ||
-		!strings.HasPrefix(right1, "      ") || !strings.HasSuffix(right1, " 30%           paused") {
+	if len(items) != 2 || left0 != "  default · Max 5x   " || segsText(items[1].segs) != "● work    · Team 5x  " ||
+		!strings.HasPrefix(right0, "▰") || !strings.Contains(right0, " 40%    2d 2h   ▰") || !strings.HasSuffix(right0, " 96%    2d 2h") || strings.Count(right0, "┃") != 1 ||
+		!strings.HasPrefix(right1, "paused · its sign-in lapsed  ") || strings.Contains(right1, "30%") {
 		t.Fatalf("rows %q %q, %q %q", left0, right0, segsText(items[1].segs), right1)
 	}
 
@@ -246,21 +306,24 @@ func TestProfileRoom(t *testing.T) {
 		t.Fatalf("the columns do not line up in the box, %d wide: %q %q", w, right0, right1)
 	}
 
-	if !strings.HasPrefix(m.modal.note, "5h ─") || !strings.Contains(m.modal.note, "── 7d ─") {
+	if !strings.HasPrefix(m.modal.note, "5h ─") || !strings.Contains(m.modal.note, "── 7d ─") || strings.Contains(m.modal.note, "Fable") {
 		t.Fatalf("the top edge names %q", m.modal.note)
 	}
 
-	if items[1].detail != m.ws+" ❯ "+workEnv[0]+" claude" {
+	// The footer says what runs where, the settings that tell profiles apart
+	// in the accent color.
+	if ansi.Strip(items[1].detail) != m.ws+" ❯ "+workEnv[0]+" claude" || !strings.Contains(items[1].detail, fgParams(pal.headerAccent)+"m"+workEnv[0]) {
 		t.Fatalf("the work profile's detail %q", items[1].detail)
 	}
 
 	v := ansi.Strip(m.View().Content)
-	if !strings.Contains(v, "├") || !strings.Contains(v, items[1].detail) {
+	if !strings.Contains(v, "├") || !strings.Contains(v, ansi.Strip(items[1].detail)) {
 		t.Fatal("the footer does not say what the selected profile runs")
 	}
 
-	if !strings.Contains(v, "96%    2d 2h         │") || !strings.Contains(v, "5h ─") {
-		t.Fatalf("a row's reset is cut, it does not end at the frame, or the windows are not named:\n%s", v)
+	lines := strings.Split(v, "\n")
+	if !strings.Contains(v, " 96%    2d 2h │") || !strings.Contains(lines[slices.IndexFunc(lines, func(l string) bool { return strings.Contains(l, "● work") })+1], "├") {
+		t.Fatalf("a row's reset is cut, or the box is taller than its rows:\n%s", v)
 	}
 
 	checkWidths(t, m)
@@ -339,54 +402,45 @@ func TestUntil(t *testing.T) {
 }
 
 func TestLimitMeter(t *testing.T) {
-	text := func(pct float64, ticks ...float64) string {
-		var lims []proto.Limit
-		for _, t := range ticks {
-			lims = append(lims, proto.Limit{Percent: t})
-		}
-
-		return segsText(limitMeter(8, pct, lims, dim))
-	}
-
 	for _, c := range []struct {
 		got, want string
 	}{
-		{text(0), "▱▱▱▱▱▱▱▱"},
-		{text(2), "▰▱▱▱▱▱▱▱"}, // any use shows
-		{text(50), "▰▰▰▰▱▱▱▱"},
-		{text(56), "▰▰▰▰▱▱▱▱"},
-		{text(100), "▰▰▰▰▰▰▰▰"},
+		{segsText(limitMeter(8, 0, nil, dim)), "▱▱▱▱▱▱▱▱"},
+		{segsText(limitMeter(8, 2, nil, dim)), "▰▱▱▱▱▱▱▱"}, // any use shows
+		{segsText(limitMeter(8, 50, nil, dim)), "▰▰▰▰▱▱▱▱"},
+		{segsText(limitMeter(8, 56, nil, dim)), "▰▰▰▰▱▱▱▱"},
+		{segsText(limitMeter(8, 100, nil, dim)), "▰▰▰▰▰▰▰▰"},
 	} {
 		if c.got != c.want {
 			t.Errorf("meter %q, want %q", c.got, c.want)
 		}
 	}
 
-	// A tick is a filled cell colored as its own share is; one on the first
-	// cell would read as the fill.
+	// A tick is a ┃ colored as its own share is, one at 0% none.
 	ticked := limitMeter(8, 25, []proto.Limit{{Percent: 100}, {Percent: 0}, {Percent: 50}}, dim)
-	if segsText(ticked) != "▰▰▱▱▰▱▱▰" || ticked[7].st.GetForeground() != pal.errc || ticked[4].st.GetForeground() != plain.GetForeground() || ticked[0].st.GetForeground() != dim.GetForeground() {
+	if segsText(ticked) != "▰▰▱▱┃▱▱┃" || ticked[7].st.GetForeground() != pal.errc || ticked[4].st.GetForeground() != plain.GetForeground() {
 		t.Errorf("ticks %q", segsText(ticked))
+	}
+
+	// The track is tinted where the fill would turn the warning and the error
+	// color; the fill takes them once it is that far.
+	low, high := limitMeter(8, 25, nil, dim), limitMeter(8, 96, nil, dim)
+	if low[0].st.GetForeground() != dim.GetForeground() || low[5].st.GetForeground() != pal.indentGuide ||
+		low[6].st.GetForeground() != meterTrack[1].GetForeground() || low[7].st.GetForeground() != meterTrack[2].GetForeground() ||
+		high[0].st.GetForeground() != pal.errc {
+		t.Errorf("meter colors %v %v %v %v, full %v", low[0].st.GetForeground(), low[5].st.GetForeground(), low[6].st.GetForeground(), low[7].st.GetForeground(), high[0].st.GetForeground())
 	}
 }
 
-// TestModelFlag holds a model's own limit named at the end of its row once it
-// nears its end, and a meter of a window only models' own limits are on,
-// agy's groups: the fullest shown, the other its tick.
-func TestModelFlag(t *testing.T) {
-	m := usageModel(t)
-	m.usage.Accounts[0].Limits[2].Percent = 93
-	m.showView(viewUsage)
-
-	if week := strings.Split(checkWidths(t, m), "\n")[bodyY(t, m, " 96% ")]; !strings.HasSuffix(strings.TrimRight(week, " │"), "Fable 93%") {
-		t.Fatalf("the weekly row: %q", week)
-	}
-
-	if flag, _ := modelFlag([]proto.Limit{{Model: "Fable", Percent: 74}, {Percent: 99}}); flag != "" {
-		t.Fatalf("flagged %q under 75%%", flag)
-	}
-
+// TestRoomWindows holds the picker's columns, a window each, and what a
+// window's meter shows: the limit every model draws from, else the fullest
+// of the models' own, agy's groups, the others its ticks.
+func TestRoomWindows(t *testing.T) {
 	groups := []proto.Limit{{Window: "5h", Model: "Gemini", Percent: 12}, {Window: "5h", Model: "Claude + GPT", Percent: 81}, {Window: "7d", Model: "Gemini", Percent: 30}}
+
+	if got := roomWindows([]proto.Account{{Limits: groups}, {Limits: []proto.Limit{{Window: "1mo"}}}}); !slices.Equal(got, []string{"5h", "7d", "1mo"}) {
+		t.Fatalf("windows %q", got)
+	}
 
 	shown, ticks, ok := windowLimit(groups, "5h")
 	if !ok || shown.Model != "Claude + GPT" || len(ticks) != 1 || ticks[0].Model != "Gemini" {
@@ -395,10 +449,6 @@ func TestModelFlag(t *testing.T) {
 
 	if _, _, ok := windowLimit(groups, "1mo"); ok {
 		t.Fatal("a window with no limit shows one")
-	}
-
-	if got := roomWindows([]proto.Account{{Limits: groups}, {Limits: []proto.Limit{{Window: "1mo"}}}}); !slices.Equal(got, []string{"5h", "7d"}) {
-		t.Fatalf("windows %q", got)
 	}
 }
 
@@ -475,7 +525,7 @@ func TestHeadTabHover(t *testing.T) {
 }
 
 // TestUsageUseTip is the mouse on an account's "use": it says what a click
-// does, and nothing beside it does; on a meter with a model's mark, it names it.
+// does, and nothing beside it does; on a meter with a model's ┃, it names it.
 func TestUsageUseTip(t *testing.T) {
 	m := usageModel(t)
 	press(m, "9")
@@ -603,7 +653,7 @@ func TestUsageDragReorder(t *testing.T) {
 		t.Fatalf("the release saves the order: cmd %v, drag %+v, %v", cmd != nil, m.drag, names())
 	}
 
-	if r := m.us.selected(m); r == nil || r.kind != usAccount || r.acct.Name != ".claude-work" {
+	if r := m.us.selected(m); r == nil || !r.head || r.acct.Name != ".claude-work" {
 		t.Fatalf("the moved account stays selected: %+v", r)
 	}
 

@@ -1566,7 +1566,7 @@ func TestSpacesResume(t *testing.T) {
 	m.st.Settings.Profiles = map[string]map[string][]string{"claude": {"work": {"CLAUDE_CONFIG_DIR=/opt/work"}}}
 	resume(m)
 
-	if m.modal == nil || m.modal.title != "claude profile" || !strings.HasSuffix(m.modal.items[0].detail, " ❯ claude --resume") {
+	if m.modal == nil || m.modal.title != "claude profile" || !strings.HasSuffix(ansi.Strip(m.modal.items[0].detail), " ❯ claude --resume") {
 		t.Fatalf("claude alone asks only for the profile it resumes in: %+v", m.modal)
 	}
 

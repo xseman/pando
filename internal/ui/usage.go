@@ -151,21 +151,21 @@ func (m *Model) spends(agent string, env []string) (proto.Account, bool) {
 	return a, ok && m.hasUsage()
 }
 
-// Room's columns: a window's meter, share and reset, and the gap between two.
+// Room's columns: a limit's meter, share and reset, and the gap between two.
 const (
 	roomCell  = 14 // " 93%" and "  2d 17h" after the meter
 	roomGap   = 3
 	roomMeter = 12 // the meter's cells the picker asks room for
 )
 
-// roomWindows are the limit windows a profile picker's rows show, at most two
-// in the order accounts name them: claude's 5h and 7d.
+// roomWindows are the limit windows a profile picker's rows show, a column
+// each in the order accounts name them: claude's 5h and 7d.
 func roomWindows(accounts []proto.Account) []string {
 	var out []string
 
 	for _, a := range accounts {
 		for _, l := range a.Limits {
-			if len(out) < 2 && !slices.Contains(out, l.Window) {
+			if !slices.Contains(out, l.Window) {
 				out = append(out, l.Window)
 			}
 		}
@@ -194,43 +194,15 @@ func windowLimit(limits []proto.Limit, window string) (proto.Limit, []proto.Limi
 	return shown, ticks, true
 }
 
-// modelFlag names the fullest of limits that is a model's own once it is at
-// 75% or over, "Fable 93%", and its share; "" under that.
-func modelFlag(limits []proto.Limit) (string, float64) {
-	var top proto.Limit
-
-	for _, l := range limits {
-		if l.Model != "" && l.Percent >= 75 && l.Percent > top.Percent {
-			top = l
-		}
-	}
-
-	if top.Model == "" {
-		return "", 0
-	}
-
-	flag := fmt.Sprintf("%s %.0f%%", top.Model, top.Percent)
-
-	return flag, top.Percent
-}
-
-// roomFlag is what ends account a's row in a profile picker: why its limits
-// are not current, else the model's own limit nearest its end (modelFlag).
-func roomFlag(a proto.Account) (string, lipgloss.Style) {
-	if a.Note != "" {
-		return noteWord(a.Note), dim
-	}
-
-	flag, pct := modelFlag(a.Limits)
-
-	return flag, levelStyle(pct, dim)
-}
-
 // room is how spent account a is, at the right end of its row in a profile
-// picker: per window a column of colW cells, its meter, share and reset,
-// the column empty where a has no limit; then roomFlag in flagW cells.
-func room(a proto.Account, windows []string, colW, flagW int) []seg {
-	stale := a.Note != ""
+// picker: per window a meter, share and reset in colW cells (windowLimit),
+// blank where a has no limit on it; why its limits are not current across
+// them instead.
+func room(a proto.Account, windows []string, colW int) []seg {
+	if a.Note != "" {
+		return noteSegs(a.Note, len(windows)*colW+max(len(windows)-1, 0)*roomGap)
+	}
+
 	now := time.Now()
 
 	var out []seg
@@ -246,16 +218,10 @@ func room(a proto.Account, windows []string, colW, flagW int) []seg {
 			continue
 		}
 
-		when := ifElse(stale, "", until(l.Resets, now))
-		out = append(out, limitMeter(max(colW-roomCell, 3), l.Percent, ifElse(stale, nil, ticks), ifElse(stale, dim, levelStyle(l.Percent, fg(pal.accent))))...)
+		out = append(out, limitMeter(max(colW-roomCell, 3), l.Percent, ticks, fg(pal.accent))...)
 		out = append(out,
-			sg(fmt.Sprintf(" %3.0f%%", l.Percent), ifElse(stale, dim, levelStyle(l.Percent, plain))),
-			sg("  "+pad(when, roomCell-7, true), dim)) // "2d 17h", "16d 11h" of a 30d window
-	}
-
-	if flagW > 0 {
-		flag, st := roomFlag(a)
-		out = append(out, sg("  ", plain), sg(pad(flag, flagW, false), st))
+			sg(fmt.Sprintf(" %3.0f%%", l.Percent), levelStyle(l.Percent, plain)),
+			sg("  "+pad(until(l.Resets, now), roomCell-7, true), dim)) // "2d 17h", "16d 11h" of a 30d window
 	}
 
 	return out
@@ -263,28 +229,29 @@ func room(a proto.Account, windows []string, colW, flagW int) []seg {
 
 // roomHead names room's columns in a profile picker's top edge, each window
 // over its meter.
-func roomHead(windows []string, colW, flagW int) string {
+func roomHead(windows []string, colW int) string {
 	var b strings.Builder
 
-	for i, w := range windows {
+	for i, c := range windows {
 		if i > 0 {
 			b.WriteString(strings.Repeat("─", roomGap-1) + " ")
 		}
 
-		b.WriteString(w + " " + strings.Repeat("─", max(colW-strWidth(w)-1, 0)))
-	}
-
-	if flagW > 0 {
-		b.WriteString(strings.Repeat("─", flagW+2))
+		b.WriteString(c + " " + strings.Repeat("─", max(colW-strWidth(c)-1, 0)))
 	}
 
 	return b.String()
 }
 
-// noteWord is an account's Note without its explanation: "paused".
-func noteWord(note string) string {
-	word, _, _ := strings.Cut(note, ":")
-	return word
+// noteSegs say why an account's limits are not current in w cells: its word
+// ("paused") in the warning color, then what it explains, cut to fit.
+func noteSegs(note string, w int) []seg {
+	word, why, _ := strings.Cut(note, ": ")
+	if why != "" {
+		why = " · " + why
+	}
+
+	return []seg{sg(word, fg(pal.warn)), sg(pad(why, w-strWidth(word), false), dim)}
 }
 
 // until is how long from now until t, as a limit's reset reads: "3d 4h",
@@ -356,24 +323,38 @@ func levelStyle(pct float64, calm lipgloss.Style) lipgloss.Style {
 
 // usageView is the Usage tab of Sessions: each agent's plan limits by
 // sign-in, and which of them new sessions start with. It shows what the
-// daemon measured (Model.usage) and asks for nothing itself.
-type usageView struct{ l list }
+// daemon measured (Model.usage) and asks for nothing itself. w is the width
+// it was last drawn in, which picks its layout (rows).
+type usageView struct {
+	l list
+	w int
+}
+
+// usWide is the narrowest Usage that draws an account's name and plan in a
+// column beside its limits; a narrower one draws them over its limits.
+const usWide = 50
 
 const (
 	usAgent   = iota // an agent's heading; its only account's row too
-	usAccount        // a sign-in: its name and plan
-	usLimit          // one window of its allowance
+	usAccount        // a sign-in's name and plan over its limits, narrow
+	usLimit          // one window of its allowance, or a model's own
 	usNote           // why its limits are not current
+	usName           // a row only the name column says something on, wide
 	usGap            // the blank before an agent or account but the first
 )
 
 // usRow is a row of the view. acct is the account it belongs to, an agent's
 // first for its heading; solo marks an agent with one account, which has
-// nothing to pick. ticks are the models' own allowances on the row's window.
+// nothing to pick. head is the row the cursor takes for its account; line is
+// the row's place in its account's block when wide, which the name column
+// reads (blockNames). ticks are the models' own allowances on the row's
+// window.
 type usRow struct {
 	kind  int
 	acct  proto.Account
 	solo  bool
+	head  bool
+	line  int
 	lim   proto.Limit
 	ticks []proto.Limit
 }
@@ -394,16 +375,31 @@ func agentMark(agent string) seg {
 	return seg{}
 }
 
-// inert reports a row the cursor passes over: a gap, or the heading of an
-// agent with accounts to pick under it.
-func (r usRow) inert() bool { return r.kind == usGap || r.kind == usAgent && !r.solo }
+// inert reports a row the cursor passes over: all but an account's head.
+func (r usRow) inert() bool { return !r.head }
 
-// rows are each agent, then its accounts with a row per limit window; a
-// model's own allowance marks the window it shares instead of taking a row.
-// A filter keeps the accounts it matches.
+// blockNames are what the wide layout's name column says down an account's
+// rows: its name, then its plan; an agent's only account its plan alone, as
+// the heading names the agent.
+func blockNames(a proto.Account, solo bool) []string {
+	names := []string{a.Name, a.Plan}
+	if solo {
+		names = names[1:]
+	}
+
+	return slices.DeleteFunc(names, func(s string) bool { return s == "" })
+}
+
+// rows are each agent, then its accounts, a blank between two, with a row
+// per limit window, a model's own allowance a tick on the window it shares;
+// an account whose limits are not current says why instead. Wide, an
+// account's name and plan run down a column beside its limits, its first row
+// its head; narrow, they head its limits on a row of their own. A filter
+// keeps the accounts it matches.
 func (v *usageView) rows(m *Model) []usRow {
 	var out []usRow
 
+	wide := v.w >= usWide
 	q := strings.ToLower(m.query(viewUsage))
 
 	for i, a := range m.usage.Accounts {
@@ -417,36 +413,73 @@ func (v *usageView) rows(m *Model) []usRow {
 				out = append(out, usRow{kind: usGap})
 			}
 
-			out = append(out, usRow{kind: usAgent, acct: a, solo: solo})
+			out = append(out, usRow{kind: usAgent, acct: a, solo: solo, head: solo})
+		}
+
+		if !solo && out[len(out)-1].kind != usAgent {
+			out = append(out, usRow{kind: usGap})
+		}
+
+		if !solo && !wide {
+			out = append(out, usRow{kind: usAccount, acct: a, head: true})
+		}
+
+		block := len(out)
+
+		switch {
+		case a.Note == "":
+			for _, l := range a.Limits {
+				shared := slices.IndexFunc(out[block:], func(r usRow) bool { return r.lim.Window == l.Window && r.lim.Model == "" })
+				if l.Model != "" && shared >= 0 {
+					out[block+shared].ticks = append(out[block+shared].ticks, l)
+					continue
+				}
+
+				out = append(out, usRow{kind: usLimit, acct: a, solo: solo, lim: l})
+			}
+
+		case wide || strings.Contains(a.Note, ": "): // narrow, the word alone ends the account's row
+			out = append(out, usRow{kind: usNote, acct: a, solo: solo})
+		}
+
+		if !wide {
+			continue
+		}
+
+		for len(out)-block < len(blockNames(a, solo)) {
+			out = append(out, usRow{kind: usName, acct: a, solo: solo})
+		}
+
+		for j := block; j < len(out); j++ {
+			out[j].line = j - block
 		}
 
 		if !solo {
-			if out[len(out)-1].kind != usAgent {
-				out = append(out, usRow{kind: usGap})
-			}
-
-			out = append(out, usRow{kind: usAccount, acct: a})
-		}
-
-		first := len(out)
-
-		for _, l := range a.Limits {
-			shared := slices.IndexFunc(out[first:], func(r usRow) bool { return r.lim.Window == l.Window && r.lim.Model == "" })
-			if l.Model != "" && shared >= 0 {
-				out[first+shared].ticks = append(out[first+shared].ticks, l)
-				continue
-			}
-
-			out = append(out, usRow{kind: usLimit, acct: a, solo: solo, lim: l})
-		}
-
-		if a.Note != "" {
-			out = append(out, usRow{kind: usNote, acct: a, solo: solo})
+			out[block].head = true
 		}
 	}
 
 	return out
 }
+
+// headOf is the head of the account row i is part of, -1 for a gap or the
+// heading of an agent with accounts under it.
+func headOf(rows []usRow, i int) int {
+	for j := i; j >= 0 && j < len(rows) && rows[j].kind != usGap; j-- {
+		if rows[j].head {
+			return j
+		}
+
+		if rows[j].kind == usAgent {
+			break
+		}
+	}
+
+	return -1
+}
+
+// sameAccount reports a and b the one sign-in.
+func sameAccount(a, b proto.Account) bool { return a.Agent == b.Agent && slices.Equal(a.Env, b.Env) }
 
 func (v *usageView) selected(m *Model) *usRow {
 	if rows := v.rows(m); v.l.sel >= 0 && v.l.sel < len(rows) && !rows[v.l.sel].inert() {
@@ -457,23 +490,21 @@ func (v *usageView) selected(m *Model) *usRow {
 }
 
 func (v *usageView) lines(m *Model, w, h int) []string {
+	v.w = w
 	rows, now := v.rows(m), time.Now()
 	hover, mx := m.hoverRow(viewUsage), m.mouseCol(viewUsage)
 
-	// The limits' labels in one column, so their meters line up, and a column
-	// at the right end for the model's own limit a row names, when one does.
-	labelW, flagW := 3, 0
+	// The limits' labels in one column, so their meters line up, and wide the
+	// names' column before them.
+	labelW, nameW := 3, 0
 
 	for _, r := range rows {
-		if r.kind != usLimit {
-			continue
+		if r.kind == usLimit {
+			labelW = max(labelW, strWidth(limitLabel(r.lim)))
 		}
 
-		labelW = max(labelW, strWidth(limitLabel(r.lim)))
-
-		if r.acct.Note == "" {
-			flag, _ := modelFlag(r.ticks)
-			flagW = max(flagW, strWidth(flag))
+		for _, n := range blockNames(r.acct, r.solo) {
+			nameW = max(nameW, strWidth(n))
 		}
 	}
 
@@ -481,6 +512,12 @@ func (v *usageView) lines(m *Model, w, h int) []string {
 
 	if v.l.sel >= 0 && v.l.sel < len(rows) && rows[v.l.sel].inert() { // first shown, or filtered: on an account
 		v.move(m, 1, len(rows), m.bodyH(viewUsage))
+	}
+
+	// The cursor and the pointer take an account's whole block.
+	selHead, hoverHead := v.l.sel, -1
+	if hover >= 0 {
+		hoverHead = headOf(rows, v.l.top+hover)
 	}
 
 	slot := v.dropSlot(m, rows) // the drop band takes a row of its own
@@ -502,65 +539,134 @@ func (v *usageView) lines(m *Model, w, h int) []string {
 			return blank(rw)
 		}
 
-		bg, name := m.rowColors(viewUsage, i == v.l.sel, y == hover)
+		head := headOf(rows, i)
+		bg, name := m.rowColors(viewUsage, head >= 0 && head == selHead, head >= 0 && head == hoverHead)
 		plan := ifElse(r.acct.Plan == "", "", " · "+r.acct.Plan)
+		wide := w >= usWide
+
+		var lead []seg
+		if wide {
+			lead = nameColumn(m, r, nameW, name)
+		}
 
 		switch r.kind {
 		case usAgent:
 			left := []seg{sg(" ", plain), agentMark(r.acct.Agent), sg(cmp.Or(agentNames[r.acct.Agent], r.acct.Agent), name.Bold(true))}
-			if r.solo {
-				return row(rw, bg, append(left, sg(plan, dim)))
+
+			switch {
+			case !r.solo:
+				return row(rw, bg, left, sg(ifElse(m.st.Settings.Switch == "auto", "auto ", ""), dim))
+			case wide:
+				return row(rw, bg, left)
 			}
 
-			return row(rw, bg, left, sg(ifElse(m.st.Settings.Switch == "auto", "auto ", ""), dim))
+			return row(rw, bg, append(left, sg(plan, dim)), v.status(m, r, false, false)...)
 
 		case usAccount:
 			left := []seg{sg("   "+r.acct.Name, name), sg(plan, dim)}
-			if m.active(r.acct) {
-				return row(rw, bg, left, sg("active ", fg(pal.ok).Bold(true)))
-			}
+			over := y == hover && overUse(mx, w)
 
-			use := sg("use", fg(pal.headerAccent))
-			if y == hover && overUse(mx, w) {
-				use, m.tip = sgOwn("use", rowButtonHot()), "Start New "+r.acct.Agent+" Sessions as "+r.acct.Name+"  ⏎"
-			}
-
-			return row(rw, bg, left, use, sg(" ", plain))
+			return row(rw, bg, left, v.status(m, r, head == selHead || head == hoverHead, over)...)
 
 		case usNote:
-			return row(rw, bg, []seg{sg("   "+r.acct.Note, dim)})
+			if !wide {
+				_, why, _ := strings.Cut(r.acct.Note, ": ")
+				return row(rw, bg, []seg{sg("   "+why, dim)})
+			}
+
+			return row(rw, bg, append(lead, noteSegs(r.acct.Note, rw-segsWidth(lead)-1)...))
+
+		case usName:
+			return row(rw, bg, lead)
 		}
 
-		lead := "   " + pad(limitLabel(r.lim), labelW, false) + " "
-		stale := r.acct.Note != ""
-		tone := ifElse(stale, dim, levelStyle(r.lim.Percent, fg(pal.accent)))
-		ticks := ifElse(stale, nil, r.ticks)
+		if !wide {
+			lead = []seg{sg("   ", plain)}
+		}
+
+		lead = append(lead, sg(pad(limitLabel(r.lim), labelW, false)+" ", dim))
 		right := []seg{
-			sg(fmt.Sprintf("%3.0f%%", r.lim.Percent), ifElse(stale, dim, levelStyle(r.lim.Percent, name))),
+			sg(fmt.Sprintf(" %3.0f%%", r.lim.Percent), levelStyle(r.lim.Percent, name)),
 			sg(pad(until(r.lim.Resets, now), 9, true)+" ", dim),
 		}
 
-		if flagW > 0 {
-			flag, pct := modelFlag(ticks)
-			right = append(right, sg(" "+pad(flag, flagW, false)+" ", levelStyle(pct, dim)))
-		}
-
-		cells := rw - strWidth(lead) - 15 - ifElse(flagW > 0, flagW+2, 0)
+		cells := rw - segsWidth(lead) - segsWidth(right)
 		if cells < 3 { // too narrow for a meter that says anything
-			return row(rw, bg, []seg{sg(lead, dim)}, right...)
+			return row(rw, bg, lead, right...)
 		}
 
-		if len(ticks) > 0 && y == hover {
-			tips := make([]string, len(ticks))
-			for j, t := range ticks {
+		if len(r.ticks) > 0 && y == hover {
+			tips := make([]string, len(r.ticks))
+			for j, t := range r.ticks {
 				tips[j] = fmt.Sprintf("┃ %s's Own %s Limit  %.0f%%", t.Model, r.lim.Window, t.Percent)
 			}
 
 			m.tip = strings.Join(tips, "   ")
 		}
 
-		return row(rw, bg, append([]seg{sg(lead, dim)}, limitMeter(cells, r.lim.Percent, ticks, tone)...), right...)
+		return row(rw, bg, append(lead, limitMeter(cells, r.lim.Percent, r.ticks, fg(pal.accent))...), right...)
 	})
+}
+
+// nameColumn is the wide layout's name column on row r, nameW cells and the
+// gap after: the account's name in st on its first row, ● before it for the
+// one new sessions start with, then its plan dim (blockNames).
+func nameColumn(m *Model, r usRow, nameW int, st lipgloss.Style) []seg {
+	names := blockNames(r.acct, r.solo)
+	text := ""
+
+	if r.line < len(names) {
+		text = names[r.line]
+	}
+
+	mark := sg("   ", plain)
+	if r.line == 0 && !r.solo && m.active(r.acct) {
+		mark = sg(" ● ", fg(pal.ok))
+	}
+
+	if r.line > 0 || r.solo {
+		st = dim
+	}
+
+	return []seg{mark, sg(pad(text, nameW, false)+"  ", st)}
+}
+
+// status ends an account's heading row in the narrow layout: why its limits
+// are not current, then active for the one new sessions start with, or "use"
+// while the cursor or the pointer is on it (shown) and a keycap with the
+// pointer on it (over).
+func (v *usageView) status(m *Model, r usRow, shown, over bool) []seg {
+	var words []seg
+
+	if word, _, _ := strings.Cut(r.acct.Note, ":"); word != "" {
+		words = append(words, sg(word, fg(pal.warn)))
+	}
+
+	switch {
+	case r.solo:
+	case m.active(r.acct):
+		words = append(words, sg("active", fg(pal.ok).Bold(true)))
+	case over:
+		words, m.tip = append(words, sgOwn("use", keycapHot())), "Start New "+r.acct.Agent+" Sessions as "+r.acct.Name+"  ⏎"
+	case shown:
+		words = append(words, sg("use", fg(pal.headerAccent)))
+	}
+
+	var out []seg
+
+	for i, w := range words {
+		if i > 0 {
+			out = append(out, sg("  ", plain))
+		}
+
+		out = append(out, w)
+	}
+
+	if len(out) > 0 {
+		out = append(out, sg(" ", plain))
+	}
+
+	return out
 }
 
 // limitLabel names a limit's row: its window, after the models it is theirs
@@ -569,22 +675,37 @@ func limitLabel(l proto.Limit) string {
 	return strings.TrimPrefix(l.Model+" "+l.Window, " ")
 }
 
-// limitMeter draws pct of w cells, ▰ in tone over a faint ▱ track, any use
-// one cell at least, with a ▰ at each of ticks colored as its share is.
+// limitMeter draws pct of w cells, ▰ over a ▱ track, any use one cell at
+// least: the fill in tone, or as levelStyle colors pct near its end, and the
+// track tinted toward those colors past the shares they start at. Each of
+// ticks, a model's own share, is a ┃ colored as that share is.
 func limitMeter(w int, pct float64, ticks []proto.Limit, tone lipgloss.Style) []seg {
 	full := min(int(math.Round(pct/100*float64(w))), w)
 	if pct > 0 {
 		full = max(full, 1)
 	}
 
+	fill := levelStyle(pct, tone)
 	cells := make([]seg, w)
+
 	for i := range cells {
-		cells[i] = ifElse(i < full, sg("▰", tone), sg("▱", fg(pal.indentGuide)))
+		at := float64(i+1) / float64(w) * 100
+
+		switch {
+		case i < full:
+			cells[i] = sg("▰", fill)
+		case at > 90:
+			cells[i] = sg("▱", meterTrack[2])
+		case at > 75:
+			cells[i] = sg("▱", meterTrack[1])
+		default:
+			cells[i] = sg("▱", meterTrack[0])
+		}
 	}
 
 	for _, t := range ticks {
-		if at := min(int(t.Percent/100*float64(w)), w-1); at > 0 { // on the first cell it reads as the fill
-			cells[at] = sg("▰", levelStyle(t.Percent, plain))
+		if t.Percent > 0 {
+			cells[min(int(t.Percent/100*float64(w)), w-1)] = sg("┃", levelStyle(t.Percent, plain))
 		}
 	}
 
@@ -681,8 +802,10 @@ func (v *usageView) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 		v.l.wheel(wheelDelta(mo), len(rows), m.bodyH(viewUsage))
 	case tea.MouseClickMsg:
 		i := v.l.at(y, len(rows))
-		if i >= 0 && !rows[i].inert() {
-			v.l.sel = i
+
+		head := headOf(rows, i)
+		if head >= 0 {
+			v.l.sel = head
 		}
 
 		if mo.Button == tea.MouseRight {
@@ -695,8 +818,8 @@ func (v *usageView) mouse(m *Model, msg tea.MouseMsg, x, y int) tea.Cmd {
 		}
 		// An account of an agent with more than one drags among them by any
 		// of its rows.
-		if i >= 0 && mo.Button == tea.MouseLeft && !rows[i].inert() && !rows[i].solo {
-			m.drag = &drag{kind: dragProfile, col: m.accountAt(rows[i].acct.Agent, rows[i].acct.Env), slot: -1, y0: mo.Y}
+		if head >= 0 && mo.Button == tea.MouseLeft && !rows[head].solo {
+			m.drag = &drag{kind: dragProfile, col: m.accountAt(rows[head].acct.Agent, rows[head].acct.Env), slot: -1, y0: mo.Y}
 		}
 	}
 
@@ -763,8 +886,8 @@ func (v *usageView) dropOn(m *Model, d *drag, rows []usRow) int {
 }
 
 // dropSlot is the row the drop band goes before while an account drags: the
-// account row of the one it takes the place of moving up, past that one's
-// limits moving down; -1 with no drop.
+// head of the one it takes the place of moving up, past that one's rows
+// moving down; -1 with no drop.
 func (v *usageView) dropSlot(m *Model, rows []usRow) int {
 	d := m.drag
 	if d == nil || d.kind != dragProfile || d.slot < 0 || d.slot >= len(m.usage.Accounts) {
@@ -773,15 +896,13 @@ func (v *usageView) dropSlot(m *Model, rows []usRow) int {
 
 	to := m.usage.Accounts[d.slot]
 
-	at := slices.IndexFunc(rows, func(r usRow) bool {
-		return r.kind == usAccount && r.acct.Agent == to.Agent && slices.Equal(r.acct.Env, to.Env)
-	})
+	at := slices.IndexFunc(rows, func(r usRow) bool { return r.head && sameAccount(r.acct, to) })
 	if at < 0 || d.slot < d.col {
 		return at
 	}
 
 	at++
-	for at < len(rows) && (rows[at].kind == usLimit || rows[at].kind == usNote) {
+	for at < len(rows) && rows[at].kind != usGap && !rows[at].head {
 		at++
 	}
 
@@ -824,7 +945,7 @@ func (m *Model) reorderProfile(from, to int) tea.Cmd {
 
 	rows := m.us.rows(m)
 	if i := slices.IndexFunc(rows, func(r usRow) bool {
-		return r.kind == usAccount && slices.Equal(r.acct.Env, a.Env) && r.acct.Agent == a.Agent
+		return r.head && sameAccount(r.acct, a)
 	}); i >= 0 {
 		m.us.l.sel = i
 		m.us.l.snap(m.bodyH(viewUsage))

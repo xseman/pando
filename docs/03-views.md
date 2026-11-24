@@ -360,9 +360,12 @@ sessions come first, under _recently opened_. An agent with profiles asks which
 daemon saw it run in or found (`seen_env`) that no profile sets (`profiles`),
 named as in Usage (`proto.ConfigName`: `~/.claude-work` is _work_); the choice
 goes in `session.new`'s `env`. A row says its account's plan and how spent it is (`room`:
-Usage's meter, share, reset), the footer what the selected one runs where
-(`runLine`, `item.detail`, `modal.foot`), and the picker opens on the active one (`State.Active`,
-`item.lead`). A project's `+` asks for its worktree first
+a column per window, each Usage's meter, share and reset, named in the top
+edge; why its limits are not current across them), `●` marks
+the active one (`State.Active`, `item.lead`), which the picker opens on, and the
+footer says what the selected one runs where, its settings in the accent color
+(`runLine`, `item.detail`, `modal.foot`). The box is as tall as its rows
+(`modal.fit`). A project's `+` asks for its worktree first
 (`worktreePicker`), _New Worktree…_ included (`sessionWorktreeMsg`). The `+`
 follows the name of the row under the pointer, or of the selected one while
 Sessions has the keyboard (`agents.actions`).
@@ -700,33 +703,52 @@ for nothing itself. `Model.usage` is read once (`loadUsage`), then follows the
 after Sessions in its header, before Customizations (`headed`, `headTab`),
 there while `hasUsage`: `usage` on and an account known.
 
-```text
- ✳ Claude Code                    auto    usAgent: its mark, profile_switch when "auto"
-   default · Max 5x             active    usAccount: State.Active's, else "use"
-   5h  ▰▰▰▰▱▱▱▱▱▱           35%   3h 4m   usLimit: meter, share used, time to reset
-   7d  ▰▰▰▰▰▰▰▰▰▱           92%  9h 44m     a cell in plain: a model's own allowance
-                                          usGap: before each account and agent but the first
-   work · Team 5x                  use
-   paused: its sign-in lapsed, …          usNote: Account.Note, its limits dim
+From `usWide` (50) cells an account's name and plan run down a column beside
+its limits; a narrower column puts them on a row of their own over its limits.
 
- ◎ Codex · Free                           an only account rides its agent's row
-   30d ▱▱▱▱▱▱▱▱▱▱            0% 16d 11h
+```text
+ ✳ Claude Code                                       usAgent: its mark, profile_switch when "auto"
+ ● default  5h     ▰▰▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱   8%  2h 20m  usLimit, the head: ● State.Active's
+   Max 5x   7d     ▰▰▰▰▰▰▰▰▰┃▱▱▱▱▱▱▱▱▱  47% 21h 20m  the plan beside; ┃ a model's own (ticks)
+                                                     usGap: before each account and agent but the first
+   nike     paused · sign-in lapsed until the agent  usNote: Account.Note, no limits
+   Team                                              usName: the plan alone
+
+ ◎ Codex
+   Free     30d    ▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱   0%  2d 23h  an only account: its plan in the column
 ```
 
-- `usGap` and the heading of an agent with accounts to pick are `inert`:
-  `↑↓`, a page and a click pass over them, and the cursor starts on the first
-  account.
-- A model's limit (`Limit.Model`) marks the row of the window it shares
-  (`ticks`); with no such row it gets one of its own, named. A mark on the
-  first cell is left out: it would read as the fill.
+```text
+ ✳ Claude Code                    auto
+   default · Max 5x             active    usAccount, the head: active, why its limits are
+   5h  ▰▰▰▱▱▱▱▱▱▱▱▱▱   35%   3h 4m          not current, or "use" under the cursor or mouse
+   7d  ▰▰▰▰┃▰▰▰▰▰▰▰▱   92%  9h 44m
+                                          usGap: before each account and agent but the first
+   work · Team 5x               paused
+   sign-in lapsed until the agent runs    usNote: its explanation, for a note that has one
+
+ ◎ Codex · Free                           an only account rides its agent's row
+   30d ▱▱▱▱▱▱▱▱▱▱▱▱▱    0% 16d 11h
+```
+
+- The cursor and the mouse take an account's whole block (`headOf`): every row
+  but its head is `inert`, so `↑↓` and a page go account to account, and a
+  click anywhere in it selects it.
+- A model's limit (`Limit.Model`) is a `┃` on the row of the window it shares,
+  colored as its own share is, its share in the row's tip (`ticks`); with no
+  such row it gets one of its own, named (`limitLabel`). In the picker a
+  window's meter does the same (`windowLimit`).
 - `limitMeter` draws `▰` over a `▱` track as wide as the row allows, in the
-  profile picker too; any use fills one cell. `levelStyle` colors from 75% and
-  90%, the status bar's chip too (`usageChip`).
+  profile picker too; any use fills one cell. `levelStyle` colors the fill
+  from 75% and 90%, the status bar's chip too (`usageChip`), and the track is
+  tinted toward those colors past the same shares (`meterTrack`), so where a
+  limit bites shows before the fill gets there.
 - `⏎`, or a click on `use`, is `useProfile`: `state.set`'s `active_profile`,
   set here at once; `use` under the mouse lights and its tip says what a
   click does (`overUse`). An agent's only account has nothing to pick (`solo`).
 - The chip names the active account of the agent in view, else the first
-  known. With an offer (`Usage.Offer`) it adds `use NAME`, and a click takes
+  known, and its `Peak`: the fullest limit every model draws from, as a
+  model's own at its end leaves the others room. With an offer (`Usage.Offer`) it adds `use NAME`, and a click takes
   it; `onUsage` flashes a new offer once, `movedProfile` a profile the daemon
   made active (`profile_switch = "auto"`).
 - An account drags among its agent's by any of its rows, `alt+↑↓` too

@@ -171,7 +171,18 @@ var (
 	dim    = fg(pal.descFg) // a color, not SGR faint: not every terminal draws faint
 	bold   = lipgloss.NewStyle().Bold(true)
 	accent = lipgloss.NewStyle().Foreground(pal.headerAccent).Bold(true)
+
+	meterTrack = trackStyles()
 )
+
+// trackStyles are a limit meter's empty cells: faint, then halfway to the
+// warning and the error color where levelStyle turns the fill those colors,
+// so where a limit bites shows before the fill gets there.
+func trackStyles() [3]lipgloss.Style {
+	toward := func(c color.Color) lipgloss.Style { return fg(lipgloss.Blend1D(3, pal.indentGuide, c)[1]) }
+
+	return [3]lipgloss.Style{fg(pal.indentGuide), toward(pal.warn), toward(pal.errc)}
+}
 
 // matchStyle is base marking a search match: on match_bg, in match_fg when
 // a theme gives one.
@@ -250,6 +261,7 @@ func applyLook(theme string, dark bool, icons string, colors map[string]string) 
 	iconsNerd, iconsEmoji = icons == "nerd", icons == "emoji"
 	accent = lipgloss.NewStyle().Foreground(pal.headerAccent).Bold(true)
 	dim = fg(pal.descFg)
+	meterTrack = trackStyles()
 }
 
 func fg(c color.Color) lipgloss.Style { return lipgloss.NewStyle().Foreground(c) }

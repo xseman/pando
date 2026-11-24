@@ -42,7 +42,7 @@ const nearLimit = 15
 // only the agent's own CLI renews it, the next time it runs. A busy service
 // is routine too and says nothing worth showing: the next check asks again.
 var (
-	errPaused    = errors.New("paused: its sign-in lapsed, the agent renews it when it next runs")
+	errPaused    = errors.New("paused: sign-in lapsed until the agent runs")
 	errSignedOut = errors.New("signed out")
 	errBusy      = errors.New("busy: the service limits how often usage is asked for")
 )

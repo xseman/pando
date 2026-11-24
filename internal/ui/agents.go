@@ -2320,11 +2320,11 @@ func (m *Model) profilePicker(ws, agent string, cmd []string) bool {
 
 // profileModal is a picker of agent's profiles, each run with cmd in dir:
 // a row says its account's plan, as Usage does, and how spent it is (room),
-// the windows named in the top edge (roomHead), the footer what the selected
-// one runs where (runLine), and the one new sessions start with
-// (State.Active) is the row selected.
+// a column per window named in the top edge (roomHead), the footer what the
+// selected one runs where (runLine), and the one new sessions start with
+// (State.Active) is marked ● and the row selected.
 func (m *Model) profileModal(title, agent, dir string, cmd []string, profiles []profile, run func(profile) func(*Model) tea.Cmd) *modal {
-	nameW, planW, detailW, flagW := 0, 0, 0, 0
+	nameW, planW, detailW := 0, 0, 0
 	plans := make([]string, len(profiles))
 	accounts := make([]proto.Account, len(profiles))
 	known := make([]bool, len(profiles))
@@ -2334,9 +2334,6 @@ func (m *Model) profileModal(title, agent, dir string, cmd []string, profiles []
 	for i, p := range profiles {
 		accounts[i], known[i] = m.spends(agent, p.env)
 		if known[i] {
-			flag, _ := roomFlag(accounts[i])
-			flagW = max(flagW, strWidth(flag))
-
 			measured = append(measured, accounts[i])
 		}
 
@@ -2347,40 +2344,47 @@ func (m *Model) profileModal(title, agent, dir string, cmd []string, profiles []
 		nameW, planW = max(nameW, strWidth(p.name)), max(planW, strWidth(plans[i]))
 	}
 
+	active := m.activeEnv(agent)
 	items := make([]item, len(profiles))
+
 	for i, p := range profiles {
-		items[i] = item{label: p.name, detail: runLine(dir, p.env, cmd), lead: slices.Equal(m.activeEnv(agent), p.env), run: run(p)}
+		items[i] = item{label: p.name, detail: runLine(dir, p.env, cmd), lead: slices.Equal(active, p.env), run: run(p)}
 		detailW = max(detailW, ansi.StringWidth(items[i].detail))
 	}
 
-	windows := roomWindows(measured)
-	flagArea := ifElse(flagW > 0, flagW+2, 0)
-	// What the rows take besides room: the frame, " name · plan  ", and a row's right "  ".
-	frame := 2 + 1 + nameW + planW + 2 + 2
-	asked := len(windows)*(roomMeter+roomCell) + max(len(windows)-1, 0)*roomGap + flagArea
+	columns := roomWindows(measured)
+	// What the rows take besides room: the frame, " ● name · plan  ", and a row's right "  ".
+	frame := 2 + 1 + 2 + nameW + planW + 2 + 2
+	asked := len(columns)*(roomMeter+roomCell) + max(len(columns)-1, 0)*roomGap
 
 	md := newPicker(title, items)
-	md.foot, md.w = true, max(detailW+4, frame+asked) // the footer's blanks and the frame: what runs is not cut
+	md.foot, md.fit, md.w = true, true, max(detailW+4, frame+asked) // the footer's blanks and the frame: what runs is not cut
+	md.refilter()                                                   // without the detail row newPicker put under the selection: the box keeps the rows it is first measured with
 
 	_, _, w, _, _ := md.rect(m)
 
-	if len(windows) > 1 && w-frame-flagArea-roomGap < 2*(3+roomCell) { // too narrow for two meters that say anything
-		windows = windows[:1]
-	}
-
 	colW := 0
-	if n := len(windows); n > 0 {
-		colW = (w - frame - flagArea - (n-1)*roomGap) / n
-	}
 
-	for i, p := range profiles { // in columns filling the box: " name · plan  " left, room right
-		items[i].segs = []seg{sg(pad(p.name, nameW, false), plain), sg(pad(plans[i], planW, false)+"  ", dim)}
-		if known[i] {
-			items[i].right = room(accounts[i], windows, colW, flagW)
+	for n := len(columns); n > 0; n-- { // the columns with room for a meter that says anything, the first one at least
+		if colW = (w - frame - (n-1)*roomGap) / n; colW >= 3+roomCell || n == 1 {
+			columns = columns[:n]
+			break
 		}
 	}
 
-	if head := roomHead(windows, colW, flagW); len(windows) > 0 && strWidth(title)+strWidth(head)+6 <= w {
+	for i, p := range profiles { // in columns filling the box: " ● name · plan  " left, room right
+		mark := sg("  ", plain)
+		if items[i].lead {
+			mark = sg("● ", fg(pal.ok))
+		}
+
+		items[i].segs = []seg{mark, sg(pad(p.name, nameW, false), plain), sg(pad(plans[i], planW, false)+"  ", dim)}
+		if known[i] {
+			items[i].right = room(accounts[i], columns, colW)
+		}
+	}
+
+	if head := roomHead(columns, colW); len(columns) > 0 && strWidth(title)+strWidth(head)+6 <= w {
 		md.note = head
 	}
 
@@ -2389,15 +2393,25 @@ func (m *Model) profileModal(title, agent, dir string, cmd []string, profiles []
 	return md
 }
 
-// runLine is what a session runs where, as a shell prompt reads it:
+// runLine is what a session runs where, as a shell prompt reads it, dim but
+// for what tells profiles apart, the settings in the accent color:
 // "~/src/app ❯ CLAUDE_CONFIG_DIR=~/.claude-work claude".
 func runLine(dir string, env, cmd []string) string {
-	line := dir + " ❯ " + strings.Join(append(slices.Clone(env), cmd...), " ")
-	if home, err := os.UserHomeDir(); err == nil {
-		line = strings.ReplaceAll(line, home+"/", "~/")
+	home, _ := os.UserHomeDir()
+	short := func(s string) string {
+		if home == "" {
+			return s
+		}
+
+		return strings.ReplaceAll(s, home+"/", "~/")
 	}
 
-	return line
+	line := dim.Render(short(dir) + " ❯ ")
+	if len(env) > 0 {
+		line += fg(pal.headerAccent).Render(short(strings.Join(env, " "))) + dim.Render(" ")
+	}
+
+	return line + dim.Render(strings.Join(cmd, " "))
 }
 
 // profile is one config a session of an agent can run in: what it sets, and

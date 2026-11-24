@@ -1314,6 +1314,7 @@ type modal struct {
 	keys  map[string]func(m *Model) tea.Cmd
 	note  string // dim at the right end of the title row
 	foot  bool   // the selected item's detail in a last row under a rule, not under the item: the list stays put
+	fit   bool   // a filtered list as tall as its items however few, not 8 rows: a short list that is all there is
 	hints string // keys in the bottom edge, the last dropped where they do not fit
 	// caps are the most rows a group shows under a query, in the order the
 	// items list the groups; the rest wait behind a "+ N more" row that goes
@@ -2312,9 +2313,9 @@ func (md *modal) rect(m *Model) (x, y, w, h, rows int) {
 	maxRows := max(m.h-6, 1)
 
 	rows = min(len(md.disp), maxRows)
-	if md.filter { // at least 8 rows, at most half the screen; it does not shrink while typing, so it stays put
+	if md.filter { // at least 8 rows unless it fits, at most half the screen; it does not shrink while typing, so it stays put
 		half := min(max(m.h/2-3, 8), maxRows)
-		md.rows = min(max(md.rows, rows, 8, ifElse(md.tabs != nil, half, 0)), half)
+		md.rows = min(max(md.rows, rows, ifElse(md.fit, 0, 8), ifElse(md.tabs != nil, half, 0)), half)
 		rows = md.rows
 	}
 

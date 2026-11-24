@@ -449,13 +449,16 @@ show a warning.
 ## Usage
 
 A tab beside Sessions (`9`) while `usage` is on and `claude`, `codex`, `agy`,
-`copilot` or `grok` is installed: each sign-in's plan and a row per limit
-window, how much of it is used and when it resets. A model's own allowance on
-the window is a cell of the meter colored as its own share is, named in the
-row's tip, and at the row's end once it is at 75% (`Fable 93%`). A limit of
-some models only, with no window of every model's to mark, takes a row named
-after them: agy's `Gemini 5h` and `Claude + GPT 5h`, copilot's `chat 1mo` on
-the free plan. An agent has a sign-in per config: _default_,
+`copilot` or `grok` is installed: each sign-in's plan and a row per limit,
+how much of it is used and when it resets. The meter's track turns yellow and
+red where the fill would, from 75% and 90%. A model's own allowance on the
+window is a `┃` on its meter, colored as its own share is and named in the
+row's tip; a limit of some models only, with no window of every model's to
+mark, takes a row named after them: agy's `Gemini 5h` and `Claude + GPT 5h`,
+copilot's `chat 1mo` on the free plan. A sign-in whose numbers are not current
+says why in place of them (`paused`, `signed out`). In a column 50 cells wide
+or more, a profile's name and plan stand beside its limits, `●` before the
+active one. An agent has a sign-in per config: _default_,
 each of its `[profiles]` that sets its config directory (`CLAUDE_CONFIG_DIR`,
 `CODEX_HOME`), and every config pando found, by its directory without the
 agent's name: `~/.claude-work` is _work_. A profile that sets
@@ -472,10 +475,11 @@ Drag a profile, or `alt+↑` `alt+↓`, to reorder an agent's profiles.
 The active profile is the row a new session's profile picker opens on, and
 what `pando session new` starts an agent with. The picker's rows have a
 column per window, claude's `5h` and `7d` named in its top edge: each a
-meter, share and reset, a model's own allowance a cell of it and named at the
-row's end from 75%; the selected row's footer says what it runs where. The
-status bar names the active profile with its fullest limit, yellow from 75%
-and red from 90%.
+meter, share and reset, a model's own allowance a `┃` on it; `●` marks the
+active profile, and the selected row's footer says what it runs where. The
+status bar names the active profile with its fullest limit every model draws
+from, yellow from 75% and red from 90%: a model's own limit at its end leaves
+the others room.
 
 Once the active profile has used `profile_switch_at` percent of a limit (95),
 pando looks for the one with the most room. `notify` offers it in the status
