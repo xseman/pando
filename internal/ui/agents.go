@@ -1560,7 +1560,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 
 			chev := sg(" "+chevron(open), dim)
 			if y == hover && mx >= 0 && mx < ansi.StringWidth(chev.s) { // the fold's button, raised as the pin's: the rest of the row opens its checkout
-				chev = sgOwn(chev.s, keycapHot().Background(pal.twistieHoverBg))
+				chev = sgOwn(chev.s, rowButtonHot())
 			}
 
 			nameSt := base.Bold(open) // folded, a step under the open ones
@@ -1649,7 +1649,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 
 		switch {
 		case onPin:
-			gutter, m.tip = sgOwn(pin.label(), keycapHot()), pin.tip
+			gutter, m.tip = sgOwn(pin.label(), rowButtonHot()), pin.tip
 		case pin.on:
 			gutter = sg(pin.label(), fg(pal.headerAccent))
 		case y == hover:

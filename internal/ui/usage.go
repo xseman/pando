@@ -522,7 +522,7 @@ func (v *usageView) lines(m *Model, w, h int) []string {
 
 			use := sg("use", fg(pal.headerAccent))
 			if y == hover && overUse(mx, w) {
-				use, m.tip = sgOwn("use", keycapHot()), "Start New "+r.acct.Agent+" Sessions as "+r.acct.Name+"  ⏎"
+				use, m.tip = sgOwn("use", rowButtonHot()), "Start New "+r.acct.Agent+" Sessions as "+r.acct.Name+"  ⏎"
 			}
 
 			return row(rw, bg, left, use, sg(" ", plain))

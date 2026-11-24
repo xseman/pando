@@ -817,7 +817,7 @@ func drawActions(acts []rowAction, mx int) []seg {
 	for _, a := range acts {
 		label := a.label()
 		if mx >= a.x && mx < a.x+a.w {
-			out = append(out, sgOwn(label, keycapHot()))
+			out = append(out, sgOwn(label, rowButtonHot()))
 
 			continue
 		}

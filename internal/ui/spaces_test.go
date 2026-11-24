@@ -143,13 +143,13 @@ func TestSpacesFoldedCount(t *testing.T) {
 
 	m.Update(tea.MouseMotionMsg{X: x + 5, Y: y})
 
-	if strings.Contains(row(), keycapHot().Background(pal.twistieHoverBg).Render(" "+chevron(false))) {
+	if strings.Contains(row(), rowButtonHot().Render(" "+chevron(false))) {
 		t.Fatalf("the chevron is raised with the pointer on the name: %q", row())
 	}
 
 	m.Update(tea.MouseMotionMsg{X: x + 1, Y: y})
 
-	if !strings.Contains(row(), keycapHot().Background(pal.twistieHoverBg).Render(" "+chevron(false))) {
+	if !strings.Contains(row(), rowButtonHot().Render(" "+chevron(false))) {
 		t.Fatalf("the chevron under the pointer is not a button: %q", row())
 	}
 

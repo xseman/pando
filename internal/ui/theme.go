@@ -29,7 +29,7 @@ type palette struct {
 	buttonBg, buttonFg, buttonHoverBg, buttonSep, mutedButtonBg, mutedButtonFg   color.Color
 	inputBorder, inputBg, sectionBg, badgeBg, badgeFg                            color.Color
 	keycapBg, keycapFg                                                           color.Color
-	twistieHoverBg                                                               color.Color // a tree chevron under the pointer, a shade past keycapBg
+	twistieHoverBg                                                               color.Color // a tree chevron or a row's hover button under the pointer, clear of hover_bg and sel_bg
 	textSelBg, matchBg, wordHiBg                                                 color.Color
 	matchFg                                                                      color.Color // a search match's text over matchBg; nil keeps the text's own
 	rangeHiBg, findMatchBg, findHitBg                                            color.Color // Go to Line's line; find's other and current matches
@@ -69,7 +69,7 @@ var (
 		buttonBg: hex("#297aa0"), buttonFg: hex("#ffffff"), buttonHoverBg: hex("#3a8db5"), buttonSep: hex("#5aa9c9"),
 		mutedButtonBg: hex("#2c2d2e"), mutedButtonFg: hex("#8c8c8c"), // grey: nothing to do, or not the active repository
 		inputBorder: hex("#333536"), inputBg: hex("#242526"), sectionBg: hex("#202122"), badgeBg: hex("#307e9f"), badgeFg: hex("#ffffff"),
-		keycapBg: hex("#313233"), keycapFg: hex("#bfbfbf"), twistieHoverBg: hex("#252627"),
+		keycapBg: hex("#313233"), keycapFg: hex("#bfbfbf"), twistieHoverBg: hex("#464748"),
 		textSelBg: hex("#245c73"), matchBg: hex("#1e4352"), wordHiBg: hex("#192d37"),
 		rangeHiBg: hex("#242526"), findMatchBg: hex("#1d3d4b"), findHitBg: hex("#255f77"), lineHiBg: hex("#1f2021"),
 		diffDelBg: hex("#401d1d"), diffDelWordBg: hex("#562f2d"), diffAddBg: hex("#1b2d1d"), diffAddWordBg: hex("#274129"),
@@ -101,7 +101,7 @@ var (
 		buttonBg: hex("#005fb8"), buttonFg: hex("#ffffff"), buttonHoverBg: hex("#0258a8"), buttonSep: hex("#669fd4"),
 		mutedButtonBg: hex("#e5e5e5"), mutedButtonFg: hex("#3b3b3b"),
 		inputBorder: hex("#c4c4c4"), inputBg: hex("#ffffff"), sectionBg: hex("#f8f8f8"), badgeBg: hex("#cccccc"), badgeFg: hex("#3b3b3b"),
-		keycapBg: hex("#eaeaea"), keycapFg: hex("#3b3b3b"), twistieHoverBg: hex("#dcdcdc"),
+		keycapBg: hex("#eaeaea"), keycapFg: hex("#3b3b3b"), twistieHoverBg: hex("#d4d4d4"),
 		// Matches in yellow, the one selected deeper. The word under the cursor
 		// keeps pando's blue: Simple Light's #d6ebff turns cyan in 256 colors.
 		textSelBg: hex("#bed6ed"), matchBg: hex("#ffdd00"), wordHiBg: hex("#d9e9f7"),
@@ -279,6 +279,12 @@ func keycap(k string) string { return keycapHot().Render(" " + k + " ") }
 // keycapHot is the raised look of a key, or of a button under the mouse.
 func keycapHot() lipgloss.Style {
 	return lipgloss.NewStyle().Background(pal.keycapBg).Foreground(pal.keycapFg)
+}
+
+// rowButtonHot is a row's button under the mouse: the row under it is already
+// in hover_bg or sel_bg, which keycap_bg barely stands out from.
+func rowButtonHot() lipgloss.Style {
+	return keycapHot().Background(pal.twistieHoverBg)
 }
 
 // tabGap is the column after every tab of a strip, where tab.border's
