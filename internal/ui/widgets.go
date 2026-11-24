@@ -2570,7 +2570,12 @@ func (md *modal) lines(m *Model) ([]string, int, int) {
 	side := dim.Render("│")
 
 	if md.hasInput() {
-		md.input.SetWidth(iw - 3)
+		inW := iw // the rules between columns run down past the filter
+		if len(md.joins) > 0 {
+			inW = iw - 1 - md.joins[0]
+		}
+
+		md.input.SetWidth(inW - 3)
 
 		in := md.input
 		if md.selected { // as the editor's selection
@@ -2583,7 +2588,7 @@ func (md *modal) lines(m *Model) ([]string, int, int) {
 			md.caret = [2]string{v, realCaret(v)}
 		}
 
-		lines = append(lines, side+fit(md.caret[1], iw)+side)
+		lines = append(lines, side+fit(md.caret[1], inW)+dim.Render(joinRule(iw-inW, ' ', '│', md.joins))+side)
 	}
 
 	md.rowsDrawn.frame()
@@ -2637,14 +2642,7 @@ func (md *modal) lines(m *Model) ([]string, int, int) {
 			detail = md.disp[md.l.sel].detail
 		}
 
-		rule := []rune(strings.Repeat("─", iw))
-		for _, j := range md.joins {
-			if j < iw {
-				rule[iw-1-j] = '┴'
-			}
-		}
-
-		lines = append(lines, dim.Render("├"+string(rule)+"┤"), side+fit(dim.Render(" "+detail), iw)+side)
+		lines = append(lines, dim.Render("├"+joinRule(iw, '─', '┴', md.joins)+"┤"), side+fit(dim.Render(" "+detail), iw)+side)
 	}
 
 	edge := strings.Repeat("─", iw)
@@ -3518,3 +3516,16 @@ func (c *clicks) count(x, y int) int {
 }
 
 func (c *clicks) double(x, y int) bool { return c.count(x, y) == 2 }
+
+// joinRule is w cells of fill with mark where each of joins, counted in cells
+// from its right end, falls inside it.
+func joinRule(w int, fill, mark rune, joins []int) string {
+	rule := []rune(strings.Repeat(string(fill), max(w, 0)))
+	for _, j := range joins {
+		if j < w {
+			rule[w-1-j] = mark
+		}
+	}
+
+	return string(rule)
+}

@@ -294,7 +294,7 @@ func TestProfileRoom(t *testing.T) {
 
 	// A column per window, 5h then 7d with a rule between, each its share
 	// first, then its meter and reset; Fable's own limit a ┃ on the 7d meter;
-	// work's stale limits are not drawn, why spans the columns, and ● marks
+	// work's stale limits are not drawn, why fills the first column, and ● marks
 	// the active one.
 	left0, right0, right1 := segsText(items[0].segs), segsText(items[0].right), segsText(items[1].right)
 	if len(items) != 2 || left0 != "  default · Max 5x   " || segsText(items[1].segs) != "● work    · Team 5x  " ||
@@ -334,6 +334,13 @@ func TestProfileRoom(t *testing.T) {
 	work := slices.IndexFunc(lines, func(l string) bool { return strings.Contains(l, "● work") })
 	if first, rule := lines[work-1], lines[work+1]; !strings.Contains(first, "2d 2h │") || !strings.Contains(rule, "├") || cell(rule, "┴") != cell(first, "│  96%") {
 		t.Fatalf("a row's reset is cut, the box is taller than its rows, or the footer's rule misses the rule between windows:\n%s", v)
+	}
+
+	// The rule runs unbroken from the top edge to the footer: past the
+	// filter and past work's note, which keeps to the first column.
+	at := cell(lines[work-1], "│  96%")
+	if ansi.Cut(lines[work-2], at, at+1) != "│" || ansi.Cut(lines[work], at, at+1) != "│" {
+		t.Fatalf("the rule between windows breaks on the filter or the note:\n%s", v)
 	}
 
 	checkWidths(t, m)

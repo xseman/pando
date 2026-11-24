@@ -197,12 +197,9 @@ func windowLimit(limits []proto.Limit, window string) (proto.Limit, []proto.Limi
 // room is how spent account a is, at the right end of its row in a profile
 // picker: per window its share in bold, meter and reset in colW cells
 // (windowLimit), blank where a has no limit on it, a rule between two
-// windows; why its limits are not current across them instead.
+// windows; why its limits are not current in the first column instead, the
+// rule left standing.
 func room(a proto.Account, windows []string, colW int) []seg {
-	if a.Note != "" {
-		return noteSegs(a.Note, len(windows)*colW+max(len(windows)-1, 0)*roomGap)
-	}
-
 	now := time.Now()
 
 	var out []seg
@@ -212,8 +209,13 @@ func room(a proto.Account, windows []string, colW int) []seg {
 			out = append(out, sg(" │ ", meterTrack[0]))
 		}
 
+		if a.Note != "" && i == 0 {
+			out = append(out, noteSegs(a.Note, colW)...)
+			continue
+		}
+
 		l, ticks, ok := windowLimit(a.Limits, w)
-		if !ok {
+		if !ok || a.Note != "" {
 			out = append(out, sg(strings.Repeat(" ", colW), plain))
 			continue
 		}
