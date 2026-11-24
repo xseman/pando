@@ -1659,7 +1659,8 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		glyph, c := groupGlyph([]proto.Session{r.s})
 
 		// The session on screen: the accent's bar in the gutter's first cell
-		// and its name in the accent, as VS Code marks the active item. One
+		// and its name on a plate in the accent, as a status that needs you
+		// sits on its own, so it reads at a glance among the tinted rows. One
 		// that needs you has its name bold, its row in the soft shade of its
 		// tint and its status on a plate in its symbol's color, bold on the
 		// pulse's beat; one asleep steps back in the ignored grey. The
@@ -1754,7 +1755,19 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			}
 		}
 
-		left := append(append(lead, sg(conn, dim), sg(g, fg(c))), m.fx.segs("sess:"+r.s.ID, sessionName(r.s), nameSt)...)
+		on := m.sess == r.s.ID
+		nameplate := fg(pal.buttonFg).Background(pal.buttonBg).Bold(true)
+
+		name := m.fx.segs("sess:"+r.s.ID, sessionName(r.s), ifElse(on, nameplate, nameSt))
+		if on {
+			for i := range name {
+				name[i].ownBg = true
+			}
+
+			name = append(append([]seg{sgOwn(" ", nameplate)}, name...), sgOwn(" ", nameplate))
+		}
+
+		left := append(append(lead, sg(conn, dim), sg(g, fg(c))), name...)
 
 		// Grouped by Project, its worktree's last path segment before its
 		// status, cut to 20 cells or to what leaves the name 12, gone under 6.

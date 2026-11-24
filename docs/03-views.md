@@ -262,7 +262,8 @@ table is in [usage.md](usage.md#sessions)). `done` is `idle` with
   selection and the row under the pointer keep their own background.
   `"steady"` drops the pulse, `"off"` the tint and the plate.
 - The session on screen has the accent's `▎` in its row's first cell and
-  its name in the accent (`header_accent`).
+  its name on a plate in the accent (`button_bg`, `button_fg`), so it stands
+  out next to the status plates.
 - `sounds = true` plays `sound_request` / `sound_done` for sessions out of
   view (`sound.go`).
 - A restart brings each session's agent back
