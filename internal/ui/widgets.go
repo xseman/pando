@@ -1207,12 +1207,14 @@ type item struct {
 	// segs and right draw the row in their own colors in place of label and
 	// hint, which stay its plain text: quick open's Sessions tree.
 	segs, right []seg
+	more        []item // rows drawn under it as part of it, a blank row around them: a profile's further limits
 	file        string // a file's path: the row draws its icon, and in the name view its name before its folder
 
 	// The flags last, in one word: quick open copies a worktree's files.
 	styled bool  // label carries its own styles (keycaps, headings)
 	always bool  // listed whatever the filter: on top while browsing, after a query's matches
 	cont   bool  // the detail row of the selected item above it, placed by focus
+	part   bool  // one of the more rows of the item above it, selected with it
 	sep    bool  // a rule between groups, or with a label a group's muted heading; run stays nil so it is skipped
 	lead   bool  // the row a fresh list selects, over its first
 	sess   bool  // a session's row in quick open's Sessions tree, or a project's with none: what All counts
@@ -2082,7 +2084,16 @@ func (md *modal) refilter() {
 
 			shown++
 
-			md.disp = append(md.disp, md.items[h.i])
+			it := md.items[h.i]
+			if n := len(md.disp); n > 0 && (it.more != nil || md.disp[n-1].part) {
+				md.disp = append(md.disp, item{})
+			}
+
+			md.disp = append(md.disp, it)
+			for _, r := range it.more {
+				r.part = true
+				md.disp = append(md.disp, r)
+			}
 		}
 	}
 
@@ -2178,16 +2189,21 @@ func (md *modal) focus(i int) {
 // step moves to the next actionable row in direction d, scrolling when none is left.
 func (md *modal) step(d, rows int) {
 	for i := md.l.sel + d; i >= 0 && i < len(md.disp); i += d {
-		if md.disp[i].run != nil {
-			md.focus(i)
-			md.l.snap(rows)
-
-			if i = md.l.sel; i+1 < len(md.disp) && md.disp[i+1].cont && i+1 >= md.l.top+rows {
-				md.l.top++ // keep the item's detail row in view
-			}
-
-			return
+		if md.disp[i].run == nil {
+			continue
 		}
+
+		md.focus(i)
+		md.l.snap(rows)
+
+		end := md.l.sel // keep the item's detail or more rows in view
+		for end+1 < len(md.disp) && (md.disp[end+1].cont || md.disp[end+1].part) {
+			end++
+		}
+
+		md.l.top = max(md.l.top, min(md.l.sel, end-rows+1))
+
+		return
 	}
 
 	md.l.wheel(d, len(md.disp), rows)
@@ -2622,7 +2638,7 @@ func (md *modal) lines(m *Model) ([]string, int, int) {
 
 		if it.segs != nil {
 			var bg color.Color
-			if i == md.l.sel && it.run != nil {
+			if o := md.owner(i); o == md.l.sel && md.disp[o].run != nil {
 				bg = pal.selBg
 			}
 
@@ -3200,6 +3216,16 @@ func (md *modal) rowAt(y, rows int) int {
 	}
 
 	if md.disp[i].cont && i > 0 {
+		i--
+	}
+
+	return md.owner(i)
+}
+
+// owner is the item display row i is part of: itself, or the item over its
+// more rows.
+func (md *modal) owner(i int) int {
+	for i > 0 && md.disp[i].part {
 		i--
 	}
 
