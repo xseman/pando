@@ -1610,6 +1610,10 @@ func (a *agents) lines(m *Model, w, h int) []string {
 
 			if y == hover { // a label the row cuts, whole, over what it runs on
 				tip := runsOn(r.sub.Model, r.sub.Effort)
+				if !r.job { // a subagent runs in its session's profile
+					tip = m.harnessOf(&r.s) + "\n" + tip
+				}
+
 				if label := agLabel(r); 8+ansi.StringWidth(label) > rw {
 					tip = label + "\n" + tip
 				}

@@ -4904,6 +4904,7 @@ func TestSpacesSubagents(t *testing.T) {
 	}
 	// The pointer over either shows what it runs on, where the agent says.
 	s1.Model, s1.Effort = "claude-fable-5-2", "medium"
+	s1.Conversation = &proto.Conversation{Agent: "claude", ID: "c1"}
 	s1.Subagents[0].Model, s1.Subagents[0].Effort = "claude-opus-5-5", "low"
 	m.Update(sessionsMsg{s1, s2})
 
@@ -4915,11 +4916,11 @@ func TestSpacesSubagents(t *testing.T) {
 		return m.tip
 	}
 
-	if got := tip(i); got != "claude-fable-5-2 · medium effort" {
+	if got := tip(i); got != "claude · default\nclaude-fable-5-2 · medium effort" {
 		t.Fatalf("the session's tip: %q", got)
 	}
 
-	if got := tip(i + 1); got != "claude-opus-5-5 · low effort" {
+	if got := tip(i + 1); got != "claude · default\nclaude-opus-5-5 · low effort" {
 		t.Fatalf("the subagent's tip: %q", got)
 	}
 
