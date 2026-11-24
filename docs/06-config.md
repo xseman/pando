@@ -88,7 +88,7 @@ config.toml edited ───────────┘  └─ "state" event �
 | `sleep_after`          | `60`           | minutes idle and unused before a session sleeps; `0` never                     |
 | `usage`                | `true`         | ask each agent's service for its plan limits: the Usage tab, the status bar    |
 | `profile_switch`       | `notify`       | the active profile near a limit: `notify` (offer another), `auto`, `off`       |
-| `profile_switch_at`    | `95`           | percent of its fullest limit that counts as near, held within 50 to 100        |
+| `profile_switch_at`    | `95`           | percent of its fullest shared limit that counts as near, within 50 to 100      |
 | `sounds`               | `true`         | sound for a session out of view                                                |
 | `sound_done`           | desktop        | file on finish; `""`: bell                                                     |
 | `sound_request`        | desktop        | file on a question; `""`: bell                                                 |

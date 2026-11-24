@@ -754,3 +754,22 @@ func FuzzColumnsTOML(f *testing.F) {
 		}
 	})
 }
+
+// TestPeak holds an account spent by the limits every model draws from: a
+// model's own at its end left the status bar at 100% while the others had
+// room. Only models' own limits, as agy's groups, are its peak.
+func TestPeak(t *testing.T) {
+	for _, c := range []struct {
+		limits []Limit
+		want   float64
+		known  bool
+	}{
+		{[]Limit{{Window: "7d", Percent: 59}, {Window: "7d", Model: "Fable", Percent: 100}, {Window: "5h", Percent: 3}}, 59, true},
+		{[]Limit{{Window: "5h", Model: "Gemini", Percent: 12}, {Window: "5h", Model: "Claude + GPT", Percent: 81}}, 81, true},
+		{nil, 0, false},
+	} {
+		if got, known := (Account{Limits: c.limits}).Peak(); got != c.want || known != c.known {
+			t.Errorf("Peak of %+v = %v %v, want %v %v", c.limits, got, known, c.want, c.known)
+		}
+	}
+}

@@ -418,15 +418,27 @@ func ConfigName(agent, dir string) string {
 	return base
 }
 
-// Peak is how spent the account is: its fullest limit, in percent; false
-// when no limit is known.
+// Peak is how spent the account is, in percent: its fullest limit every
+// model draws from, as a model's own at its end leaves the others room; the
+// fullest of the models' own where it has none, as agy's groups. False when
+// no limit is known.
 func (a Account) Peak() (float64, bool) {
-	peak := 0.0
+	shared, own, hasShared := 0.0, 0.0, false
+
 	for _, l := range a.Limits {
-		peak = max(peak, l.Percent)
+		if l.Model != "" {
+			own = max(own, l.Percent)
+			continue
+		}
+
+		shared, hasShared = max(shared, l.Percent), true
 	}
 
-	return peak, len(a.Limits) > 0
+	if !hasShared {
+		return own, len(a.Limits) > 0
+	}
+
+	return shared, true
 }
 
 // Limit is one window of a plan's allowance.

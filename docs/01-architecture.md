@@ -429,7 +429,8 @@ data of the `usage` event, and `usage.json` in the data dir, read at start.
   picked by hand only recomputes the offer and stands until the next refresh.
   With `usage` off nobody is asked and nothing is offered; the last accounts
   stay in `usage.get`. Only the active account at or over `profile_switch_at`
-  starts anything; `roomiest` picks the account under it with the most room,
+  of its `Peak`, the fullest limit every model draws from, starts anything;
+  `roomiest` picks the account under it with the most room,
   one within 15 points of it and one whose numbers are stale after the others,
   never one signed out. After a move the active account is under the
   threshold, so `auto` does not flap back when the first one resets.
