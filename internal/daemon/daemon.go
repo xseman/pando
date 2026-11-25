@@ -906,19 +906,20 @@ func (d *Daemon) save() error {
 	d.state.Sessions = d.specs()
 
 	b, err := json.MarshalIndent(struct {
-		Projects  []string                  `json:"projects"`
-		Drafts    map[string]string         `json:"drafts"`
-		Editors   map[string]proto.Editors  `json:"editors"`
-		Terminals map[string]proto.Terminal `json:"terminals"`
-		Sessions  []proto.SessionSpec       `json:"sessions"`
-		Worktrees map[string][]string       `json:"worktrees,omitempty"`
-		Last      string                    `json:"last_workspace,omitempty"`
-		Folded    []string                  `json:"spaces_folded,omitempty"`
-		Pinned    []string                  `json:"spaces_pinned,omitempty"`
-		Seen      map[string][][]string     `json:"seen_env,omitempty"`
-		Active    map[string][]string       `json:"active_profile,omitempty"`
-		Order     map[string][][]string     `json:"profile_order,omitempty"`
-	}{d.state.Projects, d.state.Drafts, d.state.Editors, d.state.Terminals, d.state.Sessions, d.state.Worktrees, d.state.LastWorkspace, d.state.Folded, d.state.Pinned, d.state.Seen, d.state.Active, d.state.Order}, "", "  ")
+		Projects  []string                     `json:"projects"`
+		Drafts    map[string]string            `json:"drafts"`
+		Editors   map[string]proto.Editors     `json:"editors"`
+		Terminals map[string]proto.Terminal    `json:"terminals"`
+		Sessions  []proto.SessionSpec          `json:"sessions"`
+		Worktrees map[string][]string          `json:"worktrees,omitempty"`
+		Last      string                       `json:"last_workspace,omitempty"`
+		Folded    []string                     `json:"spaces_folded,omitempty"`
+		Pinned    []string                     `json:"spaces_pinned,omitempty"`
+		Seen      map[string][][]string        `json:"seen_env,omitempty"`
+		Active    map[string][]string          `json:"active_profile,omitempty"`
+		Order     map[string][][]string        `json:"profile_order,omitempty"`
+		Names     map[string]map[string]string `json:"profile_names,omitempty"`
+	}{d.state.Projects, d.state.Drafts, d.state.Editors, d.state.Terminals, d.state.Sessions, d.state.Worktrees, d.state.LastWorkspace, d.state.Folded, d.state.Pinned, d.state.Seen, d.state.Active, d.state.Order, d.state.Names}, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -1008,17 +1009,18 @@ func writeFile(path string, b []byte) error {
 
 func (d *Daemon) setState(raw json.RawMessage) (any, error) {
 	var p struct {
-		Settings  json.RawMessage            `json:"settings"`
-		Agents    map[string][]string        `json:"agents"`
-		Databases map[string]string          `json:"databases"` // "" drops one
-		Drafts    map[string]string          `json:"drafts"`
-		Editors   map[string]*proto.Editors  `json:"editors"`   // null or no tabs forgets the workspace
-		Terminals map[string]*proto.Terminal `json:"terminals"` // null forgets the workspace
-		Last      *string                    `json:"last_workspace"`
-		Folded    *[]string                  `json:"spaces_folded"`  // the whole list, replacing the last
-		Pinned    *[]string                  `json:"spaces_pinned"`  // the whole list, replacing the last
-		Active    map[string][]string        `json:"active_profile"` // per agent, none for its default
-		Order     map[string][][]string      `json:"profile_order"`  // per agent, the whole list replacing the last; empty forgets it
+		Settings  json.RawMessage              `json:"settings"`
+		Agents    map[string][]string          `json:"agents"`
+		Databases map[string]string            `json:"databases"` // "" drops one
+		Drafts    map[string]string            `json:"drafts"`
+		Editors   map[string]*proto.Editors    `json:"editors"`   // null or no tabs forgets the workspace
+		Terminals map[string]*proto.Terminal   `json:"terminals"` // null forgets the workspace
+		Last      *string                      `json:"last_workspace"`
+		Folded    *[]string                    `json:"spaces_folded"`  // the whole list, replacing the last
+		Pinned    *[]string                    `json:"spaces_pinned"`  // the whole list, replacing the last
+		Active    map[string][]string          `json:"active_profile"` // per agent, none for its default
+		Order     map[string][][]string        `json:"profile_order"`  // per agent, the whole list replacing the last; empty forgets it
+		Names     map[string]map[string]string `json:"profile_names"`  // per agent, an account's KEY=VALUE joined with a blank to its name; "" forgets it
 	}
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, err
@@ -1120,6 +1122,10 @@ func (d *Daemon) setState(raw json.RawMessage) (any, error) {
 		d.setOrder(p.Order)
 	}
 
+	if p.Names != nil {
+		err = errors.Join(err, d.setNames(p.Names))
+	}
+
 	var usage []byte
 
 	now, moved := d.state.Settings, false
@@ -1137,11 +1143,11 @@ func (d *Daemon) setState(raw json.RawMessage) (any, error) {
 		d.advise(false)
 	}
 
-	if p.Active != nil || p.Order != nil || switched || was.Usage != now.Usage {
+	if p.Active != nil || p.Order != nil || p.Names != nil || switched || was.Usage != now.Usage {
 		usage, _ = json.Marshal(d.usage) // strings, numbers and times
 	}
 
-	if p.Drafts != nil || p.Editors != nil || p.Terminals != nil || p.Last != nil || p.Folded != nil || p.Pinned != nil || p.Active != nil || p.Order != nil || moved {
+	if p.Drafts != nil || p.Editors != nil || p.Terminals != nil || p.Last != nil || p.Folded != nil || p.Pinned != nil || p.Active != nil || p.Order != nil || p.Names != nil || moved {
 		err = errors.Join(err, d.save())
 	}
 	d.mu.Unlock()

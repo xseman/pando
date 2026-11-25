@@ -758,6 +758,12 @@ its limits; a narrower column puts them on a row of their own over its limits.
   (`reorderProfile`): a tinted row marks the drop (`dropSlot`), the release
   moves it here and sends the agent's whole order as `state.set`'s
   `profile_order`, which the daemon sorts `Usage.Accounts` by (`ordered`).
+- `R` `F2`, or the menu's _Rename Profile…_, is `renameProfile`: `state.set`'s
+  `profile_names`, the account's `env` joined with a blank to its new name,
+  empty forgetting it. The daemon names its accounts by it (`ProfileName`,
+  `setNames`), so `usage.get` and `session.profile` take the new name, and
+  refuses one another account of the agent has; the TUI's `profiles` and
+  `runsIn` read the same map.
 
 ## Commands
 

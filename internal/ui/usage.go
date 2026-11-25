@@ -121,6 +121,19 @@ func (m *Model) useProfile(a proto.Account) tea.Cmd {
 		flash("new "+a.Agent+" sessions start as "+a.Name, false))
 }
 
+// renameProfile asks for the name account a goes by, in Usage, the profile
+// picker and on a session's chip, as session.profile takes it; empty gives
+// it back the one its config or [profiles] gives it.
+func (m *Model) renameProfile(a proto.Account) tea.Cmd {
+	m.modal = newPrompt("Rename profile · empty names it by its config", a.Name, func(_ *Model, v string) tea.Cmd {
+		names := map[string]map[string]string{a.Agent: {strings.Join(a.Env, " "): v}}
+
+		return do("state.set", map[string]any{"profile_names": names})
+	})
+
+	return nil
+}
+
 // activeEnv is the profile new sessions of agent start with: State.Active's,
 // the default's none once that profile is no account any more, as the daemon
 // starts them.
@@ -761,6 +774,11 @@ func (v *usageView) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 		return v.use(m, v.selected(m))
 	case "alt+up", "alt+down":
 		return v.shift(m, map[bool]int{true: -1, false: 1}[k.String() == "alt+up"])
+	case "R", "f2":
+		if r := v.selected(m); r != nil {
+			return m.renameProfile(r.acct)
+		}
+
 	case "a":
 		return m.toggleAuto()
 	case "r", "ctrl+r":
@@ -775,9 +793,13 @@ func (v *usageView) key(m *Model, k tea.KeyPressMsg) tea.Cmd {
 func (v *usageView) items(m *Model) []item {
 	var items []item
 
-	if r := v.selected(m); r != nil && !r.solo && !m.active(r.acct) {
+	if r := v.selected(m); r != nil {
+		if !r.solo && !m.active(r.acct) {
+			items = append(items, item{label: "Use " + r.acct.Name + " for New Sessions", hint: "⏎", run: func(m *Model) tea.Cmd { return m.useProfile(r.acct) }})
+		}
+
 		items = append(items,
-			item{label: "Use " + r.acct.Name + " for New Sessions", hint: "⏎", run: func(m *Model) tea.Cmd { return m.useProfile(r.acct) }},
+			item{label: "Rename Profile…", hint: "R", run: func(m *Model) tea.Cmd { return m.renameProfile(r.acct) }},
 			separator())
 	}
 

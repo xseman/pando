@@ -284,6 +284,39 @@ func TestProfileSwitch(t *testing.T) {
 
 	call(t, "state.set", map[string]any{"profile_order": map[string][][]string{"sh": {nil, {"D=b"}}}}, nil)
 
+	// profile_names renames an account at once and over a refresh, and
+	// session.profile takes the new name; a name another account of the
+	// agent has is refused, as session.profile could not tell them apart,
+	// and "" gives the account its own name back.
+	name := func() string {
+		t.Helper()
+
+		var u proto.Usage
+		call(t, "usage.get", nil, &u)
+
+		return u.Accounts[1].Name
+	}
+
+	call(t, "state.set", map[string]any{"profile_names": map[string]map[string]string{"sh": {"D=b": " fast "}}}, nil)
+
+	d.mu.Lock()
+	env, err := d.profileEnv("sh", "fast")
+	d.mu.Unlock()
+
+	if got := name(); got != "fast" || refresh().Accounts[1].Name != "fast" || err != nil || !slices.Equal(env, []string{"D=b"}) {
+		t.Fatalf("renamed: %q, session.profile %v %v", got, env, err)
+	}
+
+	if err := proto.Call("state.set", map[string]any{"profile_names": map[string]map[string]string{"sh": {"": "fast"}}}, nil); err == nil || name() != "fast" {
+		t.Fatalf("a name taken: %v", err)
+	}
+
+	call(t, "state.set", map[string]any{"profile_names": map[string]map[string]string{"sh": {"D=b": ""}}}, nil)
+
+	if got := name(); got != "b" {
+		t.Fatalf("forgotten: %q", got)
+	}
+
 	// Taking the offer ends it, and what was measured survives a restart's read.
 	call(t, "state.set", map[string]any{"active_profile": map[string][]string{"sh": {"D=b"}}}, nil)
 

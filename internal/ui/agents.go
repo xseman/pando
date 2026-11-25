@@ -2427,18 +2427,19 @@ type profile struct {
 // sets nothing, its [profiles], then each config pando saw it run in that
 // none of them sets.
 func (m *Model) profiles(agent string) []profile {
-	out := []profile{{name: "default", hint: strings.Join(m.st.Agents[agent], " ")}}
+	out := []profile{{name: m.st.ProfileName(agent, nil, "default"), hint: strings.Join(m.st.Agents[agent], " ")}}
 
 	named := m.st.Settings.Profiles[agent]
 	for _, name := range slices.Sorted(maps.Keys(named)) {
-		out = append(out, profile{name: name, hint: strings.Join(named[name], " "), env: homeEnv(named[name])})
+		env := homeEnv(named[name])
+		out = append(out, profile{name: m.st.ProfileName(agent, env, name), hint: strings.Join(named[name], " "), env: env})
 	}
 
 	for _, env := range m.st.Seen[agent] {
 		if !slices.ContainsFunc(out, func(p profile) bool { return slices.Equal(p.env, env) }) {
 			_, dir, _ := strings.Cut(env[0], "=")
 
-			out = append(out, profile{name: proto.ConfigName(agent, dir), hint: "seen", env: env})
+			out = append(out, profile{name: m.st.ProfileName(agent, env, proto.ConfigName(agent, dir)), hint: "seen", env: env})
 		}
 	}
 
@@ -2514,7 +2515,7 @@ func (m *Model) harnessOf(s *proto.Session) string {
 
 	p := m.profileOf(s)
 	if p == "" {
-		return agent + " · default"
+		return agent + " · " + m.st.ProfileName(agent, nil, "default")
 	}
 
 	chip := m.profileChip(agent, p)
@@ -2594,7 +2595,7 @@ func (m *Model) runsIn(s *proto.Session) string {
 
 	_, dir, _ := strings.Cut(now[0], "=") // a config no profile names, as Usage calls it
 
-	return proto.ConfigName(s.Conversation.Agent, dir)
+	return m.st.ProfileName(s.Conversation.Agent, now, proto.ConfigName(s.Conversation.Agent, dir))
 }
 
 // moveProfile asks which profile session id's agent continues in. The agent

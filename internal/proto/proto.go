@@ -196,6 +196,9 @@ type State struct {
 	// KEY=VALUE as Active keeps them, none for its default; the accounts it
 	// does not name follow in the daemon's order.
 	Order map[string][][]string `json:"profile_order,omitempty"`
+	// Names is per agent the names Usage gave its accounts, by their KEY=VALUE
+	// as Active keeps them joined with a blank, "" for its default.
+	Names map[string]map[string]string `json:"profile_names,omitempty"`
 	// Instance is the daemon's instance, "" for the default one; state.json
 	// does not keep it.
 	Instance string `json:"instance,omitempty"`
@@ -416,6 +419,16 @@ func ConfigName(agent, dir string) string {
 	}
 
 	return base
+}
+
+// ProfileName is what agent's account that runs with env goes by: the name
+// Usage gave it, else name, the one its config or [profiles] gives it.
+func (s *State) ProfileName(agent string, env []string, name string) string {
+	if given := s.Names[agent][strings.Join(env, " ")]; given != "" {
+		return given
+	}
+
+	return name
 }
 
 // Peak is how spent the account is, in percent: its fullest limit every

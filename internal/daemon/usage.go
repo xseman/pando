@@ -210,7 +210,7 @@ func (d *Daemon) accounts() []proto.Account {
 			continue
 		}
 
-		out = append(out, proto.Account{Agent: agent, Name: "default"})
+		out = append(out, proto.Account{Agent: agent, Name: d.state.ProfileName(agent, nil, "default")})
 
 		profiles, keys := d.state.Settings.Profiles[agent], d.state.ResumeEnv[agent]
 		for _, name := range slices.Sorted(maps.Keys(profiles)) {
@@ -219,14 +219,15 @@ func (d *Daemon) accounts() []proto.Account {
 				return slices.Contains(keys, k)
 			})
 			if own {
-				out = append(out, proto.Account{Agent: agent, Name: name, Env: homeEnv(profiles[name])})
+				env := homeEnv(profiles[name])
+				out = append(out, proto.Account{Agent: agent, Name: d.state.ProfileName(agent, env, name), Env: env})
 			}
 		}
 
 		for _, env := range d.state.Seen[agent] {
 			if _, ok := account(out, agent, env); !ok && len(env) > 0 {
 				_, dir, _ := strings.Cut(env[0], "=")
-				out = append(out, proto.Account{Agent: agent, Name: proto.ConfigName(agent, dir), Env: env})
+				out = append(out, proto.Account{Agent: agent, Name: d.state.ProfileName(agent, env, proto.ConfigName(agent, dir)), Env: env})
 			}
 		}
 	}
@@ -270,6 +271,53 @@ func (d *Daemon) setOrder(patch map[string][][]string) {
 
 	d.usage.Accounts = slices.Clone(d.usage.Accounts) // a refresh reads the last one outside d.mu
 	ordered(d.usage.Accounts, d.state.Order)
+}
+
+// setNames takes the names patch gives each agent's accounts, by their
+// KEY=VALUE joined with a blank, "" forgetting one, and puts them in the
+// accounts measured last. A name another account of the agent goes by is
+// refused, as session.profile picks by it. d.mu is held.
+func (d *Daemon) setNames(patch map[string]map[string]string) error {
+	accounts := d.accounts()
+
+	for agent, names := range patch {
+		for env, name := range names {
+			taken := slices.ContainsFunc(accounts, func(a proto.Account) bool {
+				return a.Agent == agent && a.Name == strings.TrimSpace(name) && strings.Join(a.Env, " ") != env
+			})
+			if taken {
+				return fmt.Errorf("%s already has a profile %q", agent, strings.TrimSpace(name))
+			}
+		}
+	}
+
+	if d.state.Names == nil {
+		d.state.Names = map[string]map[string]string{}
+	}
+
+	for agent, names := range patch {
+		if d.state.Names[agent] == nil {
+			d.state.Names[agent] = map[string]string{}
+		}
+
+		for env, name := range names {
+			d.state.Names[agent][env] = strings.TrimSpace(name)
+			if d.state.Names[agent][env] == "" {
+				delete(d.state.Names[agent], env)
+			}
+		}
+	}
+
+	accounts = d.accounts()
+
+	d.usage.Accounts = slices.Clone(d.usage.Accounts) // a refresh reads the last one outside d.mu
+	for i, a := range d.usage.Accounts {
+		if named, ok := account(accounts, a.Agent, a.Env); ok {
+			d.usage.Accounts[i].Name = named.Name
+		}
+	}
+
+	return nil
 }
 
 // account is agent's account that env picks, the default for none.

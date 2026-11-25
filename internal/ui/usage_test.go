@@ -709,3 +709,22 @@ func TestProfileChip(t *testing.T) {
 		t.Fatal("the color does not follow the order in Usage")
 	}
 }
+
+// TestProfileRenamed holds a session's profile by the name Usage gave it,
+// the default's too.
+func TestProfileRenamed(t *testing.T) {
+	m := usageModel(t)
+	s := &m.sessions[0]
+	s.Conversation, s.Env = &proto.Conversation{Agent: "claude", ID: "c1"}, workEnv
+	m.st.Names = map[string]map[string]string{"claude": {workEnv[0]: "stengl", "": "personal"}}
+
+	if got := m.profileOf(s); got != "stengl" {
+		t.Fatalf("renamed, it says %q", got)
+	}
+
+	s.Env, m.profileOn = nil, nil
+
+	if got := m.harnessOf(s); got != "claude · personal" {
+		t.Fatalf("on the renamed default its tip says %q", got)
+	}
+}

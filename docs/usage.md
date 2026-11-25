@@ -466,11 +466,16 @@ each of its `[profiles]` that sets its config directory (`CLAUDE_CONFIG_DIR`,
 agent's name: `~/.claude-work` is _work_. A profile that sets
 anything else runs on the default's sign-in and is not listed.
 
-| Key | Does                                                             |
-| --- | ---------------------------------------------------------------- |
-| `⏎` | new sessions of that agent start with this profile (_active_)    |
-| `a` | `profile_switch`: `auto`, or from it back to `notify`            |
-| `r` | ask again; the daemon asks every 15 minutes on its own           |
+| Key      | Does                                                              |
+| -------- | ----------------------------------------------------------------- |
+| `⏎`      | new sessions of that agent start with this profile (_active_)     |
+| `R` `F2` | rename the profile; empty gives back the name its config gives it |
+| `a`      | `profile_switch`: `auto`, or from it back to `notify`             |
+| `r`      | ask again; the daemon asks every 15 minutes on its own            |
+
+A profile's new name is what Usage, the profile picker, a session's row and
+`pando session profile ID NAME` go by; two profiles of one agent cannot share
+one.
 
 Drag a profile, or `alt+↑` `alt+↓`, to reorder an agent's profiles.
 
