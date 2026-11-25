@@ -1061,7 +1061,7 @@ type edTab struct {
 	active  bool
 	id      string      // a session's
 	tip     string      // a session's whole name, when the label cuts it
-	bg      color.Color // a session's session_highlight tint, else its glyph's (tabTint)
+	bg      color.Color // a session's session_highlight tint, else its glyph's (tint)
 }
 
 // minSessTab is the width, its gap included, a session's tab in the editor
@@ -1136,7 +1136,7 @@ func (m *Model) layTabs(w int) []edTab {
 
 		return edTab{
 			i: -1, id: id, w: ansi.StringWidth(label), label: label, tip: tip, active: active,
-			icon: ifElse(g == "", seg{}, sg(g, fg(c))), bg: cmp.Or(m.highlight(s), ifElse(g == "", nil, m.tabTint(c))),
+			icon: ifElse(g == "", seg{}, sg(g, fg(c))), bg: cmp.Or(m.highlight(s), ifElse(g == "", nil, m.tint(c, 7))),
 		}
 	}
 

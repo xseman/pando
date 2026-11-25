@@ -411,7 +411,7 @@ func TestSessionTabTint(t *testing.T) {
 	m.switchSession("s1")
 
 	g, c := m.tabGlyph(*m.session("s1"))
-	tint := m.tabTint(c)
+	tint := m.tint(c, 7)
 
 	if g == "" || tint == nil || hexColor(tint) == hexColor(c) {
 		t.Fatalf("glyph %q in %v on %v", g, c, tint)

@@ -4136,10 +4136,10 @@ func (m *Model) tabGlyph(s proto.Session) (string, color.Color) {
 	return m.spin(g, s), c
 }
 
-// tabTint is c 7% of the way from the terminal's background to it: a
-// session tab's fill, its glyph's color much softer. nil for a color that is
-// not RGB, an ANSI palette's.
-func (m *Model) tabTint(c color.Color) color.Color {
+// tint is c percent of the way from the terminal's background to it: at 7 a
+// session tab's fill, its glyph's color much softer.
+// nil for a color that is not RGB, an ANSI palette's.
+func (m *Model) tint(c color.Color, percent uint32) color.Color {
 	bg := hex(ifElse(pal.light, "#ffffff", "#000000"))
 	if m.bg != "" {
 		bg = hex(m.bg)
@@ -4153,7 +4153,7 @@ func (m *Model) tabTint(c color.Color) color.Color {
 	// Blend1D allocates its whole gradient, every frame.
 	r1, g1, b1, _ := c.RGBA()
 	r2, g2, b2, _ := bg.RGBA()
-	mix := func(a, b uint32) uint8 { return uint8((7*a + 93*b) / 100 >> 8) }
+	mix := func(a, b uint32) uint8 { return uint8((percent*a + (100-percent)*b) / 100 >> 8) }
 
 	return color.RGBA{mix(r1, r2), mix(g1, g2), mix(b1, b2), 255}
 }

@@ -403,7 +403,7 @@ group has one strip, the files' tabs then the sessions'.
   tab. It raises like a button while the mouse is on it (`overX`,
   `closeHot`).
 - A session's tab in the editor strip shows its glyph in Sessions' color and
-  sits on a much softer shade of it (`tabTint`), active or not, so it reads
+  sits on a much softer shade of it (`tint`), active or not, so it reads
   apart from the files'; a session_highlight tint or `hover_bg` takes its
   place.
 - Press picks a tab up (`grabTab`, `dragStrip`), an accent `│` marks the slot
