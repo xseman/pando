@@ -169,8 +169,8 @@ type Model struct {
 	st        proto.State
 	wss       []proto.Workspace
 	sessions  []proto.Session
-	profileOn map[string]string // per session ID, the profile its row and title name (profileOf); nil since state or sessions last came
-	chips     map[[2]string]seg // per agent and profile, its chip's style on a session's row (profileChip); nil since state, sessions, Usage or the background last came
+	profileOn map[string]string  // per session ID, the profile its row and title name (profileOf); nil since state or sessions last came
+	chips     map[chipKey][2]seg // per agent, profile and column, its chip on a session's row (profileChip); nil since state, sessions, Usage or the background last came
 	ws, sess  string
 	focus     int                  // a column index or onMain
 	recent    []int                // per view: when it was last shown; a column shows its most recent tab
@@ -2534,7 +2534,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.BackgroundColorMsg:
-		m.dark, m.bg, m.chips = msg.IsDark(), hexColor(msg.Color), nil // the palette and the chips' fills follow it
+		m.dark, m.bg, m.chips = msg.IsDark(), hexColor(msg.Color), nil // the palette, and the chips' colors with it, follow it
 		m.look()
 		m.scm.styleInput(m.dark)
 		m.pv.raw = ""

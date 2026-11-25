@@ -599,25 +599,49 @@ func TestProfileShown(t *testing.T) {
 		t.Fatalf("in a config no profile names it says %q", got)
 	}
 
-	if got := m.harnessOf(s); ansi.Strip(got) != "claude  work " || got == ansi.Strip(got) {
-		t.Fatalf("its tip says %q, not on the row's chip", got)
+	if got := m.harnessOf(s); ansi.Strip(got) != "claude work" || got == ansi.Strip(got) {
+		t.Fatalf("its tip says %q, not in the row's color", got)
 	}
 
 	if !strings.HasSuffix(m.mainTitle(), " · work") {
 		t.Fatalf("title %q", m.mainTitle())
 	}
 
-	if !strings.Contains(ansi.Strip(m.View().Content), sessionName(*s)+"   work ") { // the name on its plate, a blank, the chip
-		t.Fatal("the session's row does not say its profile on a chip after its name")
+	if !strings.Contains(ansi.Strip(m.View().Content), "work  "+sessionName(*s)+" ") { // the profile, a blank, the name on its plate
+		t.Fatal("the session's row does not say its profile on a chip before its name")
 	}
 
-	// A name the whole profile would cut keeps its room: the profile shrinks
-	// to its first letter.
-	s.Name = "a-session-name-of-26-cells"
+	// A column a whole profile would leave a name too little room in shows
+	// its first letter.
+	m.st.Settings.WidthR = 32
+	m.resize()
 
-	if v := ansi.Strip(m.View().Content); !strings.Contains(v, s.Name+"   w ") {
-		t.Fatal("a long name is cut for the profile")
+	if !strings.Contains(ansi.Strip(m.View().Content), " w  "+sessionName(*s)+" ") {
+		t.Fatal("a narrow column keeps the whole profile")
 	}
+
+	// A session on its agent's default has the column blank: the names line up.
+	other := *s
+	other.ID, other.Name, other.Env = "s2", "other", nil
+	m.sessions, m.profileOn = append(m.sessions, other), nil
+	m.st.Settings.WidthR = 47
+	m.resize()
+
+	at := map[string]int{}
+
+	for _, l := range strings.Split(ansi.Strip(m.View().Content), "\n") {
+		for _, name := range []string{sessionName(*s), "other"} {
+			if i := strings.Index(l, " "+name+" "); i >= 0 {
+				at[name] = ansi.StringWidth(l[:i])
+			}
+		}
+	}
+
+	if at["other"]+1 != at[sessionName(*s)] { // the plate's blank where the other's name starts
+		t.Fatalf("names at %v", at)
+	}
+
+	s = &m.sessions[0]
 
 	m.st.Settings.Profiles, m.profileOn = map[string]map[string][]string{"claude": {"work": workEnv}}, nil
 
@@ -726,5 +750,29 @@ func TestProfileRenamed(t *testing.T) {
 
 	if got := m.harnessOf(s); got != "claude · personal" {
 		t.Fatalf("on the renamed default its tip says %q", got)
+	}
+}
+
+// TestProfileWidths holds the column of profiles before sessions' names: as
+// wide as the longest profile among the sessions listed together, none for a
+// run of sessions on their agent's default.
+func TestProfileWidths(t *testing.T) {
+	m := usageModel(t)
+	work := m.sessions[0]
+	work.Conversation, work.Env = &proto.Conversation{Agent: "claude", ID: "c1"}, workEnv
+	other := work
+	other.ID, other.Env = "s2", nil
+
+	rows := []agRow{
+		{kind: agProject},
+		{kind: agSession, s: work},
+		{kind: agSub},
+		{kind: agSession, s: other},
+		{kind: agProject},
+		{kind: agSession, s: other},
+	}
+
+	if got := m.ag.profileWidths(m, rows, 60); !slices.Equal(got, []int{0, 4, 4, 4, 0, 0}) {
+		t.Fatalf("widths %v", got)
 	}
 }

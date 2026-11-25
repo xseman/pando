@@ -178,7 +178,7 @@ checkout.
   click on one opens the session. The pointer over one, or over its session,
   shows the model and effort it runs on: a claude, codex, grok, copilot, agy
   or gemini session, and the subagents of the first three. Above it the tip
-  names the agent and its profile on the chip the session's row shows, or
+  names the agent and its profile in the color the session's row shows, or
   `claude · default` on the agent's own.
 - The recurring jobs a claude, copilot, grok or agy session set up for itself
   (`/loop`, `/every`, a cron) list under its row too, on `↻`: the cadence
@@ -498,8 +498,10 @@ asked for: opening the Usage tab, `r`, the 15-minute check, or a change of
 `profile_switch` or `profile_switch_at`.
 
 A session running in a profile other than its agent's default says which, in
-Sessions on a chip after its name and in the terminal's title. Each profile's
-chip has its own color, by its place among the agent's profiles in Usage.
+Sessions in a column before its name and in the terminal's title. Each
+profile has its own color, by its place among the agent's profiles in Usage;
+the column is there only where a session listed with others runs in a
+profile. A narrow column shows only the profile's first letter.
 
 _Move to Profile…_ in a session's menu moves a running claude session: the
 agent ends and continues the same conversation under the other profile, whose

@@ -172,10 +172,10 @@ re-roots Explorer and Source Control to its worktree.
 ▾ ◐ repo +⎇ New Worktree  project: most demanding session's glyph (· none), button (hover)
    ⌂ main + New Session  ↺ Resume ▥ 2  the project's own checkout, buttons (hover; ▥ Split Sessions; one that does not fit before the count is left out), session count
  ⊙ ├─ ◐ claude · fix   running ✕       ⊙ pinned, ✕ kills it (hover)
-   │  ↳ Explore · Trace tabs        a subagent it runs (agSub): ↑↓ walk past, a click is its session's; its tip, and a session's, the model and effort it runs on (claude, codex, grok, copilot, agy, gemini), under the agent and its profile on the row's chip (harnessOf)
+   │  ↳ Explore · Trace tabs        a subagent it runs (agSub): ↑↓ walk past, a click is its session's; its tip, and a session's, the model and effort it runs on (claude, codex, grok, copilot, agy, gemini), under the agent and its profile in the row's color (harnessOf)
    │  ↻ */5 * * * * · Check CI      a recurring job its agent set up (agSub, `job`): as a subagent's row, the cadence and the prompt's first line
    └─ ○ shell            3h   idle since (shortAgo); a shell says shell, other states their word
-   └─ ○ pr-737 work      2m   the profile it runs in off its agent's default (profileOf) on a chip after the name in its color by its place in Usage (profileChip, profileColor), its first letter where it would cut the name, none where that would too
+   └─ ○ work pr-737      2m   the profile it runs in off its agent's default (profileOf) in its color by its place in Usage, no fill (profileChip, profileColor), in a column before the name as wide as the longest profile among the sessions listed together, none where they all run on the default (profileWidths); first letters where the whole would leave a name under 12 cells
    ⑂ feat/x       1 ✕   linked worktree (dimmed), ✕ deletes it (hover)
    └─ ○ shell          idle   no Updated yet
 ──────────────────────────  a rule over every open heading but the first (withGaps)
