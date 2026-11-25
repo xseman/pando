@@ -1720,19 +1720,28 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			status = m.runsAt(r, status)
 		}
 
-		// The profile it runs in, off its agent's default: its first letter
-		// where the whole one would cut the session's name.
+		// The profile it runs in, off its agent's default, on a chip in its
+		// color after the name: its first letter where the whole one would
+		// cut the session's name, none where that would too. Its tip names it.
+		chip := make([]seg, 0, 3) // on the stack, room for the title after it: rows are drawn every frame
+
 		if p := m.profileOf(&r.s); p != "" {
-			if 8+ansi.StringWidth(conn)+ansi.StringWidth(glyph)+ansi.StringWidth(sessionName(r.s))+ansi.StringWidth(p)+ansi.StringWidth(status) > rw { // 8: the blanks and " · " around them
-				p = string([]rune(cmp.Or(strings.TrimLeft(p, "."), p))[:1])
+			label := m.profileChip(r.s.Conversation.Agent, p)
+			used := 3 + ifElse(m.sess == r.s.ID, 2, 0) + ansi.StringWidth(conn+glyph+sessionName(r.s)) + 1 + ansi.StringWidth(status) + 2 // the gutter, the name's plate, the blank before the chip, the status's blanks
+
+			if used+ansi.StringWidth(label.s) > rw {
+				label.s = " " + string([]rune(cmp.Or(strings.TrimLeft(p, "."), p))[:1]) + " "
 			}
 
-			status = p + " · " + status
+			if used+ansi.StringWidth(label.s) <= rw {
+				chip = append(chip, sg(" ", dim), label)
+			}
 		}
 
 		// A name the row cuts, at 32 cells or at the column's edge, shows
 		// whole in a tip, over the model its agent runs on.
 		g, after, right := m.spin(glyph, r.s), titleAfter(r.s), " "+status+" "
+		chipW := segsWidth(chip)
 
 		var plate string
 		if needs && strings.HasSuffix(status, word) { // grouped by State its status is a time: no plate
@@ -1750,7 +1759,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 
 		if y == hover && !onPin && !onKill {
 			tip := m.harnessOf(&r.s) + "\n" + runsOn(r.s.Model, r.s.Effort)
-			if full := fullName(r.s); full != sessionName(r.s) || 3+ansi.StringWidth(conn+g+full+after+right) > rw {
+			if full := fullName(r.s); full != sessionName(r.s) || 3+chipW+ansi.StringWidth(conn+g+full+after+right) > rw {
 				tip = full + after + "\n" + tip
 			}
 
@@ -1780,7 +1789,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		if m.flat() && !r.pinned && r.ws.Path != "" {
 			lead := " " + wtGlyph(r.ws).s() + " "
 			name := wsName(r.ws)
-			room := min(20, rw-3-12-ansi.StringWidth(conn+g+lead+right)) // the gutter, the name's 12
+			room := min(20, rw-3-12-chipW-ansi.StringWidth(conn+g+lead+right)) // the gutter, the name's 12
 
 			if room >= 6 {
 				where = []seg{sg(lead+ansi.Truncate(name[strings.LastIndex(name, "/")+1:], room, "…"), fg(m.wtColor(r.ws)))}
@@ -1797,7 +1806,7 @@ func (a *agents) lines(m *Model, w, h int) []string {
 			ends = append(where, ends...)
 		}
 
-		return row(rw, bg, append(left, sg(after, nameSt)), ends...)
+		return row(rw, bg, append(left, append(chip, sg(after, nameSt))...), ends...)
 	}
 
 	var out []string
@@ -2494,13 +2503,75 @@ func (m *Model) profileOf(s *proto.Session) string {
 }
 
 // harnessOf is a tip's line of the agent session s runs and the profile it
-// runs in, "claude · work"; "" for a session that runs none.
+// runs in: the profile's chip as the session's row draws it, "claude  work ",
+// and "claude · default" on its agent's own; "" for a session that runs none.
 func (m *Model) harnessOf(s *proto.Session) string {
 	if s.Conversation == nil {
 		return ""
 	}
 
-	return s.Conversation.Agent + " · " + cmp.Or(m.profileOf(s), "default")
+	agent := s.Conversation.Agent
+
+	p := m.profileOf(s)
+	if p == "" {
+		return agent + " · default"
+	}
+
+	chip := m.profileChip(agent, p)
+
+	return agent + " " + chip.st.Render(chip.s)
+}
+
+// profileColor is the color agent's profile name is drawn in on a session's
+// row: one per place among the agent's accounts as Usage orders them, its
+// default left out, so two profiles differ while the colors last; the
+// picker's order for a profile Usage does not list.
+func (m *Model) profileColor(agent, name string) color.Color {
+	var names []string
+
+	for _, a := range m.usage.Accounts {
+		if a.Agent == agent && len(a.Env) > 0 {
+			names = append(names, a.Name)
+		}
+	}
+
+	if !slices.Contains(names, name) {
+		names = nil
+		for _, p := range m.profiles(agent)[1:] {
+			names = append(names, p.name)
+		}
+	}
+
+	colors := []color.Color{pal.accent, pal.modified, pal.ok, pal.conflict}
+	i := max(slices.Index(names, name), 0)
+
+	return colors[i%len(colors)]
+}
+
+// profileChip is agent's profile name as a session's row shows it: in its
+// color (profileColor) on a fill of it, the color alone on the row's
+// background in an ANSI palette. Every frame asks: the answer is kept until
+// state, sessions, Usage or the background come again.
+func (m *Model) profileChip(agent, name string) seg {
+	key := [2]string{agent, name}
+	if chip, ok := m.chips[key]; ok {
+		return chip
+	}
+
+	c := m.profileColor(agent, name)
+	chip := sg(" "+name+" ", fg(c))
+
+	if fill := m.tint(c, 15); fill != nil {
+		chip = sgOwn(chip.s, chip.st.Background(fill))
+	}
+
+	if m.chips == nil {
+		m.chips = map[[2]string]seg{}
+	}
+
+	m.chips[key] = chip
+
+	return chip
 }
 
 // runsIn is profileOf's answer, worked out.
@@ -4137,7 +4208,7 @@ func (m *Model) tabGlyph(s proto.Session) (string, color.Color) {
 }
 
 // tint is c percent of the way from the terminal's background to it: at 7 a
-// session tab's fill, its glyph's color much softer.
+// session tab's fill, its glyph's color much softer, at 15 a profile's chip.
 // nil for a color that is not RGB, an ANSI palette's.
 func (m *Model) tint(c color.Color, percent uint32) color.Color {
 	bg := hex(ifElse(pal.light, "#ffffff", "#000000"))

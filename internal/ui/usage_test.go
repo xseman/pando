@@ -592,30 +592,30 @@ func TestProfileShown(t *testing.T) {
 	}
 
 	s.Env, m.profileOn = append(s.Env, workEnv...), nil // as a sessions message does
-	m.st.Settings.Right, m.st.Settings.WidthR = proto.Columns{{Views: []string{"agents"}}}, 45
+	m.st.Settings.Right, m.st.Settings.WidthR = proto.Columns{{Views: []string{"agents"}}}, 47
 	m.resize()
 
 	if got := m.profileOf(s); got != "work" {
 		t.Fatalf("in a config no profile names it says %q", got)
 	}
 
-	if got := m.harnessOf(s); got != "claude · work" {
-		t.Fatalf("its tip says %q", got)
+	if got := m.harnessOf(s); ansi.Strip(got) != "claude  work " || got == ansi.Strip(got) {
+		t.Fatalf("its tip says %q, not on the row's chip", got)
 	}
 
 	if !strings.HasSuffix(m.mainTitle(), " · work") {
 		t.Fatalf("title %q", m.mainTitle())
 	}
 
-	if !strings.Contains(ansi.Strip(m.View().Content), "work · ") {
-		t.Fatal("the session's row does not say its profile")
+	if !strings.Contains(ansi.Strip(m.View().Content), sessionName(*s)+"   work ") { // the name on its plate, a blank, the chip
+		t.Fatal("the session's row does not say its profile on a chip after its name")
 	}
 
 	// A name the whole profile would cut keeps its room: the profile shrinks
 	// to its first letter.
 	s.Name = "a-session-name-of-26-cells"
 
-	if v := ansi.Strip(m.View().Content); !strings.Contains(v, s.Name) || !strings.Contains(v, " w · ") {
+	if v := ansi.Strip(m.View().Content); !strings.Contains(v, s.Name+"   w ") {
 		t.Fatal("a long name is cut for the profile")
 	}
 
@@ -687,5 +687,25 @@ func TestUsageDragReorder(t *testing.T) {
 
 	if !slices.Equal(names(), original) {
 		t.Fatalf("alt+down stays among its agent's: %v", names())
+	}
+}
+
+// TestProfileChip holds a profile's chip on a session's row: its color by
+// its place among its agent's accounts in Usage, so two profiles differ and
+// a reorder moves the color.
+func TestProfileChip(t *testing.T) {
+	m := usageModel(t)
+	rocket := []string{"CLAUDE_CONFIG_DIR=/home/u/.claude-rocket"}
+	m.usage.Accounts = append(m.usage.Accounts, proto.Account{Agent: "claude", Name: "rocket", Env: rocket})
+
+	work := m.profileColor("claude", ".claude-work")
+	if work == m.profileColor("claude", "rocket") {
+		t.Fatal("two profiles share a color")
+	}
+
+	m.reorderProfile(3, 1)
+
+	if m.profileColor("claude", "rocket") != work {
+		t.Fatal("the color does not follow the order in Usage")
 	}
 }

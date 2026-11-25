@@ -170,6 +170,7 @@ type Model struct {
 	wss       []proto.Workspace
 	sessions  []proto.Session
 	profileOn map[string]string // per session ID, the profile its row and title name (profileOf); nil since state or sessions last came
+	chips     map[[2]string]seg // per agent and profile, its chip's style on a session's row (profileChip); nil since state, sessions, Usage or the background last came
 	ws, sess  string
 	focus     int                  // a column index or onMain
 	recent    []int                // per view: when it was last shown; a column shows its most recent tab
@@ -2533,7 +2534,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.BackgroundColorMsg:
-		m.dark, m.bg = msg.IsDark(), hexColor(msg.Color)
+		m.dark, m.bg, m.chips = msg.IsDark(), hexColor(msg.Color), nil // the palette and the chips' fills follow it
 		m.look()
 		m.scm.styleInput(m.dark)
 		m.pv.raw = ""
@@ -2615,7 +2616,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.onDrafts(msg)
 	case stateMsg:
 		full, sel, active := m.st.Settings.DiffFull, m.ag.selected(m), m.st.Active
-		m.st, m.profileOn = proto.State(msg), nil
+		m.st, m.profileOn, m.chips = proto.State(msg), nil, nil
 		m.dropUsageTab()
 		m.ag.follow(m, sel) // another TUI's pin adds rows above it
 		m.look()
@@ -2676,7 +2677,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := m.sound(m.soundFor(msg))
 		sel, prev := m.ag.selected(m), m.sessions
 
-		m.sessions, m.profileOn = msg, nil
+		m.sessions, m.profileOn, m.chips = msg, nil, nil
 		cmd = tea.Batch(cmd, m.ag.unfoldRunning(m, prev))
 
 		at := m.ag.l.sel

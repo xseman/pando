@@ -75,7 +75,7 @@ func (m *Model) account(agent string, env []string) (proto.Account, bool) {
 // new sessions start with is near a limit and another has room.
 func (m *Model) onUsage(u proto.Usage) tea.Cmd {
 	had := m.usage.Offer
-	m.usage = u
+	m.usage, m.chips = u, nil
 	m.dropUsageTab()
 	m.us.l.clamp(len(m.us.rows(m)), m.bodyH(viewUsage))
 
@@ -925,7 +925,7 @@ func (v *usageView) shift(m *Model, d int) tea.Cmd {
 func (m *Model) reorderProfile(from, to int) tea.Cmd {
 	a := m.usage.Accounts[from]
 	rest := slices.Delete(slices.Clone(m.usage.Accounts), from, from+1)
-	m.usage.Accounts = slices.Insert(rest, to, a)
+	m.usage.Accounts, m.chips = slices.Insert(rest, to, a), nil
 
 	var order [][]string
 
