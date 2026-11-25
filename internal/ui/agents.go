@@ -1723,13 +1723,15 @@ func (a *agents) lines(m *Model, w, h int) []string {
 		}
 
 		// The profile it runs in, off its agent's default, in its color in a
-		// column before the name (profileWidths), blank on the default. Its
-		// tip names it whole.
+		// column before the name (profileWidths), the default's name dimmed,
+		// blank for a shell. Its tip names it whole.
 		var chip [2]seg
 
 		switch p := m.profileOf(&r.s); {
 		case widths[i] > 0 && p != "":
 			chip = m.profileChip(r.s.Conversation.Agent, p, widths[i])
+		case widths[i] > 0 && r.s.Conversation != nil:
+			chip = m.profileChip("", m.st.ProfileName(r.s.Conversation.Agent, nil, "default"), widths[i])
 		case widths[i] > 0:
 			chip = m.profileChip("", "", widths[i])
 		}
@@ -2555,8 +2557,8 @@ type chipKey struct {
 
 // profileChip is agent's profile name on a session's row, in a column w
 // cells wide: in its color (profileColor), its first letter where the whole
-// is wider, then blanks to the column's end and one past it; the blanks alone
-// for no name. Every frame asks: the answer is kept until state, sessions,
+// is wider, then blanks to the column's end and one past it; dimmed for no
+// agent, an agent's default; the blanks alone for no name. Every frame asks: the answer is kept until state, sessions,
 // Usage or the background come again.
 func (m *Model) profileChip(agent, name string, w int) [2]seg {
 	key := chipKey{agent, name, w}
@@ -2569,8 +2571,8 @@ func (m *Model) profileChip(agent, name string, w int) [2]seg {
 		text = string([]rune(cmp.Or(strings.TrimLeft(name, "."), name))[:1])
 	}
 
-	label := sg(text, plain)
-	if name != "" {
+	label := sg(text, dim)
+	if agent != "" {
 		label.st = fg(m.profileColor(agent, name))
 	}
 
@@ -2587,21 +2589,30 @@ func (m *Model) profileChip(agent, name string, w int) [2]seg {
 
 // profileWidths is per row of rows the width of the column of profiles
 // before a session's name: the longest profile a session runs in among the
-// ones listed together (a run of session rows and the rows under them), 1
+// ones listed together (a run of session rows and the rows under them) or
+// the name of an agent's default among them where one does, 1
 // for first letters with profile_initial or where the whole would leave a
 // name under 12 cells in a column w wide; 0 where none of them runs in one.
 func (a *agents) profileWidths(m *Model, rows []agRow, w int) []int {
 	out := make([]int, len(rows))
 
 	for start := 0; start < len(rows); {
-		end, pw := start, 0
+		end, pw, dw := start, 0, 0
 
 		for end < len(rows) && slices.Contains([]int{agSession, agSub, agPlace}, rows[end].kind) {
-			if rows[end].kind == agSession {
-				pw = max(pw, ansi.StringWidth(m.profileOf(&rows[end].s)))
+			if s := &rows[end].s; rows[end].kind == agSession && s.Conversation != nil {
+				if p := m.profileOf(s); p != "" {
+					pw = max(pw, ansi.StringWidth(p))
+				} else {
+					dw = max(dw, ansi.StringWidth(m.st.ProfileName(s.Conversation.Agent, nil, "default")))
+				}
 			}
 
 			end++
+		}
+
+		if pw > 0 {
+			pw = max(pw, dw)
 		}
 
 		if pw > 1 && (m.st.Settings.Initial || w < 30+pw) { // 30: the gutter, a connector, the glyph, a blank, a name's 12, a status's 9

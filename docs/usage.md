@@ -501,7 +501,7 @@ A session running in a profile other than its agent's default says which, in
 Sessions in a column before its name and in the terminal's title. Each
 profile has its own color, by its place among the agent's profiles in Usage;
 the column is there only where a session listed with others runs in a
-profile. `profile_initial` (Settings, _Profile initial only_) shows only the
+profile, and names the others' default there, dimmed. `profile_initial` (Settings, _Profile initial only_) shows only the
 profile's first letter; a narrow column does too.
 
 _Move to Profile…_ in a session's menu moves a running claude session: the

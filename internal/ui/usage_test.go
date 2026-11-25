@@ -626,7 +626,7 @@ func TestProfileShown(t *testing.T) {
 		t.Fatal("a narrow column keeps the whole profile")
 	}
 
-	// A session on its agent's default has the column blank: the names line up.
+	// A session on its agent's default names it in the column: the names line up.
 	other := *s
 	other.ID, other.Name, other.Env = "s2", "other", nil
 	m.sessions, m.profileOn = append(m.sessions, other), nil
@@ -645,6 +645,10 @@ func TestProfileShown(t *testing.T) {
 
 	if at["other"]+1 != at[sessionName(*s)] { // the plate's blank where the other's name starts
 		t.Fatalf("names at %v", at)
+	}
+
+	if !strings.Contains(ansi.Strip(m.View().Content), " default other ") {
+		t.Fatal("the session on the default does not say default")
 	}
 
 	s = &m.sessions[0]
@@ -760,8 +764,8 @@ func TestProfileRenamed(t *testing.T) {
 }
 
 // TestProfileWidths holds the column of profiles before sessions' names: as
-// wide as the longest profile among the sessions listed together, none for a
-// run of sessions on their agent's default.
+// wide as the longest profile among the sessions listed together, "default"
+// included, none for a run of sessions on their agent's default.
 func TestProfileWidths(t *testing.T) {
 	m := usageModel(t)
 	work := m.sessions[0]
@@ -778,7 +782,7 @@ func TestProfileWidths(t *testing.T) {
 		{kind: agSession, s: other},
 	}
 
-	if got := m.ag.profileWidths(m, rows, 60); !slices.Equal(got, []int{0, 4, 4, 4, 0, 0}) {
+	if got := m.ag.profileWidths(m, rows, 60); !slices.Equal(got, []int{0, 7, 7, 7, 0, 0}) {
 		t.Fatalf("widths %v", got)
 	}
 }
