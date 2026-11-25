@@ -2588,8 +2588,8 @@ func (m *Model) profileChip(agent, name string, w int) [2]seg {
 // profileWidths is per row of rows the width of the column of profiles
 // before a session's name: the longest profile a session runs in among the
 // ones listed together (a run of session rows and the rows under them), 1
-// for first letters where the whole would leave a name under 12 cells in a
-// column w wide; 0 where none of them runs in one.
+// for first letters with profile_initial or where the whole would leave a
+// name under 12 cells in a column w wide; 0 where none of them runs in one.
 func (a *agents) profileWidths(m *Model, rows []agRow, w int) []int {
 	out := make([]int, len(rows))
 
@@ -2604,7 +2604,7 @@ func (a *agents) profileWidths(m *Model, rows []agRow, w int) []int {
 			end++
 		}
 
-		if pw > 1 && w < 30+pw { // 30: the gutter, a connector, the glyph, a blank, a name's 12, a status's 9
+		if pw > 1 && (m.st.Settings.Initial || w < 30+pw) { // 30: the gutter, a connector, the glyph, a blank, a name's 12, a status's 9
 			pw = 1
 		}
 

@@ -183,6 +183,7 @@ func settingsTable() []setting {
 				return m.setSettings(map[string]any{"profile_switch_at": pick(switchAts, switchHint, v)})
 			},
 		},
+		checkbox("Sessions", "Usage", "Profile initial only", "profile_initial", func(m *Model) bool { return m.st.Settings.Initial }),
 	}
 }
 

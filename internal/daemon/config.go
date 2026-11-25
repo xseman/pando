@@ -274,6 +274,7 @@ func (c *config) encode() []byte {
 		"limit (50 to 100): \"notify\" offers the profile with the most room, \"auto\" makes it the one\n"+
 		"new sessions start with, \"off\" does neither. Running sessions stay where they are.", "profile_switch", s.Switch)
 	kv("", "profile_switch_at", s.SwitchAt)
+	kv("A session's profile in Sessions by its first letter only; its tip names it whole.", "profile_initial", s.Initial)
 	b.WriteString("\n# Sidebar columns per side, from the screen edge toward main, each with its tabs\n" +
 		"# and optional width. Views: \"files\", \"git\", \"agents\", \"search\", \"session\"; unlisted\n" +
 		"# views join the left column next to main.\n")

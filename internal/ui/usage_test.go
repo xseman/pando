@@ -611,9 +611,15 @@ func TestProfileShown(t *testing.T) {
 		t.Fatal("the session's row does not say its profile on a chip before its name")
 	}
 
-	// A column a whole profile would leave a name too little room in shows
-	// its first letter.
-	m.st.Settings.WidthR = 32
+	// profile_initial, or a column a whole profile would leave a name too
+	// little room in, puts its first letter on the chip.
+	m.st.Settings.Initial = true
+
+	if !strings.Contains(ansi.Strip(m.View().Content), " w  "+sessionName(*s)+" ") {
+		t.Fatal("profile_initial does not cut the chip to a letter")
+	}
+
+	m.st.Settings.Initial, m.st.Settings.WidthR = false, 32
 	m.resize()
 
 	if !strings.Contains(ansi.Strip(m.View().Content), " w  "+sessionName(*s)+" ") {

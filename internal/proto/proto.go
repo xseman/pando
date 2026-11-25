@@ -101,6 +101,7 @@ type Settings struct {
 	Usage    bool                           `json:"usage" toml:"usage"`                         // ask each agent's service for its plan limits, with the sign-in its CLI keeps
 	Switch   string                         `json:"profile_switch" toml:"profile_switch"`       // the active profile over profile_switch_at: "off" | "notify" (offer one with room) | "auto" (new sessions start on it)
 	SwitchAt int                            `json:"profile_switch_at" toml:"profile_switch_at"` // percent used of its fullest limit, 50 to 100
+	Initial  bool                           `json:"profile_initial" toml:"profile_initial"`     // a session's row in Sessions names its profile by its first letter only
 }
 
 // Column is one sidebar column: views shown as tabs, and its width in cells
