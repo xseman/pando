@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.15.0](https://github.com/xseman/pando/compare/v0.14.0...v0.15.0) (2026-11-26)
+
+
+### Features
+
+* rename a profile in Usage ([6dcfeb3](https://github.com/xseman/pando/commit/6dcfeb3d6a7fc6f3498e22d68ba5e61906a0dbda))
+* show only a profile's first letter with profile_initial ([7fa0c88](https://github.com/xseman/pando/commit/7fa0c885ae7e4d97f53c6c300d900d9c7b3dc3de))
+* **ui:** name a session's agent and profile in its tip ([6b7fceb](https://github.com/xseman/pando/commit/6b7fcebef2aee0b054e19da7d299ca8a103c9d42))
+* **ui:** name a session's default profile in the profile column ([7796898](https://github.com/xseman/pando/commit/77968988a12174b35ac8415a8d725e2e78cf533b))
+* **ui:** name a session's profile in its color before its name ([6066501](https://github.com/xseman/pando/commit/60665012517ca4e27c2a8c34118758498d0cac74))
+* **ui:** name the agent and profile in a subagent's tip too ([54bc359](https://github.com/xseman/pando/commit/54bc3594578dee6ffdc7bbef706ba60abb9f5d42))
+* **ui:** show a session's profile on a chip after its name ([3a905ff](https://github.com/xseman/pando/commit/3a905ff0df1722a1d6f3223b3f0300b9eeecfda1))
+
+
+### Maintenance
+
+* **release:** publish the release after its assets are attached ([#28](https://github.com/xseman/pando/issues/28)) ([5018716](https://github.com/xseman/pando/commit/5018716b376a8bd325ca8169872745928ad89888))
+* **ui:** tint a color by any share, not only a tab's 7% ([e87557d](https://github.com/xseman/pando/commit/e87557df8cd4f4000d52421c880e715390261489))
+
 ## [0.14.0](https://github.com/xseman/pando/compare/v0.13.0...v0.14.0) (2026-11-24)
 
 
