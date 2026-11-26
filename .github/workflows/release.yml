@@ -71,8 +71,11 @@ jobs:
               working-directory: artifacts
               run: sha256sum pando-* > CHECKSUMS.txt
 
-            - name: Upload
+            # release-please leaves the release a draft, an immutable release takes no uploads once published.
+            - name: Upload and publish
               env:
                   GH_TOKEN: ${{ github.token }}
                   GH_REPO: ${{ github.repository }}
-              run: gh release upload "$TAG" artifacts/* --clobber
+              run: |
+                  gh release upload "$TAG" artifacts/* --clobber
+                  gh release edit "$TAG" --draft=false
